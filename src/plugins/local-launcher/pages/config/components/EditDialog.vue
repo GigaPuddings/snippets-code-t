@@ -36,7 +36,7 @@
         <div class="icon-section">
           <div class="icon-display">
             <div v-if="formData.icon" class="icon-preview has-icon">
-              <img :src="formData.icon" alt="icon" />
+              <img :src="formData.icon" :alt="$t('editDialog.icon')" />
               <div class="icon-overlay">
                 <el-button
                   link

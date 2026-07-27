@@ -297,7 +297,7 @@ const tools = computed(() => [
 const translateEngines = computed(() => [
   { value: 'google' as const, label: 'Google', short: 'G' },
   { value: 'bing' as const, label: t('translate.bingTranslate'), short: 'B' },
-  { value: 'offline' as const, label: t('translate.offlineTranslate'), short: '离' },
+  { value: 'offline' as const, label: t('translate.offlineTranslate'), short: t('translate.offlineMark') },
   { value: 'local-ai' as const, label: t('translate.localAiTranslate'), short: 'AI' }
 ])
 

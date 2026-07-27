@@ -17,7 +17,7 @@
     >
       <img
         :src="imageBlobUrl"
-        alt="贴图"
+        :alt="$t('screenshot.pin')"
         :style="imageStyle"
         @load="handleImageLoad"
         draggable="false"
@@ -87,7 +87,7 @@
             <img
               v-if="imageBlobUrl"
               :src="imageBlobUrl"
-              alt="OCR preview"
+              :alt="$t('pin.ocrPreviewAlt')"
               @load="handleImageLoad"
               draggable="false"
             />
@@ -137,7 +137,7 @@
 
       <main class="ocr-reading-surface" @mousedown.stop>
         <div v-if="showOriginalImage" class="ocr-original-image">
-          <img :src="imageBlobUrl || imageData" alt="original" />
+          <img :src="imageBlobUrl || imageData" :alt="$t('pin.originalImageAlt')" />
         </div>
         <template v-else>
           <div v-if="ocrLoading" class="ocr-state">
@@ -164,7 +164,7 @@
                 <img
                   ref="ocrPreviewImageRef"
                   :src="imageBlobUrl || imageData"
-                  alt="OCR source"
+                  :alt="$t('pin.ocrSourceAlt')"
                   @load="updateOcrPreviewImageMetrics"
                 />
                 <div
@@ -568,7 +568,7 @@ import type {
   Rect
 } from '@/plugins/screenshot/pages/screenshot/core/types';
 
-const { t, locale } = useI18n();
+const { t } = useI18n();
 
 const containerRef = ref<HTMLDivElement>();
 const ocrPreviewImageRef = ref<HTMLImageElement>();
@@ -652,7 +652,7 @@ const translateEngines = computed(() => [
   {
     value: 'offline' as const,
     label: t('translate.offlineTranslate'),
-    short: '离'
+    short: t('translate.offlineMark')
   }
 ]);
 
@@ -688,25 +688,11 @@ const currentOcrLanguageLabel = computed(() => {
   );
 });
 
-const showRecordsLabel = computed(() =>
-  translateWithFallback('pin.showRecords', '显示记录', 'Show Records')
-);
+const showRecordsLabel = computed(() => t('pin.showRecords'));
 
-const hideRecordsLabel = computed(() =>
-  translateWithFallback('pin.hideRecords', '隐藏记录', 'Hide Records')
-);
+const hideRecordsLabel = computed(() => t('pin.hideRecords'));
 
-const translationResultLabel = computed(() =>
-  translateWithFallback('pin.translationResult', '译文', 'Translation')
-);
-
-const translateWithFallback = (key: string, zhText: string, enText: string): string => {
-  const translated = t(key);
-  if (translated && translated !== key) {
-    return translated;
-  }
-  return String(locale.value).toLowerCase().startsWith('zh') ? zhText : enText;
-};
+const translationResultLabel = computed(() => t('pin.translationResult'));
 
 const updateFloatingMenuStyle = (
   anchor: HTMLElement | undefined,
@@ -962,7 +948,7 @@ const getOcrOverlayMeasureContext = (): CanvasRenderingContext2D => {
   ocrOverlayMeasureCanvas ||= document.createElement('canvas');
   const context = ocrOverlayMeasureCanvas.getContext('2d');
   if (!context) {
-    throw new Error('无法创建 OCR 文字测量画布');
+    throw new Error(t('pin.ocrMeasureFailed'));
   }
   return context;
 };
@@ -1520,7 +1506,13 @@ const handleTranslateOcr = async () => {
     logger.error('[PIN窗口] 翻译失败', error);
     const errMsg = error instanceof Error ? error.message : String(error);
     if (errMsg !== '翻译已取消') {
-      modal.error(errMsg || t('pin.translateFailed'));
+      const friendlyErrors = [
+        t('pin.offlineModelNotDownloaded'),
+        t('pin.offlineModelNotActivated')
+      ];
+      modal.error(
+        friendlyErrors.includes(errMsg) ? errMsg : t('pin.translateFailed')
+      );
     }
   } finally {
     isTranslating.value = false;
@@ -1536,12 +1528,12 @@ const ensureOfflineTranslatorReadyIfNeeded = async () => {
   if (cacheInfo.isCached) {
     await warmupOfflineTranslator();
   } else {
-    throw new Error('离线翻译模型未下载，请在设置-翻译配置中下载模型');
+    throw new Error(t('pin.offlineModelNotDownloaded'));
   }
 
   const backendActivated = await invoke<boolean>('get_offline_model_activated');
   if (!backendActivated) {
-    throw new Error('离线翻译模型未激活，请在设置-翻译配置中激活模型');
+    throw new Error(t('pin.offlineModelNotActivated'));
   }
 };
 

@@ -390,7 +390,7 @@ const handleSubmit = () => {
   emit('submit', {
     id: props.editData?.id || '',
     time: `${formData.value.hour}:${formData.value.minute}`,
-    title: formData.value.title.trim() || '消息提醒',
+    title: formData.value.title.trim() || t('alarm.defaultTitle'),
     weekdays: weeks,
     reminder_time: formData.value.reminderTime,
     is_active: true,

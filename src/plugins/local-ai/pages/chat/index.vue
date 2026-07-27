@@ -571,7 +571,7 @@
             </button>
           </div>
           <div class="input-toolbar-right">
-            <span class="input-hint">Enter · Shift + Enter</span>
+            <span class="input-hint">{{ t('localAi.inputHint') }}</span>
             <button
               v-if="currentStreamRequestId"
               class="send-btn send-btn--stop"

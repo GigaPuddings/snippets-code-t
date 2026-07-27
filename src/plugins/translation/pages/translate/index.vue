@@ -366,7 +366,8 @@ const translateWithEngine = async (engine: string, generation: number) => {
           await warmupOfflineTranslator();
           logger.info('[翻译窗口] 离线翻译懒加载：模型加载完成');
         } else {
-          throw new Error('离线翻译模型未下载，请在设置中下载模型');
+          result.text = t('translate.offlineModelUnavailable');
+          return;
         }
       }
 
@@ -414,7 +415,7 @@ const translateWithEngine = async (engine: string, generation: number) => {
       errorMsg.includes('未激活') ||
       errorMsg.includes('运行时未安装')
     ) {
-      result.text = errorMsg;
+      result.text = t('translate.offlineUnavailable');
     } else {
       result.text = t('translate.translateFailed');
     }
@@ -829,7 +830,7 @@ onUnmounted(() => {
                 class="engine-icon"
                 alt="Bing"
               />
-              <span v-else-if="result.engine === 'offline'" class="offline-icon">离</span>
+              <span v-else-if="result.engine === 'offline'" class="offline-icon">{{ $t('translate.offlineMark') }}</span>
               <span v-else class="offline-icon ai-icon">AI</span>
               <span>{{ getEngineName(result.engine) }}</span>
             </div>

@@ -21,7 +21,7 @@
         @mousedown.stop
         @click="closeWindow"
         class="close-btn"
-        aria-label="Close"
+        :aria-label="$t('common.close')"
       >
         <Close :size="18" />
       </button>
@@ -318,10 +318,10 @@
 
         <!-- 计算调试信息 -->
         <div class="section" v-if="config.schedule_type === 'SunBased'">
-          <h2 class="section-title">计算依据</h2>
+          <h2 class="section-title">{{ $t('darkMode.sunCalcTitle') }}</h2>
           <div class="inset-card location-card">
             <div class="info-row">
-              <span class="info-label">来源</span>
+              <span class="info-label">{{ $t('darkMode.sunCalcSource') }}</span>
               <span class="info-value">{{ sunCalcSourceLabel }}</span>
             </div>
             <div
@@ -331,7 +331,7 @@
                 sunCalcDebug?.longitude !== undefined
               "
             >
-              <span class="info-label">计算坐标</span>
+              <span class="info-label">{{ $t('darkMode.sunCalcCoordinates') }}</span>
               <span class="info-value">
                 {{ Number(sunCalcDebug?.latitude).toFixed(4) }},
                 {{ Number(sunCalcDebug?.longitude).toFixed(4) }}
@@ -341,15 +341,15 @@
               class="info-row"
               v-if="sunCalcDebug?.timezoneOffset !== undefined"
             >
-              <span class="info-label">时区偏移(分钟)</span>
+              <span class="info-label">{{ $t('darkMode.sunCalcTimezoneOffset') }}</span>
               <span class="info-value">{{ sunCalcDebug?.timezoneOffset }}</span>
             </div>
             <div class="info-row" v-if="sunCalcDebug?.sunset">
-              <span class="info-label">用于切换的日落时间</span>
+              <span class="info-label">{{ $t('darkMode.sunCalcSunset') }}</span>
               <span class="info-value">{{ sunCalcDebug?.sunset }}</span>
             </div>
             <div class="info-row" v-if="sunCalcDebug?.error">
-              <span class="info-label">错误</span>
+              <span class="info-label">{{ $t('darkMode.sunCalcError') }}</span>
               <span class="info-value">{{ sunCalcDebug?.error }}</span>
             </div>
           </div>
@@ -495,9 +495,11 @@ const isDark = computed(() => currentTheme.value);
 const sunCalcSourceLabel = computed(() => {
   const source = sunCalcDebug.value?.source || '';
   if (source.startsWith('manual:'))
-    return `手动位置（${source.replace('manual:', '')}）`;
+    return t('darkMode.sunCalcManualLocation', {
+      city: source.replace('manual:', '')
+    });
   if (source.startsWith('ip:'))
-    return `自动定位（${source.replace('ip:', '')}）`;
+    return t('darkMode.sunCalcAutoLocation', { city: source.replace('ip:', '') });
   return source || '-';
 });
 

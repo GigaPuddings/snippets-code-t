@@ -183,9 +183,9 @@
       <template v-if="gitSettings.enabled">
         <section v-if="gitStatus?.available_branches?.length" class="summarize-section">
           <div class="summarize-label">
-            <div class="summarize-label-title">同步分支</div>
+            <div class="summarize-label-title">{{ $t('settings.gitSync.branch.title') }}</div>
             <div class="summarize-label-desc">
-              主分支固定为 main，检测到其他分支时可在这里切换
+              {{ $t('settings.gitSync.branch.desc') }}
             </div>
           </div>
           <div class="summarize-input-wrapper">
@@ -198,7 +198,7 @@
               <el-option
                 v-for="branch in gitStatus.available_branches"
                 :key="branch"
-                :label="branch === 'main' ? `${branch}（主分支）` : branch"
+                :label="getBranchLabel(branch)"
                 :value="branch"
               />
             </el-select>
@@ -260,7 +260,7 @@
 
         <!-- 第二部分：同步操作 -->
         <div class="settings-section-title">
-          {{ $t('settings.gitSync.status.section.sync') || '同步操作' }}
+          {{ $t('settings.gitSync.status.section.sync') }}
         </div>
 
         <!-- 手动同步按钮 -->
@@ -292,11 +292,11 @@
         <section class="git-records-section">
           <div class="git-records-head">
             <div>
-              <div class="summarize-label-title">Git 记录</div>
-              <div class="summarize-label-desc">最近 10 条提交，可查看同步状态并恢复单个文件</div>
+              <div class="summarize-label-title">{{ $t('settings.gitSync.records.title') }}</div>
+              <div class="summarize-label-desc">{{ $t('settings.gitSync.records.desc') }}</div>
             </div>
             <CustomButton size="small" :loading="isLoadingRecords" @click="loadGitRecords">
-              刷新
+              {{ $t('settings.gitSync.records.refresh') }}
             </CustomButton>
           </div>
 
@@ -304,7 +304,7 @@
             <div v-for="record in gitRecords" :key="record.commit_hash" class="git-record-item">
               <div class="git-record-main">
                 <span class="git-record-state" :class="{ synced: record.synced }">
-                  {{ record.synced ? '已同步' : '待推送' }}
+                  {{ record.synced ? $t('settings.gitSync.records.synced') : $t('settings.gitSync.records.pendingPush') }}
                 </span>
                 <span class="git-record-message" :title="record.message">{{ record.message }}</span>
                 <span class="git-record-time">{{ record.time }}</span>
@@ -332,7 +332,7 @@
             </div>
           </div>
           <div v-else class="git-records-empty">
-            {{ isLoadingRecords ? '正在加载记录...' : (gitRecordsLoaded ? '暂无 Git 记录' : '点击刷新查看最近 10 条提交') }}
+            {{ isLoadingRecords ? $t('settings.gitSync.records.loading') : (gitRecordsLoaded ? $t('settings.gitSync.records.empty') : $t('settings.gitSync.records.loadHint')) }}
           </div>
         </section>
       </template>
@@ -353,12 +353,12 @@
 
     <SelectConfirmDialog
       v-model="branchSelectVisible"
-      title="选择同步分支"
+      :title="$t('settings.gitSync.branch.selectTitle')"
       :message="branchSelectMessage"
       :options="branchSelectOptions"
       :default-value="selectedBranch"
-      confirm-text="切换并同步"
-      cancel-text="取消"
+      :confirm-text="$t('settings.gitSync.branch.switchAndSync')"
+      :cancel-text="$t('common.cancel')"
       :loading="isPulling"
       @confirm="handleBranchSelectConfirm"
       @cancel="branchSelectVisible = false"
@@ -366,10 +366,10 @@
 
     <ConfirmChoiceDialog
       v-model="branchOverwriteVisible"
-      title="切换分支前需要处理未跟踪文件"
+      :title="$t('settings.gitSync.branch.overwriteTitle')"
       :message="branchOverwriteMessage"
-      primary-text="使用目标分支文件"
-      secondary-text="取消"
+      :primary-text="$t('settings.gitSync.branch.useTargetFiles')"
+      :secondary-text="$t('common.cancel')"
       type="warning"
       @primary="handleBranchOverwriteConfirm"
       @secondary="branchOverwriteVisible = false"
@@ -378,10 +378,10 @@
 
     <ConfirmChoiceDialog
       v-model="restoreConfirmVisible"
-      title="恢复文件"
+      :title="$t('settings.gitSync.records.restoreTitle')"
       :message="restoreConfirmMessage"
-      primary-text="确认恢复"
-      secondary-text="取消"
+      :primary-text="$t('settings.gitSync.records.restoreConfirm')"
+      :secondary-text="$t('common.cancel')"
       type="warning"
       @primary="handleRestoreConfirm"
       @secondary="restoreConfirmVisible = false"
@@ -430,19 +430,19 @@ const pendingFilesList = computed(() => {
 const getSyncStatusLabel = (state: string) => {
   switch (state) {
     case 'syncing':
-      return t('settings.gitSync.status.syncing') || '同步中';
+      return t('settings.gitSync.status.syncing');
     case 'synced':
-      return t('settings.gitSync.status.synced') || '已同步';
+      return t('settings.gitSync.status.synced');
     case 'has_changes':
-      return t('settings.gitSync.status.hasChanges') || '有待同步';
+      return t('settings.gitSync.status.hasChanges');
     case 'error':
-      return t('settings.gitSync.status.error') || '同步出错';
+      return t('settings.gitSync.status.error');
     case 'idle':
-      return t('settings.gitSync.status.idle') || '空闲';
+      return t('settings.gitSync.status.idle');
     case 'disabled':
-      return t('settings.gitSync.status.ready') || '就绪';
+      return t('settings.gitSync.status.ready');
     default:
-      return t('settings.gitSync.status.ready') || '就绪';
+      return t('settings.gitSync.status.ready');
   }
 };
 
@@ -486,30 +486,45 @@ const isLoadingContribution = ref(false);
 
 type ContributionCell = GitContributionDay | null;
 
+const getBranchLabel = (branch: string) => (
+  branch === 'main'
+    ? t('settings.gitSync.branch.mainLabel', { branch })
+    : branch
+);
+
 const branchSelectOptions = computed(() => {
   const branches = branchSelection.value?.available_branches?.length
     ? branchSelection.value.available_branches
     : ['main'];
   return branches.map((branch) => ({
-    label: branch === 'main' ? `${branch}（主分支）` : branch,
+    label: getBranchLabel(branch),
     value: branch
   }));
 });
 
 const branchSelectMessage = computed(() => {
-  if (!branchSelection.value) return '请选择要同步的分支';
-  return `${branchSelection.value.reason}\n当前分支：${branchSelection.value.current_branch || '未知'}；建议选择：${branchSelection.value.recommended_branch}`;
+  if (!branchSelection.value) return t('settings.gitSync.branch.selectMessageEmpty');
+  return t('settings.gitSync.branch.selectMessage', {
+    current: branchSelection.value.current_branch || t('settings.gitSync.status.unknown'),
+    recommended: branchSelection.value.recommended_branch
+  });
 });
 
 const branchOverwriteMessage = computed(() => {
   const files = pendingUntrackedFiles.value.map((file) => `- ${file}`).join('\n');
-  return `目标分支会覆盖以下未跟踪文件。选择“使用目标分支文件”会先删除这些本地未跟踪文件，再切换到 ${pendingBranchSwitch.value || '目标'} 分支。\n\n${files}`;
+  return t('settings.gitSync.branch.overwriteMessage', {
+    branch: pendingBranchSwitch.value || t('settings.gitSync.branch.targetBranch'),
+    files
+  });
 });
 
 const restoreConfirmMessage = computed(() => {
   const target = pendingRestore.value;
   if (!target) return '';
-  return `确认将文件恢复到这条记录之前的版本？\n\n- 文件：${target.file.file_path}\n- 记录：${target.record.short_hash} ${target.record.message}\n\n当前文件内容会被覆盖，恢复后会出现在待同步列表中。`;
+  return t('settings.gitSync.records.restoreMessage', {
+    file: target.file.file_path,
+    record: `${target.record.short_hash} ${target.record.message}`
+  });
 });
 
 const contributionYears = computed(() => {
@@ -541,11 +556,15 @@ const contributionDateRangeText = computed(() => {
   return `${activity.start_date} - ${activity.end_date}`;
 });
 
-const contributionWeekdayLabels = computed(() => (
-  locale.value.startsWith('zh')
-    ? ['', '一', '', '三', '', '五', '']
-    : ['', 'Mon', '', 'Wed', '', 'Fri', '']
-));
+const contributionWeekdayLabels = computed(() => [
+  '',
+  t('settings.gitSync.contribution.weekdayMon'),
+  '',
+  t('settings.gitSync.contribution.weekdayWed'),
+  '',
+  t('settings.gitSync.contribution.weekdayFri'),
+  ''
+]);
 
 const contributionWeeks = computed<ContributionCell[][]>(() => {
   const activity = contributionActivity.value;
@@ -596,7 +615,7 @@ const showFriendlyError = (error: unknown) => {
   // 构建友好消息
   let friendlyMsg = `${icon} ${errorInfo.title}\n\n${errorInfo.message}`;
   if (errorMsg && !errorInfo.message.includes(errorMsg)) {
-    friendlyMsg += `\n\n详情: ${errorMsg.slice(0, 100)}${errorMsg.length > 100 ? '...' : ''}`;
+    friendlyMsg += `\n\n${t('settings.gitSync.errorDetails', { details: `${errorMsg.slice(0, 100)}${errorMsg.length > 100 ? '...' : ''}` })}`;
   }
   
   modal.msg(friendlyMsg, 'error', 'top-right');
@@ -659,7 +678,7 @@ const switchBranchWithPrompt = async (branch: string) => {
   try {
     await switchGitBranch(branch);
     await refreshStatus();
-    modal.msg(`已切换到 ${branch} 分支`, 'success', 'bottom-right');
+    modal.msg(t('settings.gitSync.branch.switched', { branch }), 'success', 'bottom-right');
     return true;
   } catch (error) {
     const untrackedFiles = extractUntrackedFilesFromError(error);
@@ -705,7 +724,7 @@ const handleBranchOverwriteConfirm = async () => {
     pendingBranchSwitch.value = '';
     await switchGitBranch(branch);
     await refreshStatus();
-    modal.msg(`已切换到 ${branch} 分支`, 'success', 'bottom-right');
+    modal.msg(t('settings.gitSync.branch.switched', { branch }), 'success', 'bottom-right');
   } catch (error) {
     logger.error('[GitSync] 处理未跟踪文件后切换分支失败', error);
     showFriendlyError(error);
@@ -813,7 +832,7 @@ const handleRestoreConfirm = async () => {
 
   try {
     await restoreGitRecordFile(target.record.commit_hash, target.file.file_path);
-    modal.msg('文件已恢复，请检查待同步记录后再推送', 'success', 'bottom-right');
+    modal.msg(t('settings.gitSync.records.restored'), 'success', 'bottom-right');
     pendingRestore.value = null;
     await refreshStatus();
     await refreshContributionIfEnabled();

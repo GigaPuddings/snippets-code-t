@@ -170,7 +170,7 @@ const isSaving = ref(false);
 const editorLineHeightDraft = ref(configurationStore.editorLineHeight);
 
 const previewPath = computed(() => {
-  const exampleName = t('settings.attachment.exampleNoteName') || '示例笔记';
+  const exampleName = t('settings.attachment.exampleNoteName');
   const exampleFile = generateExampleFilename(config.value.filenameFormat);
   return config.value.pathTemplate
     .replace('${noteFileName}', exampleName) + exampleFile;

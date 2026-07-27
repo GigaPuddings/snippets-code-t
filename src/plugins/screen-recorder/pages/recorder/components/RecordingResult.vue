@@ -2,7 +2,7 @@
   <div class="recording-result">
     <h3>{{ $t('screenRecorder.exportDone') }}</h3>
     <p>{{ result.width }} × {{ result.height }} · {{ sizeText }}</p>
-    <p v-if="result.debugLogPath" class="debug-log">调试日志：{{ result.debugLogPath }}</p>
+    <p v-if="result.debugLogPath" class="debug-log">{{ $t('screenRecorder.debugLog') }}: {{ result.debugLogPath }}</p>
     <div class="actions">
       <el-button type="primary" @click="$emit('open')">{{ $t('screenRecorder.openFile') }}</el-button>
       <el-button @click="$emit('reveal')">{{ $t('screenRecorder.openFolder') }}</el-button>

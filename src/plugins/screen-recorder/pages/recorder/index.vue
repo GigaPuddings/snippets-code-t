@@ -24,7 +24,7 @@
         @mousedown="startDrag"
       >
         <span class="window-title">
-          {{ $t('screenRecorder.title') || '区域录制' }}
+          {{ $t('screenRecorder.title') }}
         </span>
         <div
           v-if="showTopControlStrip"
@@ -42,7 +42,7 @@
             {{ exportProgressPercent }}%
           </span>
           <span v-else-if="status === 'completed'" class="save-status">
-            {{ result?.hasAudio ? '已保存·有声' : '已保存·无声' }}
+            {{ result?.hasAudio ? $t('screenRecorder.savedWithAudio') : $t('screenRecorder.savedWithoutAudio') }}
           </span>
           <span v-else class="save-status">
             {{ captureSize.width }}×{{ captureSize.height }}
@@ -76,27 +76,27 @@
           <template v-else-if="status === 'exporting'">
             <button
               class="control-button danger"
-              title="取消导出"
+              :title="$t('screenRecorder.cancelExport')"
               @click="handleCancelExport"
             >
-              <span class="button-label">取消</span>
+              <span class="button-label">{{ $t('screenRecorder.cancel') }}</span>
             </button>
           </template>
 
           <template v-else-if="status === 'completed' && result">
             <button
               class="control-button"
-              title="打开文件"
+              :title="$t('screenRecorder.openFile')"
               @click="handleOpenFile"
             >
-              <span class="button-label">打开</span>
+              <span class="button-label">{{ $t('screenRecorder.open') }}</span>
             </button>
             <button
               class="control-button"
-              title="重新录制"
+              :title="$t('screenRecorder.recordAgain')"
               @click="handleRecordAgain"
             >
-              <span class="button-label">重录</span>
+              <span class="button-label">{{ $t('screenRecorder.again') }}</span>
             </button>
           </template>
 
@@ -118,7 +118,7 @@
         <div class="window-actions" @mousedown.stop>
           <button
             class="title-button title-button--window"
-            title="最小化"
+            :title="$t('screenRecorder.minimize')"
             @click="handleMinimize"
           >
             <Minus
@@ -131,7 +131,7 @@
           </button>
           <button
             class="title-button title-button--close"
-            title="关闭"
+            :title="$t('common.close')"
             @click="handleClose"
           >
             <CloseSmall
@@ -169,8 +169,8 @@
             <button
               v-if="status === 'ready' || status === 'completed'"
               class="icon-control snap-control"
-              title="拖到目标窗口并松开以对齐"
-              aria-label="对齐目标窗口"
+              :title="$t('screenRecorder.snapToWindow')"
+              :aria-label="$t('screenRecorder.snapToWindow')"
               @mousedown.prevent="handleSnapToWindow"
             >
               <Radar
@@ -190,7 +190,7 @@
                 muted: !audioEnabled || audioMeterUnavailable
               }"
               :title="audioTitle"
-              aria-label="系统声音录制状态"
+              :aria-label="$t('screenRecorder.audioStatus')"
               :aria-pressed="settings.audio && settings.format === 'mp4'"
               :disabled="isBusy || settings.format === 'gif'"
               @click="toggleAudio"
@@ -305,37 +305,37 @@
             </div>
             <button
               class="control-button danger"
-              title="取消导出"
+              :title="$t('screenRecorder.cancelExport')"
               @click="handleCancelExport"
             >
-              <span class="button-label">取消</span>
+              <span class="button-label">{{ $t('screenRecorder.cancel') }}</span>
             </button>
           </template>
 
           <template v-else-if="status === 'completed' && result">
             <span class="save-status optional-save-status" :title="result.path">
-              {{ result.hasAudio ? '已保存·有声' : '已保存·无声' }}
+              {{ result.hasAudio ? $t('screenRecorder.savedWithAudio') : $t('screenRecorder.savedWithoutAudio') }}
             </span>
             <button
               class="control-button"
-              title="打开文件"
+              :title="$t('screenRecorder.openFile')"
               @click="handleOpenFile"
             >
-              <span class="button-label">打开</span>
+              <span class="button-label">{{ $t('screenRecorder.open') }}</span>
             </button>
             <button
               class="control-button"
-              title="打开所在文件夹"
+              :title="$t('screenRecorder.openFolder')"
               @click="handleRevealFile"
             >
-              <span class="button-label">文件夹</span>
+              <span class="button-label">{{ $t('screenRecorder.folder') }}</span>
             </button>
             <button
               class="control-button"
-              title="重新录制"
+              :title="$t('screenRecorder.recordAgain')"
               @click="handleRecordAgain"
             >
-              <span class="button-label">重录</span>
+              <span class="button-label">{{ $t('screenRecorder.again') }}</span>
             </button>
           </template>
 
@@ -508,29 +508,29 @@ const audioBarsStyle = computed<Record<string, string>>(() => {
 
 const audioTitle = computed(() => {
   if (settings.value.format === 'gif') {
-    return 'GIF 不支持音频';
+    return t('screenRecorder.gifAudioUnsupported');
   }
   if (audioMeterUnavailable.value && settings.value.audio) {
-    return '音频已开启；实时音量动画不可用不影响导出系统声音';
+    return t('screenRecorder.audioMeterUnavailable');
   }
   if (result.value?.audioDevice) {
-    return `已录制音频：${result.value.audioDevice}`;
+    return t('screenRecorder.audioRecorded', { device: result.value.audioDevice });
   }
   if (result.value && !result.value.hasAudio) {
-    return '未检测到可用音频设备，导出视频无声音';
+    return t('screenRecorder.audioDeviceMissing');
   }
   if (
     ffmpegStatus.value?.available &&
     !ffmpegStatus.value.systemAudioAvailable
   ) {
-    const devices = ffmpegStatus.value.audioDevices?.join('、') || '无';
+    const devices = ffmpegStatus.value.audioDevices?.join(', ') || t('screenRecorder.none');
     return settings.value.audio
-      ? `未发现系统声音/立体声混音设备；不会自动录制麦克风。当前可用音频设备：${devices}`
-      : '录制音频已关闭';
+      ? t('screenRecorder.systemAudioUnavailable', { devices })
+      : t('screenRecorder.audioDisabled');
   }
   return settings.value.audio
-    ? '录制音频已开启。系统声音将通过 WASAPI Loopback 捕获'
-    : '录制音频已关闭';
+    ? t('screenRecorder.audioEnabled')
+    : t('screenRecorder.audioDisabled');
 });
 
 const cursorTitle = computed(() =>
@@ -560,12 +560,12 @@ const exportProgressPercent = computed(() => {
 const exportProgressText = computed(() => {
   const progress = exportProgress.value;
   if (!progress) {
-    return '正在导出...';
+    return t('screenRecorder.exporting');
   }
   if (progress.totalFrames && progress.stage === 'frames') {
     return `${progress.message}`;
   }
-  return progress.message || '正在导出...';
+  return progress.message || t('screenRecorder.exporting');
 });
 
 const exportProgressTitle = computed(() => {
@@ -656,7 +656,7 @@ const clampRecordingRegionToMonitor = async (
   const physicalHeight = toEvenPhysicalSize(bottom - screenY);
 
   if (physicalWidth < MIN_CAPTURE_SIZE || physicalHeight < MIN_CAPTURE_SIZE) {
-    throw new Error('录制区域超出屏幕边界，请重新选择录制区域');
+    throw new Error(t('screenRecorder.recordingAreaOutOfBounds'));
   }
 
   return normalizeRecordingRegion(
@@ -696,7 +696,7 @@ const setPassthroughRegionIfChanged = async (
 const getCaptureRegion = async (): Promise<RecordingRegion> => {
   const hole = captureHoleRef.value;
   if (!hole) {
-    throw new Error('录制视口尚未准备好');
+    throw new Error(t('screenRecorder.viewportNotReady'));
   }
 
   const rect = hole.getBoundingClientRect();
@@ -706,7 +706,7 @@ const getCaptureRegion = async (): Promise<RecordingRegion> => {
   const physicalHeight = toPhysicalSize(rect.height * scale);
 
   if (physicalWidth < MIN_CAPTURE_SIZE || physicalHeight < MIN_CAPTURE_SIZE) {
-    throw new Error('录制区域太小，请放大录制窗口');
+    throw new Error(t('screenRecorder.recordingAreaTooSmall'));
   }
 
   const region = {
@@ -1160,7 +1160,9 @@ const handleStop = () =>
     exportProgress.value = {
       stage: 'encode',
       message:
-        settings.value.format === 'gif' ? '准备生成 GIF 帧' : '准备导出 MP4',
+        settings.value.format === 'gif'
+          ? t('screenRecorder.preparingGif')
+          : t('screenRecorder.preparingMp4'),
       progress: 0.01,
       currentFrame: 0
     };

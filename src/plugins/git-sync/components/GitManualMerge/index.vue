@@ -44,7 +44,7 @@
                 <div class="toolbar-label">
                   <span class="label-dot incoming-dot"></span>
                   <span>{{ $t('settings.gitSync.remoteVersion') }}</span>
-                  <span class="label-badge">Incoming</span>
+                  <span class="label-badge">{{ $t('settings.gitSync.incomingBadge') }}</span>
                 </div>
                 <div class="toolbar-actions">
                   <button
@@ -99,7 +99,7 @@
                 <div class="toolbar-label">
                   <span class="label-dot current-dot"></span>
                   <span>{{ $t('settings.gitSync.localVersion') }}</span>
-                  <span class="label-badge">Current</span>
+                  <span class="label-badge">{{ $t('settings.gitSync.currentBadge') }}</span>
                   <span v-if="isLocalEdited" class="edited-indicator">{{ $t('settings.gitSync.edited') }}</span>
                 </div>
                 <button
@@ -500,8 +500,8 @@ async function loadFileContents() {
     currentOperation.value = 'complete';
   } catch (error) {
     console.error('加载文件内容失败:', error);
-    remoteContent.value = '加载失败';
-    localContent.value = '加载失败';
+    remoteContent.value = t('settings.gitSync.loadFileFailed');
+    localContent.value = t('settings.gitSync.loadFileFailed');
   } finally {
     loading.value = false;
   }

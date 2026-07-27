@@ -55,7 +55,10 @@
 <script setup lang="ts">
 import { CommonDialog, CustomButton } from '@/components/UI';
 import { save } from '@tauri-apps/plugin-dialog';
+import { useI18n } from 'vue-i18n';
 import type { RecordingSettings } from '../core/types';
+
+const { t } = useI18n();
 
 const props = defineProps<{
   modelValue: boolean;
@@ -105,7 +108,7 @@ const handleQualityChange = (value: string | number) => {
 const choosePath = async () => {
   const extension = props.settings.format;
   const selected = await save({
-    title: '保存录屏',
+    title: t('screenRecorder.saveRecording'),
     defaultPath: `recording.${extension}`,
     filters: [
       { name: extension.toUpperCase(), extensions: [extension] }

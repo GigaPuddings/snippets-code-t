@@ -21,7 +21,7 @@
 
             <!-- 未跟踪文件列表（会被远程覆盖） -->
             <div v-if="untrackedFiles.length > 0" class="section">
-              <div class="section-label">{{ $t('settings.gitSync.untrackedFiles') || '未跟踪文件（会被远程覆盖）' }}</div>
+              <div class="section-label">{{ $t('settings.gitSync.untrackedFiles') }}</div>
               <div class="file-list">
                 <div v-for="file in untrackedFiles" :key="file" class="file-item untracked">
                   <span class="file-dot untracked-dot"></span>
