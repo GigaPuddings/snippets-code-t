@@ -107,7 +107,7 @@ export default {
     pluginInstallPath: '插件安装位置',
     setupComplete: '设置完成！',
     setupFailed: '设置失败',
-    pathError: '路径设置失败',
+    pathError: '路径设置失败'
   },
 
   // 通用设置
@@ -269,7 +269,8 @@ export default {
       enabledDesc: '开启后可以将笔记同步到 GitHub 仓库',
       enabledSuccess: 'Git 同步已启用',
       disabledSuccess: 'Git 同步已禁用',
-      configureBeforeEnable: '请先在个人中心完成 Git 用户名、邮箱和远程仓库配置。',
+      configureBeforeEnable:
+        '请先在个人中心完成 Git 用户名、邮箱和远程仓库配置。',
       autoDetect: '自动检测配置',
       autoDetectDesc: '从系统或工作区检测 Git 配置信息',
       autoDetectDescWorkspace: '从工作区 .git/config 检测 Git 配置信息',
@@ -359,7 +360,8 @@ export default {
         selectMessage: '当前分支：{current}；建议选择：{recommended}',
         overwriteTitle: '切换分支前需要处理未跟踪文件',
         useTargetFiles: '使用目标文件',
-        overwriteMessage: '目标分支会覆盖以下未跟踪文件。选择“使用目标分支文件”会先删除这些本地未跟踪文件，再切换到 {branch} 分支。\n\n{files}',
+        overwriteMessage:
+          '目标分支会覆盖以下未跟踪文件。选择“使用目标分支文件”会先删除这些本地未跟踪文件，再切换到 {branch} 分支。\n\n{files}',
         switched: '已切换到 {branch} 分支'
       },
       records: {
@@ -373,7 +375,8 @@ export default {
         loadHint: '点击刷新查看最近 10 条提交',
         restoreTitle: '恢复文件',
         restoreConfirm: '确认恢复',
-        restoreMessage: '确认将文件恢复到这条记录之前的版本？\n\n- 文件：{file}\n- 记录：{record}\n\n当前文件内容会被覆盖，恢复后会出现在待同步列表中。',
+        restoreMessage:
+          '确认将文件恢复到这条记录之前的版本？\n\n- 文件：{file}\n- 记录：{record}\n\n当前文件内容会被覆盖，恢复后会出现在待同步列表中。',
         restored: '文件已恢复，请检查待同步记录后再推送'
       },
       errorDetails: '详情：{details}',
@@ -508,13 +511,17 @@ export default {
     marketplaceDependencyMissing: '缺少依赖',
     marketplaceIncompatible: '需要更新应用',
     gitSyncInstallTitle: '建议先安装 Git 同步插件',
-    gitSyncInstallDesc: '恢复已有数据前，请先安装并配置 Git 同步，再安装其他插件，避免本机新配置与待恢复数据混在一起。',
+    gitSyncInstallDesc:
+      '恢复已有数据前，请先安装并配置 Git 同步，再安装其他插件，避免本机新配置与待恢复数据混在一起。',
     gitSyncInstallAction: '安装 Git 同步',
     gitSyncConfigureTitle: '完成 Git 同步配置',
-    gitSyncConfigureDesc: '请前往个人中心填写 Git 用户名、邮箱和远程仓库地址，然后即可在 Git 同步设置中拉取或推送数据。',
+    gitSyncConfigureDesc:
+      '请前往个人中心填写 Git 用户名、邮箱和远程仓库地址，然后即可在 Git 同步设置中拉取或推送数据。',
     gitSyncConfigureAction: '前往个人中心配置',
-    gitSyncInstallFirstWarning: '请先安装并配置 Git 同步插件；如果不需要恢复已有数据，可稍后再安装其他插件。',
-    gitSyncInstallNextStep: 'Git 同步插件已安装。下一步请前往个人中心完成 Git 配置。',
+    gitSyncInstallFirstWarning:
+      '请先安装并配置 Git 同步插件；如果不需要恢复已有数据，可稍后再安装其他插件。',
+    gitSyncInstallNextStep:
+      'Git 同步插件已安装。下一步请前往个人中心完成 Git 配置。',
     gitSyncPackageUnavailable: 'Git 同步插件包暂不可用，请刷新插件仓库后重试。',
     permissionNone: '无额外权限',
     permissionBackend: '后端权限 {permission}',
@@ -542,9 +549,12 @@ export default {
     dependencyIncompatible: '依赖插件 {plugin} 需要更新应用',
     installingPlugin: '插件',
     installPhases: {
+      queued: '排队中',
       downloading: '下载中',
       downloaded: '已下载',
       extracting: '解压中',
+      installing: '安装中',
+      failed: '安装失败',
       installed: '已安装'
     },
     installLocationTitle: '插件安装位置',
@@ -1713,7 +1723,8 @@ export default {
     audioRecorded: '已录制音频：{device}',
     audioDeviceMissing: '未检测到可用音频设备，导出视频无声音',
     none: '无',
-    systemAudioUnavailable: '未发现系统声音/立体声混音设备；不会自动录制麦克风。当前可用音频设备：{devices}',
+    systemAudioUnavailable:
+      '未发现系统声音/立体声混音设备；不会自动录制麦克风。当前可用音频设备：{devices}',
     audioEnabled: '录制音频已开启。系统声音将通过 WASAPI Loopback 捕获',
     audioDisabled: '录制音频已关闭',
     recordingAreaOutOfBounds: '录制区域超出屏幕边界，请重新选择录制区域',

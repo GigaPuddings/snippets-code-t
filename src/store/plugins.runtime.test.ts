@@ -9,12 +9,14 @@ const mocks = vi.hoisted(() => ({
   clearRuntimePluginRegistrations: vi.fn(),
   ensureLocalPluginFrontendEntries: vi.fn(),
   getInstalledPluginManifests: vi.fn(),
+  getPluginInstallTasks: vi.fn(),
   getPluginStates: vi.fn()
 }));
 
 vi.mock('@/api/plugins', () => ({
   buildMirrorUrl: vi.fn(),
   getInstalledPluginManifests: mocks.getInstalledPluginManifests,
+  getPluginInstallTasks: mocks.getPluginInstallTasks,
   getLocalPluginResourcePath: vi.fn(),
   getPluginStates: mocks.getPluginStates,
   getRapidOcrResourceStatus: vi.fn(),
@@ -89,6 +91,7 @@ describe('plugin runtime reconciliation', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.clearAllMocks();
+    mocks.getPluginInstallTasks.mockResolvedValue([]);
   });
 
   it('waits for an active frontend load before clearing and reloading a plugin', async () => {
@@ -148,5 +151,81 @@ describe('plugin runtime reconciliation', () => {
       'git-sync',
       { preserveStyles: true }
     );
+  });
+
+  it('keeps concurrent package progress isolated by package URL', () => {
+    const store = usePluginStore();
+    store.setInstallProgress({
+      packageUrl: 'https://example.com/local-launcher.zip',
+      pluginId: 'local-launcher',
+      phase: 'extracting',
+      downloadedBytes: 109_000,
+      totalBytes: 109_000,
+      progress: 100,
+      updatedAt: 20
+    });
+    store.setInstallProgress({
+      packageUrl: 'https://example.com/desktop-files.zip',
+      pluginId: 'desktop-files',
+      phase: 'downloading',
+      downloadedBytes: 50,
+      totalBytes: 100,
+      progress: 50,
+      updatedAt: 21
+    });
+
+    expect(
+      store.installProgressByPackageUrl[
+        'https://example.com/local-launcher.zip'
+      ].phase
+    ).toBe('extracting');
+    expect(
+      store.installProgressByPackageUrl['https://example.com/desktop-files.zip']
+        .phase
+    ).toBe('downloading');
+    expect(
+      store.isPackageInstalling('https://example.com/local-launcher.zip')
+    ).toBe(true);
+
+    store.setInstallProgress({
+      packageUrl: 'https://example.com/local-launcher.zip',
+      pluginId: 'local-launcher',
+      phase: 'installed',
+      downloadedBytes: 109_000,
+      totalBytes: 109_000,
+      progress: 100,
+      updatedAt: 22
+    });
+
+    expect(
+      store.isPackageInstalling('https://example.com/local-launcher.zip')
+    ).toBe(false);
+    expect(
+      store.isPackageInstalling('https://example.com/desktop-files.zip')
+    ).toBe(true);
+  });
+
+  it('does not let an older restored snapshot replace a newer event', () => {
+    const store = usePluginStore();
+    store.setInstallProgress({
+      packageUrl: 'https://example.com/plugin.zip',
+      pluginId: 'plugin',
+      phase: 'installing',
+      downloadedBytes: 100,
+      totalBytes: 100,
+      progress: 100,
+      updatedAt: 30
+    });
+    store.setInstallProgress({
+      packageUrl: 'https://example.com/plugin.zip',
+      pluginId: 'plugin',
+      phase: 'queued',
+      downloadedBytes: 0,
+      updatedAt: 10
+    });
+
+    expect(
+      store.installProgressByPackageUrl['https://example.com/plugin.zip'].phase
+    ).toBe('installing');
   });
 });

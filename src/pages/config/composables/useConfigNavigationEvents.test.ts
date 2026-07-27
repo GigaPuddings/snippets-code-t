@@ -21,7 +21,10 @@ const createRouter = () => ({
 });
 
 const createWindow = () => {
-  const listeners = new Map<string, (event: { payload: any }) => void | Promise<void>>();
+  const listeners = new Map<
+    string,
+    (event: { payload: any }) => void | Promise<void>
+  >();
   const unlisteners: Array<ReturnType<typeof vi.fn>> = [];
   const focusUnlisten = vi.fn();
 
@@ -30,16 +33,25 @@ const createWindow = () => {
     unlisteners,
     focusUnlisten,
     window: {
-      listen: vi.fn(async (event: string, handler: (event: { payload: any }) => void | Promise<void>) => {
-        const unlisten = vi.fn();
-        listeners.set(event, handler);
-        unlisteners.push(unlisten);
-        return unlisten;
-      }),
-      onFocusChanged: vi.fn(async (handler: (event: { payload: boolean }) => void | Promise<void>) => {
-        listeners.set('tauri://focus', handler);
-        return focusUnlisten;
-      })
+      listen: vi.fn(
+        async (
+          event: string,
+          handler: (event: { payload: any }) => void | Promise<void>
+        ) => {
+          const unlisten = vi.fn();
+          listeners.set(event, handler);
+          unlisteners.push(unlisten);
+          return unlisten;
+        }
+      ),
+      onFocusChanged: vi.fn(
+        async (
+          handler: (event: { payload: boolean }) => void | Promise<void>
+        ) => {
+          listeners.set('tauri://focus', handler);
+          return focusUnlisten;
+        }
+      )
     }
   };
 };
@@ -48,11 +60,14 @@ describe('useConfigNavigationEvents', () => {
   it('routes pending navigation requests and clears storage', () => {
     const storage = createStorage();
     const router = createRouter();
-    storage.setItem('pendingNavigation', JSON.stringify({
-      fragmentId: 'markdown:snippet.md',
-      categoryId: 'frontend',
-      timestamp: Date.now()
-    }));
+    storage.setItem(
+      'pendingNavigation',
+      JSON.stringify({
+        fragmentId: 'markdown:snippet.md',
+        categoryId: 'frontend',
+        timestamp: Date.now()
+      })
+    );
 
     const navigationEvents = useConfigNavigationEvents({
       router: router as any,
@@ -73,12 +88,15 @@ describe('useConfigNavigationEvents', () => {
   it('routes pending snippet preview requests', () => {
     const storage = createStorage();
     const router = createRouter();
-    storage.setItem('pendingSnippetOpen', JSON.stringify({
-      fragmentId: 'snippet.md',
-      content: 'const a = 1;',
-      categoryId: 'frontend',
-      timestamp: Date.now()
-    }));
+    storage.setItem(
+      'pendingSnippetOpen',
+      JSON.stringify({
+        fragmentId: 'snippet.md',
+        content: 'const a = 1;',
+        categoryId: 'frontend',
+        timestamp: Date.now()
+      })
+    );
 
     const navigationEvents = useConfigNavigationEvents({
       router: router as any,
@@ -99,10 +117,13 @@ describe('useConfigNavigationEvents', () => {
   it('registers window navigation listeners and cleans them up', async () => {
     const router = createRouter();
     const { window, listeners, unlisteners, focusUnlisten } = createWindow();
-    const readMarkdownFile = vi.fn(async () => ({
-      filePath: 'notes.md',
-      categoryId: 'docs'
-    }) as any);
+    const readMarkdownFile = vi.fn(
+      async () =>
+        ({
+          filePath: 'notes.md',
+          categoryId: 'docs'
+        }) as any
+    );
     const storage = createStorage();
     const navigationEvents = useConfigNavigationEvents({
       router: router as any,
@@ -115,6 +136,7 @@ describe('useConfigNavigationEvents', () => {
 
     await navigationEvents.setup();
     await listeners.get('navigate-to-settings')?.({ payload: undefined });
+    await listeners.get('navigate-to-settings-tab')?.({ payload: 'plugins' });
     await listeners.get('navigate-to-fragment')?.({
       payload: {
         fragmentId: 'markdown:snippet.md',
@@ -128,9 +150,13 @@ describe('useConfigNavigationEvents', () => {
     });
     navigationEvents.cleanup();
 
-    expect(window.listen).toHaveBeenCalledTimes(4);
+    expect(window.listen).toHaveBeenCalledTimes(5);
     expect(window.onFocusChanged).toHaveBeenCalledTimes(1);
     expect(router.push).toHaveBeenCalledWith('/config/category/settings');
+    expect(router.push).toHaveBeenCalledWith({
+      path: '/config/category/settings',
+      query: { tab: 'plugins' }
+    });
     expect(router.push).toHaveBeenCalledWith({
       path: '/config/category/contentList/frontend/content/snippet.md',
       query: undefined
@@ -139,7 +165,9 @@ describe('useConfigNavigationEvents', () => {
       path: '/config/category/contentList/docs/content/notes.md',
       query: undefined
     });
-    expect(unlisteners.every((unlisten) => unlisten.mock.calls.length === 1)).toBe(true);
+    expect(
+      unlisteners.every((unlisten) => unlisten.mock.calls.length === 1)
+    ).toBe(true);
     expect(focusUnlisten).toHaveBeenCalledTimes(1);
   });
 });

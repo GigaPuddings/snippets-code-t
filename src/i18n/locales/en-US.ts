@@ -114,7 +114,7 @@ export default {
     pluginInstallPath: 'Plugin Install Location',
     setupComplete: 'Setup Complete!',
     setupFailed: 'Setup Failed',
-    pathError: 'Path setup failed',
+    pathError: 'Path setup failed'
   },
 
   // General Settings
@@ -280,7 +280,8 @@ export default {
       enabledDesc: 'Sync notes to GitHub repository',
       enabledSuccess: 'Git sync enabled',
       disabledSuccess: 'Git sync disabled',
-      configureBeforeEnable: 'Complete your Git username, email, and remote repository in Personal Center first.',
+      configureBeforeEnable:
+        'Complete your Git username, email, and remote repository in Personal Center first.',
       autoDetect: 'Auto Detect Config',
       autoDetectDesc: 'Detect Git configuration from system or workspace',
       autoDetectDescWorkspace:
@@ -374,7 +375,8 @@ export default {
         selectMessage: 'Current branch: {current}; recommended: {recommended}',
         overwriteTitle: 'Untracked Files',
         useTargetFiles: 'Use Target',
-        overwriteMessage: 'The target branch will overwrite the following untracked files. Choosing “Use Target Branch Files” deletes these local files before switching to {branch}.\n\n{files}',
+        overwriteMessage:
+          'The target branch will overwrite the following untracked files. Choosing “Use Target Branch Files” deletes these local files before switching to {branch}.\n\n{files}',
         switched: 'Switched to {branch}'
       },
       records: {
@@ -388,7 +390,8 @@ export default {
         loadHint: 'Refresh to view the last 10 commits',
         restoreTitle: 'Restore File',
         restoreConfirm: 'Restore',
-        restoreMessage: 'Restore the file to the version before this record?\n\n- File: {file}\n- Record: {record}\n\nThe current file content will be overwritten and added to the pending sync list.',
+        restoreMessage:
+          'Restore the file to the version before this record?\n\n- File: {file}\n- Record: {record}\n\nThe current file content will be overwritten and added to the pending sync list.',
         restored: 'File restored. Review pending changes before pushing.'
       },
       errorDetails: 'Details: {details}',
@@ -512,14 +515,19 @@ export default {
     marketplaceDependencyMissing: 'Missing dependency',
     marketplaceIncompatible: 'App update required',
     gitSyncInstallTitle: 'Install Git Sync first',
-    gitSyncInstallDesc: 'Before restoring existing data, install and configure Git Sync first, then install other plugins to keep new local settings separate from restored data.',
+    gitSyncInstallDesc:
+      'Before restoring existing data, install and configure Git Sync first, then install other plugins to keep new local settings separate from restored data.',
     gitSyncInstallAction: 'Install Git Sync',
     gitSyncConfigureTitle: 'Finish Git Sync configuration',
-    gitSyncConfigureDesc: 'Go to User Center and enter the Git username, email, and remote repository URL. You can then pull or push data from Git Sync settings.',
+    gitSyncConfigureDesc:
+      'Go to User Center and enter the Git username, email, and remote repository URL. You can then pull or push data from Git Sync settings.',
     gitSyncConfigureAction: 'Configure in User Center',
-    gitSyncInstallFirstWarning: 'Install and configure Git Sync first. If you do not need to restore existing data, you can install other plugins later.',
-    gitSyncInstallNextStep: 'Git Sync is installed. Next, complete Git configuration in User Center.',
-    gitSyncPackageUnavailable: 'The Git Sync package is unavailable. Refresh the plugin marketplace and try again.',
+    gitSyncInstallFirstWarning:
+      'Install and configure Git Sync first. If you do not need to restore existing data, you can install other plugins later.',
+    gitSyncInstallNextStep:
+      'Git Sync is installed. Next, complete Git configuration in User Center.',
+    gitSyncPackageUnavailable:
+      'The Git Sync package is unavailable. Refresh the plugin marketplace and try again.',
     permissionNone: 'No extra permissions',
     permissionBackend: 'Backend {permission}',
     permissionCommand: 'Command {permission}',
@@ -547,9 +555,12 @@ export default {
     dependencyIncompatible: 'Dependency plugin {plugin} requires a newer app',
     installingPlugin: 'plugin',
     installPhases: {
+      queued: 'Queued',
       downloading: 'Downloading',
       downloaded: 'Downloaded',
       extracting: 'Extracting',
+      installing: 'Installing',
+      failed: 'Install failed',
       installed: 'Installed'
     },
     installLocationTitle: 'Plugin Install Location',
@@ -1155,8 +1166,10 @@ export default {
     saveFailed: 'Failed to save',
     translateSuccess: 'Translated successfully',
     translateFailed: 'Failed to translate',
-    offlineModelNotDownloaded: 'Offline model is not downloaded. Download it in Translation Settings.',
-    offlineModelNotActivated: 'Offline model is not enabled. Enable it in Translation Settings.',
+    offlineModelNotDownloaded:
+      'Offline model is not downloaded. Download it in Translation Settings.',
+    offlineModelNotActivated:
+      'Offline model is not enabled. Enable it in Translation Settings.',
     sourceText: 'Source',
     selectedText: 'Selected Text',
     translationResult: 'Translation',
@@ -1313,8 +1326,10 @@ export default {
     offlineTranslate: 'Offline Translate',
     localAiTranslate: 'Local AI',
     offlineMark: 'O',
-    offlineModelUnavailable: 'Offline model is not downloaded. Download it in Settings.',
-    offlineUnavailable: 'Offline translation is unavailable. Install and enable it in Settings.',
+    offlineModelUnavailable:
+      'Offline model is not downloaded. Download it in Settings.',
+    offlineUnavailable:
+      'Offline translation is unavailable. Install and enable it in Settings.',
     languages: {
       auto: 'Auto Detect',
       zh: 'Chinese (Simplified)',
@@ -1738,16 +1753,22 @@ export default {
     snapToWindow: 'Drag onto a target window and release to align',
     audioStatus: 'System audio recording status',
     gifAudioUnsupported: 'GIF does not support audio',
-    audioMeterUnavailable: 'Audio is enabled; unavailable live metering does not affect system-audio export',
+    audioMeterUnavailable:
+      'Audio is enabled; unavailable live metering does not affect system-audio export',
     audioRecorded: 'Recorded audio: {device}',
-    audioDeviceMissing: 'No available audio device was detected; the exported video will have no audio',
+    audioDeviceMissing:
+      'No available audio device was detected; the exported video will have no audio',
     none: 'None',
-    systemAudioUnavailable: 'No system-audio or stereo-mix device was found. Microphone audio is not recorded automatically. Available audio devices: {devices}',
-    audioEnabled: 'Audio recording is enabled. System audio is captured with WASAPI Loopback',
+    systemAudioUnavailable:
+      'No system-audio or stereo-mix device was found. Microphone audio is not recorded automatically. Available audio devices: {devices}',
+    audioEnabled:
+      'Audio recording is enabled. System audio is captured with WASAPI Loopback',
     audioDisabled: 'Audio recording is disabled',
-    recordingAreaOutOfBounds: 'The recording area is outside the screen bounds. Select the area again.',
+    recordingAreaOutOfBounds:
+      'The recording area is outside the screen bounds. Select the area again.',
     viewportNotReady: 'The recording viewport is not ready',
-    recordingAreaTooSmall: 'The recording area is too small. Enlarge the recorder window.',
+    recordingAreaTooSmall:
+      'The recording area is too small. Enlarge the recorder window.',
     preparingGif: 'Preparing GIF frames',
     preparingMp4: 'Preparing MP4 export',
     debugLog: 'Debug log',

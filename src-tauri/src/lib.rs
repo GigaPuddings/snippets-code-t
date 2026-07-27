@@ -840,6 +840,7 @@ pub fn run() {
             app_config::fetch_plugin_marketplace,       // 获取远程插件市场
             app_config::install_local_plugin_package,   // 安装本地插件包
             app_config::install_plugin_package_from_url, // 从 URL 安装插件包
+            app_config::get_plugin_install_tasks,       // 获取应用级插件安装任务
             app_config::uninstall_local_plugin_package, // 卸载本地插件包
             app_config::get_local_plugin_data,          // 获取本地插件数据
             app_config::set_local_plugin_data,          // 设置本地插件数据

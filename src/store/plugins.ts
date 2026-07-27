@@ -4,11 +4,13 @@ import {
   buildMirrorUrl,
   getInstalledPluginManifests,
   getLocalPluginResourcePath,
+  getPluginInstallTasks,
   getPluginStates,
   getRapidOcrResourceStatus,
   getScreenRecorderFfmpegStatus,
   installLocalPluginPackage,
   installPluginPackageFromUrl,
+  type PluginInstallProgress,
   type PluginMarketplaceItem,
   type PluginResourceStatus,
   setPluginEnabled,
@@ -79,6 +81,9 @@ const compareVersions = (left: string, right: string): number => {
   return 0;
 };
 
+const isActiveInstallPhase = (phase?: string): boolean =>
+  Boolean(phase && phase !== 'installed' && phase !== 'failed');
+
 const getMarketplaceDependencies = (item: PluginMarketplaceItem): string[] =>
   Array.isArray(item.dependencies)
     ? item.dependencies.filter(
@@ -139,13 +144,19 @@ export const usePluginStore = defineStore('plugins', {
     resourceStatusByPluginId: Record<string, PluginResourceStatus | undefined>;
     runtimeRevision: number;
     stateUnlisten: UnlistenFn | null;
+    installProgressUnlisten: UnlistenFn | null;
+    installProgressByPackageUrl: Record<string, PluginInstallProgress>;
+    marketplaceInstallRequests: Record<string, boolean>;
   } => ({
     enabled: { ...DEFAULT_PLUGIN_STATES },
     installedPlugins: INSTALLED_PLUGINS,
     initialized: false,
     resourceStatusByPluginId: {},
     runtimeRevision: 0,
-    stateUnlisten: null
+    stateUnlisten: null,
+    installProgressUnlisten: null,
+    installProgressByPackageUrl: {},
+    marketplaceInstallRequests: {}
   }),
   getters: {
     plugins: (state): RegisteredPlugin[] => state.installedPlugins,
@@ -166,12 +177,28 @@ export const usePluginStore = defineStore('plugins', {
       (id: PluginId | string): boolean =>
         state.installedPlugins.some((plugin) => plugin.id === id)
           ? (state.enabled[id] ?? true)
-          : false
+          : false,
+    isPackageInstalling:
+      (state) =>
+      (packageUrl?: string): boolean =>
+        Boolean(
+          packageUrl &&
+            isActiveInstallPhase(
+              state.installProgressByPackageUrl[packageUrl]?.phase
+            )
+        ),
+    isMarketplaceInstallRequested:
+      (state) =>
+      (pluginId: string): boolean =>
+        Boolean(state.marketplaceInstallRequests[pluginId])
   },
   actions: {
     async initialize(): Promise<void> {
       if (this.initialized) {
-        await this.ensureStateListener();
+        await Promise.all([
+          this.ensureStateListener(),
+          this.ensureInstallProgressListener()
+        ]);
         return;
       }
 
@@ -204,7 +231,10 @@ export const usePluginStore = defineStore('plugins', {
           );
         } finally {
           this.initialized = true;
-          await this.ensureStateListener();
+          await Promise.all([
+            this.ensureStateListener(),
+            this.ensureInstallProgressListener()
+          ]);
         }
 
         schedulePluginBackgroundWork(
@@ -346,13 +376,15 @@ export const usePluginStore = defineStore('plugins', {
       overwrite = false,
       packageSubdir?: string,
       expectedSizeBytes?: number,
-      mirrorUrls?: string[]
+      mirrorUrls?: string[],
+      pluginId?: string
     ): Promise<void> {
       logger.info('[PluginStore] install from url start', {
         packageUrl,
         overwrite,
         packageSubdir,
         expectedSizeBytes,
+        pluginId,
         mirrorCount: mirrorUrls?.length ?? 0
       });
       const pluginPackage = await installPluginPackageFromUrl(
@@ -360,7 +392,8 @@ export const usePluginStore = defineStore('plugins', {
         overwrite,
         packageSubdir,
         expectedSizeBytes,
-        mirrorUrls
+        mirrorUrls,
+        pluginId
       );
       logger.info('[PluginStore] install from url complete', {
         pluginId: pluginPackage.manifest.id,
@@ -402,6 +435,61 @@ export const usePluginStore = defineStore('plugins', {
       } catch (error) {
         logger.warn('[PluginStore] 监听插件状态变化失败', error);
       }
+    },
+
+    setInstallProgress(progress: PluginInstallProgress): void {
+      const previous = this.installProgressByPackageUrl[progress.packageUrl];
+      if (
+        previous &&
+        Number(previous.updatedAt || 0) > Number(progress.updatedAt || 0)
+      ) {
+        return;
+      }
+      this.installProgressByPackageUrl = {
+        ...this.installProgressByPackageUrl,
+        [progress.packageUrl]: progress
+      };
+    },
+
+    async ensureInstallProgressListener(): Promise<void> {
+      if (this.installProgressUnlisten) return;
+
+      try {
+        this.installProgressUnlisten = await listen<PluginInstallProgress>(
+          'plugin-install-progress',
+          (event) => {
+            const progress = event.payload;
+            this.setInstallProgress(progress);
+            logger.info('[PluginStore] install progress', progress);
+
+            if (progress.phase === 'installed') {
+              if (progress.pluginId) {
+                this.marketplaceInstallRequests[progress.pluginId] = false;
+              }
+              void this.reconcileInstalledPlugins(
+                'install-progress-installed',
+                progress.pluginId ? [progress.pluginId] : []
+              ).catch((error) => {
+                logger.warn('[PluginStore] 安装完成后刷新插件清单失败', error);
+              });
+            } else if (progress.phase === 'failed' && progress.pluginId) {
+              this.marketplaceInstallRequests[progress.pluginId] = false;
+            }
+          }
+        );
+
+        const tasks = await getPluginInstallTasks();
+        tasks.forEach((task) => this.setInstallProgress(task));
+      } catch (error) {
+        logger.warn('[PluginStore] 监听插件安装任务失败', error);
+      }
+    },
+
+    setMarketplaceInstallRequested(pluginId: string, requested: boolean): void {
+      this.marketplaceInstallRequests = {
+        ...this.marketplaceInstallRequests,
+        [pluginId]: requested
+      };
     },
 
     async setEnabled(
@@ -447,11 +535,11 @@ export const usePluginStore = defineStore('plugins', {
       }
 
       pluginRuntimeEntriesPromise = (async () => {
-      await ensureLocalPluginFrontendEntries(
-        this.installedPlugins,
-        (pluginId) => this.isEnabled(pluginId)
-      );
-      this.runtimeRevision += 1;
+        await ensureLocalPluginFrontendEntries(
+          this.installedPlugins,
+          (pluginId) => this.isEnabled(pluginId)
+        );
+        this.runtimeRevision += 1;
       })();
 
       try {
@@ -550,7 +638,8 @@ export const usePluginStore = defineStore('plugins', {
             true,
             item.packageSubdir,
             item.sizeBytes,
-            mirrorUrls
+            mirrorUrls,
+            item.id
           );
         }
       } finally {
@@ -565,87 +654,91 @@ export const usePluginStore = defineStore('plugins', {
       }
 
       pluginResourceStatusPromise = (async () => {
-      const nextStatus: Record<string, PluginResourceStatus | undefined> = {};
+        const nextStatus: Record<string, PluginResourceStatus | undefined> = {};
 
-      const hasPluginOrResourceFor = (pluginId: string): boolean =>
-        this.installedPlugins.some(
-          (plugin) => plugin.id === pluginId || plugin.resourceFor === pluginId
-        );
-
-      if (hasPluginOrResourceFor('screenshot')) {
-        try {
-          const status = await getRapidOcrResourceStatus();
-          nextStatus[status.pluginId] = status;
-        } catch (error) {
-          logger.warn('[PluginStore] 获取截图插件资源状态失败', error);
-        }
-      }
-
-      if (hasPluginOrResourceFor('translation')) {
-        const runtimeEntry = 'resources/transformers/transformers.min.js';
-        const packageIds = ['translation-offline-runtime', 'translation'];
-        let runtimePath: string | null = null;
-        let source: string | undefined;
-
-        for (const packageId of packageIds) {
-          runtimePath = await getLocalPluginResourcePath(
-            packageId,
-            runtimeEntry
+        const hasPluginOrResourceFor = (pluginId: string): boolean =>
+          this.installedPlugins.some(
+            (plugin) =>
+              plugin.id === pluginId || plugin.resourceFor === pluginId
           );
-          if (runtimePath) {
-            source = `plugin:${packageId}:${runtimeEntry}`;
-            break;
+
+        if (hasPluginOrResourceFor('screenshot')) {
+          try {
+            const status = await getRapidOcrResourceStatus();
+            nextStatus[status.pluginId] = status;
+          } catch (error) {
+            logger.warn('[PluginStore] 获取截图插件资源状态失败', error);
           }
         }
 
-        nextStatus.translation = {
-          pluginId: 'translation',
-          resourceId: 'offline-transformers-runtime',
-          available: Boolean(runtimePath),
-          source,
-          path: runtimePath ?? undefined,
-          searchedPaths: packageIds.map(
-            (packageId) => `plugins/${packageId}/${runtimeEntry}`
-          )
-        };
-      }
+        if (hasPluginOrResourceFor('translation')) {
+          const runtimeEntry = 'resources/transformers/transformers.min.js';
+          const packageIds = ['translation-offline-runtime', 'translation'];
+          let runtimePath: string | null = null;
+          let source: string | undefined;
 
-      if (
-        hasPluginOrResourceFor('screen-recorder') &&
-        this.isEnabled('screen-recorder')
-      ) {
-        try {
-          const status = await getScreenRecorderFfmpegStatus();
-          nextStatus['screen-recorder'] = {
-            pluginId: 'screen-recorder',
-            resourceId: 'ffmpeg',
-            available: status.available,
-            source: status.source,
-            path: status.path,
-            searchedPaths: status.searchedPaths
+          for (const packageId of packageIds) {
+            runtimePath = await getLocalPluginResourcePath(
+              packageId,
+              runtimeEntry
+            );
+            if (runtimePath) {
+              source = `plugin:${packageId}:${runtimeEntry}`;
+              break;
+            }
+          }
+
+          nextStatus.translation = {
+            pluginId: 'translation',
+            resourceId: 'offline-transformers-runtime',
+            available: Boolean(runtimePath),
+            source,
+            path: runtimePath ?? undefined,
+            searchedPaths: packageIds.map(
+              (packageId) => `plugins/${packageId}/${runtimeEntry}`
+            )
           };
-        } catch (error) {
-          logger.warn('[PluginStore] 获取录屏 FFmpeg 资源状态失败', error);
         }
-      }
 
-      if (hasPluginOrResourceFor('local-ai') && this.isEnabled('local-ai')) {
-        try {
-          const status = await getLocalAiRuntimeStatus();
-          nextStatus['local-ai'] = {
-            pluginId: 'local-ai',
-            resourceId: 'llama-runtime',
-            available: status.available,
-            source: status.source,
-            path: status.path,
-            searchedPaths: status.searchedPaths
-          };
-        } catch (error) {
-          logger.warn('[PluginStore] 获取本地 AI llama.cpp 资源状态失败', error);
+        if (
+          hasPluginOrResourceFor('screen-recorder') &&
+          this.isEnabled('screen-recorder')
+        ) {
+          try {
+            const status = await getScreenRecorderFfmpegStatus();
+            nextStatus['screen-recorder'] = {
+              pluginId: 'screen-recorder',
+              resourceId: 'ffmpeg',
+              available: status.available,
+              source: status.source,
+              path: status.path,
+              searchedPaths: status.searchedPaths
+            };
+          } catch (error) {
+            logger.warn('[PluginStore] 获取录屏 FFmpeg 资源状态失败', error);
+          }
         }
-      }
 
-      this.resourceStatusByPluginId = nextStatus;
+        if (hasPluginOrResourceFor('local-ai') && this.isEnabled('local-ai')) {
+          try {
+            const status = await getLocalAiRuntimeStatus();
+            nextStatus['local-ai'] = {
+              pluginId: 'local-ai',
+              resourceId: 'llama-runtime',
+              available: status.available,
+              source: status.source,
+              path: status.path,
+              searchedPaths: status.searchedPaths
+            };
+          } catch (error) {
+            logger.warn(
+              '[PluginStore] 获取本地 AI llama.cpp 资源状态失败',
+              error
+            );
+          }
+        }
+
+        this.resourceStatusByPluginId = nextStatus;
       })();
 
       try {

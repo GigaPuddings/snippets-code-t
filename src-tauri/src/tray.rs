@@ -5,7 +5,10 @@ use crate::plugins::system_theme::{
     stop_scheduler, ScheduleType, ThemeMode,
 };
 use crate::update::check_update_and_open_window;
-use crate::window::{hotkey_config, hotkey_dark_mode, hotkey_search, open_config_settings};
+use crate::window::{
+    hotkey_config, hotkey_dark_mode, hotkey_search, open_config_settings,
+    open_local_launcher_settings, open_plugin_settings,
+};
 use log::{debug, info};
 use tauri::Emitter;
 use tauri::{
@@ -36,6 +39,8 @@ struct TrayTranslations {
     // 其他
     check_update: &'static str,
     view_log: &'static str,
+    plugin_installing: &'static str,
+    background_indexing: &'static str,
     quit: &'static str,
 }
 
@@ -125,6 +130,8 @@ fn get_translations(lang: &str) -> TrayTranslations {
             theme_settings: "More Settings...",
             check_update: "Check for Updates",
             view_log: "View Logs",
+            plugin_installing: "Plugin installs",
+            background_indexing: "Background indexing",
             quit: "Quit",
         },
         _ => TrayTranslations {
@@ -145,8 +152,27 @@ fn get_translations(lang: &str) -> TrayTranslations {
             theme_settings: "更多设置...",
             check_update: "检查更新",
             view_log: "日志记录",
+            plugin_installing: "插件安装",
+            background_indexing: "后台索引",
             quit: "退出程序",
         },
+    }
+}
+
+fn plugin_install_phase_label(lang: &str, phase: &str) -> &'static str {
+    match (lang, phase) {
+        ("en-US", "queued") => "queued",
+        ("en-US", "downloading") => "downloading",
+        ("en-US", "downloaded") => "downloaded",
+        ("en-US", "extracting") => "extracting",
+        ("en-US", "installing") => "installing",
+        ("en-US", _) => "working",
+        (_, "queued") => "排队中",
+        (_, "downloading") => "下载中",
+        (_, "downloaded") => "已下载",
+        (_, "extracting") => "解压中",
+        (_, "installing") => "安装中",
+        _ => "处理中",
     }
 }
 
@@ -243,6 +269,36 @@ fn build_tray_menu(app: &AppHandle, lang: &str) -> tauri::Result<Menu<tauri::Wry
 
     let search_i = MenuItem::with_id(app, "search", trans.search, true, None::<&str>)?;
     let config_i = MenuItem::with_id(app, "config", trans.config, true, None::<&str>)?;
+    let plugin_install_i = app_config::active_plugin_install_status()
+        .map(|(count, phase)| {
+            MenuItem::with_id(
+                app,
+                "plugin_install_status",
+                format!(
+                    "{}：{} ({})",
+                    trans.plugin_installing,
+                    count,
+                    plugin_install_phase_label(lang, &phase)
+                ),
+                true,
+                None::<&str>,
+            )
+        })
+        .transpose()?;
+    let scan_state = crate::window::get_scan_progress_state();
+    let background_index_i = (!scan_state.completed && !scan_state.stage.is_empty())
+        .then(|| {
+            let progress = if scan_state.total > 0 {
+                format!(
+                    "{}：{}/{}",
+                    trans.background_indexing, scan_state.current, scan_state.total
+                )
+            } else {
+                trans.background_indexing.to_string()
+            };
+            MenuItem::with_id(app, "background_index_status", progress, true, None::<&str>)
+        })
+        .transpose()?;
     let plugin_actions = app_config::installed_plugin_capability_actions(app, "trayItems", true);
     let plugin_items = plugin_actions
         .iter()
@@ -272,6 +328,12 @@ fn build_tray_menu(app: &AppHandle, lang: &str) -> tauri::Result<Menu<tauri::Wry
     let quit_i = MenuItem::with_id(app, "quit", trans.quit, true, None::<&str>)?;
 
     let mut items: Vec<&dyn IsMenuItem<tauri::Wry>> = vec![&search_i, &config_i];
+    if let Some(item) = &plugin_install_i {
+        items.push(item);
+    }
+    if let Some(item) = &background_index_i {
+        items.push(item);
+    }
     for item in &plugin_items {
         items.push(item);
     }
@@ -393,6 +455,14 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
                     debug!("[托盘菜单] 执行：打开配置窗口");
                     open_config_settings();
                 }
+                "plugin_install_status" => {
+                    debug!("[托盘菜单] 执行：查看插件安装状态");
+                    open_plugin_settings();
+                }
+                "background_index_status" => {
+                    debug!("[托盘菜单] 执行：查看本地索引状态");
+                    open_local_launcher_settings();
+                }
                 "check_update" => {
                     debug!("[托盘菜单] 执行：检查更新");
                     let app_handle = app.clone();
@@ -436,6 +506,40 @@ pub fn update_tray_theme_status(app_handle: &AppHandle) {
     }
     if let Err(e) = recreate_tray_menu(app_handle) {
         log::error!("更新托盘菜单主题状态失败: {}", e);
+    }
+}
+
+pub fn update_plugin_install_status(app_handle: &AppHandle) {
+    let Some(tray) = app_handle.tray_by_id("tray") else {
+        return;
+    };
+    let lang = get_language_internal(app_handle);
+    let app_name = app_handle.package_info().name.clone();
+    let trans = get_translations(&lang);
+    let mut tooltip_parts = vec![app_name];
+    if let Some((count, phase)) = app_config::active_plugin_install_status() {
+        tooltip_parts.push(format!(
+            "{}：{} ({})",
+            trans.plugin_installing,
+            count,
+            plugin_install_phase_label(&lang, &phase)
+        ));
+    }
+    let scan_state = crate::window::get_scan_progress_state();
+    if !scan_state.completed && !scan_state.stage.is_empty() {
+        tooltip_parts.push(format!(
+            "{}：{}/{}",
+            trans.background_indexing, scan_state.current, scan_state.total
+        ));
+    }
+    let tooltip = tooltip_parts.join(" · ");
+    if let Err(error) = tray.set_tooltip(Some(tooltip)) {
+        log::warn!("[TrayMenu] 更新插件安装提示失败: {}", error);
+    }
+    if crate::db::is_setup_completed_internal(app_handle) {
+        if let Err(error) = recreate_tray_menu(app_handle) {
+            log::warn!("[TrayMenu] 更新插件安装菜单失败: {}", error);
+        }
     }
 }
 

@@ -56,10 +56,21 @@ export interface PluginMarketplaceIndex {
 
 export interface PluginInstallProgress {
   packageUrl: string;
-  phase: 'downloading' | 'downloaded' | 'extracting' | 'installed' | string;
+  pluginId?: string;
+  phase:
+    | 'queued'
+    | 'downloading'
+    | 'downloaded'
+    | 'extracting'
+    | 'installing'
+    | 'installed'
+    | 'failed'
+    | string;
   downloadedBytes: number;
   totalBytes?: number;
   progress?: number;
+  error?: string;
+  updatedAt: number;
 }
 
 export const DEFAULT_PLUGIN_MARKETPLACE_URL =
@@ -112,15 +123,23 @@ export async function installPluginPackageFromUrl(
   overwrite = false,
   packageSubdir?: string,
   expectedSizeBytes?: number,
-  mirrorUrls?: string[]
+  mirrorUrls?: string[],
+  pluginId?: string
 ): Promise<LocalPluginPackage> {
   return await invoke<LocalPluginPackage>('install_plugin_package_from_url', {
     expectedSizeBytes,
     packageUrl,
     packageSubdir,
     overwrite,
-    mirrorUrls: mirrorUrls ?? []
+    mirrorUrls: mirrorUrls ?? [],
+    pluginId
   });
+}
+
+export async function getPluginInstallTasks(): Promise<
+  PluginInstallProgress[]
+> {
+  return await invoke<PluginInstallProgress[]>('get_plugin_install_tasks');
 }
 
 const withMarketplaceRefreshParam = (marketplaceUrl: string): string => {
@@ -159,7 +178,9 @@ export async function getRapidOcrResourceStatus(): Promise<PluginResourceStatus>
 }
 
 export async function getScreenRecorderFfmpegStatus(): Promise<FfmpegResourceStatus> {
-  return await invoke<FfmpegResourceStatus>('screen_recorder_get_ffmpeg_status');
+  return await invoke<FfmpegResourceStatus>(
+    'screen_recorder_get_ffmpeg_status'
+  );
 }
 
 export async function getLocalPluginResourcePath(

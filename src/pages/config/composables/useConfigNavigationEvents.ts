@@ -15,7 +15,10 @@ type ConfigNavigationEventWindow = {
   ) => Promise<() => void>;
 };
 
-type ConfigNavigationStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
+type ConfigNavigationStorage = Pick<
+  Storage,
+  'getItem' | 'setItem' | 'removeItem'
+>;
 
 type ModalMsg = (
   message: string,
@@ -36,7 +39,8 @@ export interface ConfigNavigationEventsDeps {
 
 const DEFAULT_PENDING_NAVIGATION_TTL = 30_000;
 
-const normalizePendingFragmentId = (id: unknown) => String(id ?? '').replace(/^markdown:/i, '');
+const normalizePendingFragmentId = (id: unknown) =>
+  String(id ?? '').replace(/^markdown:/i, '');
 
 export function useConfigNavigationEvents(deps: ConfigNavigationEventsDeps) {
   const storage = deps.storage ?? localStorage;
@@ -45,7 +49,11 @@ export function useConfigNavigationEvents(deps: ConfigNavigationEventsDeps) {
   const readMarkdownFile = deps.readMarkdownFile ?? defaultReadMarkdownFile;
   const unlisteners: Array<() => void> = [];
 
-  const routeToFragment = (categoryId: unknown, fragmentId: unknown, query?: Record<string, string>) => {
+  const routeToFragment = (
+    categoryId: unknown,
+    fragmentId: unknown,
+    query?: Record<string, string>
+  ) => {
     const targetPath = `/config/category/contentList/${categoryId}/content/${encodeURIComponent(normalizePendingFragmentId(fragmentId))}`;
     return deps.router.push({
       path: targetPath,
@@ -53,9 +61,8 @@ export function useConfigNavigationEvents(deps: ConfigNavigationEventsDeps) {
     });
   };
 
-  const isPendingFresh = (timestamp: unknown) => (
-    typeof timestamp === 'number' && Date.now() - timestamp < ttlMs
-  );
+  const isPendingFresh = (timestamp: unknown) =>
+    typeof timestamp === 'number' && Date.now() - timestamp < ttlMs;
 
   const checkPendingNavigation = () => {
     const pendingNav = storage.getItem('pendingNavigation');
@@ -81,11 +88,16 @@ export function useConfigNavigationEvents(deps: ConfigNavigationEventsDeps) {
     if (!pendingSnippet) return;
 
     try {
-      const { fragmentId, content, categoryId, timestamp } = JSON.parse(pendingSnippet);
+      const { fragmentId, content, categoryId, timestamp } =
+        JSON.parse(pendingSnippet);
 
       if (isPendingFresh(timestamp)) {
         storage.removeItem('pendingSnippetOpen');
-        routeToFragment(categoryId, fragmentId, content ? { preview: '1' } : undefined);
+        routeToFragment(
+          categoryId,
+          fragmentId,
+          content ? { preview: '1' } : undefined
+        );
       } else {
         storage.removeItem('pendingSnippetOpen');
       }
@@ -103,37 +115,69 @@ export function useConfigNavigationEvents(deps: ConfigNavigationEventsDeps) {
   const setup = async () => {
     const currentWindow = getWindow();
 
-    unlisteners.push(await currentWindow.listen('navigate-to-settings', () => {
-      deps.router.push('/config/category/settings');
-    }));
+    unlisteners.push(
+      await currentWindow.listen('navigate-to-settings', () => {
+        deps.router.push('/config/category/settings');
+      })
+    );
 
-    unlisteners.push(await currentWindow.listen<{ fragmentId: string; categoryId: string }>('navigate-to-fragment', (event) => {
-      const { fragmentId, categoryId } = event.payload;
-      routeToFragment(categoryId, fragmentId);
-    }));
+    unlisteners.push(
+      await currentWindow.listen<string>(
+        'navigate-to-settings-tab',
+        (event) => {
+          deps.router.push({
+            path: '/config/category/settings',
+            query: { tab: event.payload }
+          });
+        }
+      )
+    );
 
-    unlisteners.push(await currentWindow.listen<{ file_path?: string }>('open-markdown-from-system', async (event) => {
-      const filePath = event.payload?.file_path;
-      if (!filePath) return;
+    unlisteners.push(
+      await currentWindow.listen<{ fragmentId: string; categoryId: string }>(
+        'navigate-to-fragment',
+        (event) => {
+          const { fragmentId, categoryId } = event.payload;
+          routeToFragment(categoryId, fragmentId);
+        }
+      )
+    );
 
-      try {
-        const file = await readMarkdownFile(filePath);
-        const fragmentId = file.filePath || filePath;
-        routeToFragment(file.categoryId, fragmentId);
-      } catch (e: any) {
-        deps.modalMsg(`${deps.t('common.failed') || 'Failed'}: ${e?.message || e}`, 'error', 'bottom-right');
-      }
-    }));
+    unlisteners.push(
+      await currentWindow.listen<{ file_path?: string }>(
+        'open-markdown-from-system',
+        async (event) => {
+          const filePath = event.payload?.file_path;
+          if (!filePath) return;
 
-    unlisteners.push(await currentWindow.onFocusChanged(({ payload: focused }) => {
-      if (focused) {
-        checkPendingNavigation();
-      }
-    }));
+          try {
+            const file = await readMarkdownFile(filePath);
+            const fragmentId = file.filePath || filePath;
+            routeToFragment(file.categoryId, fragmentId);
+          } catch (e: any) {
+            deps.modalMsg(
+              `${deps.t('common.failed') || 'Failed'}: ${e?.message || e}`,
+              'error',
+              'bottom-right'
+            );
+          }
+        }
+      )
+    );
 
-    unlisteners.push(await currentWindow.listen('check-pending-navigation', () => {
-      checkPendingNavigationRequests();
-    }));
+    unlisteners.push(
+      await currentWindow.onFocusChanged(({ payload: focused }) => {
+        if (focused) {
+          checkPendingNavigation();
+        }
+      })
+    );
+
+    unlisteners.push(
+      await currentWindow.listen('check-pending-navigation', () => {
+        checkPendingNavigationRequests();
+      })
+    );
   };
 
   const cleanup = () => {
@@ -151,4 +195,6 @@ export function useConfigNavigationEvents(deps: ConfigNavigationEventsDeps) {
   };
 }
 
-export type ConfigNavigationEvents = ReturnType<typeof useConfigNavigationEvents>;
+export type ConfigNavigationEvents = ReturnType<
+  typeof useConfigNavigationEvents
+>;

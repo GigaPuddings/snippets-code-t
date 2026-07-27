@@ -7,7 +7,11 @@
           <FolderOpen theme="outline" size="14" class="button-icon" />
           {{ t('plugins.installLocal') }}
         </CustomButton>
-        <CustomButton size="small" :loading="installing" @click="handleInstallZip">
+        <CustomButton
+          size="small"
+          :loading="installing"
+          @click="handleInstallZip"
+        >
           <FileZip theme="outline" size="14" class="button-icon" />
           {{ t('plugins.installZip') }}
         </CustomButton>
@@ -28,46 +32,92 @@
         </div>
       </section>
 
-      <section v-if="!isGitSyncInstalled || !gitSyncConfigured" class="git-sync-onboarding">
-        <Github class="git-sync-onboarding-icon" theme="outline" size="22" :strokeWidth="3" />
+      <section
+        v-if="!isGitSyncInstalled || !gitSyncConfigured"
+        class="git-sync-onboarding"
+      >
+        <Github
+          class="git-sync-onboarding-icon"
+          theme="outline"
+          size="22"
+          :strokeWidth="3"
+        />
         <div class="git-sync-onboarding-content">
           <div class="git-sync-onboarding-title">
-            {{ t(isGitSyncInstalled ? 'plugins.gitSyncConfigureTitle' : 'plugins.gitSyncInstallTitle') }}
+            {{
+              t(
+                isGitSyncInstalled
+                  ? 'plugins.gitSyncConfigureTitle'
+                  : 'plugins.gitSyncInstallTitle'
+              )
+            }}
           </div>
           <div class="git-sync-onboarding-desc">
-            {{ t(isGitSyncInstalled ? 'plugins.gitSyncConfigureDesc' : 'plugins.gitSyncInstallDesc') }}
+            {{
+              t(
+                isGitSyncInstalled
+                  ? 'plugins.gitSyncConfigureDesc'
+                  : 'plugins.gitSyncInstallDesc'
+              )
+            }}
           </div>
         </div>
         <CustomButton
           type="primary"
           size="small"
-          :loading="installingMarketplaceId === GIT_SYNC_PLUGIN_ID"
+          :loading="
+            pluginStore.isMarketplaceInstallRequested(GIT_SYNC_PLUGIN_ID)
+          "
           @click="handleGitSyncOnboarding"
         >
-          {{ t(isGitSyncInstalled ? 'plugins.gitSyncConfigureAction' : 'plugins.gitSyncInstallAction') }}
+          {{
+            t(
+              isGitSyncInstalled
+                ? 'plugins.gitSyncConfigureAction'
+                : 'plugins.gitSyncInstallAction'
+            )
+          }}
         </CustomButton>
       </section>
 
       <section class="plugin-install-dir-panel">
         <div class="plugin-install-dir-main">
-          <div class="plugin-install-dir-title">{{ t('plugins.installLocationTitle') }}</div>
-          <div class="plugin-install-dir-desc">{{ t('plugins.installLocationDesc') }}</div>
+          <div class="plugin-install-dir-title">
+            {{ t('plugins.installLocationTitle') }}
+          </div>
+          <div class="plugin-install-dir-desc">
+            {{ t('plugins.installLocationDesc') }}
+          </div>
           <input
             v-model="pluginInstallDir"
             class="plugin-install-dir-input"
             readonly
             :placeholder="t('plugins.installLocationDefault')"
-          >
+          />
         </div>
         <div class="plugin-install-dir-actions">
-          <CustomButton size="small" plain :loading="pluginInstallDirLoading" @click="handleChoosePluginInstallDir">
+          <CustomButton
+            size="small"
+            plain
+            :loading="pluginInstallDirLoading"
+            @click="handleChoosePluginInstallDir"
+          >
             <FolderOpen theme="outline" size="14" class="button-icon" />
             {{ t('plugins.chooseInstallLocation') }}
           </CustomButton>
-          <CustomButton size="small" :loading="savingPluginInstallDir" @click="handleSavePluginInstallDir">
+          <CustomButton
+            size="small"
+            :loading="savingPluginInstallDir"
+            @click="handleSavePluginInstallDir"
+          >
             {{ t('common.save') }}
           </CustomButton>
-          <CustomButton size="small" plain :loading="savingPluginInstallDir" @click="handleResetPluginInstallDir">
+          <CustomButton
+            size="small"
+            plain
+            :loading="savingPluginInstallDir"
+            @click="handleResetPluginInstallDir"
+          >
             {{ t('plugins.resetInstallLocation') }}
           </CustomButton>
         </div>
@@ -81,9 +131,14 @@
               v-model="marketplaceQuery"
               class="marketplace-input"
               :placeholder="t('plugins.marketplaceSearchPlaceholder')"
-            >
+            />
           </div>
-          <CustomButton size="small" plain :loading="marketplaceLoading" @click="handleRefreshMarketplace">
+          <CustomButton
+            size="small"
+            plain
+            :loading="marketplaceLoading"
+            @click="handleRefreshMarketplace"
+          >
             <Refresh theme="outline" size="14" class="button-icon" />
             {{ t('plugins.marketplaceRefresh') }}
           </CustomButton>
@@ -98,51 +153,103 @@
             <div class="marketplace-main">
               <div class="plugin-title-row">
                 <span class="plugin-name">{{ pluginText(item.name) }}</span>
-                <span class="plugin-category">{{ t(`plugins.categories.${item.category}`) }}</span>
+                <span class="plugin-category">
+                  {{ t(`plugins.categories.${item.category}`) }}
+                </span>
                 <span class="plugin-source plugin-source--marketplace">
                   {{ marketplaceStatusText(item) }}
                 </span>
               </div>
-              <div class="plugin-description">{{ pluginText(item.description) }}</div>
+              <div class="plugin-description">
+                {{ pluginText(item.description) }}
+              </div>
               <div class="plugin-meta">
-                <span>{{ t('plugins.versionLabel', { version: item.version }) }}</span>
-                <span>{{ t('plugins.sizeLabel', { size: formatBytes(item.sizeBytes) }) }}</span>
+                <span>
+                  {{ t('plugins.versionLabel', { version: item.version }) }}
+                </span>
+                <span>
+                  {{
+                    t('plugins.sizeLabel', {
+                      size: formatBytes(item.sizeBytes)
+                    })
+                  }}
+                </span>
                 <span v-if="item.minAppVersion">
-                  {{ t('plugins.minAppVersion', { version: item.minAppVersion }) }}
+                  {{
+                    t('plugins.minAppVersion', { version: item.minAppVersion })
+                  }}
                 </span>
               </div>
-              <div v-if="getMarketplaceDependencyNames(item).length" class="plugin-meta">
-                <span>{{ t('plugins.dependenciesLabel', { dependencies: getMarketplaceDependencyNames(item).join(', ') }) }}</span>
+              <div
+                v-if="getMarketplaceDependencyNames(item).length"
+                class="plugin-meta"
+              >
+                <span>
+                  {{
+                    t('plugins.dependenciesLabel', {
+                      dependencies:
+                        getMarketplaceDependencyNames(item).join(', ')
+                    })
+                  }}
+                </span>
               </div>
               <div class="plugin-permission-summary">
                 <span
                   v-for="label in marketplacePermissionLabels(item)"
                   :key="label"
                   class="plugin-permission-chip"
-                  :class="{ 'plugin-permission-chip--risk': isRiskPermissionLabel(label) }"
+                  :class="{
+                    'plugin-permission-chip--risk': isRiskPermissionLabel(label)
+                  }"
                 >
                   {{ label }}
                 </span>
               </div>
               <div v-if="item.tags?.length" class="marketplace-tags">
-                <span v-for="tag in item.tags" :key="tag" class="marketplace-tag">{{ tag }}</span>
+                <span
+                  v-for="tag in item.tags"
+                  :key="tag"
+                  class="marketplace-tag"
+                >
+                  {{ tag }}
+                </span>
               </div>
               <div
-                v-if="isMarketplaceItemInstalling(item) && installProgress"
+                v-if="getMarketplaceItemInstallProgress(item)"
                 class="plugin-install-progress"
+                :class="{
+                  'plugin-install-progress--failed':
+                    getMarketplaceItemInstallProgress(item)?.phase === 'failed'
+                }"
               >
                 <div class="plugin-install-progress-text">
-                  <span>{{ currentInstallProgressText }}</span>
-                  <span>{{ currentInstallProgressSizeText }}</span>
+                  <span>{{ installProgressText(item) }}</span>
+                  <span>
+                    {{
+                      installProgressSizeText(
+                        getMarketplaceItemInstallProgress(item)
+                      )
+                    }}
+                  </span>
                 </div>
                 <div
                   class="plugin-install-progress-track"
-                  :class="{ 'plugin-install-progress-track--indeterminate': installProgress.progress === undefined }"
+                  :class="{
+                    'plugin-install-progress-track--indeterminate':
+                      getMarketplaceItemInstallProgress(item)?.phase !==
+                        'failed' &&
+                      getMarketplaceItemInstallProgress(item)?.progress ===
+                        undefined
+                  }"
                 >
                   <div
                     class="plugin-install-progress-bar"
-                    :style="{ width: installProgress.progress === undefined ? '35%' : `${Math.round(installProgress.progress)}%` }"
-                  />
+                    :style="{
+                      width: installProgressBarWidth(
+                        getMarketplaceItemInstallProgress(item)
+                      )
+                    }"
+                  ></div>
                 </div>
               </div>
             </div>
@@ -159,14 +266,21 @@
               <CustomButton
                 v-if="canInstallMarketplaceItem(item)"
                 size="small"
-                :title="hasMissingMarketplaceDependencies(item) ? t('plugins.marketplaceInstallDependencies') : t('plugins.marketplaceInstall')"
+                :title="
+                  hasMissingMarketplaceDependencies(item)
+                    ? t('plugins.marketplaceInstallDependencies')
+                    : t('plugins.marketplaceInstall')
+                "
                 :loading="isMarketplaceItemInstalling(item)"
                 @click="handleInstallMarketplace(item, false)"
               >
                 <Download theme="outline" size="14" />
               </CustomButton>
             </div>
-            <div v-if="getMarketplaceResources(item).length" class="marketplace-resource-list">
+            <div
+              v-if="getMarketplaceResources(item).length"
+              class="marketplace-resource-list"
+            >
               <div
                 v-for="resource in getMarketplaceResources(item)"
                 :key="resource.id"
@@ -174,26 +288,84 @@
               >
                 <div class="marketplace-resource-main">
                   <div class="plugin-title-row">
-                    <span class="plugin-name">{{ pluginText(resource.name) }}</span>
-                    <span class="plugin-category">{{ t(`plugins.categories.${resource.category}`) }}</span>
+                    <span class="plugin-name">
+                      {{ pluginText(resource.name) }}
+                    </span>
+                    <span class="plugin-category">
+                      {{ t(`plugins.categories.${resource.category}`) }}
+                    </span>
                     <span class="plugin-source plugin-source--marketplace">
                       {{ marketplaceStatusText(resource) }}
                     </span>
                   </div>
-                  <div class="plugin-description">{{ pluginText(resource.description) }}</div>
+                  <div class="plugin-description">
+                    {{ pluginText(resource.description) }}
+                  </div>
                   <div class="plugin-meta">
-                    <span>{{ t('plugins.versionLabel', { version: resource.version }) }}</span>
-                    <span>{{ t('plugins.sizeLabel', { size: formatBytes(resource.sizeBytes) }) }}</span>
+                    <span>
+                      {{
+                        t('plugins.versionLabel', { version: resource.version })
+                      }}
+                    </span>
+                    <span>
+                      {{
+                        t('plugins.sizeLabel', {
+                          size: formatBytes(resource.sizeBytes)
+                        })
+                      }}
+                    </span>
                   </div>
                   <div class="plugin-permission-summary">
                     <span
                       v-for="label in marketplacePermissionLabels(resource)"
                       :key="label"
                       class="plugin-permission-chip"
-                      :class="{ 'plugin-permission-chip--risk': isRiskPermissionLabel(label) }"
+                      :class="{
+                        'plugin-permission-chip--risk':
+                          isRiskPermissionLabel(label)
+                      }"
                     >
                       {{ label }}
                     </span>
+                  </div>
+                  <div
+                    v-if="getMarketplaceItemInstallProgress(resource)"
+                    class="plugin-install-progress"
+                    :class="{
+                      'plugin-install-progress--failed':
+                        getMarketplaceItemInstallProgress(resource)?.phase ===
+                        'failed'
+                    }"
+                  >
+                    <div class="plugin-install-progress-text">
+                      <span>{{ installProgressText(resource) }}</span>
+                      <span>
+                        {{
+                          installProgressSizeText(
+                            getMarketplaceItemInstallProgress(resource)
+                          )
+                        }}
+                      </span>
+                    </div>
+                    <div
+                      class="plugin-install-progress-track"
+                      :class="{
+                        'plugin-install-progress-track--indeterminate':
+                          getMarketplaceItemInstallProgress(resource)?.phase !==
+                            'failed' &&
+                          getMarketplaceItemInstallProgress(resource)
+                            ?.progress === undefined
+                      }"
+                    >
+                      <div
+                        class="plugin-install-progress-bar"
+                        :style="{
+                          width: installProgressBarWidth(
+                            getMarketplaceItemInstallProgress(resource)
+                          )
+                        }"
+                      ></div>
+                    </div>
                   </div>
                 </div>
                 <div class="plugin-controls">
@@ -219,7 +391,10 @@
               </div>
             </div>
           </div>
-          <div v-if="!marketplaceLoading && !filteredMarketplaceItems.length" class="marketplace-empty">
+          <div
+            v-if="!marketplaceLoading && !filteredMarketplaceItems.length"
+            class="marketplace-empty"
+          >
             {{ t('plugins.marketplaceEmpty') }}
           </div>
         </div>
@@ -232,8 +407,12 @@
       >
         <div class="plugin-main">
           <div class="plugin-title-row">
-            <span class="plugin-name">{{ pluginText(plugin.manifest.name) }}</span>
-            <span class="plugin-category">{{ t(`plugins.categories.${plugin.category}`) }}</span>
+            <span class="plugin-name">
+              {{ pluginText(plugin.manifest.name) }}
+            </span>
+            <span class="plugin-category">
+              {{ t(`plugins.categories.${plugin.category}`) }}
+            </span>
             <span
               class="plugin-source"
               :class="`plugin-source--${plugin.source}`"
@@ -241,22 +420,37 @@
               {{ t(`plugins.sources.${plugin.source}`) }}
             </span>
           </div>
-          <div class="plugin-description">{{ pluginText(plugin.manifest.description) }}</div>
+          <div class="plugin-description">
+            {{ pluginText(plugin.manifest.description) }}
+          </div>
           <div class="plugin-meta">
-            <span>{{ t('plugins.versionLabel', { version: plugin.manifest.version }) }}</span>
+            <span>
+              {{
+                t('plugins.versionLabel', { version: plugin.manifest.version })
+              }}
+            </span>
             <span v-if="plugin.manifest.minAppVersion">
-              {{ t('plugins.minAppVersion', { version: plugin.manifest.minAppVersion }) }}
+              {{
+                t('plugins.minAppVersion', {
+                  version: plugin.manifest.minAppVersion
+                })
+              }}
             </span>
           </div>
           <div v-if="plugin.resourceHintKey" class="plugin-resource">
             {{ t(plugin.resourceHintKey) }}
           </div>
           <div
-            v-if="plugin.resourceHintKey && pluginStore.resourceStatusByPluginId[plugin.id]"
+            v-if="
+              plugin.resourceHintKey &&
+              pluginStore.resourceStatusByPluginId[plugin.id]
+            "
             class="plugin-resource-status"
             :class="{
-              'plugin-resource-status--ready': pluginStore.resourceStatusByPluginId[plugin.id]?.available,
-              'plugin-resource-status--missing': !pluginStore.resourceStatusByPluginId[plugin.id]?.available
+              'plugin-resource-status--ready':
+                pluginStore.resourceStatusByPluginId[plugin.id]?.available,
+              'plugin-resource-status--missing':
+                !pluginStore.resourceStatusByPluginId[plugin.id]?.available
             }"
           >
             {{
@@ -276,12 +470,16 @@
               v-for="label in installedPluginPermissionLabels(plugin)"
               :key="label"
               class="plugin-permission-chip"
-              :class="{ 'plugin-permission-chip--risk': isRiskPermissionLabel(label) }"
+              :class="{
+                'plugin-permission-chip--risk': isRiskPermissionLabel(label)
+              }"
             >
               {{ label }}
             </span>
           </div>
-          <div v-if="plugin.packagePath" class="plugin-path">{{ plugin.packagePath }}</div>
+          <div v-if="plugin.packagePath" class="plugin-path">
+            {{ plugin.packagePath }}
+          </div>
         </div>
         <div class="plugin-controls">
           <CustomButton
@@ -301,7 +499,10 @@
             @change="(enabled) => handleToggle(plugin.id, Boolean(enabled))"
           />
         </div>
-        <div v-if="getInstalledResources(plugin).length" class="installed-resource-list">
+        <div
+          v-if="getInstalledResources(plugin).length"
+          class="installed-resource-list"
+        >
           <div
             v-for="resource in getInstalledResources(plugin)"
             :key="resource.id"
@@ -309,8 +510,12 @@
           >
             <div class="plugin-main">
               <div class="plugin-title-row">
-                <span class="plugin-name">{{ pluginText(resource.manifest.name) }}</span>
-                <span class="plugin-category">{{ t(`plugins.categories.${resource.category}`) }}</span>
+                <span class="plugin-name">
+                  {{ pluginText(resource.manifest.name) }}
+                </span>
+                <span class="plugin-category">
+                  {{ t(`plugins.categories.${resource.category}`) }}
+                </span>
                 <span
                   class="plugin-source"
                   :class="`plugin-source--${resource.source}`"
@@ -318,21 +523,33 @@
                   {{ t(`plugins.sources.${resource.source}`) }}
                 </span>
               </div>
-              <div class="plugin-description">{{ pluginText(resource.manifest.description) }}</div>
+              <div class="plugin-description">
+                {{ pluginText(resource.manifest.description) }}
+              </div>
               <div class="plugin-meta">
-                <span>{{ t('plugins.versionLabel', { version: resource.manifest.version }) }}</span>
+                <span>
+                  {{
+                    t('plugins.versionLabel', {
+                      version: resource.manifest.version
+                    })
+                  }}
+                </span>
               </div>
               <div class="plugin-permission-summary">
                 <span
                   v-for="label in installedPluginPermissionLabels(resource)"
                   :key="label"
                   class="plugin-permission-chip"
-                  :class="{ 'plugin-permission-chip--risk': isRiskPermissionLabel(label) }"
+                  :class="{
+                    'plugin-permission-chip--risk': isRiskPermissionLabel(label)
+                  }"
                 >
                   {{ label }}
                 </span>
               </div>
-              <div v-if="resource.packagePath" class="plugin-path">{{ resource.packagePath }}</div>
+              <div v-if="resource.packagePath" class="plugin-path">
+                {{ resource.packagePath }}
+              </div>
             </div>
             <div class="plugin-controls">
               <CustomButton
@@ -349,7 +566,9 @@
                 :model-value="pluginStore.isEnabled(resource.id)"
                 :active-text="t('common.on')"
                 :inactive-text="t('common.off')"
-                @change="(enabled) => handleToggle(resource.id, Boolean(enabled))"
+                @change="
+                  (enabled) => handleToggle(resource.id, Boolean(enabled))
+                "
               />
             </div>
           </div>
@@ -363,10 +582,18 @@
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { getVersion } from '@tauri-apps/api/app';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { open } from '@tauri-apps/plugin-dialog';
 import { unregister } from '@tauri-apps/plugin-global-shortcut';
-import { Delete, Download, FileZip, FolderOpen, Github, Info, Refresh, Search } from '@icon-park/vue-next';
+import {
+  Delete,
+  Download,
+  FileZip,
+  FolderOpen,
+  Github,
+  Info,
+  Refresh,
+  Search
+} from '@icon-park/vue-next';
 import { getGitSettings } from '@/api/appConfig';
 import {
   DEFAULT_PLUGIN_MARKETPLACE_URL,
@@ -378,7 +605,11 @@ import {
 } from '@/api/plugins';
 import { getPluginById } from '@/plugins/registry';
 import { OFFICIAL_PLUGINS_MODE } from '@/plugins/official-mode';
-import type { PluginCapabilities, PluginI18nText, RegisteredPlugin } from '@/plugins/protocol';
+import type {
+  PluginCapabilities,
+  PluginI18nText,
+  RegisteredPlugin
+} from '@/plugins/protocol';
 import { getHotkeyValue, setHotkeyValue } from '@/plugins/hotkeys';
 import type { PluginId } from '@/plugins/types';
 import { useConfigurationStore, usePluginStore } from '@/store';
@@ -390,36 +621,25 @@ defineOptions({
   name: 'PluginsSettings'
 });
 
-type NormalizedPluginInstallProgress = PluginInstallProgress & {
-  downloadedBytes: number;
-  totalBytes?: number;
-};
-
 const { t } = useI18n();
 const router = useRouter();
 const pluginStore = usePluginStore();
 const configurationStore = useConfigurationStore();
 const GIT_SYNC_PLUGIN_ID = 'git-sync';
-const prioritizeGitSync = <T extends { id: string }>(items: T[]): T[] => (
+const prioritizeGitSync = <T extends { id: string }>(items: T[]): T[] =>
   [...items].sort((left, right) => {
     const leftPriority = left.id === GIT_SYNC_PLUGIN_ID ? 0 : 1;
     const rightPriority = right.id === GIT_SYNC_PLUGIN_ID ? 0 : 1;
     return leftPriority - rightPriority;
-  })
+  });
+const visiblePlugins = computed(() =>
+  prioritizeGitSync(pluginStore.visiblePlugins)
 );
-const visiblePlugins = computed(() => prioritizeGitSync(pluginStore.visiblePlugins));
 const installing = ref(false);
 const removingPluginId = ref<string | null>(null);
 const marketplaceLoading = ref(false);
 const marketplaceItems = ref<PluginMarketplaceItem[]>([]);
 const marketplaceQuery = ref('');
-const installingMarketplaceId = ref<string | null>(null);
-const installingPackageId = ref<string | null>(null);
-const installProgress = ref<NormalizedPluginInstallProgress | null>(null);
-const installProgressUnlisten = ref<UnlistenFn | null>(null);
-const installProgressBytesByPackageUrl = ref<
-  Record<string, { downloadedBytes: number; totalBytes?: number; progress?: number }>
->({});
 const appVersion = ref('');
 const pluginInstallDir = ref('');
 const pluginInstallDirLoading = ref(false);
@@ -433,17 +653,6 @@ onMounted(async () => {
   await refreshGitSyncConfiguration();
   loadPluginInstallDir();
   refreshMarketplace(false, { refreshInstalled: false });
-  try {
-    installProgressUnlisten.value = await listen<PluginInstallProgress>(
-      'plugin-install-progress',
-      (event) => {
-        installProgress.value = normalizeInstallProgress(event.payload);
-        logger.info('[PluginSettings] install progress', installProgress.value);
-      }
-    );
-  } catch (error) {
-    logger.warn('[PluginSettings] 监听插件安装进度失败', error);
-  }
   getVersion()
     .then((version) => {
       appVersion.value = version;
@@ -453,11 +662,6 @@ onMounted(async () => {
     });
 });
 
-onUnmounted(() => {
-  installProgressUnlisten.value?.();
-  installProgressUnlisten.value = null;
-});
-
 const pluginText = (text: PluginI18nText): string => {
   const translated = t(text.i18nKey);
   return translated === text.i18nKey ? text.fallback : translated;
@@ -465,40 +669,44 @@ const pluginText = (text: PluginI18nText): string => {
 
 const filteredMarketplaceItems = computed(() => {
   const query = marketplaceQuery.value.trim().toLowerCase();
-  const topLevelItems = marketplaceItems.value.filter((item) => !item.resourceFor);
+  const topLevelItems = marketplaceItems.value.filter(
+    (item) => !item.resourceFor
+  );
   if (!query) return prioritizeGitSync(topLevelItems);
 
-  return prioritizeGitSync(topLevelItems.filter((item) => {
-    const resources = getMarketplaceResources(item);
-    const haystack = [
-      item.id,
-      item.name.fallback,
-      item.description.fallback,
-      item.category,
-      item.builtinPluginId,
-      item.resourceFor,
-      ...(item.tags ?? []),
-      ...resources.flatMap((resource) => [
-        resource.id,
-        resource.name.fallback,
-        resource.description.fallback,
-        ...(resource.tags ?? [])
-      ])
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase();
-    return haystack.includes(query);
-  }));
+  return prioritizeGitSync(
+    topLevelItems.filter((item) => {
+      const resources = getMarketplaceResources(item);
+      const haystack = [
+        item.id,
+        item.name.fallback,
+        item.description.fallback,
+        item.category,
+        item.builtinPluginId,
+        item.resourceFor,
+        ...(item.tags ?? []),
+        ...resources.flatMap((resource) => [
+          resource.id,
+          resource.name.fallback,
+          resource.description.fallback,
+          ...(resource.tags ?? [])
+        ])
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(query);
+    })
+  );
 });
 
-const isGitSyncInstalled = computed(() => (
+const isGitSyncInstalled = computed(() =>
   pluginStore.plugins.some((plugin) => plugin.id === GIT_SYNC_PLUGIN_ID)
-));
+);
 
-const gitSyncMarketplaceItem = computed(() => (
+const gitSyncMarketplaceItem = computed(() =>
   marketplaceItems.value.find((item) => item.id === GIT_SYNC_PLUGIN_ID)
-));
+);
 
 const refreshGitSyncConfiguration = async () => {
   if (!isGitSyncInstalled.value) {
@@ -509,9 +717,9 @@ const refreshGitSyncConfiguration = async () => {
   try {
     const settings = await getGitSettings();
     gitSyncConfigured.value = Boolean(
-      settings.user_name?.trim()
-      && settings.user_email?.trim()
-      && settings.remote_url?.trim()
+      settings.user_name?.trim() &&
+        settings.user_email?.trim() &&
+        settings.remote_url?.trim()
     );
   } catch (error) {
     gitSyncConfigured.value = false;
@@ -519,17 +727,18 @@ const refreshGitSyncConfiguration = async () => {
   }
 };
 
-const isMarketplaceItemInstalled = (item: PluginMarketplaceItem): boolean => (
-  pluginStore.plugins.some((plugin) => plugin.id === item.id)
-);
+const isMarketplaceItemInstalled = (item: PluginMarketplaceItem): boolean =>
+  pluginStore.plugins.some((plugin) => plugin.id === item.id);
 
-const getInstalledMarketplacePlugin = (item: PluginMarketplaceItem): RegisteredPlugin | undefined => (
-  pluginStore.plugins.find((plugin) => plugin.id === item.id)
-);
+const getInstalledMarketplacePlugin = (
+  item: PluginMarketplaceItem
+): RegisteredPlugin | undefined =>
+  pluginStore.plugins.find((plugin) => plugin.id === item.id);
 
-const getMarketplaceItemById = (id: string): PluginMarketplaceItem | undefined => (
-  marketplaceItems.value.find((item) => item.id === id)
-);
+const getMarketplaceItemById = (
+  id: string
+): PluginMarketplaceItem | undefined =>
+  marketplaceItems.value.find((item) => item.id === id);
 
 const handleGitSyncOnboarding = async () => {
   if (isGitSyncInstalled.value) {
@@ -546,13 +755,13 @@ const handleGitSyncOnboarding = async () => {
   await handleInstallMarketplace(gitSyncItem);
 };
 
-const getMarketplaceResources = (item: PluginMarketplaceItem): PluginMarketplaceItem[] => (
-  marketplaceItems.value.filter((resource) => resource.resourceFor === item.id)
-);
+const getMarketplaceResources = (
+  item: PluginMarketplaceItem
+): PluginMarketplaceItem[] =>
+  marketplaceItems.value.filter((resource) => resource.resourceFor === item.id);
 
-const getInstalledResources = (plugin: RegisteredPlugin): RegisteredPlugin[] => (
-  pluginStore.resourcesForPlugin(plugin.id)
-);
+const getInstalledResources = (plugin: RegisteredPlugin): RegisteredPlugin[] =>
+  pluginStore.resourcesForPlugin(plugin.id);
 
 const capabilityLabelMap: Record<keyof PluginCapabilities, string> = {
   routeNames: 'plugins.permissionCapabilities.routes',
@@ -563,11 +772,15 @@ const capabilityLabelMap: Record<keyof PluginCapabilities, string> = {
   trayItems: 'plugins.permissionCapabilities.tray',
   windows: 'plugins.permissionCapabilities.windows'
 };
-const capabilityKeys = Object.keys(capabilityLabelMap) as Array<keyof PluginCapabilities>;
+const capabilityKeys = Object.keys(capabilityLabelMap) as Array<
+  keyof PluginCapabilities
+>;
 
 const permissionLabel = (permission: string): string => {
-  if (permission.startsWith('backend:')) return t('plugins.permissionBackend', { permission });
-  if (permission.startsWith('command:')) return t('plugins.permissionCommand', { permission });
+  if (permission.startsWith('backend:'))
+    return t('plugins.permissionBackend', { permission });
+  if (permission.startsWith('command:'))
+    return t('plugins.permissionCommand', { permission });
   return permission;
 };
 
@@ -596,37 +809,45 @@ const marketplacePermissionLabels = (item: PluginMarketplaceItem): string[] => {
   return labels.length ? labels : [t('plugins.permissionNone')];
 };
 
-const installedPluginPermissionLabels = (plugin: RegisteredPlugin): string[] => {
+const installedPluginPermissionLabels = (
+  plugin: RegisteredPlugin
+): string[] => {
   const labels = [
     ...capabilityLabels(plugin.manifest.capabilities),
     ...(plugin.manifest.permissions ?? []).map(permissionLabel)
   ];
 
-  if (plugin.resourceFor || plugin.manifest.resourceFor || plugin.manifest.resources) {
+  if (
+    plugin.resourceFor ||
+    plugin.manifest.resourceFor ||
+    plugin.manifest.resources
+  ) {
     labels.push(t('plugins.permissionResource'));
   }
 
   return labels.length ? labels : [t('plugins.permissionNone')];
 };
 
-const isRiskPermissionLabel = (label: string): boolean => (
-  label.includes('backend:')
-  || label.includes('command:')
-  || label === t('plugins.permissionCapabilities.windows')
-);
+const isRiskPermissionLabel = (label: string): boolean =>
+  label.includes('backend:') ||
+  label.includes('command:') ||
+  label === t('plugins.permissionCapabilities.windows');
 
-const getMarketplaceDependencies = (item: PluginMarketplaceItem): string[] => (
+const getMarketplaceDependencies = (item: PluginMarketplaceItem): string[] =>
   Array.isArray(item.dependencies)
-    ? item.dependencies.filter((dependencyId) => typeof dependencyId === 'string' && dependencyId.trim())
-    : []
-);
+    ? item.dependencies.filter(
+        (dependencyId) =>
+          typeof dependencyId === 'string' && dependencyId.trim()
+      )
+    : [];
 
-const getMarketplaceDependencyNames = (item: PluginMarketplaceItem): string[] => (
+const getMarketplaceDependencyNames = (item: PluginMarketplaceItem): string[] =>
   getMarketplaceDependencies(item)
     .map((dependencyId) => getMarketplaceItemById(dependencyId))
-    .filter((dependency): dependency is PluginMarketplaceItem => Boolean(dependency))
-    .map((dependency) => pluginText(dependency.name))
-);
+    .filter((dependency): dependency is PluginMarketplaceItem =>
+      Boolean(dependency)
+    )
+    .map((dependency) => pluginText(dependency.name));
 
 const formatBytes = (value?: number | null): string => {
   if (!Number.isFinite(value) || !value || value <= 0) {
@@ -645,105 +866,58 @@ const formatBytes = (value?: number | null): string => {
   return `${size.toFixed(precision)} ${units[unitIndex]}`;
 };
 
-const normalizeInstallProgress = (
-  progress: PluginInstallProgress
-): NormalizedPluginInstallProgress => {
-  const rawProgress = progress as PluginInstallProgress & {
-    downloaded_bytes?: number;
-    total_bytes?: number;
-  };
-  const packageUrl = progress.packageUrl;
-  const cached = installProgressBytesByPackageUrl.value[packageUrl];
-  const downloadedBytes = progress.downloadedBytes ?? rawProgress.downloaded_bytes ?? 0;
-  const totalBytes = progress.totalBytes ?? rawProgress.total_bytes;
-  const computedProgress = typeof progress.progress === 'number'
-    ? progress.progress
-    : totalBytes
-      ? Math.min(100, Math.max(0, (downloadedBytes / totalBytes) * 100))
-      : undefined;
-
-  if (downloadedBytes > 0 || totalBytes || typeof computedProgress === 'number') {
-    installProgressBytesByPackageUrl.value = {
-      ...installProgressBytesByPackageUrl.value,
-      [packageUrl]: {
-        downloadedBytes: Math.max(downloadedBytes, cached?.downloadedBytes ?? 0),
-        totalBytes: totalBytes ?? cached?.totalBytes,
-        progress: computedProgress ?? cached?.progress
-      }
-    };
-  }
-
-  const latest = installProgressBytesByPackageUrl.value[packageUrl] ?? cached;
-  return {
-    ...progress,
-    downloadedBytes: downloadedBytes || latest?.downloadedBytes || 0,
-    totalBytes: totalBytes ?? latest?.totalBytes,
-    progress: computedProgress ?? latest?.progress
-  };
-};
-
-const marketplaceItemByPackageUrl = computed(() => {
-  const byUrl = new Map<string, PluginMarketplaceItem>();
-  for (const item of marketplaceItems.value) {
-    if (item.packageUrl) {
-      byUrl.set(item.packageUrl, item);
-    }
-  }
-  return byUrl;
-});
-
-const currentInstallingItem = computed(() => {
-  if (!installProgress.value?.packageUrl) return null;
-  return marketplaceItemByPackageUrl.value.get(installProgress.value.packageUrl) ?? null;
-});
-
 const installPhaseText = (phase: string): string => {
   const key = `plugins.installPhases.${phase}`;
   const translated = t(key);
   return translated === key ? phase : translated;
 };
 
-const currentInstallProgressText = computed(() => {
-  if (!installProgress.value) return '';
-  const itemName = currentInstallingItem.value
-    ? pluginText(currentInstallingItem.value.name)
-    : t('plugins.installingPlugin');
-  const phase = installPhaseText(installProgress.value.phase);
-  const percent = installProgress.value.progress === undefined
-    ? ''
-    : ` ${Math.round(installProgress.value.progress)}%`;
-  return `${phase} ${itemName}${percent}`;
-});
+const getMarketplaceItemInstallProgress = (
+  item: PluginMarketplaceItem
+): PluginInstallProgress | undefined => {
+  if (!item.packageUrl) return undefined;
+  const progress = pluginStore.installProgressByPackageUrl[item.packageUrl];
+  return progress && progress.phase !== 'installed' ? progress : undefined;
+};
 
-const currentInstallProgressSizeText = computed(() => {
-  if (!installProgress.value) return '';
-  const downloaded = formatBytes(installProgress.value.downloadedBytes);
-  return installProgress.value.totalBytes
-    ? `${downloaded} / ${formatBytes(installProgress.value.totalBytes)}`
+const installProgressText = (item: PluginMarketplaceItem): string => {
+  const progress = getMarketplaceItemInstallProgress(item);
+  if (!progress) return '';
+  const phase = installPhaseText(progress.phase);
+  const percent =
+    progress.progress === undefined ? '' : ` ${Math.round(progress.progress)}%`;
+  return `${phase} ${pluginText(item.name)}${percent}`;
+};
+
+const installProgressSizeText = (progress?: PluginInstallProgress): string => {
+  if (!progress || (!progress.downloadedBytes && !progress.totalBytes))
+    return '';
+  const downloaded = formatBytes(progress.downloadedBytes);
+  return progress.totalBytes
+    ? `${downloaded} / ${formatBytes(progress.totalBytes)}`
     : downloaded;
-});
+};
 
-const isMarketplaceItemInstalling = (item: PluginMarketplaceItem): boolean => (
-  installingMarketplaceId.value === item.id
-  || installingPackageId.value === item.id
-  || Boolean(
-    installProgress.value?.packageUrl
-    && (
-      item.packageUrl === installProgress.value.packageUrl
-      || getMarketplaceResources(item).some(
-        (resource) => resource.packageUrl === installProgress.value?.packageUrl
-      )
-    )
-  )
-);
+const installProgressBarWidth = (progress?: PluginInstallProgress): string =>
+  progress?.phase === 'failed'
+    ? '100%'
+    : progress?.progress === undefined
+      ? '35%'
+      : `${Math.round(progress.progress)}%`;
 
-const versionParts = (version: string): number[] => (
+const isMarketplaceItemInstalling = (item: PluginMarketplaceItem): boolean =>
+  pluginStore.isMarketplaceInstallRequested(item.id) ||
+  pluginStore.isPackageInstalling(item.packageUrl) ||
+  getMarketplaceResources(item).some((resource) =>
+    pluginStore.isPackageInstalling(resource.packageUrl)
+  );
+
+const versionParts = (version: string): number[] =>
   version
     .replace(/^v/i, '')
     .split('.')
     .map((part) => Number.parseInt(part, 10))
-    .map((part) => (Number.isFinite(part) ? part : 0))
-);
+    .map((part) => (Number.isFinite(part) ? part : 0));
 
 const compareVersions = (left: string, right: string): number => {
   const leftParts = versionParts(left);
@@ -756,33 +930,40 @@ const compareVersions = (left: string, right: string): number => {
   return 0;
 };
 
-const isCompatibleWithApp = (item: PluginMarketplaceItem): boolean => (
-  !item.minAppVersion
-  || !appVersion.value
-  || compareVersions(appVersion.value, item.minAppVersion) >= 0
-);
+const isCompatibleWithApp = (item: PluginMarketplaceItem): boolean =>
+  !item.minAppVersion ||
+  !appVersion.value ||
+  compareVersions(appVersion.value, item.minAppVersion) >= 0;
 
 const marketplaceStatusText = (item: PluginMarketplaceItem): string => {
   if (!isCompatibleWithApp(item)) return t('plugins.marketplaceIncompatible');
   const installedPlugin = getInstalledMarketplacePlugin(item);
-  if (installedPlugin?.source === 'local' && compareVersions(item.version, installedPlugin.manifest.version) > 0) {
+  if (
+    installedPlugin?.source === 'local' &&
+    compareVersions(item.version, installedPlugin.manifest.version) > 0
+  ) {
     return t('plugins.marketplaceUpdateAvailable');
   }
-  if (isMarketplaceItemInstalled(item) && hasMissingMarketplaceDependencies(item)) {
+  if (
+    isMarketplaceItemInstalled(item) &&
+    hasMissingMarketplaceDependencies(item)
+  ) {
     return t('plugins.marketplaceDependencyMissing');
   }
-  if (installedPlugin?.source === 'local') return t('plugins.marketplaceInstalled');
+  if (installedPlugin?.source === 'local')
+    return t('plugins.marketplaceInstalled');
   if (
-    item.status === 'included'
-    && isExternalOfficialPluginMode
-    && !isMarketplaceItemInstalled(item)
-    && item.packageUrl
+    item.status === 'included' &&
+    isExternalOfficialPluginMode &&
+    !isMarketplaceItemInstalled(item) &&
+    item.packageUrl
   ) {
     return t('plugins.marketplaceAvailable');
   }
   if (item.status === 'included') return t('plugins.marketplaceIncluded');
   if (item.status === 'planned') return t('plugins.marketplacePlanned');
-  if (isMarketplaceItemInstalled(item)) return t('plugins.marketplaceInstalled');
+  if (isMarketplaceItemInstalled(item))
+    return t('plugins.marketplaceInstalled');
   return t('plugins.marketplaceAvailable');
 };
 
@@ -792,7 +973,10 @@ const canInstallMarketplaceItem = (item: PluginMarketplaceItem): boolean => {
 
   const installedPlugin = getInstalledMarketplacePlugin(item);
   if (!installedPlugin) return true;
-  if (installedPlugin.source === 'local' && compareVersions(item.version, installedPlugin.manifest.version) > 0) {
+  if (
+    installedPlugin.source === 'local' &&
+    compareVersions(item.version, installedPlugin.manifest.version) > 0
+  ) {
     return false;
   }
   return hasMissingMarketplaceDependencies(item);
@@ -800,22 +984,24 @@ const canInstallMarketplaceItem = (item: PluginMarketplaceItem): boolean => {
 
 const canUpdateMarketplaceItem = (item: PluginMarketplaceItem): boolean => {
   const installedPlugin = getInstalledMarketplacePlugin(item);
-  return Boolean(item.packageUrl)
-    && isCompatibleWithApp(item)
-    && installedPlugin?.source === 'local'
-    && compareVersions(item.version, installedPlugin.manifest.version) > 0;
+  return (
+    Boolean(item.packageUrl) &&
+    isCompatibleWithApp(item) &&
+    installedPlugin?.source === 'local' &&
+    compareVersions(item.version, installedPlugin.manifest.version) > 0
+  );
 };
 
-const shouldInstallMarketplaceItem = (item: PluginMarketplaceItem): boolean => (
-  pluginStore.shouldInstallMarketplaceItem(item)
-);
+const shouldInstallMarketplaceItem = (item: PluginMarketplaceItem): boolean =>
+  pluginStore.shouldInstallMarketplaceItem(item);
 
-const hasMissingMarketplaceDependencies = (item: PluginMarketplaceItem): boolean => (
+const hasMissingMarketplaceDependencies = (
+  item: PluginMarketplaceItem
+): boolean =>
   getMarketplaceDependencies(item).some((dependencyId) => {
     const dependency = getMarketplaceItemById(dependencyId);
     return !dependency || shouldInstallMarketplaceItem(dependency);
-  })
-);
+  });
 
 const refreshMarketplace = async (
   notify = true,
@@ -826,11 +1012,16 @@ const refreshMarketplace = async (
     if (options.refreshInstalled !== false) {
       await pluginStore.refreshInstalledPlugins();
     }
-    const marketplace = await fetchPluginMarketplace(DEFAULT_PLUGIN_MARKETPLACE_URL);
-    marketplaceItems.value = Array.isArray(marketplace.plugins) ? marketplace.plugins : [];
+    const marketplace = await fetchPluginMarketplace(
+      DEFAULT_PLUGIN_MARKETPLACE_URL
+    );
+    marketplaceItems.value = Array.isArray(marketplace.plugins)
+      ? marketplace.plugins
+      : [];
     if (notify) modal.msg(t('plugins.marketplaceRefreshed'));
   } catch (error) {
-    if (notify) modal.msg(`${t('plugins.marketplaceRefreshFailed')}: ${error}`, 'error');
+    if (notify)
+      modal.msg(`${t('plugins.marketplaceRefreshFailed')}: ${error}`, 'error');
   } finally {
     marketplaceLoading.value = false;
   }
@@ -889,7 +1080,10 @@ const handleResetPluginInstallDir = async () => {
   }
 };
 
-const handleInstallMarketplace = async (item: PluginMarketplaceItem, update = false) => {
+const handleInstallMarketplace = async (
+  item: PluginMarketplaceItem,
+  update = false
+) => {
   if (!item.packageUrl) return;
 
   if (!update && item.id !== GIT_SYNC_PLUGIN_ID && !isGitSyncInstalled.value) {
@@ -897,10 +1091,7 @@ const handleInstallMarketplace = async (item: PluginMarketplaceItem, update = fa
     return;
   }
 
-  installingMarketplaceId.value = item.id;
-  installingPackageId.value = item.id;
-  installProgress.value = null;
-  installProgressBytesByPackageUrl.value = {};
+  pluginStore.setMarketplaceInstallRequested(item.id, true);
   try {
     logger.info('[PluginSettings] marketplace install start', {
       pluginId: item.id,
@@ -921,8 +1112,6 @@ const handleInstallMarketplace = async (item: PluginMarketplaceItem, update = fa
             plugin: pluginText(dependency.name)
           }),
         onInstallingPackage: (packageItem) => {
-          installingPackageId.value = packageItem.id;
-          installProgress.value = null;
           logger.info('[PluginSettings] marketplace install package start', {
             pluginId: packageItem.id,
             packageUrl: packageItem.packageUrl,
@@ -941,15 +1130,22 @@ const handleInstallMarketplace = async (item: PluginMarketplaceItem, update = fa
     modal.msg(
       item.id === GIT_SYNC_PLUGIN_ID && !update
         ? t('plugins.gitSyncInstallNextStep')
-        : (update ? t('plugins.updateSuccess') : t('plugins.installSuccess'))
+        : update
+          ? t('plugins.updateSuccess')
+          : t('plugins.installSuccess')
     );
   } catch (error) {
-    logger.error('[PluginSettings] marketplace install failed', { pluginId: item.id, update, error });
-    modal.msg(`${update ? t('plugins.updateFailed') : t('plugins.installFailed')}: ${error}`, 'error');
+    logger.error('[PluginSettings] marketplace install failed', {
+      pluginId: item.id,
+      update,
+      error
+    });
+    modal.msg(
+      `${update ? t('plugins.updateFailed') : t('plugins.installFailed')}: ${error}`,
+      'error'
+    );
   } finally {
-    installingMarketplaceId.value = null;
-    installingPackageId.value = null;
-    installProgress.value = null;
+    pluginStore.setMarketplaceInstallRequested(item.id, false);
   }
 };
 
@@ -977,10 +1173,15 @@ const handleInstall = async () => {
     logger.info('[PluginSettings] install local directory start', { selected });
     await pluginStore.installFromPath(selected);
     await configurationStore.initialize();
-    logger.info('[PluginSettings] install local directory complete', { selected });
+    logger.info('[PluginSettings] install local directory complete', {
+      selected
+    });
     modal.msg(t('plugins.installSuccess'));
   } catch (error) {
-    logger.error('[PluginSettings] install local directory failed', { selected, error });
+    logger.error('[PluginSettings] install local directory failed', {
+      selected,
+      error
+    });
     modal.msg(`${t('plugins.installFailed')}: ${error}`, 'error');
   } finally {
     installing.value = false;
@@ -1044,19 +1245,26 @@ const handleToggle = async (pluginId: PluginId | string, enabled: boolean) => {
     logger.info('[PluginSettings] toggle complete', { pluginId, enabled });
     modal.msg(enabled ? t('plugins.enabled') : t('plugins.disabled'));
   } catch (error) {
-    logger.error('[PluginSettings] toggle failed', { pluginId, enabled, error });
+    logger.error('[PluginSettings] toggle failed', {
+      pluginId,
+      enabled,
+      error
+    });
     modal.msg(`${t('plugins.saveFailed')}: ${error}`, 'error');
   }
 };
 
 const getPluginHotkeyNames = (pluginId: PluginId | string): string[] => {
-  const plugin = getPluginById(pluginId as PluginId)
-    ?? pluginStore.plugins.find((item: RegisteredPlugin) => item.id === pluginId);
+  const plugin =
+    getPluginById(pluginId as PluginId) ??
+    pluginStore.plugins.find((item: RegisteredPlugin) => item.id === pluginId);
   return plugin?.hotkeys ?? [];
 };
 
 const clearPluginHotkeyValues = (hotkeyNames: string[]): void => {
-  hotkeyNames.forEach((hotkeyName) => setHotkeyValue(configurationStore, hotkeyName, ''));
+  hotkeyNames.forEach((hotkeyName) =>
+    setHotkeyValue(configurationStore, hotkeyName, '')
+  );
 };
 
 const unregisterPluginHotkeys = async (
@@ -1239,6 +1447,16 @@ const unregisterPluginHotkeys = async (
 
 .plugin-install-progress-bar {
   @apply h-full rounded bg-primary transition-all duration-200;
+}
+
+.plugin-install-progress--failed {
+  .plugin-install-progress-text {
+    @apply text-chat-error;
+  }
+
+  .plugin-install-progress-bar {
+    @apply bg-red-500;
+  }
 }
 
 @keyframes plugin-progress-indeterminate {

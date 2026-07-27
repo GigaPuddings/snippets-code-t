@@ -904,13 +904,29 @@ pub fn hotkey_search_wrapper() {
 
 // 创建config窗口并跳转到设置页面
 pub fn open_config_settings() {
+    open_config_settings_tab(None);
+}
+
+pub fn open_plugin_settings() {
+    open_config_settings_tab(Some("plugins"));
+}
+
+pub fn open_local_launcher_settings() {
+    open_config_settings_tab(Some("local"));
+}
+
+fn open_config_settings_tab(tab: Option<&'static str>) {
     // 先关闭搜索窗口
     WindowManager::close_search_window_if_visible();
 
     // 定义窗口规格（与 hotkey_config 共享）
     let spec = WindowSpec {
         label: "config",
-        url: "/#/config/category/settings",
+        url: match tab {
+            Some("plugins") => "/#/config/category/settings?tab=plugins",
+            Some("local") => "/#/config/category/settings?tab=local",
+            _ => "/#/config/category/settings",
+        },
         title: "配置",
         width: 1180.0,
         height: 626.0,
@@ -925,9 +941,12 @@ pub fn open_config_settings() {
     let _ = WindowManager::get_or_create_with_behavior(
         &spec,
         WindowShowBehavior::AlwaysShow,
-        Some(Box::new(|window| {
-            // 导航到设置页面
-            let _ = window.emit("navigate-to-settings", ());
+        Some(Box::new(move |window| {
+            if let Some(tab) = tab {
+                let _ = window.emit("navigate-to-settings-tab", tab);
+            } else {
+                let _ = window.emit("navigate-to-settings", ());
+            }
         })),
     );
 }
@@ -1747,14 +1766,16 @@ pub fn emit_scan_progress(stage: &str, current: usize, total: usize, current_ite
     let emit_started = std::time::Instant::now();
 
     // 更新状态
-    {
+    let stage_changed = {
         let mut state = PROGRESS_STATE.lock().unwrap();
+        let stage_changed = state.completed || state.stage != stage;
         state.stage = stage.to_string();
         state.current = current;
         state.total = total;
         state.current_item = current_item.to_string();
         state.completed = false;
-    }
+        stage_changed
+    };
 
     if let Some(app) = APP.get() {
         let emit_result = app.emit(
@@ -1789,6 +1810,12 @@ pub fn emit_scan_progress(stage: &str, current: usize, total: usize, current_ite
             }
         }
     }
+
+    if stage_changed {
+        if let Some(app) = APP.get() {
+            crate::tray::update_plugin_install_status(app);
+        }
+    }
 }
 
 // 发送扫描完成事件
@@ -1819,6 +1846,7 @@ pub fn emit_scan_complete(apps_count: usize, bookmarks_count: usize, desktop_fil
                 "desktopFilesCount": desktop_files_count
             }),
         );
+        crate::tray::update_plugin_install_status(app);
     }
 }
 

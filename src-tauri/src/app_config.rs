@@ -567,7 +567,7 @@ impl AppConfigManager {
 
 // ============= Tauri 命令 =============
 
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, LazyLock, Mutex, RwLock};
 use tauri::{command, AppHandle, Emitter, Manager};
 use walkdir::WalkDir;
 use zip::ZipArchive;
@@ -608,13 +608,23 @@ struct PluginInstallMetadata {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct PluginInstallProgressPayload {
+pub struct PluginInstallProgressPayload {
     package_url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    plugin_id: Option<String>,
     phase: String,
     downloaded_bytes: u64,
     total_bytes: Option<u64>,
     progress: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
+    updated_at: u64,
 }
+
+static PLUGIN_INSTALL_LOCK: LazyLock<tokio::sync::Mutex<()>> =
+    LazyLock::new(|| tokio::sync::Mutex::new(()));
+static PLUGIN_INSTALL_TASKS: LazyLock<Mutex<HashMap<String, PluginInstallProgressPayload>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 pub fn is_plugin_enabled(app_handle: &AppHandle, plugin_id: &str) -> bool {
     if is_uninstalled_host_plugin(app_handle, plugin_id) {
@@ -2075,6 +2085,40 @@ fn create_plugin_install_temp_dir(app_handle: &AppHandle) -> Result<PathBuf, Str
     Ok(temp_dir)
 }
 
+fn cleanup_stale_plugin_install_temp_dirs(app_handle: &AppHandle) {
+    let Ok(plugins_dir) = plugin_packages_dir(app_handle) else {
+        return;
+    };
+    let Ok(entries) = fs::read_dir(&plugins_dir) else {
+        return;
+    };
+
+    for entry in entries.filter_map(Result::ok) {
+        let path = entry.path();
+        let is_stale_install_dir = entry
+            .file_name()
+            .to_str()
+            .is_some_and(|name| name.starts_with(".install-tmp-"))
+            && path.is_dir()
+            && path.parent() == Some(plugins_dir.as_path())
+            && entry
+                .metadata()
+                .and_then(|metadata| metadata.modified())
+                .ok()
+                .and_then(|modified| SystemTime::now().duration_since(modified).ok())
+                .is_some_and(|age| age >= Duration::from_secs(60 * 60));
+        if is_stale_install_dir {
+            if let Err(error) = fs::remove_dir_all(&path) {
+                warn!(
+                    "[Plugin] 清理上次中断的安装临时目录失败: {} ({})",
+                    path.display(),
+                    error
+                );
+            }
+        }
+    }
+}
+
 fn extract_plugin_zip_package(zip_path: &Path, target_dir: &Path) -> Result<(), String> {
     let file = File::open(zip_path)
         .map_err(|e| format!("打开插件压缩包失败: {} ({})", zip_path.display(), e))?;
@@ -2268,6 +2312,57 @@ fn plugin_package_download_urls(package_url: &str) -> Vec<String> {
     urls
 }
 
+fn plugin_install_timestamp() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
+}
+
+fn is_terminal_plugin_install_phase(phase: &str) -> bool {
+    matches!(phase, "installed" | "failed")
+}
+
+fn publish_plugin_install_progress(
+    app_handle: &AppHandle,
+    payload: PluginInstallProgressPayload,
+    previous_phase: Option<String>,
+) {
+    let phase_changed = previous_phase.as_deref() != Some(payload.phase.as_str());
+    debug!(
+        "[Plugin] install progress plugin={:?} phase={} url={} downloaded={} total={:?} progress={:?}",
+        payload.plugin_id,
+        payload.phase,
+        payload.package_url,
+        payload.downloaded_bytes,
+        payload.total_bytes,
+        payload.progress
+    );
+    let _ = app_handle.emit("plugin-install-progress", payload);
+    if phase_changed {
+        crate::tray::update_plugin_install_status(app_handle);
+    }
+}
+
+fn begin_plugin_install(app_handle: &AppHandle, package_url: &str, plugin_id: Option<String>) {
+    let payload = PluginInstallProgressPayload {
+        package_url: package_url.to_string(),
+        plugin_id,
+        phase: "queued".to_string(),
+        downloaded_bytes: 0,
+        total_bytes: None,
+        progress: None,
+        error: None,
+        updated_at: plugin_install_timestamp(),
+    };
+    let previous_phase = PLUGIN_INSTALL_TASKS
+        .lock()
+        .ok()
+        .and_then(|mut tasks| tasks.insert(package_url.to_string(), payload.clone()))
+        .map(|previous| previous.phase);
+    publish_plugin_install_progress(app_handle, payload, previous_phase);
+}
+
 fn emit_plugin_install_progress(
     app_handle: &AppHandle,
     package_url: &str,
@@ -2275,23 +2370,95 @@ fn emit_plugin_install_progress(
     downloaded_bytes: u64,
     total_bytes: Option<u64>,
 ) {
-    let progress = total_bytes
-        .filter(|total| *total > 0)
-        .map(|total| ((downloaded_bytes as f64 / total as f64) * 100.0).clamp(0.0, 100.0));
-
-    let payload = PluginInstallProgressPayload {
-        package_url: package_url.to_string(),
-        phase: phase.to_string(),
-        downloaded_bytes,
-        total_bytes,
-        progress,
+    let (payload, previous_phase) = {
+        let mut tasks = match PLUGIN_INSTALL_TASKS.lock() {
+            Ok(tasks) => tasks,
+            Err(error) => {
+                warn!("[Plugin] install progress state lock failed: {}", error);
+                return;
+            }
+        };
+        let previous = tasks.get(package_url).cloned();
+        let retained_downloaded = if phase == "downloading" {
+            downloaded_bytes
+        } else {
+            downloaded_bytes.max(
+                previous
+                    .as_ref()
+                    .map(|task| task.downloaded_bytes)
+                    .unwrap_or_default(),
+            )
+        };
+        let retained_total =
+            total_bytes.or_else(|| previous.as_ref().and_then(|task| task.total_bytes));
+        let progress = retained_total
+            .filter(|total| *total > 0)
+            .map(|total| ((retained_downloaded as f64 / total as f64) * 100.0).clamp(0.0, 100.0));
+        let payload = PluginInstallProgressPayload {
+            package_url: package_url.to_string(),
+            plugin_id: previous.as_ref().and_then(|task| task.plugin_id.clone()),
+            phase: phase.to_string(),
+            downloaded_bytes: retained_downloaded,
+            total_bytes: retained_total,
+            progress,
+            error: None,
+            updated_at: plugin_install_timestamp(),
+        };
+        let previous_phase = previous.map(|task| task.phase);
+        tasks.insert(package_url.to_string(), payload.clone());
+        (payload, previous_phase)
     };
+    publish_plugin_install_progress(app_handle, payload, previous_phase);
+}
 
-    debug!(
-        "[Plugin] install progress phase={} url={} downloaded={} total={:?} progress={:?}",
-        phase, package_url, downloaded_bytes, total_bytes, progress
-    );
-    let _ = app_handle.emit("plugin-install-progress", payload);
+fn emit_plugin_install_failure(app_handle: &AppHandle, package_url: &str, error: &str) {
+    let (payload, previous_phase) = {
+        let mut tasks = match PLUGIN_INSTALL_TASKS.lock() {
+            Ok(tasks) => tasks,
+            Err(lock_error) => {
+                warn!("[Plugin] install failure state lock failed: {}", lock_error);
+                return;
+            }
+        };
+        let previous = tasks.get(package_url).cloned();
+        let payload = PluginInstallProgressPayload {
+            package_url: package_url.to_string(),
+            plugin_id: previous.as_ref().and_then(|task| task.plugin_id.clone()),
+            phase: "failed".to_string(),
+            downloaded_bytes: previous
+                .as_ref()
+                .map(|task| task.downloaded_bytes)
+                .unwrap_or_default(),
+            total_bytes: previous.as_ref().and_then(|task| task.total_bytes),
+            progress: previous.as_ref().and_then(|task| task.progress),
+            error: Some(error.to_string()),
+            updated_at: plugin_install_timestamp(),
+        };
+        let previous_phase = previous.map(|task| task.phase);
+        tasks.insert(package_url.to_string(), payload.clone());
+        (payload, previous_phase)
+    };
+    publish_plugin_install_progress(app_handle, payload, previous_phase);
+}
+
+#[command]
+pub fn get_plugin_install_tasks() -> Vec<PluginInstallProgressPayload> {
+    let mut tasks = PLUGIN_INSTALL_TASKS
+        .lock()
+        .map(|tasks| tasks.values().cloned().collect::<Vec<_>>())
+        .unwrap_or_default();
+    tasks.sort_by_key(|task| task.updated_at);
+    tasks
+}
+
+pub fn active_plugin_install_status() -> Option<(usize, String)> {
+    let tasks = PLUGIN_INSTALL_TASKS.lock().ok()?;
+    let mut active = tasks
+        .values()
+        .filter(|task| !is_terminal_plugin_install_phase(&task.phase))
+        .collect::<Vec<_>>();
+    active.sort_by_key(|task| task.updated_at);
+    active.last().map(|task| (active.len(), task.phase.clone()))
 }
 
 async fn download_plugin_url_to_temp(
@@ -2632,15 +2799,26 @@ pub async fn install_plugin_package_from_url(
     expected_size_bytes: Option<u64>,
     overwrite: bool,
     mirror_urls: Option<Vec<String>>,
+    plugin_id: Option<String>,
 ) -> Result<LocalPluginPackage, String> {
+    begin_plugin_install(&app_handle, &package_url, plugin_id);
+    let _install_guard = PLUGIN_INSTALL_LOCK.lock().await;
+    cleanup_stale_plugin_install_temp_dirs(&app_handle);
+
     let mirror_urls = mirror_urls.unwrap_or_default();
-    let downloaded_package =
-        download_plugin_url_to_temp(&app_handle, &package_url, expected_size_bytes, &mirror_urls)
-            .await?;
-    let temp_dir = downloaded_package.parent().map(Path::to_path_buf);
-    emit_plugin_install_progress(&app_handle, &package_url, "extracting", 0, None);
-    let result =
-        if let Some(package_subdir) = package_subdir.filter(|value| !value.trim().is_empty()) {
+    let result = async {
+        let downloaded_package = download_plugin_url_to_temp(
+            &app_handle,
+            &package_url,
+            expected_size_bytes,
+            &mirror_urls,
+        )
+        .await?;
+        let temp_dir = downloaded_package.parent().map(Path::to_path_buf);
+        emit_plugin_install_progress(&app_handle, &package_url, "extracting", 0, None);
+        let install_result = if let Some(package_subdir) =
+            package_subdir.filter(|value| !value.trim().is_empty())
+        {
             let extract_dir = temp_dir
                 .as_ref()
                 .ok_or("插件下载临时目录无效".to_string())?
@@ -2650,6 +2828,7 @@ pub async fn install_plugin_package_from_url(
             extract_plugin_zip_package(&downloaded_package, &extract_dir)
                 .and_then(|_| find_plugin_archive_subdir(&extract_dir, package_subdir.trim()))
                 .and_then(|source_dir| {
+                    emit_plugin_install_progress(&app_handle, &package_url, "installing", 0, None);
                     install_local_plugin_package(
                         app_handle.clone(),
                         source_dir.to_string_lossy().to_string(),
@@ -2664,14 +2843,17 @@ pub async fn install_plugin_package_from_url(
             )
         };
 
-    if result.is_ok() {
-        emit_plugin_install_progress(&app_handle, &package_url, "installed", 0, None);
+        if let Some(temp_dir) = temp_dir {
+            let _ = fs::remove_dir_all(temp_dir);
+        }
+        install_result
     }
+    .await;
 
-    if let Some(temp_dir) = temp_dir {
-        let _ = fs::remove_dir_all(temp_dir);
+    match &result {
+        Ok(_) => emit_plugin_install_progress(&app_handle, &package_url, "installed", 0, None),
+        Err(error) => emit_plugin_install_failure(&app_handle, &package_url, error),
     }
-
     result
 }
 

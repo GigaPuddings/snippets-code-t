@@ -20,10 +20,7 @@ import type {
 import { ErrorHandler, ErrorType } from '@/utils/error-handler';
 import { usePluginStore } from '@/store';
 import { searchSourceProviders } from '@/plugins/search-providers';
-import {
-  rankSearchResults,
-  type SearchHistoryMeta
-} from './searchRanking';
+import { rankSearchResults, type SearchHistoryMeta } from './searchRanking';
 
 const isWorkspaceSearchUnavailableError = (error: unknown): boolean => {
   const message = error instanceof Error ? error.message : String(error);
@@ -103,6 +100,7 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
   const deepSearchEnabled = ref(initialDeepSearch);
   const pluginStore = usePluginStore();
   let unlistenSearchEngineUpdates: UnlistenFn | null = null;
+  let unlistenLocalLauncherUpdates: UnlistenFn | null = null;
   let isSearchActive = true;
   let searchRequestVersion = 0;
 
@@ -142,13 +140,12 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
 
   const listenSearchEngineUpdates = async (
     onUpdate: (engines: SearchEngine[]) => void
-  ): Promise<UnlistenFn> => (
+  ): Promise<UnlistenFn> =>
     listen('search-engines-updated', (event: { payload: unknown }) => {
       if (Array.isArray(event.payload)) {
         onUpdate(event.payload as SearchEngine[]);
       }
-    })
-  );
+    });
 
   const findSearchEngine = (
     engines: SearchEngine[],
@@ -191,11 +188,10 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
 
   const getDefaultSearchEngine = (
     engines: SearchEngine[]
-  ): SearchEngine | undefined => (
+  ): SearchEngine | undefined =>
     pluginStore.isEnabled('search-engines')
       ? engines.find((engine) => engine.enabled)
-      : undefined
-  );
+      : undefined;
 
   const createDefaultSearchResult = (
     engine: SearchEngine,
@@ -461,6 +457,12 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
     }
   }, debounceMs);
 
+  const refreshCurrentSearch = (): void => {
+    if (searchText.value.trim()) {
+      debouncedSearch(nextSearchRequest());
+    }
+  };
+
   /**
    * 添加搜索历史
    * @param id - 搜索项 ID
@@ -541,6 +543,10 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
     try {
       await pluginStore.initialize();
       await syncSearchEngineRuntime();
+      unlistenLocalLauncherUpdates = await listen(
+        'local-launcher-index-updated',
+        refreshCurrentSearch
+      );
     } catch (error) {
       ErrorHandler.handle(error, {
         type: ErrorType.API_ERROR,
@@ -577,6 +583,8 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
     nextSearchRequest();
     debouncedSearch.cancel();
     cleanupSearchEngineUpdates();
+    unlistenLocalLauncherUpdates?.();
+    unlistenLocalLauncherUpdates = null;
   });
 
   return {

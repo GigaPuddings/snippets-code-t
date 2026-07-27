@@ -4,9 +4,10 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::io::Cursor;
 use std::num::NonZeroUsize;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 use tauri_plugin_http::reqwest;
 use tokio::sync::Semaphore;
 use url::Url;
@@ -51,6 +52,23 @@ static ICON_CACHE: Lazy<Arc<Mutex<LruCache<String, CachedIcon>>>> = Lazy::new(||
 
 // 并发管理 - 限制同时进行的图标加载任务数量以优化性能
 static ICON_SEMAPHORE: Lazy<Arc<Semaphore>> = Lazy::new(|| Arc::new(Semaphore::new(10))); // 并发10个任务，平衡性能和资源占用
+static LOCAL_LAUNCHER_INIT_RUNNING: AtomicBool = AtomicBool::new(false);
+
+fn emit_local_launcher_index_updated(
+    app_handle: &AppHandle,
+    phase: &str,
+    apps_count: usize,
+    bookmarks_count: usize,
+) {
+    let _ = app_handle.emit(
+        "local-launcher-index-updated",
+        serde_json::json!({
+            "phase": phase,
+            "appsCount": apps_count,
+            "bookmarksCount": bookmarks_count,
+        }),
+    );
+}
 
 pub fn is_icon_cache_enabled() -> bool {
     crate::APP
@@ -731,6 +749,32 @@ pub async fn fetch_favicon_async(url: &str) -> Option<String> {
 
 // 获取应用和书签的图标
 pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
+    if LOCAL_LAUNCHER_INIT_RUNNING.swap(true, Ordering::AcqRel) {
+        log::info!("[LocalLauncher] 本地索引后台初始化已在运行，跳过重复请求");
+        return;
+    }
+
+    let app_handle = app_handle.clone();
+    std::thread::spawn(move || {
+        struct InitGuard;
+        impl Drop for InitGuard {
+            fn drop(&mut self) {
+                LOCAL_LAUNCHER_INIT_RUNNING.store(false, Ordering::Release);
+            }
+        }
+
+        let _guard = InitGuard;
+        let started = std::time::Instant::now();
+        log::info!("[LocalLauncher] 本地应用与书签后台初始化开始");
+        run_app_and_bookmark_initialization(&app_handle);
+        log::info!(
+            "[LocalLauncher] 本地应用与书签后台初始化调度完成: elapsed={}ms",
+            started.elapsed().as_millis()
+        );
+    });
+}
+
+fn run_app_and_bookmark_initialization(app_handle: &AppHandle) {
     // 先加载图标缓存到内存，提升后续查询速度
     load_icon_cache(app_handle);
 
@@ -779,25 +823,25 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
     let mut current_step = 0usize;
 
     if scan_apps {
-        if show_progress {
-            crate::window::emit_scan_progress(
-                "正在扫描本地应用...",
-                current_step,
-                base_steps.max(1),
-                "",
-            );
-        }
+        crate::window::emit_scan_progress(
+            "正在扫描本地应用...",
+            current_step,
+            base_steps.max(1),
+            "",
+        );
         apps_to_load = get_installed_apps();
+        log::info!(
+            "[LocalLauncher] 本地应用文本扫描完成: count={}",
+            apps_to_load.len()
+        );
         current_step += 1;
 
-        if show_progress {
-            crate::window::emit_scan_progress(
-                "正在保存应用数据...",
-                current_step,
-                base_steps.max(1),
-                &format!("共 {} 个应用", apps_to_load.len()),
-            );
-        }
+        crate::window::emit_scan_progress(
+            "正在保存应用数据...",
+            current_step,
+            base_steps.max(1),
+            &format!("共 {} 个应用", apps_to_load.len()),
+        );
         if let Err(e) = db::insert_apps(&apps_to_load) {
             log::error!("插入应用到数据库失败: {}", e);
         } else {
@@ -807,25 +851,25 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
     }
 
     if scan_bookmarks {
-        if show_progress {
-            crate::window::emit_scan_progress(
-                "正在扫描浏览器书签...",
-                current_step,
-                base_steps.max(1),
-                "",
-            );
-        }
+        crate::window::emit_scan_progress(
+            "正在扫描浏览器书签...",
+            current_step,
+            base_steps.max(1),
+            "",
+        );
         bookmarks_to_load = get_browser_bookmarks();
+        log::info!(
+            "[LocalLauncher] 浏览器书签文本扫描完成: count={}",
+            bookmarks_to_load.len()
+        );
         current_step += 1;
 
-        if show_progress {
-            crate::window::emit_scan_progress(
-                "正在保存书签数据...",
-                current_step,
-                base_steps.max(1),
-                &format!("共 {} 个书签", bookmarks_to_load.len()),
-            );
-        }
+        crate::window::emit_scan_progress(
+            "正在保存书签数据...",
+            current_step,
+            base_steps.max(1),
+            &format!("共 {} 个书签", bookmarks_to_load.len()),
+        );
         if let Err(e) = db::insert_bookmarks(&bookmarks_to_load) {
             log::error!("插入书签到数据库失败: {}", e);
         } else {
@@ -870,6 +914,8 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
     let apps_loaded = apps_to_load.len();
     let bookmarks_loaded = bookmarks_to_load.len();
     let total_loaded = apps_loaded + bookmarks_loaded;
+    let indexed_apps_count = db::count_apps().unwrap_or(0).max(0) as usize;
+    let indexed_bookmarks_count = db::count_bookmarks().unwrap_or(0).max(0) as usize;
 
     if show_progress {
         // 手动重置后：图标也纳入进度窗口（真实逐项推进）
@@ -886,6 +932,13 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
         }
 
         crate::window::emit_scan_complete(apps_loaded, bookmarks_loaded, desktop_files_loaded);
+        emit_local_launcher_index_updated(
+            app_handle,
+            "index",
+            indexed_apps_count,
+            indexed_bookmarks_count,
+        );
+        load_missing_icons(app_handle.clone());
     } else {
         // setup完成后的正常启动：静默加载图标 + 系统通知
         if total_loaded > 0 {
@@ -896,18 +949,27 @@ pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
                 .title("数据索引完成")
                 .body(format!(
                     "已索引 {} 个应用，{} 个书签",
-                    apps_loaded, bookmarks_loaded
+                    indexed_apps_count, indexed_bookmarks_count
                 ))
                 .show();
         }
 
-        // 只为需要加载的数据异步加载图标（静默加载，不发送通知）
-        if should_cache_icons && (!apps_to_load.is_empty() || !bookmarks_to_load.is_empty()) {
-            load_icons_with_combined_notification(
-                app_handle.clone(),
-                apps_to_load,
-                bookmarks_to_load,
-            );
+        crate::window::emit_scan_complete(
+            indexed_apps_count,
+            indexed_bookmarks_count,
+            desktop_files_loaded,
+        );
+        emit_local_launcher_index_updated(
+            app_handle,
+            "index",
+            indexed_apps_count,
+            indexed_bookmarks_count,
+        );
+
+        // 文本索引先完成，图标始终从数据库补齐。这样即使上次进程在书签扫描阶段
+        // 中断并留下“有应用、无图标、无书签”的半完成状态，也能自动恢复。
+        if should_cache_icons {
+            load_missing_icons(app_handle.clone());
         }
     }
 }
@@ -974,6 +1036,13 @@ fn load_missing_icons(app_handle: AppHandle) {
             return;
         }
 
+        crate::window::emit_scan_progress(
+            "正在后台加载本地图标...",
+            0,
+            apps_count + bookmarks_count,
+            "",
+        );
+
         // 使用现有的图标加载逻辑；书签阶段只批量读取本机浏览器 favicon。
         load_icons_with_combined_notification(
             app_handle,
@@ -985,7 +1054,7 @@ fn load_missing_icons(app_handle: AppHandle) {
 
 // 合并加载应用和书签图标并发送单一通知
 fn load_icons_with_combined_notification(
-    _app_handle: AppHandle,
+    app_handle: AppHandle,
     apps: Vec<AppInfo>,
     bookmarks: Vec<BookmarkInfo>,
 ) {
@@ -996,6 +1065,7 @@ fn load_icons_with_combined_notification(
 
     // 加载应用图标
     let app_count_clone = app_count.clone();
+    let app_handle_for_apps = app_handle.clone();
     let app_thread = std::thread::spawn(move || {
         if apps.is_empty() {
             return;
@@ -1010,10 +1080,15 @@ fn load_icons_with_combined_notification(
         );
 
         *app_count_clone.lock().unwrap() = count;
+        if count > 0 {
+            crate::plugins::local_launcher::invalidate_apps_cache();
+            emit_local_launcher_index_updated(&app_handle_for_apps, "app-icons", count, 0);
+        }
     });
 
     // 批量加载书签本地图标：每个浏览器 favicon DB 只建立一次快照。
     let bookmark_count_clone = bookmark_count.clone();
+    let app_handle_for_bookmarks = app_handle.clone();
     let bookmark_thread = std::thread::spawn(move || {
         if bookmarks.is_empty() {
             return;
@@ -1036,6 +1111,15 @@ fn load_icons_with_combined_notification(
             .count();
 
         *bookmark_count_clone.lock().unwrap() = count;
+        if count > 0 {
+            crate::plugins::local_launcher::invalidate_bookmarks_cache();
+            emit_local_launcher_index_updated(
+                &app_handle_for_bookmarks,
+                "bookmark-icons",
+                0,
+                count,
+            );
+        }
     });
 
     // 在一个单独的线程中等待并发送通知，以避免阻塞UI
@@ -1047,12 +1131,12 @@ fn load_icons_with_combined_notification(
         // 获取加载的图标数量
         let apps_loaded = *app_count.lock().unwrap();
         let bookmarks_loaded = *bookmark_count.lock().unwrap();
-        if apps_loaded > 0 {
-            crate::plugins::local_launcher::invalidate_apps_cache();
-        }
-        if bookmarks_loaded > 0 {
-            crate::plugins::local_launcher::invalidate_bookmarks_cache();
-        }
+        emit_local_launcher_index_updated(&app_handle, "icons", apps_loaded, bookmarks_loaded);
+        crate::window::emit_scan_complete(
+            db::count_apps().unwrap_or(0).max(0) as usize,
+            db::count_bookmarks().unwrap_or(0).max(0) as usize,
+            0,
+        );
     });
 }
 
