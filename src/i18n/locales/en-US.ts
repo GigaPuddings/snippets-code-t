@@ -735,13 +735,13 @@ export default {
     workspaceDirDesc:
       'Set the Markdown file workspace. Plugins and settings remain available before it is set.',
     workspaceNotSet: 'Workspace not set',
-    changeWorkspace: 'Choose Workspace',
+    changeWorkspace: 'Choose',
     workspaceSuccess: 'Workspace set successfully',
     workspaceFailed: 'Failed to set workspace',
     snippetDir: 'App Data Directory:',
     snippetDirDesc:
       'Stores the database, app config, and default plugins. This is not the Markdown workspace.',
-    changePath: 'Change Data Dir',
+    changePath: 'Change',
     backup: 'Data Backup:',
     backupDesc: 'Set backup file location',
     backupBtn: 'Backup',

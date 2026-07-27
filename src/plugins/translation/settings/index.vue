@@ -32,8 +32,8 @@
         <div class="summarize-label-desc">{{ $t('translation.offlineModelDesc') }}</div>
       </div>
       <div class="summarize-input-wrapper">
-        <div class="flex items-center gap-3">
-          <span class="text-sm font-medium" :class="modelStatusClass">{{ modelStatusText }}</span>
+        <div class="flex flex-wrap items-center gap-3">
+          <span class="min-w-0 break-words text-sm font-medium" :class="modelStatusClass">{{ modelStatusText }}</span>
           <CustomButton
             v-if="!runtimeAvailable && !isLoading"
             type="primary"

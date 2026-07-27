@@ -51,11 +51,11 @@
 }
 
 .summarize-section {
-  @apply flex justify-between items-center mt-5 first:!mt-1 border-b border-panel;
+  @apply flex items-center justify-between gap-6 mt-5 first:!mt-1 border-b border-panel;
 }
 
 .summarize-label {
-  @apply flex flex-col gap-1 mb-1 text-sm font-bold text-content;
+  @apply flex flex-1 flex-col gap-1 min-w-0 mb-1 text-sm font-bold text-content;
 
   .summarize-label-title {
     @apply text-sm text-panel font-medium;
@@ -67,10 +67,25 @@
 }
 
 .summarize-input-wrapper {
-  @apply relative flex items-center justify-end gap-4;
+  @apply relative flex flex-shrink-0 items-center justify-end gap-4 min-w-0;
 
   .summarize-input {
     @apply w-56;
+  }
+}
+
+.summarize-input-wrapper > .custom-button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+@media (max-width: 1120px) {
+  .summarize-section {
+    @apply flex-col items-stretch gap-2.5;
+  }
+
+  .summarize-input-wrapper {
+    @apply justify-start;
   }
 }
 

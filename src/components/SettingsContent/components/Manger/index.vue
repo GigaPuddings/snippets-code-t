@@ -7,14 +7,14 @@
     
     <!-- 可滚动内容 -->
     <main class="panel-content">
-    <section class="summarize-section transparent-input">
-      <div class="summarize-label">
+    <section class="summarize-section transparent-input data-manager-section">
+      <div class="summarize-label data-manager-label">
         <div class="summarize-label-title">{{ $t('dataManager.workspaceDir') }}</div>
         <div class="summarize-label-desc">{{ $t('dataManager.workspaceDirDesc') }}</div>
       </div>
-      <div class="summarize-input-wrapper">
+      <div class="summarize-input-wrapper data-manager-controls">
         <el-input
-          class="summarize-input !w-80"
+          class="summarize-input data-manager-path-input"
           v-model="workspaceRoot"
           readonly
           :placeholder="$t('dataManager.workspaceNotSet')"
@@ -22,6 +22,7 @@
         <CustomButton
           type="primary"
           size="small"
+          class="data-manager-action"
           @click="selectWorkspaceRoot"
           :loading="workspaceLoading"
         >
@@ -30,20 +31,21 @@
       </div>
     </section>
 
-    <section class="summarize-section transparent-input">
-      <div class="summarize-label">
+    <section class="summarize-section transparent-input data-manager-section">
+      <div class="summarize-label data-manager-label">
         <div class="summarize-label-title">{{ $t('dataManager.snippetDir') }}</div>
         <div class="summarize-label-desc">{{ $t('dataManager.snippetDirDesc') }}</div>
       </div>
-      <div class="summarize-input-wrapper">
+      <div class="summarize-input-wrapper data-manager-controls">
         <el-input
-          class="summarize-input !w-80"
+          class="summarize-input data-manager-path-input"
           v-model="store.dbPath"
           readonly
         />
         <CustomButton
           type="primary"
           size="small"
+          class="data-manager-action"
           @click="selectCustomPath"
           :loading="pathLoading"
         >
@@ -52,14 +54,14 @@
       </div>
     </section>
 
-    <section class="summarize-section transparent-input">
-      <div class="summarize-label">
+    <section class="summarize-section transparent-input data-manager-section">
+      <div class="summarize-label data-manager-label">
         <div class="summarize-label-title">{{ $t('dataManager.backup') }}</div>
         <div class="summarize-label-desc">{{ $t('dataManager.backupDesc') }}</div>
       </div>
-      <div class="summarize-input-wrapper">
+      <div class="summarize-input-wrapper data-manager-controls">
         <el-select
-          class="summarize-input !w-36"
+          class="summarize-input data-manager-select"
           v-model="store.dbBackup"
           :placeholder="$t('dataManager.selectFormat')"
         >
@@ -73,6 +75,7 @@
         <CustomButton
           type="primary"
           size="small"
+          class="data-manager-action"
           @click="startBackup"
           :loading="backupLoading"
         >
@@ -81,15 +84,16 @@
       </div>
     </section>
 
-    <section class="summarize-section transparent-input">
-      <div class="summarize-label">
+    <section class="summarize-section transparent-input data-manager-section">
+      <div class="summarize-label data-manager-label">
         <div class="summarize-label-title">{{ $t('dataManager.restore') }}</div>
         <div class="summarize-label-desc">{{ $t('dataManager.restoreDesc') }}</div>
       </div>
-      <div class="summarize-input-wrapper">
+      <div class="summarize-input-wrapper data-manager-controls">
         <CustomButton
           type="primary"
           size="small"
+          class="data-manager-action"
           @click="showRestoreDialog = true"
           :loading="restoreLoading"
         >
@@ -241,5 +245,49 @@ const handlePathConfirm = async () => {
 };
 
 </script>
+
+<style scoped lang="scss">
+.data-manager-section {
+  gap: 1.5rem;
+}
+
+.data-manager-label {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
+.data-manager-controls {
+  flex: 1 1 22rem;
+  min-width: 0;
+}
+
+.data-manager-path-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto !important;
+}
+
+.data-manager-select {
+  width: min(10rem, 100%) !important;
+}
+
+.data-manager-action {
+  flex: 0 0 auto;
+  min-width: 5.5rem;
+  white-space: nowrap;
+}
+
+@media (max-width: 1120px) {
+  .data-manager-section {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  .data-manager-controls {
+    width: 100%;
+  }
+}
+</style>
 
 

@@ -15,7 +15,7 @@
           size="18"
           :strokeWidth="3"
         />
-        <span class="text-sm">{{ item.label }}</span>
+        <span class="settings-menu-label" :title="item.label">{{ item.label }}</span>
       </div>
     </div>
 
@@ -237,11 +237,12 @@ onMounted(async () => {
 }
 
 .settings-sidebar {
-  @apply w-44 border-r border-panel py-4 overflow-y-auto bg-panel px-2;
+  @apply w-52 border-r border-panel py-4 overflow-y-auto bg-panel px-2;
+  flex: 0 0 13rem;
 }
 
 .settings-menu-item {
-  @apply flex items-center py-1.5 px-2 my-1.5 last:mb-0 text-panel rounded-md hover:bg-hover dark:hover:bg-hover dark:text-panel cursor-pointer transition-colors;
+  @apply flex items-center min-w-0 py-1.5 px-2 my-1.5 last:mb-0 text-panel rounded-md hover:bg-hover dark:hover:bg-hover dark:text-panel cursor-pointer transition-colors;
   position: relative;
   border: 1px solid transparent;
 
@@ -262,6 +263,14 @@ onMounted(async () => {
       border-radius: 0 999px 999px 0;
     }
   }
+}
+
+.settings-menu-label {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.875rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .settings-content {

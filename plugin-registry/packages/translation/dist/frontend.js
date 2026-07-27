@@ -12441,7 +12441,7 @@ async function L1(e) {
     throw new Error(`更新附件配置失败: ${t}`);
   }
 }
-const x1 = { class: "settings-panel" }, R1 = { class: "panel-header" }, A1 = { class: "panel-title" }, M1 = { class: "panel-content" }, z1 = { class: "summarize-section" }, N1 = { class: "summarize-label" }, F1 = { class: "summarize-label-title" }, B1 = { class: "summarize-label-desc" }, V1 = { class: "summarize-input-wrapper" }, D1 = { class: "summarize-section" }, H1 = { class: "summarize-label" }, j1 = { class: "summarize-label-title" }, W1 = { class: "summarize-label-desc" }, U1 = { class: "summarize-input-wrapper" }, K1 = { class: "flex items-center gap-3" }, G1 = {
+const x1 = { class: "settings-panel" }, R1 = { class: "panel-header" }, A1 = { class: "panel-title" }, M1 = { class: "panel-content" }, z1 = { class: "summarize-section" }, N1 = { class: "summarize-label" }, F1 = { class: "summarize-label-title" }, B1 = { class: "summarize-label-desc" }, V1 = { class: "summarize-input-wrapper" }, D1 = { class: "summarize-section" }, H1 = { class: "summarize-label" }, j1 = { class: "summarize-label-title" }, W1 = { class: "summarize-label-desc" }, U1 = { class: "summarize-input-wrapper" }, K1 = { class: "flex flex-wrap items-center gap-3" }, G1 = {
   key: 0,
   class: "summarize-section"
 }, Z1 = { class: "summarize-label" }, Y1 = { class: "summarize-label-title" }, q1 = { class: "summarize-label-desc" }, J1 = { class: "summarize-input-wrapper flex-col !items-start" }, X1 = { class: "w-full space-y-2" }, Q1 = { class: "w-5 text-center" }, e2 = {
@@ -12691,7 +12691,7 @@ const x1 = { class: "settings-panel" }, R1 = { class: "panel-header" }, A1 = { c
                 y(
                   "span",
                   {
-                    class: M(["text-sm font-medium", v.value])
+                    class: M(["min-w-0 break-words text-sm font-medium", v.value])
                   },
                   U(m.value),
                   3
@@ -13005,7 +13005,7 @@ const x1 = { class: "settings-panel" }, R1 = { class: "panel-header" }, A1 = { c
       ]);
     };
   }
-}), H2 = /* @__PURE__ */ wo(D2, [["__scopeId", "data-v-b5694b08"]]), j2 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+}), H2 = /* @__PURE__ */ wo(D2, [["__scopeId", "data-v-6fcd3312"]]), j2 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   default: H2
 }, Symbol.toStringTag, { value: "Module" })), W2 = { class: "settings-panel" }, U2 = { class: "panel-header" }, K2 = { class: "panel-title" }, G2 = { class: "panel-content" }, Z2 = { class: "summarize-section" }, Y2 = { class: "summarize-label" }, q2 = { class: "summarize-label-title" }, J2 = { class: "summarize-label-desc" }, X2 = { class: "summarize-input-wrapper line-height-control" }, Q2 = { class: "line-height-value" }, e_ = { class: "summarize-section" }, t_ = { class: "summarize-label" }, n_ = { class: "summarize-label-title" }, o_ = { class: "summarize-label-desc" }, a_ = { class: "summarize-input-wrapper image-scale-control" }, s_ = { class: "image-scale-value" }, r_ = { class: "summarize-section" }, i_ = { class: "summarize-label" }, l_ = { class: "summarize-label-title" }, u_ = { class: "summarize-label-desc" }, c_ = { class: "summarize-input-wrapper" }, d_ = { class: "summarize-section" }, f_ = { class: "summarize-label" }, p_ = { class: "summarize-label-title" }, m_ = { class: "summarize-label-desc" }, h_ = { class: "summarize-input-wrapper" }, v_ = { class: "summarize-section transparent-input" }, g_ = { class: "summarize-label" }, y_ = { class: "summarize-label-title" }, b_ = { class: "summarize-label-desc" }, w_ = { class: "summarize-input-wrapper" }, __ = { class: "summarize-section transparent-input" }, S_ = { class: "summarize-label" }, k_ = { class: "summarize-label-title" }, C_ = { class: "summarize-label-desc" }, T_ = { class: "summarize-input-wrapper" }, E_ = { class: "summarize-section transparent-input" }, P_ = { class: "summarize-label" }, O_ = { class: "summarize-label-title" }, $_ = { class: "summarize-label-desc" }, I_ = { class: "summarize-input-wrapper" }, L_ = { class: "preview-box" }, x_ = /* @__PURE__ */ K({
