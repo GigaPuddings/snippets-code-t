@@ -12954,7 +12954,7 @@ const a2 = { class: "title-container" }, o2 = { class: "alarm-edit-form" }, r2 =
       y.value.alarmType === "Weekly" ? O = y.value.weekdays.length > 0 ? y.value.weekdays : d.value : y.value.alarmType === "Daily" && (O = d.value), u("submit", {
         id: i.editData?.id || "",
         time: `${y.value.hour}:${y.value.minute}`,
-        title: y.value.title.trim() || "消息提醒",
+        title: y.value.title.trim() || a("alarm.defaultTitle"),
         weekdays: O,
         reminder_time: y.value.reminderTime,
         is_active: !0,
@@ -13272,7 +13272,7 @@ const a2 = { class: "title-container" }, o2 = { class: "alarm-edit-form" }, r2 =
       }, 8, ["modelValue", "style"]);
     };
   }
-}), T2 = /* @__PURE__ */ Ta(E2, [["__scopeId", "data-v-b8e53782"]]), D2 = { class: "todo-container" }, $2 = { class: "todo-toolbar" }, O2 = { class: "todo-toolbar__summary" }, M2 = { class: "todo-toolbar__actions" }, P2 = ["disabled"], I2 = ["disabled"], A2 = {
+}), T2 = /* @__PURE__ */ Ta(E2, [["__scopeId", "data-v-6ae885a8"]]), D2 = { class: "todo-container" }, $2 = { class: "todo-toolbar" }, O2 = { class: "todo-toolbar__summary" }, M2 = { class: "todo-toolbar__actions" }, P2 = ["disabled"], I2 = ["disabled"], A2 = {
   key: 0,
   class: "alarm-grid"
 }, L2 = ["onClick"], R2 = { class: "time" }, F2 = { class: "info" }, x2 = { class: "time-left" }, B2 = { class: "title" }, V2 = { class: "alarm-type" }, N2 = {
@@ -13635,7 +13635,7 @@ const a2 = { class: "title-container" }, o2 = { class: "alarm-edit-form" }, r2 =
       ]);
     };
   }
-}), Q2 = /* @__PURE__ */ Ta(X2, [["__scopeId", "data-v-8238cb52"]]), ew = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+}), Q2 = /* @__PURE__ */ Ta(X2, [["__scopeId", "data-v-e0880e31"]]), ew = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   default: Q2
 }, Symbol.toStringTag, { value: "Module" }));
