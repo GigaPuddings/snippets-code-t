@@ -1220,6 +1220,7 @@ export default {
     setWallpaper: '设为壁纸',
     setting: '设置中',
     set: '设为',
+    downloading: '下载中',
     download: '下载',
     page: '第 {page} 页',
     sourceNote: '来源：{source} · SFW',

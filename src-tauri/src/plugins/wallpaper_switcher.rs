@@ -693,22 +693,55 @@ async fn download_wallhaven_image(
         return Ok(target);
     }
 
-    let bytes = client
-        .get(&resolved_wallpaper.path)
-        .header(reqwest::header::ACCEPT_ENCODING, "identity")
-        .header(reqwest::header::REFERER, "https://wallhaven.cc/")
-        .send()
-        .await
-        .map_err(|e| format!("下载壁纸失败: {}", reqwest_error_details(&e)))?
-        .error_for_status()
-        .map_err(|e| format!("下载壁纸失败: {}", reqwest_error_details(&e)))?
-        .bytes()
-        .await
-        .map_err(|e| format!("读取壁纸数据失败: {}", reqwest_error_details(&e)))?;
+    let mut downloaded_bytes = None;
+    let mut last_error = String::new();
+    for attempt in 1..=3 {
+        let result = async {
+            let response = client
+                .get(&resolved_wallpaper.path)
+                .header(reqwest::header::ACCEPT_ENCODING, "identity")
+                .header(reqwest::header::REFERER, "https://wallhaven.cc/")
+                .send()
+                .await
+                .map_err(|e| format!("下载壁纸失败: {}", reqwest_error_details(&e)))?
+                .error_for_status()
+                .map_err(|e| format!("下载壁纸失败: {}", reqwest_error_details(&e)))?;
+            let bytes = response
+                .bytes()
+                .await
+                .map_err(|e| format!("读取壁纸数据失败: {}", reqwest_error_details(&e)))?;
+            if bytes.is_empty() {
+                return Err("下载的壁纸数据为空".to_string());
+            }
+            Ok(bytes)
+        }
+        .await;
 
-    if bytes.is_empty() {
-        return Err("下载的壁纸数据为空".to_string());
+        match result {
+            Ok(bytes) => {
+                downloaded_bytes = Some(bytes);
+                break;
+            }
+            Err(error) => {
+                last_error = error;
+                warn!(
+                    "[WallpaperSwitcher] 下载 Wallhaven 壁纸失败 {}/3 ({}): {}",
+                    attempt, resolved_wallpaper.id, last_error
+                );
+            }
+        }
+
+        if attempt < 3 {
+            tokio::time::sleep(Duration::from_millis(300 * attempt)).await;
+        }
     }
+    let bytes = downloaded_bytes.ok_or_else(|| {
+        if last_error.is_empty() {
+            "下载壁纸失败".to_string()
+        } else {
+            last_error
+        }
+    })?;
     fs::write(&target, &bytes).map_err(|e| format!("保存壁纸缓存失败: {}", e))?;
     Ok(target)
 }

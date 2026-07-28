@@ -37,7 +37,7 @@
   "entry": {
     "frontend": "dist/frontend.js",
     "styles": [
-      "dist/assets/runtime-entry-DTwQpGb_.css"
+      "dist/assets/runtime-entry-CkDGEMGL.css"
     ]
   },
   "repository": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai",

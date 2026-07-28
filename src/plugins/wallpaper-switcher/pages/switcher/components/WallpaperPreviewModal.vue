@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { CloseSmall } from '@icon-park/vue-next';
+import { CloseSmall, Loading } from '@icon-park/vue-next';
 import { useI18n } from 'vue-i18n';
 import type { WallhavenWallpaper } from '../../../api';
 
-defineProps<{
+type WallhavenWorkingAction = 'setting' | 'downloading';
+
+const props = defineProps<{
   wallpaper: WallhavenWallpaper | null;
   loading: boolean;
   loadFailed: boolean;
-  workingIds: Set<string>;
+  workingActions: Map<string, WallhavenWorkingAction>;
 }>();
 
 const emit = defineEmits<{
@@ -19,6 +21,8 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+const workingActionFor = (id: string): WallhavenWorkingAction | undefined =>
+  props.workingActions.get(id);
 </script>
 
 <template>
@@ -49,19 +53,41 @@ const { t } = useI18n();
         <button
           type="button"
           class="secondary-btn"
-          :disabled="workingIds.has(wallpaper.id)"
+          :class="{
+            'is-working': workingActionFor(wallpaper.id) === 'downloading'
+          }"
+          :disabled="Boolean(workingActionFor(wallpaper.id))"
+          :aria-busy="workingActionFor(wallpaper.id) === 'downloading'"
           @click="emit('download', wallpaper)"
         >
-          {{ t('wallpaperSwitcher.downloadCache') }}
+          <Loading
+            v-if="workingActionFor(wallpaper.id) === 'downloading'"
+            :size="16"
+            spin
+          />
+          {{
+            workingActionFor(wallpaper.id) === 'downloading'
+              ? t('wallpaperSwitcher.downloading')
+              : t('wallpaperSwitcher.downloadCache')
+          }}
         </button>
         <button
           type="button"
           class="primary-btn"
-          :disabled="workingIds.has(wallpaper.id)"
+          :class="{
+            'is-working': workingActionFor(wallpaper.id) === 'setting'
+          }"
+          :disabled="Boolean(workingActionFor(wallpaper.id))"
+          :aria-busy="workingActionFor(wallpaper.id) === 'setting'"
           @click="emit('setWallpaper', wallpaper)"
         >
+          <Loading
+            v-if="workingActionFor(wallpaper.id) === 'setting'"
+            :size="16"
+            spin
+          />
           {{
-            workingIds.has(wallpaper.id)
+            workingActionFor(wallpaper.id) === 'setting'
               ? t('wallpaperSwitcher.setting')
               : t('wallpaperSwitcher.setWallpaper')
           }}

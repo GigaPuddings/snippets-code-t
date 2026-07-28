@@ -3,6 +3,7 @@ import {
   CloseSmall,
   Computer,
   Download,
+  Loading,
   PreviewOpen,
   Refresh,
   Search
@@ -10,14 +11,16 @@ import {
 import { useI18n } from 'vue-i18n';
 import type { WallhavenWallpaper } from '../../../api';
 
-defineProps<{
+type WallhavenWorkingAction = 'setting' | 'downloading';
+
+const props = defineProps<{
   keyword: string;
   category: string;
   loading: boolean;
   error: string;
   wallpapers: WallhavenWallpaper[];
   loadedThumbIds: Set<string>;
-  workingIds: Set<string>;
+  workingActions: Map<string, WallhavenWorkingAction>;
   page: number;
   lastPage: number;
   sourceLabel: string;
@@ -48,6 +51,8 @@ const categories = [
 
 const updateKeyword = (event: Event) =>
   emit('update:keyword', (event.target as HTMLInputElement).value);
+const workingActionFor = (id: string): WallhavenWorkingAction | undefined =>
+  props.workingActions.get(id);
 </script>
 
 <template>
@@ -155,24 +160,50 @@ const updateKeyword = (event: Event) =>
             <button
               type="button"
               :title="t('wallpaperSwitcher.setWallpaper')"
-              :disabled="workingIds.has(wallpaper.id)"
+              :class="{
+                'is-working': workingActionFor(wallpaper.id) === 'setting'
+              }"
+              :disabled="Boolean(workingActionFor(wallpaper.id))"
+              :aria-busy="workingActionFor(wallpaper.id) === 'setting'"
               @click="emit('setWallpaper', wallpaper)"
             >
-              <Computer :size="16" />
-              {{
-                workingIds.has(wallpaper.id)
-                  ? t('wallpaperSwitcher.setting')
-                  : t('wallpaperSwitcher.set')
-              }}
+              <Loading
+                v-if="workingActionFor(wallpaper.id) === 'setting'"
+                :size="16"
+                spin
+              />
+              <Computer v-else :size="16" />
+              <span>
+                {{
+                  workingActionFor(wallpaper.id) === 'setting'
+                    ? t('wallpaperSwitcher.setting')
+                    : t('wallpaperSwitcher.set')
+                }}
+              </span>
             </button>
             <button
               type="button"
               :title="t('wallpaperSwitcher.download')"
-              :disabled="workingIds.has(wallpaper.id)"
+              :class="{
+                'is-working': workingActionFor(wallpaper.id) === 'downloading'
+              }"
+              :disabled="Boolean(workingActionFor(wallpaper.id))"
+              :aria-busy="workingActionFor(wallpaper.id) === 'downloading'"
               @click="emit('downloadWallpaper', wallpaper)"
             >
-              <Download :size="16" />
-              {{ t('wallpaperSwitcher.download') }}
+              <Loading
+                v-if="workingActionFor(wallpaper.id) === 'downloading'"
+                :size="16"
+                spin
+              />
+              <Download v-else :size="16" />
+              <span>
+                {{
+                  workingActionFor(wallpaper.id) === 'downloading'
+                    ? t('wallpaperSwitcher.downloading')
+                    : t('wallpaperSwitcher.download')
+                }}
+              </span>
             </button>
           </div>
         </article>

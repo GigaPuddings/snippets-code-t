@@ -14,7 +14,6 @@ const isMarkdownTableSeparator = (value: string): boolean =>
   /^\s*\|?(?:\s*:?-{3,}:?\s*\|)+\s*$/.test(value);
 
 const ORDERED_PROMPT_ITEM = /^\s*(\d+)(?:[.)]\s+|、\s*)/;
-const ORDERED_PROMPT_ITEMS = /^\s*\d+(?:[.)]\s+|、\s*)/gm;
 
 const unwrapMarkdown = (value: string): string =>
   value
@@ -89,9 +88,6 @@ const shouldAppendLine = (line: string, previous?: string): boolean =>
 
 export const requiresChineseEnhancedPrompt = (source: string): boolean =>
   /[\u3400-\u9fff]/.test(source);
-
-export const countOrderedPromptItems = (source: string): number =>
-  source.match(ORDERED_PROMPT_ITEMS)?.length ?? 0;
 
 export const hasRequiredEnhancedPromptLanguage = (
   source: string,

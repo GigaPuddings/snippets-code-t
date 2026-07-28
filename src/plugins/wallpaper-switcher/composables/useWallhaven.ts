@@ -17,6 +17,8 @@ export interface UseWallhavenOptions {
   refreshStatus: () => Promise<void>;
 }
 
+export type WallhavenWorkingAction = 'setting' | 'downloading';
+
 export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
   const { t } = useI18n();
   const activeView = ref<'switcher' | 'wallhaven'>('switcher');
@@ -31,7 +33,7 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
   const previewWallpaper = ref<WallhavenWallpaper | null>(null);
   const previewLoading = ref(false);
   const previewLoadFailed = ref(false);
-  const workingIds = ref(new Set<string>());
+  const workingActions = ref(new Map<string, WallhavenWorkingAction>());
   const loadedThumbIds = ref(new Set<string>());
 
   const thumbElements = new Map<string, HTMLImageElement>();
@@ -45,7 +47,7 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
     if (wallhavenSource.value === 'favorites') return 'Favorites';
     return 'Toplist';
   });
-  const visibleWallpapers = computed(() => wallpapers.value.slice(0, 8));
+  const visibleWallpapers = computed(() => wallpapers.value.slice(0, 6));
   const wallhavenRequestQuery = computed(() => {
     const keyword = wallhavenKeyword.value.trim();
     if (wallhavenCategory.value === 'nature')
@@ -67,11 +69,11 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
     return message.length > 120 ? `${message.slice(0, 120)}...` : message;
   };
 
-  const setWorking = (id: string, working: boolean) => {
-    const next = new Set(workingIds.value);
-    if (working) next.add(id);
+  const setWorking = (id: string, action: WallhavenWorkingAction | null) => {
+    const next = new Map(workingActions.value);
+    if (action) next.set(id, action);
     else next.delete(id);
-    workingIds.value = next;
+    workingActions.value = next;
   };
 
   const markThumbLoaded = (id: string) => {
@@ -188,32 +190,34 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
   };
 
   const setWallpaperFromWallhaven = async (wallpaper: WallhavenWallpaper) => {
-    setWorking(wallpaper.id, true);
+    if (workingActions.value.has(wallpaper.id)) return;
+    setWorking(wallpaper.id, 'setting');
     try {
       modal.msg(t('wallpaperSwitcher.messages.settingWallpaper'), 'info');
       await setWallhavenWallpaper(wallpaper);
       await refreshStatus();
       modal.msg(t('wallpaperSwitcher.messages.wallpaperSet'), 'success');
     } catch (error) {
-      modal.msg(String(error), 'error');
+      modal.msg(formatWallhavenError(error), 'error');
     } finally {
-      setWorking(wallpaper.id, false);
+      setWorking(wallpaper.id, null);
     }
   };
 
   const downloadWallpaperFromWallhaven = async (
     wallpaper: WallhavenWallpaper
   ) => {
-    setWorking(wallpaper.id, true);
+    if (workingActions.value.has(wallpaper.id)) return;
+    setWorking(wallpaper.id, 'downloading');
     try {
       modal.msg(t('wallpaperSwitcher.messages.downloadingWallpaper'), 'info');
       await downloadWallhavenWallpaper(wallpaper);
       await refreshStatus();
       modal.msg(t('wallpaperSwitcher.messages.wallpaperDownloaded'), 'success');
     } catch (error) {
-      modal.msg(String(error), 'error');
+      modal.msg(formatWallhavenError(error), 'error');
     } finally {
-      setWorking(wallpaper.id, false);
+      setWorking(wallpaper.id, null);
     }
   };
 
@@ -277,7 +281,7 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
     previewWallpaper,
     previewLoading,
     previewLoadFailed,
-    workingIds,
+    workingActions,
     loadedThumbIds,
     wallhavenSourceLabel,
     visibleWallpapers,

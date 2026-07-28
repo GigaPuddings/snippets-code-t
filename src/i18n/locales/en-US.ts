@@ -1261,6 +1261,7 @@ export default {
     setWallpaper: 'Set wallpaper',
     setting: 'Setting',
     set: 'Set',
+    downloading: 'Downloading',
     download: 'Download',
     page: 'Page {page}',
     sourceNote: 'Source: {source} · SFW',

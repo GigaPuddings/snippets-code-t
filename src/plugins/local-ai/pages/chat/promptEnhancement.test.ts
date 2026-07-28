@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  countOrderedPromptItems,
   hasRequiredEnhancedPromptLanguage,
   normalizeEnhancedPrompt
 } from './promptEnhancement';
@@ -65,12 +64,6 @@ This version is clearer and ready to use.
 });
 
 describe('ordered prompt preservation', () => {
-  it('counts top-level ordered tasks in the source prompt', () => {
-    expect(
-      countOrderedPromptItems('1、第一项\n2. 第二项\n3) 第三项\n普通补充说明')
-    ).toBe(3);
-  });
-
   it('preserves ordered task boundaries while removing Markdown syntax', () => {
     const response = `
 1. **重新设计**搜索检索样式，解决当前界面不够美观的问题。

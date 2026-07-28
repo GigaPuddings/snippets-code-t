@@ -731,7 +731,7 @@
   }
 
   .wallpaper-grid {
-    @apply grid grid-cols-4 gap-3 content-start;
+    @apply grid grid-cols-3 gap-3 content-start;
   }
 
   .wallpaper-card {
@@ -742,9 +742,9 @@
   }
 
   .thumb {
-    @apply relative block w-full h-[152px] overflow-hidden border-0;
+    @apply relative block w-full h-auto overflow-hidden border-0;
 
-    aspect-ratio: 1.2;
+    aspect-ratio: 16 / 10;
     background: var(--wallpaper-soft);
 
     img {
@@ -779,13 +779,13 @@
   }
 
   .card-actions {
-    @apply h-9 border-t;
+    @apply h-10 border-t;
 
     background: var(--wallpaper-card-actions-bg);
     border-color: var(--wallpaper-card-actions-border);
 
     button {
-      @apply flex flex-1 items-center justify-center gap-[5px] h-full border-0 border-r cursor-pointer;
+      @apply flex flex-1 min-w-0 items-center justify-center gap-[5px] h-full py-0 px-1.5 border-0 border-r cursor-pointer font-semibold whitespace-nowrap;
 
       color: var(--wallpaper-card-actions-text);
       background: transparent;
@@ -802,6 +802,16 @@
 
       &:disabled {
         @apply cursor-not-allowed opacity-[0.55];
+      }
+
+      svg {
+        @apply flex-none;
+      }
+
+      &.is-working:disabled {
+        color: var(--wallpaper-primary);
+        background: var(--wallpaper-active);
+        opacity: 1;
       }
     }
   }
@@ -875,6 +885,18 @@
     header,
     footer {
       @apply justify-between h-12 py-0 pr-3 pl-4;
+    }
+
+    footer {
+      @apply gap-3;
+
+      button {
+        @apply flex-1;
+
+        &.is-working:disabled {
+          opacity: 1;
+        }
+      }
     }
   }
 
