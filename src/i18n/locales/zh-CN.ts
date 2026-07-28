@@ -12,6 +12,7 @@ export default {
     success: '成功',
     failed: '失败',
     loading: '加载中...',
+    preparing: '准备中...',
     save: '保存',
     delete: '删除',
     edit: '编辑',
@@ -128,6 +129,7 @@ export default {
     autoStartEnabled: '自启动已开启',
     autoStartDisabled: '自启动已关闭',
     resetSoftware: '重置软件',
+    resetSoftwareAction: '重置',
     resetSoftwareDesc:
       '仅重建应用、书签或桌面文件索引；搜索使用历史、用户配置、工作区内容和图标缓存均会保留',
     resetSoftwareTitle: '重置软件',
@@ -142,6 +144,7 @@ export default {
     resetAllSuccess: '本机索引已重置，应用即将重启',
     resetFailed: '重置失败',
     clearSearchHistory: '清除使用历史',
+    clearSearchHistoryAction: '清除',
     clearSearchHistoryDesc:
       '按来源清除搜索排序记录，不删除索引、图标、书签、应用或文件',
     clearSearchHistorySelect: '请选择要清除的历史范围：',
@@ -153,6 +156,7 @@ export default {
     clearSearchHistorySuccess: '已清除 {count} 条使用历史',
     clearSearchHistoryFailed: '清除使用历史失败',
     clearIconCache: '清理图标缓存',
+    clearIconCacheAction: '清理',
     clearIconCacheDesc:
       '只删除可重建图标；来源索引、使用历史和用户数据保持不变',
     clearIconCacheConfirm:

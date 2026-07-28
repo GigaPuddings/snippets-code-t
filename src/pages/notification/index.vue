@@ -1,20 +1,11 @@
 <template>
   <main class="notification-container" :class="{ 'fade-in': state.show }">
-    <!-- 代办提醒通知 -->
     <ReminderContent
-      v-if="state.type === 'reminder'"
       :body="state.body"
       :reminderTime="state.reminderTime"
       @close="closeWindow"
       @confirm="closeWindow"
       @remind="handleRemind"
-    />
-    
-    <!-- 扫描进度通知 -->
-    <ProgressContent
-      v-else-if="state.type === 'progress'"
-      @confirm="closeWindow"
-      @autoClose="closeWindow"
     />
   </main>
 </template>
@@ -24,11 +15,9 @@ import { useRoute } from 'vue-router';
 import { Window } from '@tauri-apps/api/window';
 import { invoke } from '@tauri-apps/api/core';
 import ReminderContent from './components/ReminderContent.vue';
-import ProgressContent from './components/ProgressContent.vue';
 
 interface State {
   label: string;
-  type: 'reminder' | 'progress';
   body: string;
   reminderTime: string;
   show: boolean;
@@ -39,7 +28,6 @@ const route = useRoute();
 
 const state = reactive<State>({
   label: '',
-  type: 'reminder',
   body: '',
   reminderTime: '',
   show: false
@@ -59,15 +47,13 @@ const handleRemind = async () => {
 
 onMounted(async () => {
   // 获取路由参数
-  const { label, type, body, reminder_time } = route.query as {
+  const { label, body, reminder_time } = route.query as {
     label: string;
-    type?: string;
     body?: string;
     reminder_time?: string;
   };
 
   state.label = label ? decodeURIComponent(label) : '';
-  state.type = (type as 'reminder' | 'progress') || 'reminder';
   state.body = body ? decodeURIComponent(body) : '';
   state.reminderTime = reminder_time || '';
 

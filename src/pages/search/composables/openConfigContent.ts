@@ -14,10 +14,7 @@ interface OpenConfigContentOptions {
   closeSearchWindow: () => Promise<void>;
 }
 
-const storePendingNavigation = (
-  item: ContentType,
-  preview: boolean
-): void => {
+const storePendingNavigation = (item: ContentType, preview: boolean): void => {
   const timestamp = Date.now();
   if (preview) {
     localStorage.setItem(
@@ -63,13 +60,16 @@ export async function openSearchResultInConfig({
       return;
     }
 
+    if (await configWindow.isMinimized()) {
+      await configWindow.unminimize();
+    }
     await configWindow.show();
     await configWindow.setFocus();
     await configWindow.emit('navigate-to-config-content', {
-        fragmentId: item.id,
-        categoryId: item.category_id,
-        preview
-      } satisfies ConfigContentNavigationPayload);
+      fragmentId: item.id,
+      categoryId: item.category_id,
+      preview
+    } satisfies ConfigContentNavigationPayload);
   } catch (error) {
     clearPendingNavigation();
     logger.error('[搜索窗口] Failed to open config content:', error);

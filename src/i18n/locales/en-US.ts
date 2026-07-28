@@ -12,6 +12,7 @@ export default {
     success: 'Success',
     failed: 'Failed',
     loading: 'Loading...',
+    preparing: 'Preparing...',
     save: 'Save',
     delete: 'Delete',
     edit: 'Edit',
@@ -135,6 +136,7 @@ export default {
     autoStartEnabled: 'Auto start enabled',
     autoStartDisabled: 'Auto start disabled',
     resetSoftware: 'Reset Software',
+    resetSoftwareAction: 'Reset',
     resetSoftwareDesc:
       'Rebuild only app, bookmark, or desktop-file indexes; usage history, settings, workspace content, and icon cache are preserved',
     resetSoftwareTitle: 'Reset Software',
@@ -151,6 +153,7 @@ export default {
     resetAllSuccess: 'Local indexes reset; the app will restart shortly',
     resetFailed: 'Reset failed',
     clearSearchHistory: 'Clear Usage History',
+    clearSearchHistoryAction: 'Clear',
     clearSearchHistoryDesc:
       'Clear ranking history by source without deleting indexes, icons, bookmarks, apps, or files',
     clearSearchHistorySelect: 'Select the history scope to clear:',
@@ -162,6 +165,7 @@ export default {
     clearSearchHistorySuccess: 'Cleared {count} usage history records',
     clearSearchHistoryFailed: 'Failed to clear usage history',
     clearIconCache: 'Clear Icon Cache',
+    clearIconCacheAction: 'Clear',
     clearIconCacheDesc:
       'Delete only rebuildable icons; source indexes, usage history, and user data are preserved',
     clearIconCacheConfirm:

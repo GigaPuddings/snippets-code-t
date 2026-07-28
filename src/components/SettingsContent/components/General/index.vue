@@ -100,7 +100,7 @@
             @click="resetSoftware"
             :loading="resetSoftwareLoading"
           >
-            {{ $t('settings.resetSoftware') }}
+            {{ $t('settings.resetSoftwareAction') }}
           </CustomButton>
         </div>
       </section>
@@ -121,7 +121,7 @@
             @click="showHistoryDialog = true"
             :loading="historyLoading"
           >
-            {{ $t('settings.clearSearchHistory') }}
+            {{ $t('settings.clearSearchHistoryAction') }}
           </CustomButton>
         </div>
       </section>
@@ -142,7 +142,7 @@
             @click="showIconCacheDialog = true"
             :loading="iconCacheLoading"
           >
-            {{ $t('settings.clearIconCache') }}
+            {{ $t('settings.clearIconCacheAction') }}
           </CustomButton>
         </div>
       </section>

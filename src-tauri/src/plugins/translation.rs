@@ -47,7 +47,8 @@ pub fn hotkey_selection_translate() {
     log::info!("[划词翻译] 最终获取的文本长度: {}", selected_text.len());
 
     if let Some(window) = app_handle.get_webview_window("translate") {
-        if window.is_visible().unwrap_or(false) {
+        let minimized = window.is_minimized().unwrap_or(false);
+        if window.is_visible().unwrap_or(false) && !minimized {
             if !selected_text.trim().is_empty() {
                 let _ = window.emit(
                     "selection-text",
@@ -70,8 +71,7 @@ pub fn hotkey_selection_translate() {
                     "text": selected_text
                 }),
             );
-            let _ = window.show();
-            let _ = window.set_focus();
+            let _ = WindowManager::restore_and_focus(&window);
             return;
         }
     }
@@ -118,14 +118,13 @@ pub fn hotkey_translate() {
     }
 
     if let Some(window) = app.get_webview_window("translate") {
-        if window.is_visible().unwrap_or(false) {
+        if window.is_visible().unwrap_or(false) && !window.is_minimized().unwrap_or(false) {
             let _ = window.emit("reset-state", ());
             let _ = window.hide();
             return;
         }
 
-        let _ = window.show();
-        let _ = window.set_focus();
+        let _ = WindowManager::restore_and_focus(&window);
         return;
     }
 
@@ -135,8 +134,7 @@ pub fn hotkey_translate() {
 
 fn open_translate_window(app_handle: &AppHandle, text: Option<String>) {
     if let Some(window) = app_handle.get_webview_window("translate") {
-        let _ = window.show();
-        let _ = window.set_focus();
+        let _ = WindowManager::restore_and_focus(&window);
 
         if let Some(text) = text {
             let _ = window.emit("selection-text", serde_json::json!({ "text": text }));

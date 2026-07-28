@@ -79,7 +79,6 @@ declare module 'vue' {
     Manger: typeof import('./../components/SettingsContent/components/Manger/index.vue')['default']
     OutlinePanel: typeof import('./../components/TipTapEditor/components/OutlinePanel.vue')['default']
     Plugins: typeof import('./../components/SettingsContent/components/Plugins/index.vue')['default']
-    ProgressContent: typeof import('./../pages/notification/components/ProgressContent.vue')['default']
     PromptDialog: typeof import('./../components/UI/PromptDialog.vue')['default']
     QuickNav: typeof import('./../components/QuickNav/index.vue')['default']
     RecordingEntry: typeof import('./../plugins/screen-recorder/pages/recorder/components/RecordingEntry.vue')['default']

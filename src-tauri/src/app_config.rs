@@ -569,6 +569,7 @@ impl AppConfigManager {
 
 use std::sync::{Arc, LazyLock, Mutex, RwLock};
 use tauri::{command, AppHandle, Emitter, Manager};
+use tauri_plugin_notification::NotificationExt;
 use walkdir::WalkDir;
 use zip::ZipArchive;
 
@@ -730,6 +731,18 @@ fn apply_todo_runtime_change(app_handle: &AppHandle, enabled: bool) {
     }
 }
 
+fn notify_desktop_index_complete(app_handle: &AppHandle, count: usize) {
+    if let Err(error) = app_handle
+        .notification()
+        .builder()
+        .title("数据索引完成")
+        .body(format!("已索引 {} 个桌面文件", count))
+        .show()
+    {
+        warn!("[DesktopFiles] 显示索引完成通知失败: {}", error);
+    }
+}
+
 fn apply_desktop_files_runtime_change(app_handle: &AppHandle, enabled: bool) {
     if let Some(watcher_state) = app_handle
         .try_state::<Arc<std::sync::Mutex<Option<crate::desktop_watcher::DesktopFileWatcher>>>>()
@@ -762,8 +775,6 @@ fn apply_desktop_files_runtime_change(app_handle: &AppHandle, enabled: bool) {
                 warn!("[Plugin] 消费桌面文件重置任务失败: {}", error);
                 return;
             }
-            crate::window::create_progress_notification_window();
-            std::thread::sleep(std::time::Duration::from_millis(100));
             crate::window::emit_scan_progress_for(
                 "desktop-files",
                 "index",
@@ -774,6 +785,7 @@ fn apply_desktop_files_runtime_change(app_handle: &AppHandle, enabled: bool) {
             );
             let count = crate::plugins::desktop_files::refresh_desktop_files_cache_with_count();
             crate::window::emit_scan_complete_for("desktop-files", 0, 0, count);
+            notify_desktop_index_complete(app_handle, count);
         } else {
             crate::plugins::desktop_files::initialize_desktop_files_cache_with_count();
         }
@@ -805,8 +817,6 @@ fn refresh_search_plugin_index_feedback(app_handle: AppHandle, plugin_id: String
     std::thread::spawn(move || match plugin_id.as_str() {
         "local-launcher" => crate::icon::rebuild_app_and_bookmark_index(app_handle),
         "desktop-files" => {
-            crate::window::create_progress_notification_window();
-            std::thread::sleep(std::time::Duration::from_millis(100));
             crate::window::emit_scan_progress_for(
                 "desktop-files",
                 "index",
@@ -817,6 +827,7 @@ fn refresh_search_plugin_index_feedback(app_handle: AppHandle, plugin_id: String
             );
             let count = crate::plugins::desktop_files::refresh_desktop_files_cache_with_count();
             crate::window::emit_scan_complete_for("desktop-files", 0, 0, count);
+            notify_desktop_index_complete(&app_handle, count);
         }
         _ => {
             let _ = app_handle;

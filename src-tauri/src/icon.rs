@@ -71,6 +71,27 @@ fn emit_local_launcher_index_updated(
     );
 }
 
+fn notify_local_launcher_index_complete(
+    app_handle: &AppHandle,
+    apps_count: usize,
+    bookmarks_count: usize,
+) {
+    use tauri_plugin_notification::NotificationExt;
+
+    if let Err(error) = app_handle
+        .notification()
+        .builder()
+        .title("数据索引完成")
+        .body(format!(
+            "已索引 {} 个应用，{} 个书签",
+            apps_count, bookmarks_count
+        ))
+        .show()
+    {
+        log::warn!("[LocalLauncher] 显示索引完成通知失败: {}", error);
+    }
+}
+
 pub fn is_icon_cache_enabled() -> bool {
     crate::APP
         .get()
@@ -859,11 +880,6 @@ fn run_app_and_bookmark_initialization(
     };
     let show_progress = progress_reset_kind.is_some() && !force_rebuild;
 
-    if show_progress {
-        crate::window::create_progress_notification_window();
-        std::thread::sleep(std::time::Duration::from_millis(100));
-    }
-
     let mut apps_to_load = Vec::new();
     let mut bookmarks_to_load = Vec::new();
 
@@ -1031,20 +1047,20 @@ fn run_app_and_bookmark_initialization(
             indexed_apps_count,
             indexed_bookmarks_count,
         );
+        notify_local_launcher_index_complete(
+            app_handle,
+            indexed_apps_count,
+            indexed_bookmarks_count,
+        );
         load_missing_icons(app_handle.clone(), generation);
     } else {
         // setup完成后的正常启动：静默加载图标 + 系统通知
         if total_loaded > 0 {
-            use tauri_plugin_notification::NotificationExt;
-            let _ = app_handle
-                .notification()
-                .builder()
-                .title("数据索引完成")
-                .body(format!(
-                    "已索引 {} 个应用，{} 个书签",
-                    indexed_apps_count, indexed_bookmarks_count
-                ))
-                .show();
+            notify_local_launcher_index_complete(
+                app_handle,
+                indexed_apps_count,
+                indexed_bookmarks_count,
+            );
         }
 
         crate::window::emit_scan_complete_for(

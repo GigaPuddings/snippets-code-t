@@ -409,6 +409,29 @@ pub enum WindowShowBehavior {
 pub struct WindowManager;
 
 impl WindowManager {
+    /// 恢复一个可能被隐藏或最小化的可复用窗口，并将其置于前台。
+    ///
+    /// Windows 上仅调用 `show` 不会解除最小化。所有复用窗口统一走这里，
+    /// 避免托盘、快捷键和页面跳转入口各自遗漏恢复步骤。
+    pub fn restore_and_focus(window: &WebviewWindow) -> Result<(), String> {
+        if window.is_minimized().unwrap_or(false) {
+            window.unminimize().map_err(|e| e.to_string())?;
+        }
+        window.show().map_err(|e| e.to_string())?;
+        window.set_focus().map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    fn raise_temporarily(window: &WebviewWindow) -> Result<(), String> {
+        window.set_always_on_top(true).map_err(|e| e.to_string())?;
+        let window_clone = window.clone();
+        tauri::async_runtime::spawn(async move {
+            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+            let _ = window_clone.set_always_on_top(false);
+        });
+        Ok(())
+    }
+
     // 获取或创建窗口，并根据显示行为处理窗口状态
     pub fn get_or_create_with_behavior(
         spec: &WindowSpec,
@@ -438,11 +461,12 @@ impl WindowManager {
 
     // 简单切换：可见则隐藏，不可见则显示
     fn handle_simple_toggle(window: &WebviewWindow) -> Result<(), String> {
-        if window.is_visible().unwrap_or(false) {
+        if window.is_minimized().unwrap_or(false) {
+            Self::restore_and_focus(window)?;
+        } else if window.is_visible().unwrap_or(false) {
             window.hide().map_err(|e| e.to_string())?;
         } else {
-            window.show().map_err(|e| e.to_string())?;
-            window.set_focus().map_err(|e| e.to_string())?;
+            Self::restore_and_focus(window)?;
         }
         Ok(())
     }
@@ -453,24 +477,17 @@ impl WindowManager {
         ready_event: Option<&'static str>,
         on_ready: Option<WindowReadyCallback>,
     ) -> Result<(), String> {
-        if window.is_visible().unwrap_or(false) {
+        if window.is_minimized().unwrap_or(false) {
+            Self::restore_and_focus(window)?;
+            Self::raise_temporarily(window)?;
+        } else if window.is_visible().unwrap_or(false) {
             if window.is_focused().unwrap_or(false) {
                 // 有焦点则隐藏
                 window.hide().map_err(|e| e.to_string())?;
             } else {
                 // 没有焦点则重新聚焦并临时置顶
-                let _ = window.unminimize();
-
-                window.show().map_err(|e| e.to_string())?;
-                window.set_focus().map_err(|e| e.to_string())?;
-
-                // 临时置顶以确保可见
-                window.set_always_on_top(true).map_err(|e| e.to_string())?;
-                let window_clone = window.clone();
-                tauri::async_runtime::spawn(async move {
-                    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-                    let _ = window_clone.set_always_on_top(false);
-                });
+                Self::restore_and_focus(window)?;
+                Self::raise_temporarily(window)?;
             }
         } else {
             // 窗口不可见，需要显示
@@ -485,10 +502,8 @@ impl WindowManager {
         ready_event: Option<&'static str>,
         on_ready: Option<WindowReadyCallback>,
     ) -> Result<(), String> {
-        match window.show() {
+        match Self::restore_and_focus(window) {
             Ok(_) => {
-                // 成功显示，直接设置焦点
-                window.set_focus().ok();
                 if let Some(callback) = on_ready {
                     callback(window);
                 }
@@ -499,8 +514,7 @@ impl WindowManager {
                     // 有 ready 事件：按事件重试
                     let window_clone = window.clone();
                     window.once(event, move |_| {
-                        window_clone.show().ok();
-                        window_clone.set_focus().ok();
+                        let _ = Self::restore_and_focus(&window_clone);
                     });
                 }
 
@@ -509,8 +523,7 @@ impl WindowManager {
                 tauri::async_runtime::spawn(async move {
                     for _ in 0..8 {
                         tokio::time::sleep(tokio::time::Duration::from_millis(120)).await;
-                        if window_clone.show().is_ok() {
-                            let _ = window_clone.set_focus();
+                        if Self::restore_and_focus(&window_clone).is_ok() {
                             break;
                         }
                     }
@@ -938,7 +951,7 @@ fn open_config_settings_tab(tab: Option<&'static str>) {
     };
 
     // 使用总是显示行为，并在准备完成后导航到设置页面
-    let _ = WindowManager::get_or_create_with_behavior(
+    if let Ok(window) = WindowManager::get_or_create_with_behavior(
         &spec,
         WindowShowBehavior::AlwaysShow,
         Some(Box::new(move |window| {
@@ -948,7 +961,9 @@ fn open_config_settings_tab(tab: Option<&'static str>) {
                 let _ = window.emit("navigate-to-settings", ());
             }
         })),
-    );
+    ) {
+        ensure_config_cleanup_listener(&window);
+    }
 }
 
 fn ensure_config_cleanup_listener(window: &WebviewWindow) {
@@ -974,6 +989,10 @@ fn ensure_config_cleanup_listener(window: &WebviewWindow) {
         let app_for_thread = app_for_cleanup.clone();
         window.on_window_event(move |event| {
             if let WindowEvent::Destroyed = event {
+                if let Ok(mut registered) = CONFIG_CLEANUP_REGISTERED.lock() {
+                    *registered = false;
+                }
+
                 // 在窗口关闭后清理软删除附件
                 let app = app_for_thread.clone();
                 std::thread::spawn(move || {
@@ -1067,8 +1086,7 @@ pub async fn open_config_with_loading_transition() {
             elapsed_ms
         );
 
-        let _ = window_clone.show();
-        let _ = window_clone.set_focus();
+        let _ = WindowManager::restore_and_focus(&window_clone);
         close_and_destroy_loading_window();
 
         info!(
@@ -1086,6 +1104,7 @@ pub async fn open_config_with_loading_transition() {
                 shown = true;
                 break;
             }
+            let _ = window_for_retry.unminimize();
             let _ = window_for_retry.show();
             if window_for_retry.is_visible().unwrap_or(false) {
                 shown = true;
@@ -1137,8 +1156,7 @@ pub async fn open_config_with_loading_transition() {
                         "[StartupTransition] timeout fallback -> show config (elapsed={}ms)",
                         elapsed_ms
                     );
-                    let _ = config_window.show();
-                    let _ = config_window.set_focus();
+                    let _ = WindowManager::restore_and_focus(&config_window);
                 }
             } else {
                 warn!(
@@ -1418,31 +1436,13 @@ pub enum NotificationType {
         body: String,
         reminder_time: Option<i64>,
     },
-    // 扫描进度
-    Progress,
 }
 
 // 统一的通知窗口创建函数
 pub fn create_notification_window_unified(ntype: NotificationType) -> Option<WebviewWindow> {
     let app_handle = APP.get()?;
 
-    // 根据类型确定标签和是否复用
-    let (label, reuse_existing) = match &ntype {
-        NotificationType::Reminder { .. } => {
-            (format!("notification_{}", uuid::Uuid::new_v4()), false)
-        }
-        NotificationType::Progress => ("notification_progress".to_string(), true),
-    };
-
-    // 进度通知：检查是否已存在窗口
-    if reuse_existing {
-        if let Some(window) = app_handle.get_webview_window(&label) {
-            info!("通知窗口已存在，直接显示: {}", label);
-            let _ = window.show();
-            let _ = window.set_focus();
-            return Some(window);
-        }
-    }
+    let label = format!("notification_{}", uuid::Uuid::new_v4());
 
     // 获取主显示器
     let monitor = app_handle.primary_monitor().ok()??;
@@ -1450,10 +1450,7 @@ pub fn create_notification_window_unified(ntype: NotificationType) -> Option<Web
     let scale_factor = monitor.scale_factor();
 
     // 窗口大小和边距 (逻辑像素)
-    let (window_width, window_height) = match &ntype {
-        NotificationType::Reminder { .. } => (300.0, 126.0),
-        NotificationType::Progress => (320.0, 120.0),
-    };
+    let (window_width, window_height) = (300.0, 126.0);
     let taskbar_height = 40.0;
     let margin = 16.0;
 
@@ -1480,18 +1477,6 @@ pub fn create_notification_window_unified(ntype: NotificationType) -> Option<Web
             }
             format!("/#/notification?{}", params.join("&"))
         }
-        NotificationType::Progress => {
-            format!(
-                "/#/notification?label={}&type=progress",
-                urlencoding::encode(&label)
-            )
-        }
-    };
-
-    // 窗口标题
-    let title = match &ntype {
-        NotificationType::Reminder { .. } => "提醒",
-        NotificationType::Progress => "索引进度",
     };
 
     // 所有通知类型都有滑入动画
@@ -1513,7 +1498,7 @@ pub fn create_notification_window_unified(ntype: NotificationType) -> Option<Web
 
     // 创建窗口
     let window = WebviewWindowBuilder::new(app_handle, &label, WebviewUrl::App(url.into()))
-        .title(title)
+        .title("提醒")
         .inner_size(window_width, window_height)
         .position(start_x, start_y)
         .decorations(false)
@@ -1521,7 +1506,7 @@ pub fn create_notification_window_unified(ntype: NotificationType) -> Option<Web
         .resizable(false)
         .skip_taskbar(true)
         .transparent(true)
-        .focused(matches!(&ntype, NotificationType::Reminder { .. })) // 仅代办提醒需要焦点
+        .focused(true)
         .visible(false)
         .build()
         .ok()?;
@@ -1584,12 +1569,6 @@ pub fn create_notification_window(body: &str, reminder_time: Option<i64>) -> Web
         reminder_time,
     })
     .expect("Failed to create notification window")
-}
-
-// 创建进度通知窗口
-pub fn create_progress_notification_window() -> Option<WebviewWindow> {
-    info!("尝试创建进度通知窗口...");
-    create_notification_window_unified(NotificationType::Progress)
 }
 
 // 处理窗口事件的函数

@@ -66,9 +66,8 @@
       </div>
 
       <div
-        v-if="isScanning"
+        v-if="isScanning && !isInitialIndexing"
         class="scan-status"
-        :class="{ 'is-initial': isInitialIndexing }"
         role="status"
         aria-live="polite"
       >
@@ -79,11 +78,7 @@
           <div class="scan-status__copy">
             <span class="scan-status__title">{{ localizedScanStage }}</span>
             <span class="scan-status__hint">
-              {{
-                isInitialIndexing
-                  ? $t('local.firstIndexingHint')
-                  : $t('local.backgroundIndexingHint')
-              }}
+              {{ $t('local.backgroundIndexingHint') }}
             </span>
           </div>
           <div class="scan-status__metrics">
@@ -108,20 +103,40 @@
     <div ref="localContentRef" class="local-content">
       <div
         v-if="isInitialIndexing"
-        class="initial-index-skeleton"
-        :aria-label="$t('local.firstIndexingHint')"
+        class="initial-index-state"
+        role="status"
+        aria-live="polite"
       >
-        <div
-          v-for="index in visibleListItemCount"
-          :key="index"
-          class="skeleton-row"
-        >
-          <span class="skeleton-number"></span>
-          <span class="skeleton-icon"></span>
-          <span class="skeleton-copy">
-            <span class="skeleton-title"></span>
-            <span class="skeleton-path"></span>
+        <div class="indexing-visual" aria-hidden="true">
+          <span class="indexing-orbit indexing-orbit--outer"></span>
+          <span class="indexing-orbit indexing-orbit--inner"></span>
+          <span class="indexing-core">
+            <LoadingIcon theme="outline" size="28" :strokeWidth="2.5" />
           </span>
+        </div>
+
+        <div class="indexing-copy">
+          <h2>{{ localizedScanStage }}</h2>
+          <p>{{ $t('local.firstIndexingHint') }}</p>
+        </div>
+
+        <div class="indexing-progress">
+          <div class="indexing-progress__meta">
+            <span v-if="scanTotal > 0">
+              {{ scanCurrent }} / {{ scanTotal }}
+            </span>
+            <span v-else>{{ $t('common.preparing') }}</span>
+            <strong>{{ scanTotal > 0 ? `${scanPercent}%` : '…' }}</strong>
+          </div>
+          <div
+            class="indexing-progress__track"
+            :class="{ 'is-indeterminate': scanTotal <= 0 }"
+          >
+            <span
+              class="indexing-progress__bar"
+              :style="scanTotal > 0 ? { width: `${scanPercent}%` } : undefined"
+            ></span>
+          </div>
         </div>
       </div>
 
@@ -789,11 +804,7 @@ onUnmounted(() => {
     }
 
     .scan-status {
-      @apply mt-2 overflow-hidden rounded-md border border-panel bg-panel px-3 py-2;
-
-      &.is-initial {
-        background: var(--search-card-bg);
-      }
+      @apply relative mt-2 overflow-hidden rounded-md border border-panel bg-panel px-3 py-2;
 
       .scan-status__summary {
         @apply flex min-w-0 items-center gap-2.5;
@@ -830,7 +841,7 @@ onUnmounted(() => {
       }
 
       .scan-status__track {
-        @apply mt-2 h-1 overflow-hidden rounded-full;
+        @apply absolute inset-x-0 bottom-0 h-0.5 overflow-hidden;
 
         background: var(--search-input-bg);
       }
@@ -844,40 +855,75 @@ onUnmounted(() => {
   .local-content {
     @apply flex-1 overflow-hidden;
 
-    .initial-index-skeleton {
-      @apply flex h-full flex-col gap-1 overflow-hidden;
+    .initial-index-state {
+      @apply flex h-full flex-col items-center justify-center px-6 pb-10 text-center;
 
-      .skeleton-row {
-        @apply flex min-h-[64px] flex-1 items-center gap-3 rounded-md border border-panel bg-panel px-3 py-2;
+      .indexing-visual {
+        @apply relative mb-6 flex h-24 w-24 items-center justify-center;
       }
 
-      .skeleton-number,
-      .skeleton-icon,
-      .skeleton-title,
-      .skeleton-path {
-        @apply animate-pulse rounded;
+      .indexing-orbit {
+        @apply absolute rounded-full border;
 
-        background: var(--search-card-bg);
+        border-color: var(--search-result-active-border);
       }
 
-      .skeleton-number {
-        @apply h-6 w-6 flex-shrink-0;
+      .indexing-orbit--outer {
+        @apply inset-0 opacity-40;
+
+        animation: indexing-orbit 2.4s ease-in-out infinite;
       }
 
-      .skeleton-icon {
-        @apply h-[38px] w-[38px] flex-shrink-0 rounded-md;
+      .indexing-orbit--inner {
+        @apply inset-3 opacity-70;
+
+        animation: indexing-orbit 2.4s 0.3s ease-in-out infinite;
       }
 
-      .skeleton-copy {
-        @apply flex min-w-0 flex-1 flex-col gap-2;
+      .indexing-core {
+        @apply relative z-10 flex h-12 w-12 items-center justify-center rounded-2xl text-blue-500 shadow-sm;
+
+        background: var(--search-result-active);
       }
 
-      .skeleton-title {
-        @apply h-3.5 w-2/5;
+      .indexing-copy {
+        @apply max-w-md;
+
+        h2 {
+          @apply text-base font-semibold text-panel;
+        }
+
+        p {
+          @apply mt-1.5 text-xs leading-5 text-panel-text-secondary;
+        }
       }
 
-      .skeleton-path {
-        @apply h-2.5 w-3/5;
+      .indexing-progress {
+        @apply mt-6 w-full max-w-sm;
+      }
+
+      .indexing-progress__meta {
+        @apply mb-2 flex items-center justify-between font-mono text-[11px] text-panel-text-secondary;
+
+        strong {
+          @apply font-semibold text-blue-500;
+        }
+      }
+
+      .indexing-progress__track {
+        @apply relative h-1.5 overflow-hidden rounded-full;
+
+        background: var(--search-input-bg);
+      }
+
+      .indexing-progress__bar {
+        @apply block h-full rounded-full bg-blue-500 transition-[width] duration-300 ease-out;
+      }
+
+      .indexing-progress__track.is-indeterminate .indexing-progress__bar {
+        @apply absolute w-1/3;
+
+        animation: indexing-indeterminate 1.4s ease-in-out infinite;
       }
     }
 
@@ -992,6 +1038,29 @@ onUnmounted(() => {
         }
       }
     }
+  }
+}
+
+@keyframes indexing-orbit {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.92);
+  }
+
+  50% {
+    opacity: 0.75;
+    transform: scale(1);
+  }
+}
+
+@keyframes indexing-indeterminate {
+  from {
+    transform: translateX(-120%);
+  }
+
+  to {
+    transform: translateX(420%);
   }
 }
 </style>
