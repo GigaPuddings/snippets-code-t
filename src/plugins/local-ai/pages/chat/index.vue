@@ -13,8 +13,14 @@
       ]"
     >
       <header class="sidebar-header">
-        <div class="sidebar-title-block">
-          <h2>{{ t('localAi.chatTitle') }}</h2>
+        <div class="sidebar-brand">
+          <div class="sidebar-brand-mark">
+            <Robot theme="outline" size="18" />
+          </div>
+          <div class="sidebar-title-block">
+            <h2>{{ t('localAi.chatTitle') }}</h2>
+            <p>{{ t('localAi.chatPrivacySubtitle') }}</p>
+          </div>
         </div>
         <button
           class="icon-action-btn sidebar-collapse-btn"
@@ -33,20 +39,24 @@
 
       <div class="sidebar-nav">
         <button
-          class="sidebar-nav-item"
+          class="sidebar-new-chat-btn"
           type="button"
-          :disabled="sending"
+          :disabled="navigationLocked"
           @click="createNewChat"
         >
           <Edit theme="outline" size="18" />
           <span>{{ t('localAi.newChat') }}</span>
+          <span class="sidebar-new-chat-shortcut">Ctrl N</span>
         </button>
-        <label class="sidebar-nav-item sidebar-nav-item--search">
-          <Search theme="outline" size="18" />
+        <label class="sidebar-search">
+          <Search theme="outline" size="16" />
           <input
             v-model="searchQuery"
             :placeholder="t('localAi.searchHistory')"
           />
+          <span v-if="searchQuery" class="sidebar-search-count">
+            {{ filteredHistories.length }}
+          </span>
         </label>
       </div>
 
@@ -57,7 +67,7 @@
             class="icon-action-btn"
             type="button"
             :title="t('plugins.refresh')"
-            :disabled="sending || refreshing"
+            :disabled="navigationLocked || refreshing"
             @click="refreshAll"
           >
             <Refresh
@@ -74,23 +84,28 @@
             :class="[
               'chat-list-item',
               activeHistoryId === history.id ? 'active' : '',
-              sending ? 'disabled' : ''
+              navigationLocked ? 'disabled' : ''
             ]"
             role="button"
-            :tabindex="sending ? -1 : 0"
-            :aria-disabled="sending"
+            :tabindex="navigationLocked ? -1 : 0"
+            :aria-disabled="navigationLocked"
             @click="openHistory(history.id)"
             @keydown.enter.prevent="openHistory(history.id)"
           >
-            <span class="chat-item-title">{{ history.title }}</span>
-            <span class="chat-item-time">
-              {{ formatHistoryTime(history.updatedAt) }}
+            <span class="chat-item-mark">
+              <MessageOne theme="outline" size="15" />
+            </span>
+            <span class="chat-item-copy">
+              <span class="chat-item-title">{{ history.title }}</span>
+              <span class="chat-item-time">
+                {{ formatHistoryTime(history.updatedAt) }}
+              </span>
             </span>
             <button
               class="chat-item-delete"
               type="button"
               :title="t('common.delete')"
-              :disabled="sending"
+              :disabled="navigationLocked"
               @click.stop="deleteHistoryItem(history.id)"
             >
               <Delete theme="outline" size="13" />
@@ -101,14 +116,63 @@
       </section>
 
       <footer class="sidebar-service">
+        <div class="sidebar-service-card">
+          <span class="sidebar-service-icon">
+            <Robot theme="outline" size="15" />
+          </span>
+          <span class="sidebar-service-copy">
+            <strong>{{ serviceStatusText }}</strong>
+            <small>
+              {{
+                serviceStatus?.healthy
+                  ? currentModelDisplay
+                  : t('localAi.onDemandHint')
+              }}
+            </small>
+          </span>
+          <span
+            :class="[
+              'service-status-dot',
+              serviceStatus?.healthy ? 'ready' : 'stopped'
+            ]"
+          ></span>
+        </div>
         <button class="sidebar-settings-btn" type="button" @click="goSettings">
           <SettingTwo theme="outline" size="16" />
           <span>{{ t('localAi.settings') }}</span>
+          <Right theme="outline" size="14" />
         </button>
-        <div class="sidebar-service-row">
+      </footer>
+    </aside>
+
+    <section class="chat-panel">
+      <header class="chat-panel-header">
+        <div class="chat-panel-heading">
+          <button
+            v-if="sidebarCollapsed"
+            class="panel-sidebar-toggle"
+            type="button"
+            :title="t('localAi.expandSidebar')"
+            @click="sidebarCollapsed = false"
+          >
+            <LeftBar theme="outline" size="17" />
+          </button>
+          <div class="chat-context-mark">
+            <Robot theme="outline" size="18" />
+          </div>
+          <div class="chat-context-copy">
+            <span>{{ t('localAi.chatSubtitle') }}</span>
+            <h1>{{ activeHistoryTitle }}</h1>
+          </div>
+        </div>
+        <div class="chat-panel-meta">
+          <span class="header-model-pill" :title="currentModelDisplay">
+            <Cube theme="outline" size="14" />
+            <span>{{ currentModelDisplay }}</span>
+          </span>
           <span
             :class="[
-              'status-pill',
+              'header-status-pill',
               serviceStatus?.healthy ? 'ready' : 'stopped'
             ]"
           >
@@ -116,19 +180,7 @@
             {{ serviceStatusText }}
           </span>
         </div>
-      </footer>
-    </aside>
-
-    <section class="chat-panel">
-      <button
-        v-if="sidebarCollapsed"
-        class="panel-sidebar-toggle"
-        type="button"
-        :title="t('localAi.expandSidebar')"
-        @click="sidebarCollapsed = false"
-      >
-        <LeftBar theme="outline" size="17" />
-      </button>
+      </header>
 
       <div
         ref="messageListRef"
@@ -140,11 +192,43 @@
         @touchmove.passive="handleMessageTouchMove"
         @touchend="handleMessageTouchEnd"
       >
-        <div v-if="!activeMessages.length" class="empty-state">
-          <Robot theme="outline" size="28" />
-          <div class="empty-title">{{ t('localAi.chatEmpty') }}</div>
-          <div class="empty-desc">{{ t('localAi.chatPlaceholder') }}</div>
-        </div>
+        <section v-if="!activeMessages.length" class="empty-state">
+          <div class="empty-hero">
+            <div class="empty-hero-mark">
+              <RobotOne theme="outline" size="30" />
+            </div>
+            <span class="empty-eyebrow">
+              <i></i>
+              {{ t('localAi.privateWorkspace') }}
+            </span>
+            <h2>{{ t('localAi.chatWelcomeTitle') }}</h2>
+            <p>{{ t('localAi.chatWelcomeDesc') }}</p>
+          </div>
+          <div class="quick-prompt-section">
+            <div class="quick-prompt-heading">
+              <span>{{ t('localAi.quickStart') }}</span>
+              <small>{{ t('localAi.quickStartHint') }}</small>
+            </div>
+            <div class="quick-prompt-grid">
+              <button
+                v-for="item in quickPrompts"
+                :key="item.title"
+                class="quick-prompt-card"
+                type="button"
+                @click="applyQuickPrompt(item.title)"
+              >
+                <span class="quick-prompt-icon">
+                  <component :is="item.icon" theme="outline" size="17" />
+                </span>
+                <span class="quick-prompt-copy">
+                  <strong>{{ t(item.title) }}</strong>
+                  <small>{{ t(item.description) }}</small>
+                </span>
+                <Right theme="outline" size="14" />
+              </button>
+            </div>
+          </div>
+        </section>
 
         <template
           v-for="(display, displayIndex) in displayMessages"
@@ -443,174 +527,235 @@
         <span>{{ t('localAi.jumpToLatest') }}</span>
       </button>
 
-      <form
-        :class="[
-          'chat-input-card',
-          composerFocused ? 'chat-input-card--focused' : ''
-        ]"
-        @dragover.prevent
-        @drop.prevent="handleAttachmentDrop"
-        @submit.prevent="sendMessage"
-        @focusin="composerFocused = true"
-        @focusout="composerFocused = false"
-      >
-        <input
-          ref="fileInputRef"
-          class="attachment-input"
-          type="file"
-          multiple
-          accept=".txt,.md,.json,.csv,.html,.css,.js,.ts,.tsx,.vue,.rs,.py,.java,.go,.yaml,.yml,.toml,.xml,.log,image/png,image/jpeg,image/webp,.pdf,.doc,.docx,.xls,.xlsx"
-          @change="handleAttachmentInput"
-        />
-        <div v-if="attachments.length" class="attachment-preview-list">
-          <div
-            v-for="attachment in attachments"
-            :key="attachment.id"
-            :class="[
-              'attachment-preview-item',
-              `attachment-preview-item--${attachment.status}`
-            ]"
-          >
-            <img
-              v-if="attachment.type === 'image' && attachment.dataUrl"
-              :src="attachment.dataUrl"
-              :alt="attachment.name"
-            />
-            <span v-else class="attachment-file-icon">
-              {{ attachment.type === 'text' ? 'TXT' : 'FILE' }}
-            </span>
-            <span class="attachment-meta">
-              <strong>{{ attachment.name }}</strong>
-              <small>
-                {{ formatFileSize(attachment.size) }} ·
-                {{ attachmentStatusText(attachment) }}
-              </small>
-            </span>
-            <button
-              type="button"
-              :title="t('common.delete')"
-              @click="removeAttachment(attachment.id)"
-            >
-              <Delete theme="outline" size="12" />
+      <div class="composer-dock">
+        <form
+          :class="[
+            'chat-input-card',
+            composerFocused ? 'chat-input-card--focused' : '',
+            promptEnhancing ? 'chat-input-card--enhancing' : ''
+          ]"
+          @dragover.prevent
+          @drop.prevent="handleAttachmentDrop"
+          @submit.prevent="sendMessage"
+          @focusin="composerFocused = true"
+          @focusout="composerFocused = false"
+        >
+          <input
+            ref="fileInputRef"
+            class="attachment-input"
+            type="file"
+            multiple
+            accept=".txt,.md,.json,.csv,.html,.css,.js,.ts,.tsx,.vue,.rs,.py,.java,.go,.yaml,.yml,.toml,.xml,.log,image/png,image/jpeg,image/webp,.pdf,.doc,.docx,.xls,.xlsx"
+            @change="handleAttachmentInput"
+          />
+          <div v-if="promptUndoValue !== null" class="prompt-enhance-applied">
+            <MagicWand theme="outline" size="14" />
+            <span>{{ t('localAi.enhancedPromptApplied') }}</span>
+            <button type="button" @click="undoPromptEnhancement">
+              {{ t('localAi.undoEnhancement') }}
             </button>
           </div>
-        </div>
-        <textarea
-          v-model="draft"
-          class="chat-input"
-          rows="2"
-          :placeholder="t('localAi.chatPlaceholder')"
-          @keydown="handleComposerKeydown"
-          @paste="handleComposerPaste"
-        ></textarea>
-        <div class="input-toolbar">
-          <div class="input-toolbar-left">
-            <button
-              class="composer-tool-btn"
-              type="button"
-              :title="t('localAi.addAttachment')"
-              @click="openAttachmentPicker"
+          <div v-if="attachments.length" class="attachment-preview-list">
+            <div
+              v-for="attachment in attachments"
+              :key="attachment.id"
+              :class="[
+                'attachment-preview-item',
+                `attachment-preview-item--${attachment.status}`
+              ]"
             >
-              <Link theme="outline" size="16" />
-            </button>
-            <label class="model-select-shell">
-              <select
-                v-model="selectedChatModelPath"
-                :disabled="sending || !availableChatModels.length"
-                @change="changeChatModel"
+              <img
+                v-if="attachment.type === 'image' && attachment.dataUrl"
+                :src="attachment.dataUrl"
+                :alt="attachment.name"
+              />
+              <span v-else class="attachment-file-icon">
+                {{ attachment.type === 'text' ? 'TXT' : 'FILE' }}
+              </span>
+              <span class="attachment-meta">
+                <strong>{{ attachment.name }}</strong>
+                <small>
+                  {{ formatFileSize(attachment.size) }} ·
+                  {{ attachmentStatusText(attachment) }}
+                </small>
+              </span>
+              <button
+                type="button"
+                :title="t('common.delete')"
+                @click="removeAttachment(attachment.id)"
               >
-                <option
-                  v-for="path in availableChatModels"
-                  :key="path"
-                  :value="path"
-                >
-                  {{ fileName(path) }}
-                </option>
-                <option v-if="!availableChatModels.length" value="">
-                  {{ currentModelDisplay }}
-                </option>
-              </select>
-              <Down theme="outline" size="14" />
-            </label>
-            <button
-              :class="[
-                'composer-tool-btn',
-                'composer-tool-btn--wide',
-                verifiedSourcesEnabled ? 'composer-tool-btn--active' : ''
-              ]"
-              type="button"
-              :title="
-                verifiedSourcesEnabled
-                  ? t('localAi.verifiedSourcesEnabled')
-                  : t('localAi.verifiedSourcesDisabled')
-              "
-              :aria-pressed="verifiedSourcesEnabled"
-              @click="toggleVerifiedSources"
-            >
-              <Search theme="outline" size="15" />
-              <span>{{ t('localAi.verifiedSourcesTitle') }}</span>
-            </button>
-            <button
-              v-if="modelSupportsThinking"
-              :class="[
-                'composer-tool-btn',
-                'composer-tool-btn--wide',
-                thinkingEnabled ? 'composer-tool-btn--active' : ''
-              ]"
-              type="button"
-              :title="
-                thinkingEnabled
-                  ? t('localAi.thinkingEnabled')
-                  : t('localAi.thinkingDisabled')
-              "
-              :aria-pressed="thinkingEnabled"
-              @click="thinkingEnabled = !thinkingEnabled"
-            >
-              <Brain theme="outline" size="15" />
-              <span>{{ t('localAi.reasoningTitle') }}</span>
-            </button>
+                <Delete theme="outline" size="12" />
+              </button>
+            </div>
           </div>
-          <div class="input-toolbar-right">
-            <span class="input-hint">{{ t('localAi.inputHint') }}</span>
-            <button
-              v-if="currentStreamRequestId"
-              class="send-btn send-btn--stop"
-              :class="{ 'send-btn--stopping': stopRequested }"
-              type="button"
-              :disabled="stopRequested"
-              :title="
-                stopRequested
-                  ? t('localAi.stoppingGeneration')
-                  : t('localAi.stopGenerating')
-              "
-              :aria-label="
-                stopRequested
-                  ? t('localAi.stoppingGeneration')
-                  : t('localAi.stopGenerating')
-              "
-              @click="stopGeneration"
-            >
+          <div class="composer-label-row">
+            <span :class="{ 'composer-label-row--busy': promptEnhancing }">
               <Refresh
-                v-if="stopRequested"
+                v-if="promptEnhancing"
                 class="animate-spin"
                 theme="outline"
-                size="15"
+                size="12"
               />
-              <Square v-else theme="filled" size="11" />
-            </button>
-            <button
-              v-else
-              class="send-btn"
-              type="submit"
-              :disabled="!canSend"
-              :title="t('localAi.send')"
-              :aria-label="t('localAi.send')"
-            >
-              <Send theme="outline" size="15" />
-            </button>
+              <i v-else></i>
+              {{
+                promptEnhancing
+                  ? t('localAi.enhancingPrompt')
+                  : t('localAi.composerLabel')
+              }}
+            </span>
+            <small v-if="draft.length">{{ draft.length }}</small>
           </div>
-        </div>
-      </form>
+          <textarea
+            ref="composerInputRef"
+            v-model="draft"
+            class="chat-input"
+            rows="2"
+            :placeholder="t('localAi.chatPlaceholder')"
+            :readonly="promptEnhancing"
+            :aria-busy="promptEnhancing"
+            @input="handleDraftInput"
+            @keydown="handleComposerKeydown"
+            @paste="handleComposerPaste"
+          ></textarea>
+          <div class="input-toolbar">
+            <div class="input-toolbar-left">
+              <button
+                class="composer-tool-btn"
+                type="button"
+                :title="t('localAi.addAttachment')"
+                @click="openAttachmentPicker"
+              >
+                <Link theme="outline" size="16" />
+              </button>
+              <button
+                :class="[
+                  'composer-tool-btn',
+                  'composer-tool-btn--wide',
+                  'composer-tool-btn--enhance',
+                  promptEnhancing ? 'composer-tool-btn--active' : ''
+                ]"
+                type="button"
+                :disabled="!canEnhancePrompt"
+                :title="
+                  draft.trim()
+                    ? t('localAi.enhancePromptDesc')
+                    : t('localAi.enhanceNeedsPrompt')
+                "
+                @click="enhancePrompt"
+              >
+                <Refresh
+                  v-if="promptEnhancing"
+                  class="animate-spin"
+                  theme="outline"
+                  size="14"
+                />
+                <MagicWand v-else theme="outline" size="15" />
+                <span>{{ t('localAi.enhancePrompt') }}</span>
+              </button>
+              <button
+                :class="[
+                  'composer-tool-btn',
+                  'composer-tool-btn--wide',
+                  verifiedSourcesEnabled ? 'composer-tool-btn--active' : ''
+                ]"
+                type="button"
+                :title="
+                  verifiedSourcesEnabled
+                    ? t('localAi.verifiedSourcesEnabled')
+                    : t('localAi.verifiedSourcesDisabled')
+                "
+                :aria-pressed="verifiedSourcesEnabled"
+                @click="toggleVerifiedSources"
+              >
+                <Search theme="outline" size="15" />
+                <span>{{ t('localAi.verifiedSourcesTitle') }}</span>
+              </button>
+              <button
+                v-if="modelSupportsThinking"
+                :class="[
+                  'composer-tool-btn',
+                  'composer-tool-btn--wide',
+                  thinkingEnabled ? 'composer-tool-btn--active' : ''
+                ]"
+                type="button"
+                :title="
+                  thinkingEnabled
+                    ? t('localAi.thinkingEnabled')
+                    : t('localAi.thinkingDisabled')
+                "
+                :aria-pressed="thinkingEnabled"
+                @click="thinkingEnabled = !thinkingEnabled"
+              >
+                <Brain theme="outline" size="15" />
+                <span>{{ t('localAi.reasoningTitle') }}</span>
+              </button>
+            </div>
+            <div class="input-toolbar-right">
+              <label class="model-select-shell">
+                <Cube theme="outline" size="14" />
+                <select
+                  v-model="selectedChatModelPath"
+                  :disabled="sending || !availableChatModels.length"
+                  @change="changeChatModel"
+                >
+                  <option
+                    v-for="path in availableChatModels"
+                    :key="path"
+                    :value="path"
+                  >
+                    {{ fileName(path) }}
+                  </option>
+                  <option v-if="!availableChatModels.length" value="">
+                    {{ currentModelDisplay }}
+                  </option>
+                </select>
+                <Down theme="outline" size="13" />
+              </label>
+              <span class="input-hint">{{ t('localAi.inputHint') }}</span>
+              <button
+                v-if="currentStreamRequestId"
+                class="send-btn send-btn--stop"
+                :class="{ 'send-btn--stopping': stopRequested }"
+                type="button"
+                :disabled="stopRequested"
+                :title="
+                  stopRequested
+                    ? t('localAi.stoppingGeneration')
+                    : t('localAi.stopGenerating')
+                "
+                :aria-label="
+                  stopRequested
+                    ? t('localAi.stoppingGeneration')
+                    : t('localAi.stopGenerating')
+                "
+                @click="stopGeneration"
+              >
+                <Refresh
+                  v-if="stopRequested"
+                  class="animate-spin"
+                  theme="outline"
+                  size="15"
+                />
+                <Square v-else theme="filled" size="11" />
+              </button>
+              <button
+                v-else
+                class="send-btn"
+                type="submit"
+                :disabled="!canSend"
+                :title="t('localAi.send')"
+                :aria-label="t('localAi.send')"
+              >
+                <Send theme="outline" size="15" />
+              </button>
+            </div>
+          </div>
+          <div class="composer-footnote">
+            <span>{{ t('localAi.privateLocalHint') }}</span>
+            <span>{{ t('localAi.dragDropHint') }}</span>
+          </div>
+        </form>
+      </div>
     </section>
   </main>
 </template>
@@ -631,10 +776,19 @@ import {
   SettingTwo,
   Link,
   Fork,
-  LeftBar
+  LeftBar,
+  Right,
+  Cube,
+  MessageOne,
+  RobotOne,
+  MagicWand,
+  FileText,
+  Translate,
+  Code
 } from '@icon-park/vue-next';
 import {
   cancelLocalAiChatStream,
+  chatWithLocalAi,
   createLocalAiStreamRequestId,
   deleteLocalAiChatHistory,
   getLocalAiConfig,
@@ -711,6 +865,9 @@ const histories = ref<ChatHistoryView[]>([]);
 const activeHistoryId = ref<string>('');
 const sidebarCollapsed = ref(false);
 const draft = ref('');
+const composerInputRef = ref<HTMLTextAreaElement | null>(null);
+const promptEnhancing = ref(false);
+const promptUndoValue = ref<string | null>(null);
 const sending = ref(false);
 const refreshing = ref(false);
 const stopRequested = ref(false);
@@ -751,12 +908,54 @@ const MESSAGE_BOTTOM_THRESHOLD = 96;
 const MIN_RESPONSE_RESERVE_TOKENS = 4096;
 const STREAM_PUMP_INTERVAL_MS = 90;
 const STREAM_STATS_TICK_MS = 1000;
+const quickPrompts = [
+  {
+    title: 'localAi.quickPromptSummary',
+    description: 'localAi.quickPromptSummaryDesc',
+    icon: FileText
+  },
+  {
+    title: 'localAi.quickPromptTranslate',
+    description: 'localAi.quickPromptTranslateDesc',
+    icon: Translate
+  },
+  {
+    title: 'localAi.quickPromptCode',
+    description: 'localAi.quickPromptCodeDesc',
+    icon: Code
+  },
+  {
+    title: 'localAi.quickPromptRegex',
+    description: 'localAi.quickPromptRegexDesc',
+    icon: MagicWand
+  }
+] as const;
+const PROMPT_ENHANCEMENT_SYSTEM_PROMPT = `
+You are a prompt design assistant. Rewrite the user's rough prompt into a clear,
+high-quality prompt for another AI.
+
+Rules:
+1. Preserve the user's intent, facts, constraints, tone, and original language.
+2. Clarify the objective, useful context, requirements, and expected output format.
+3. Do not answer the prompt and do not invent missing requirements.
+4. Keep the result concise enough to remain practical.
+5. Return only the enhanced prompt with no preface, commentary, or code fence.
+`.trim();
 
 const canSend = computed(
   () =>
     (Boolean(draft.value.trim()) || attachments.value.length > 0) &&
-    !sending.value
+    !sending.value &&
+    !promptEnhancing.value
 );
+const canEnhancePrompt = computed(
+  () =>
+    Boolean(draft.value.trim()) &&
+    !sending.value &&
+    !promptEnhancing.value &&
+    !currentStreamRequestId.value
+);
+const navigationLocked = computed(() => sending.value || promptEnhancing.value);
 const serviceStatusText = computed(() => {
   if (serviceStatus.value?.healthy) return t('localAi.serviceHealthy');
   if (serviceStatus.value?.running) return t('localAi.serviceStarting');
@@ -765,6 +964,9 @@ const serviceStatusText = computed(() => {
 const activeHistory = computed(
   () =>
     histories.value.find((item) => item.id === activeHistoryId.value) ?? null
+);
+const activeHistoryTitle = computed(
+  () => activeHistory.value?.title || t('localAi.newChatTitle')
 );
 const activeMessages = computed(() => getVisibleMessages(activeHistory.value));
 const displayMessages = computed(() => getDisplayMessages(activeHistory.value));
@@ -821,6 +1023,71 @@ const filteredHistories = computed(() => {
     .slice()
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 });
+
+const focusComposer = async (): Promise<void> => {
+  await nextTick();
+  composerInputRef.value?.focus();
+};
+const resetPromptEnhancement = (): void => {
+  promptUndoValue.value = null;
+};
+const applyQuickPrompt = (key: string): void => {
+  resetPromptEnhancement();
+  draft.value = t(key);
+  void focusComposer();
+};
+const handleDraftInput = (): void => {
+  promptUndoValue.value = null;
+};
+const normalizeEnhancedPrompt = (value: string): string =>
+  value
+    .replace(/^[\s\S]*?<\/think>\s*/i, '')
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')
+    .replace(/^(?:\\[rn])+\s*/i, '')
+    .replace(/^```(?:markdown|md|text)?\s*/i, '')
+    .replace(/\s*```\s*$/i, '')
+    .replace(
+      /^(?:增强后的提示词|优化后的提示词|改写后的提示词|enhanced prompt|improved prompt)\s*[:：]\s*/i,
+      ''
+    )
+    .trim();
+const enhancePrompt = async (): Promise<void> => {
+  const source = draft.value.trim();
+  if (!source || !canEnhancePrompt.value) return;
+  promptEnhancing.value = true;
+  try {
+    const response = await chatWithLocalAi({
+      messages: [
+        { role: 'system', content: PROMPT_ENHANCEMENT_SYSTEM_PROMPT },
+        {
+          role: 'user',
+          content: `Original prompt:\n---\n${source}\n---`
+        }
+      ],
+      temperature: 0.25,
+      enableThinking: false,
+      maxTokens: Math.min(
+        1200,
+        Math.max(384, Math.floor(effectiveContextLimit.value / 4))
+      )
+    });
+    const normalized = normalizeEnhancedPrompt(response.content);
+    if (!normalized) throw new Error(t('localAi.enhancePromptEmpty'));
+    promptUndoValue.value = source;
+    draft.value = normalized;
+    await focusComposer();
+  } catch (error) {
+    modal.msg(`${t('localAi.enhancePromptFailed')}: ${String(error)}`, 'error');
+  } finally {
+    promptEnhancing.value = false;
+  }
+};
+const undoPromptEnhancement = (): void => {
+  if (promptUndoValue.value === null) return;
+  draft.value = promptUndoValue.value;
+  promptUndoValue.value = null;
+  void focusComposer();
+};
 
 const nowLabel = () => t('localAi.now');
 const createHistory = (): ChatHistoryView => {
@@ -1002,7 +1269,7 @@ const refreshHistories = async () => {
   }
 };
 const refreshAll = async () => {
-  if (sending.value) return;
+  if (navigationLocked.value) return;
   await Promise.all([refreshConfig(), refreshStatus(), refreshHistories()]);
 };
 const persistHistory = async (current: ChatHistoryView | null) => {
@@ -1024,19 +1291,22 @@ const persistHistory = async (current: ChatHistoryView | null) => {
   } as PersistedChatHistory);
 };
 const createNewChat = () => {
-  if (sending.value) return;
+  if (navigationLocked.value) return;
   const next = createHistory();
   histories.value.unshift(next);
   activeHistoryId.value = next.id;
   draft.value = '';
+  resetPromptEnhancement();
+  void focusComposer();
 };
 const ensureActiveHistory = () => {
   if (activeHistory.value) return;
   createNewChat();
 };
 const openHistory = (id: string) => {
-  if (sending.value) return;
+  if (navigationLocked.value) return;
   activeHistoryId.value = id;
+  resetPromptEnhancement();
   const current = activeHistory.value;
   if (current && !current.currentNodeId) {
     current.currentNodeId =
@@ -1047,7 +1317,7 @@ const openHistory = (id: string) => {
   scrollToBottom({ force: true });
 };
 const deleteHistoryItem = async (id: string) => {
-  if (sending.value) return;
+  if (navigationLocked.value) return;
   histories.value = histories.value.filter((item) => item.id !== id);
   await deleteLocalAiChatHistory(id);
   if (activeHistoryId.value === id) {
@@ -1367,10 +1637,7 @@ const clearGeneration = (requestId?: string): void => {
   currentStreamRequestId.value = null;
   currentStreamingMessage.value = null;
 };
-const markMessageStopped = (
-  message: ChatMessage,
-  elapsedMs?: number
-): void => {
+const markMessageStopped = (message: ChatMessage, elapsedMs?: number): void => {
   message.streaming = false;
   message.stopped = true;
   message.interrupted = false;
@@ -1592,7 +1859,7 @@ const validateBeforeSend = (): boolean => {
 };
 const sendMessage = async () => {
   const content = draft.value.trim();
-  if (sending.value || !validateBeforeSend()) return;
+  if (navigationLocked.value || !validateBeforeSend()) return;
   ensureActiveHistory();
   const createdAt = new Date().toISOString();
   const submittedAttachments = attachments.value.map((attachment) => ({
@@ -1623,6 +1890,7 @@ const sendMessage = async () => {
   });
   draft.value = '';
   attachments.value = [];
+  resetPromptEnhancement();
   sending.value = true;
   const requestId = beginGeneration(assistantMessage);
   startStatsTicker();
@@ -1685,6 +1953,17 @@ const handleComposerKeydown = (event: KeyboardEvent) => {
     void sendMessage();
   }
 };
+const handleGlobalKeydown = (event: KeyboardEvent): void => {
+  if (
+    (event.ctrlKey || event.metaKey) &&
+    event.key.toLowerCase() === 'n' &&
+    !event.shiftKey &&
+    !event.altKey
+  ) {
+    event.preventDefault();
+    createNewChat();
+  }
+};
 const goSettings = () => {
   window.location.hash = '#/config/category/settings?tab=localAi';
 };
@@ -1738,10 +2017,12 @@ const deleteMessage = async (messageId: string) => {
 };
 const editMessage = (message: ChatMessage) => {
   if (sending.value) return;
+  resetPromptEnhancement();
   draft.value = message.content;
   if (activeHistory.value && message.parentId) {
     activeHistory.value.currentNodeId = message.parentId;
   }
+  void focusComposer();
 };
 const messageVersionLabel = (display: ChatDisplayMessage): string =>
   t('localAi.messageVersion', {
@@ -1869,6 +2150,7 @@ onMounted(async () => {
   }
   window.addEventListener('pointerup', finishMessagePointerScroll);
   window.addEventListener('pointercancel', finishMessagePointerScroll);
+  window.addEventListener('keydown', handleGlobalKeydown);
   await refreshAll();
   statusTimer = setInterval(() => {
     refreshStatus().catch((error) =>
@@ -1890,6 +2172,7 @@ onUnmounted(() => {
   observedStreamingCard = null;
   window.removeEventListener('pointerup', finishMessagePointerScroll);
   window.removeEventListener('pointercancel', finishMessagePointerScroll);
+  window.removeEventListener('keydown', handleGlobalKeydown);
   if (currentStreamRequestId.value) {
     void cancelLocalAiChatStream(currentStreamRequestId.value);
   }
