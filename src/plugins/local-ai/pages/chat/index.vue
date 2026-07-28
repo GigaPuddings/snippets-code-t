@@ -14,9 +14,6 @@
     >
       <header class="sidebar-header">
         <div class="sidebar-brand">
-          <div class="sidebar-brand-mark">
-            <Robot theme="outline" size="18" />
-          </div>
           <div class="sidebar-title-block">
             <h2>{{ t('localAi.chatTitle') }}</h2>
             <p>{{ t('localAi.chatPrivacySubtitle') }}</p>
@@ -92,9 +89,6 @@
             @click="openHistory(history.id)"
             @keydown.enter.prevent="openHistory(history.id)"
           >
-            <span class="chat-item-mark">
-              <MessageOne theme="outline" size="15" />
-            </span>
             <span class="chat-item-copy">
               <span class="chat-item-title">{{ history.title }}</span>
               <span class="chat-item-time">
@@ -164,21 +158,6 @@
             <span>{{ t('localAi.chatSubtitle') }}</span>
             <h1>{{ activeHistoryTitle }}</h1>
           </div>
-        </div>
-        <div class="chat-panel-meta">
-          <span class="header-model-pill" :title="currentModelDisplay">
-            <Cube theme="outline" size="14" />
-            <span class="header-model-name">{{ currentModelDisplay }}</span>
-          </span>
-          <span
-            :class="[
-              'header-status-pill',
-              serviceStatus?.healthy ? 'ready' : 'stopped'
-            ]"
-          >
-            <i></i>
-            {{ serviceStatusText }}
-          </span>
         </div>
       </header>
 
@@ -548,13 +527,6 @@
             accept=".txt,.md,.json,.csv,.html,.css,.js,.ts,.tsx,.vue,.rs,.py,.java,.go,.yaml,.yml,.toml,.xml,.log,image/png,image/jpeg,image/webp,.pdf,.doc,.docx,.xls,.xlsx"
             @change="handleAttachmentInput"
           />
-          <div v-if="promptUndoValue !== null" class="prompt-enhance-applied">
-            <MagicWand theme="outline" size="14" />
-            <span>{{ t('localAi.enhancedPromptApplied') }}</span>
-            <button type="button" @click="undoPromptEnhancement">
-              {{ t('localAi.undoEnhancement') }}
-            </button>
-          </div>
           <div v-if="attachments.length" class="attachment-preview-list">
             <div
               v-for="attachment in attachments"
@@ -592,11 +564,10 @@
             ref="composerInputRef"
             v-model="draft"
             class="chat-input"
-            rows="2"
+            rows="1"
             :placeholder="t('localAi.chatPlaceholder')"
             :readonly="promptEnhancing"
             :aria-busy="promptEnhancing"
-            @input="handleDraftInput"
             @keydown="handleComposerKeydown"
             @paste="handleComposerPaste"
           ></textarea>
@@ -758,7 +729,6 @@ import {
   LeftBar,
   Right,
   Cube,
-  MessageOne,
   RobotOne,
   MagicWand,
   FileText,
@@ -819,6 +789,7 @@ import type {
 } from './types';
 import { useChatAttachments } from './useChatAttachments';
 import { useChatMarkdown } from './useChatMarkdown';
+import { normalizeEnhancedPrompt } from './promptEnhancement';
 
 defineOptions({ name: 'LocalAiChat' });
 
@@ -848,7 +819,6 @@ const sidebarCollapsed = ref(false);
 const draft = ref('');
 const composerInputRef = ref<HTMLTextAreaElement | null>(null);
 const promptEnhancing = ref(false);
-const promptUndoValue = ref<string | null>(null);
 const sending = ref(false);
 const refreshing = ref(false);
 const stopRequested = ref(false);
@@ -917,10 +887,13 @@ high-quality prompt for another AI.
 
 Rules:
 1. Preserve the user's intent, facts, constraints, tone, and original language.
-2. Clarify the objective, useful context, requirements, and expected output format.
-3. Do not answer the prompt and do not invent missing requirements.
-4. Keep the result concise enough to remain practical.
-5. Return only the enhanced prompt with no preface, commentary, or code fence.
+2. Correct ambiguous, misspelled, or malformed technical terms inline.
+3. Clarify the objective, useful context, requirements, and expected output.
+4. Do not answer the prompt and do not invent missing requirements.
+5. Return only the rewritten prompt as plain text.
+6. Do not use Markdown syntax, headings, bullets, numbered lists, tables, emphasis,
+   code fences, labels, prefaces, explanations, notes, or correction summaries.
+7. Use direct natural-language sentences and line breaks only.
 `.trim();
 
 const canSend = computed(
@@ -1005,33 +978,30 @@ const filteredHistories = computed(() => {
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 });
 
+const resizeComposerInput = (): void => {
+  const input = composerInputRef.value;
+  if (!input) return;
+  input.style.height = 'auto';
+  const contentHeight = input.scrollHeight;
+  const computedMaxHeight = Number.parseFloat(
+    window.getComputedStyle(input).maxHeight
+  );
+  const maxHeight = Number.isFinite(computedMaxHeight)
+    ? computedMaxHeight
+    : contentHeight;
+  input.style.height = `${Math.min(contentHeight, maxHeight)}px`;
+  input.style.overflowY = contentHeight > maxHeight ? 'auto' : 'hidden';
+};
 const focusComposer = async (): Promise<void> => {
   await nextTick();
+  resizeComposerInput();
   composerInputRef.value?.focus();
 };
-const resetPromptEnhancement = (): void => {
-  promptUndoValue.value = null;
-};
+watch(draft, resizeComposerInput, { flush: 'post' });
 const applyQuickPrompt = (key: string): void => {
-  resetPromptEnhancement();
   draft.value = t(key);
   void focusComposer();
 };
-const handleDraftInput = (): void => {
-  promptUndoValue.value = null;
-};
-const normalizeEnhancedPrompt = (value: string): string =>
-  value
-    .replace(/^[\s\S]*?<\/think>\s*/i, '')
-    .replace(/<think>[\s\S]*?<\/think>/gi, '')
-    .replace(/^(?:\\[rn])+\s*/i, '')
-    .replace(/^```(?:markdown|md|text)?\s*/i, '')
-    .replace(/\s*```\s*$/i, '')
-    .replace(
-      /^(?:增强后的提示词|优化后的提示词|改写后的提示词|enhanced prompt|improved prompt)\s*[:：]\s*/i,
-      ''
-    )
-    .trim();
 const enhancePrompt = async (): Promise<void> => {
   const source = draft.value.trim();
   if (!source || !canEnhancePrompt.value) return;
@@ -1054,7 +1024,6 @@ const enhancePrompt = async (): Promise<void> => {
     });
     const normalized = normalizeEnhancedPrompt(response.content);
     if (!normalized) throw new Error(t('localAi.enhancePromptEmpty'));
-    promptUndoValue.value = source;
     draft.value = normalized;
     await focusComposer();
   } catch (error) {
@@ -1062,12 +1031,6 @@ const enhancePrompt = async (): Promise<void> => {
   } finally {
     promptEnhancing.value = false;
   }
-};
-const undoPromptEnhancement = (): void => {
-  if (promptUndoValue.value === null) return;
-  draft.value = promptUndoValue.value;
-  promptUndoValue.value = null;
-  void focusComposer();
 };
 
 const nowLabel = () => t('localAi.now');
@@ -1277,7 +1240,6 @@ const createNewChat = () => {
   histories.value.unshift(next);
   activeHistoryId.value = next.id;
   draft.value = '';
-  resetPromptEnhancement();
   void focusComposer();
 };
 const ensureActiveHistory = () => {
@@ -1287,7 +1249,6 @@ const ensureActiveHistory = () => {
 const openHistory = (id: string) => {
   if (navigationLocked.value) return;
   activeHistoryId.value = id;
-  resetPromptEnhancement();
   const current = activeHistory.value;
   if (current && !current.currentNodeId) {
     current.currentNodeId =
@@ -1869,7 +1830,6 @@ const sendMessage = async () => {
   });
   draft.value = '';
   attachments.value = [];
-  resetPromptEnhancement();
   sending.value = true;
   const requestId = beginGeneration(assistantMessage);
   startStatsTicker();
@@ -1996,7 +1956,6 @@ const deleteMessage = async (messageId: string) => {
 };
 const editMessage = (message: ChatMessage) => {
   if (sending.value) return;
-  resetPromptEnhancement();
   draft.value = message.content;
   if (activeHistory.value && message.parentId) {
     activeHistory.value.currentNodeId = message.parentId;
@@ -2122,6 +2081,7 @@ const regenerateMessage = async (messageId: string) => {
 };
 
 onMounted(async () => {
+  resizeComposerInput();
   if (typeof ResizeObserver !== 'undefined') {
     streamingResizeObserver = new ResizeObserver(() => {
       if (autoFollowMessages.value) void scrollToBottom();

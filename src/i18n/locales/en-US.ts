@@ -1996,8 +1996,6 @@ export default {
       'Use local AI to clarify the goal, constraints, and output format',
     enhanceNeedsPrompt: 'Enter a prompt before enhancing it',
     enhancingPrompt: 'Enhancing',
-    enhancedPromptApplied: 'Enhanced prompt replaced the original input',
-    undoEnhancement: 'Undo',
     enhancePromptEmpty: 'The model did not return a usable enhanced prompt',
     enhancePromptFailed: 'Failed to enhance prompt',
     viewAllChats: 'View all chats',

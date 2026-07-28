@@ -49,14 +49,7 @@
 }
 
 .sidebar-brand {
-  @apply min-w-0 gap-2.5;
-}
-
-.sidebar-brand-mark {
-  @apply inline-flex flex-shrink-0 items-center justify-center text-chat-strong bg-chat-surface border border-chat rounded-xl;
-
-  width: 36px;
-  height: 36px;
+  @apply min-w-0;
 }
 
 .sidebar-title-block {
@@ -227,17 +220,6 @@
   @apply bg-chat-hover border-chat;
 }
 
-.chat-item-mark {
-  @apply inline-flex flex-shrink-0 items-center justify-center text-chat-secondary bg-chat-panel border border-chat rounded-lg;
-
-  width: 30px;
-  height: 30px;
-}
-
-.chat-list-item.active .chat-item-mark {
-  @apply text-chat-strong bg-chat-panel border-chat;
-}
-
 .chat-item-copy {
   @apply grid min-w-0 flex-1 gap-0.5;
 }
@@ -340,18 +322,12 @@
 }
 
 .chat-panel-heading,
-.chat-panel-meta,
 .chat-context-copy {
   @apply min-w-0;
 }
 
-.chat-panel-heading,
-.chat-panel-meta {
-  @apply flex items-center;
-}
-
 .chat-panel-heading {
-  @apply gap-2.5;
+  @apply flex items-center gap-2.5;
 }
 
 .chat-context-mark {
@@ -371,46 +347,6 @@
 
 .chat-context-copy h1 {
   @apply m-0 overflow-hidden text-chat-strong text-sm font-semibold text-ellipsis whitespace-nowrap;
-}
-
-.chat-panel-meta {
-  @apply justify-end gap-2;
-}
-
-.header-model-pill,
-.header-status-pill {
-  @apply inline-flex items-center text-chat-secondary text-[11px] bg-chat-surface border border-chat rounded-full gap-1.5;
-
-  height: 28px;
-  padding: 0 10px;
-}
-
-.header-model-pill {
-  max-width: min(280px, 30vw);
-}
-
-.header-model-pill > :first-child {
-  @apply flex-shrink-0;
-}
-
-.header-model-name {
-  @apply min-w-0 overflow-hidden text-ellipsis whitespace-nowrap;
-}
-
-.header-status-pill i {
-  @apply rounded-full;
-
-  width: 6px;
-  height: 6px;
-  background: var(--chat-error-dot);
-}
-
-.header-status-pill.ready {
-  @apply text-chat-success bg-chat-success border-chat-success;
-}
-
-.header-status-pill.ready i {
-  background: var(--chat-success-dot);
 }
 
 .panel-sidebar-toggle {
@@ -964,22 +900,6 @@
   @apply hidden;
 }
 
-.prompt-enhance-applied {
-  @apply inline-flex items-center text-chat-secondary text-[10px] bg-chat-surface border border-chat rounded-lg gap-1.5;
-
-  min-height: 26px;
-  padding: 0 8px;
-  margin-bottom: 8px;
-}
-
-.prompt-enhance-applied button {
-  @apply text-chat-strong font-semibold bg-transparent border-0 cursor-pointer;
-
-  padding: 0 0 0 4px;
-  font-family: inherit;
-  border-left: 1px solid var(--chat-border);
-}
-
 .attachment-preview-list {
   @apply flex flex-wrap mb-2.5 gap-2;
 }
@@ -1030,16 +950,14 @@
 .chat-input {
   @apply block w-full text-chat-strong text-sm bg-transparent border-0 outline-none;
 
-  min-height: 54px;
-  max-height: 112px;
+  box-sizing: border-box;
+  min-height: 42px;
+  max-height: 160px;
   padding: 6px 0;
+  overflow-y: hidden;
   font-family: inherit;
   line-height: 1.6;
   resize: none;
-}
-
-.chat-input-card--focused .chat-input {
-  max-height: 156px;
 }
 
 .chat-input::placeholder {
@@ -1183,10 +1101,6 @@
     @apply hidden;
   }
 
-  .header-model-pill {
-    max-width: 220px;
-  }
-
   .model-select-shell select {
     width: min(150px, 17vw);
   }
@@ -1196,10 +1110,6 @@
   .chat-panel {
     padding-right: 16px;
     padding-left: 16px;
-  }
-
-  .header-model-pill {
-    @apply hidden;
   }
 
   .composer-tool-btn--wide {

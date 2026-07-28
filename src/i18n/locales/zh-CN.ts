@@ -1939,8 +1939,6 @@ export default {
     enhancePromptDesc: '让本地 AI 优化目标、约束和输出格式',
     enhanceNeedsPrompt: '请先输入需要增强的提示词',
     enhancingPrompt: '正在增强',
-    enhancedPromptApplied: '增强提示词已替换到输入框',
-    undoEnhancement: '撤销',
     enhancePromptEmpty: '模型没有返回可用的增强结果',
     enhancePromptFailed: '增强提示词失败',
     viewAllChats: '查看全部对话',
