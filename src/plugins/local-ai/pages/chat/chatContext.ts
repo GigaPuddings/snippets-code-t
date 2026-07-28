@@ -1,4 +1,5 @@
 import type {
+  LocalAiChatStreamStats,
   LocalAiContentPart,
   LocalAiMessage,
   LocalAiVerifiedSourceSearchResponse
@@ -25,6 +26,28 @@ export const estimateTokens = (value: string): number => {
 
 export const estimateStreamingOutputTokens = (value: string): number =>
   Math.max(0, Math.ceil(value.length / 4));
+
+export const resolveRequestMaxTokens = (
+  configuredMaxTokens: number
+): number | undefined =>
+  Number.isFinite(configuredMaxTokens) && configuredMaxTokens > 0
+    ? Math.floor(configuredMaxTokens)
+    : undefined;
+
+export const mergeChatStreamStats = (
+  current: LocalAiChatStreamStats | undefined,
+  incoming: Partial<{
+    [Key in keyof LocalAiChatStreamStats]: LocalAiChatStreamStats[Key] | null;
+  }>
+): LocalAiChatStreamStats => {
+  const definedEntries = Object.entries(incoming).filter(
+    ([, value]) => value !== undefined && value !== null
+  );
+  return {
+    ...current,
+    ...Object.fromEntries(definedEntries)
+  };
+};
 
 const contentText = (content: LocalAiMessage['content']): string =>
   Array.isArray(content)

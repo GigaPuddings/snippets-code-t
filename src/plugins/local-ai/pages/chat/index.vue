@@ -795,6 +795,8 @@ import {
   estimateChatTokens,
   estimateStreamingOutputTokens,
   estimateTokens,
+  mergeChatStreamStats,
+  resolveRequestMaxTokens,
   mergeSystemMessages
 } from './chatContext';
 import {
@@ -1477,12 +1479,8 @@ const withVerifiedSourceContext = async (
     )
   ]);
 };
-const requestMaxTokens = (messages: LocalAiMessage[]): number | undefined => {
-  const configuredMaxTokens = config.value?.maxTokens ?? 0;
-  if (configuredMaxTokens > 0) return configuredMaxTokens;
-  const promptTokens = estimateChatTokens(messages);
-  return Math.max(256, effectiveContextLimit.value - promptTokens - 128);
-};
+const requestMaxTokens = (): number | undefined =>
+  resolveRequestMaxTokens(config.value?.maxTokens ?? 0);
 const messageContextLimit = (message: ChatMessage): number =>
   Math.max(
     1,
@@ -1547,12 +1545,13 @@ const messageWarningText = (message: ChatMessage): string => {
   if (message.repetitionStopped) return t('localAi.repetitionStopped');
   if (message.interrupted) return t('localAi.streamInterrupted');
   if (message.stopped) return t('localAi.generationStopped');
-  const estimatedContext =
-    message.stats?.totalTokens ?? messageStats(message).context;
-  if (estimatedContext >= messageContextLimit(message) - 8)
-    return t('localAi.contextLimitReached');
-  if (message.stats?.finishReason === 'length')
-    return t('localAi.outputLimitReached');
+  if (message.stats?.finishReason === 'length') {
+    const estimatedContext =
+      message.stats?.totalTokens ?? messageStats(message).context;
+    return estimatedContext >= messageContextLimit(message) - 8
+      ? t('localAi.contextLimitReached')
+      : t('localAi.outputLimitReached');
+  }
   return '';
 };
 const formatChatError = (error: unknown): string => {
@@ -1731,7 +1730,7 @@ const streamAssistantMessage = async (
   const response = await streamChatWithLocalAi(
     {
       messages,
-      maxTokens: requestMaxTokens(messages),
+      maxTokens: requestMaxTokens(),
       enableThinking: assistantMessage.allowThinking === true
     },
     (delta) => {
@@ -1742,13 +1741,14 @@ const streamAssistantMessage = async (
     {
       requestId,
       onStats: (stats) => {
-        assistantMessage.stats = {
-          ...(assistantMessage.stats ?? {}),
-          ...stats
-        };
-        if (stats.ctxSize) assistantMessage.contextSize = stats.ctxSize;
-        if (stats.completionTokens !== undefined) {
-          assistantMessage.estimatedCompletionTokens = stats.completionTokens;
+        const mergedStats = mergeChatStreamStats(assistantMessage.stats, stats);
+        assistantMessage.stats = mergedStats;
+        if (mergedStats.ctxSize) {
+          assistantMessage.contextSize = mergedStats.ctxSize;
+        }
+        if (mergedStats.completionTokens !== undefined) {
+          assistantMessage.estimatedCompletionTokens =
+            mergedStats.completionTokens;
         }
         statsTick.value = Date.now();
       }

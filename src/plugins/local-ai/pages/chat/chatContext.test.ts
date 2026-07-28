@@ -5,6 +5,8 @@ import {
   createRuntimeContextMessage,
   estimateChatTokens,
   estimateTokens,
+  mergeChatStreamStats,
+  resolveRequestMaxTokens,
   mergeSystemMessages
 } from './chatContext';
 
@@ -45,5 +47,29 @@ describe('local AI chat context helpers', () => {
     expect(runtime.role).toBe('system');
     expect(runtime.content).toContain('Current local date:');
     expect(runtime.content).toContain('Current timezone:');
+  });
+
+  it('keeps zero max tokens unlimited instead of deriving a context cap', () => {
+    expect(resolveRequestMaxTokens(0)).toBeUndefined();
+    expect(resolveRequestMaxTokens(2048)).toBe(2048);
+  });
+
+  it('preserves a stream finish reason when later stats omit it', () => {
+    const withFinishReason = mergeChatStreamStats(undefined, {
+      completionTokens: 3476,
+      finishReason: 'length'
+    });
+    const withFinalUsage = mergeChatStreamStats(withFinishReason, {
+      promptTokens: 360,
+      totalTokens: 3836,
+      finishReason: null
+    });
+
+    expect(withFinalUsage).toEqual({
+      promptTokens: 360,
+      completionTokens: 3476,
+      totalTokens: 3836,
+      finishReason: 'length'
+    });
   });
 });

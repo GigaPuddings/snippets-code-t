@@ -248,6 +248,7 @@
               <span>{{ t('localAi.ctxSize') }}</span>
               <el-input-number
                 v-model="config.ctxSize"
+                :controls="false"
                 :min="512"
                 :max="65536"
                 :step="512"
@@ -258,6 +259,7 @@
               <span>{{ t('localAi.gpuLayers') }}</span>
               <el-input-number
                 v-model="config.gpuLayers"
+                :controls="false"
                 :min="0"
                 :max="999"
                 :step="1"
@@ -268,6 +270,7 @@
               <span>{{ t('localAi.threads') }}</span>
               <el-input-number
                 v-model="config.threads"
+                :controls="false"
                 :min="1"
                 :max="64"
                 :step="1"
@@ -278,6 +281,7 @@
               <span>{{ t('localAi.batchSize') }}</span>
               <el-input-number
                 v-model="config.batchSize"
+                :controls="false"
                 :min="32"
                 :max="4096"
                 :step="32"
@@ -288,6 +292,7 @@
               <span>{{ t('localAi.ubatchSize') }}</span>
               <el-input-number
                 v-model="config.ubatchSize"
+                :controls="false"
                 :min="16"
                 :max="2048"
                 :step="16"
@@ -298,6 +303,7 @@
               <span>{{ t('localAi.mainGpu') }}</span>
               <el-input-number
                 v-model="config.mainGpu"
+                :controls="false"
                 :min="0"
                 :max="8"
                 :step="1"
@@ -350,6 +356,7 @@
               <span>{{ t('localAi.idleTimeout') }}</span>
               <el-input-number
                 v-model="config.idleTimeoutMinutes"
+                :controls="false"
                 :min="0"
                 :max="240"
                 :step="1"
@@ -360,6 +367,7 @@
               <span>{{ t('localAi.requestTimeout') }}</span>
               <el-input-number
                 v-model="config.requestTimeoutSecs"
+                :controls="false"
                 :min="30"
                 :max="3600"
                 :step="30"
@@ -381,6 +389,7 @@
               <span>{{ t('localAi.temperature') }}</span>
               <el-input-number
                 v-model="config.temperature"
+                :controls="false"
                 :min="0"
                 :max="2"
                 :step="0.1"
@@ -392,6 +401,7 @@
               <span>{{ t('localAi.topP') }}</span>
               <el-input-number
                 v-model="config.topP"
+                :controls="false"
                 :min="0.05"
                 :max="1"
                 :step="0.05"
@@ -403,6 +413,7 @@
               <span>{{ t('localAi.topK') }}</span>
               <el-input-number
                 v-model="config.topK"
+                :controls="false"
                 :min="0"
                 :max="200"
                 :step="1"
@@ -413,6 +424,7 @@
               <span>{{ t('localAi.minP') }}</span>
               <el-input-number
                 v-model="config.minP"
+                :controls="false"
                 :min="0"
                 :max="0.5"
                 :step="0.01"
@@ -424,6 +436,7 @@
               <span>{{ t('localAi.repeatPenalty') }}</span>
               <el-input-number
                 v-model="config.repeatPenalty"
+                :controls="false"
                 :min="1"
                 :max="2"
                 :step="0.01"
@@ -435,6 +448,7 @@
               <span>{{ t('localAi.repeatLastN') }}</span>
               <el-input-number
                 v-model="config.repeatLastN"
+                :controls="false"
                 :min="0"
                 :max="2048"
                 :step="32"
@@ -445,6 +459,7 @@
               <span>{{ t('localAi.maxTokens') }}</span>
               <el-input-number
                 v-model="config.maxTokens"
+                :controls="false"
                 :min="0"
                 :max="8192"
                 :step="64"
@@ -455,6 +470,7 @@
               <span>{{ t('localAi.port') }}</span>
               <el-input-number
                 v-model="config.port"
+                :controls="false"
                 :min="1024"
                 :max="65535"
                 :step="1"
@@ -756,6 +772,7 @@ onUnmounted(() => {
 
 .settings-grid {
   @apply grid min-h-0 flex-1 gap-3 overflow-hidden;
+
   grid-template-columns: 300px minmax(0, 1fr);
 }
 
@@ -918,15 +935,23 @@ onUnmounted(() => {
 }
 
 .field-row,
-.number-field,
 .switch-grid label {
   @apply flex items-center gap-3 text-sm text-panel;
 }
 
+.number-field {
+  @apply grid min-w-0 items-center gap-2 text-sm text-panel;
+
+  grid-template-columns: minmax(0, 1fr) minmax(4rem, 0.9fr);
+}
+
 .field-row span,
-.number-field span,
 .switch-grid span {
   @apply min-w-14 truncate text-panel-text-secondary;
+}
+
+.number-field > span {
+  @apply min-w-0 truncate text-panel-text-secondary;
 }
 
 .path-control {
@@ -971,6 +996,7 @@ onUnmounted(() => {
 
 :deep(.el-input-number) {
   width: 100%;
+  min-width: 0;
 }
 
 :deep(.el-input-number__decrease),
@@ -978,18 +1004,17 @@ onUnmounted(() => {
   display: none;
 }
 
-:deep(.el-input-number .el-input__wrapper) {
-  padding-left: 5px;
-  padding-right: 5px;
+:deep(.el-input-number.is-without-controls .el-input__wrapper) {
+  padding-right: 4px;
+  padding-left: 4px;
 }
 
-// Element Plus reserves inner space for the step controls even when those
-// controls are hidden above. Remove that reservation so narrow three-column
-// parameter fields still show the complete value.
+// Keep the actual input free of framework padding so five-digit values remain
+// visible in the default-width three-column parameter grid.
 :deep(.el-input-number .el-input__inner) {
   min-width: 0;
-  padding-left: 0;
   padding-right: 0;
+  padding-left: 0;
   text-align: center;
 }
 
@@ -997,13 +1022,13 @@ onUnmounted(() => {
   @apply min-w-0 flex-1 truncate text-xs text-panel-text-secondary;
 }
 
-@media (max-width: 1100px) {
+@media (width <= 1100px) {
   .settings-grid {
     grid-template-columns: 1fr;
   }
 }
 
-@media (max-width: 760px) {
+@media (width <= 760px) {
   .param-grid,
   .param-grid--three,
   .switch-grid,

@@ -223,12 +223,19 @@ pub struct LocalAiChatResponse {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LocalAiChatStreamStats {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub prompt_tokens: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub completion_tokens: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub total_tokens: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub ctx_size: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub generation_time_ms: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub tokens_per_second: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub finish_reason: Option<String>,
 }
 
