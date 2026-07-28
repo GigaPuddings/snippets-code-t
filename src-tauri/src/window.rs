@@ -12,6 +12,8 @@ use base64::{engine::general_purpose, Engine as _};
 use image::GenericImageView;
 use std::os::windows::process::CommandExt;
 use std::process::Command;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::Arc;
 use std::sync::LazyLock;
 use std::sync::Mutex;
 use std::thread;
@@ -24,6 +26,8 @@ static CONFIG_CLEANUP_REGISTERED: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex
 
 // 启动过渡耗时统计起点（loading 显示时记录）
 static STARTUP_TRANSITION_STARTED_AT: LazyLock<Mutex<Option<Instant>>> =
+    LazyLock::new(|| Mutex::new(None));
+static STARTUP_CONFIG_READY_LISTENER: LazyLock<Mutex<Option<u32>>> =
     LazyLock::new(|| Mutex::new(None));
 
 const SEARCH_WINDOW_IDLE_DESTROY_DELAY_SECS: u64 = 60;
@@ -348,8 +352,11 @@ pub struct MonitorInfo {
     pub scale: f64,
 }
 
-// 标记是否正在捕获屏幕（防止并发捕获）
-static IS_CAPTURING: Mutex<bool> = Mutex::new(false);
+// 截图窗口的创建必须串行化；generation 用于让旧捕获、旧 ready 和旧超时任务自动失效。
+static SCREENSHOT_OPEN_LOCK: LazyLock<tokio::sync::Mutex<()>> =
+    LazyLock::new(|| tokio::sync::Mutex::new(()));
+static SCREENSHOT_GENERATION: AtomicU64 = AtomicU64::new(0);
+const SCREENSHOT_READY_TIMEOUT_SECS: u64 = 5;
 
 // ==================== 窗口管理器框架 ====================
 
@@ -931,6 +938,7 @@ pub fn open_local_launcher_settings() {
 fn open_config_settings_tab(tab: Option<&'static str>) {
     // 先关闭搜索窗口
     WindowManager::close_search_window_if_visible();
+    cancel_startup_transition_for_user_action("open_config_settings");
 
     // 定义窗口规格（与 hotkey_config 共享）
     let spec = WindowSpec {
@@ -1048,23 +1056,19 @@ pub async fn open_config_with_loading_transition() {
         ready_event: Some("config_ready"),
     };
 
-    let window = match build_window(spec.label, spec.url, spec.to_window_config()) {
-        Ok(window) => window,
-        Err(e) => {
-            error!(
-                "open_config_with_loading_transition: 创建 config 窗口失败: {}",
-                e
-            );
-            close_and_destroy_loading_window();
-            return;
-        }
+    // 必须在 build 前监听。生产环境 WebView2 偶尔会在 build 返回前完成首帧，
+    // 若之后才注册 window.once，会永久错过 config_ready 并留下 loading。
+    let Some(app_for_listener) = APP.get().cloned() else {
+        error!("[StartupTransition] app handle unavailable before config build");
+        close_and_destroy_loading_window();
+        return;
     };
-    info!("[StartupTransition] config created and preloading under loading");
-    ensure_config_cleanup_listener(&window);
-
-    // 先挂监听，再触发显示，避免极端时序下丢失 ready 事件
-    let window_clone = window.clone();
-    window.once("config_ready", move |_| {
+    clear_startup_config_ready_listener();
+    let app_for_ready = app_for_listener.clone();
+    let listener_id = app_for_listener.once("config_ready", move |_| {
+        if let Ok(mut listener) = STARTUP_CONFIG_READY_LISTENER.lock() {
+            *listener = None;
+        }
         let Some(started_at) = (match STARTUP_TRANSITION_STARTED_AT.lock() {
             Ok(mut started) => started.take(),
             Err(e) => {
@@ -1075,7 +1079,6 @@ pub async fn open_config_with_loading_transition() {
                 None
             }
         }) else {
-            // 超时兜底已完成切换，忽略迟到的 ready 事件
             info!("[StartupTransition] late config_ready ignored");
             return;
         };
@@ -1085,15 +1088,32 @@ pub async fn open_config_with_loading_transition() {
             "[StartupTransition] config ready -> switch to config (loading_to_ready={}ms)",
             elapsed_ms
         );
-
-        let _ = WindowManager::restore_and_focus(&window_clone);
+        if let Some(window) = app_for_ready.get_webview_window("config") {
+            let _ = WindowManager::restore_and_focus(&window);
+        }
         close_and_destroy_loading_window();
-
         info!(
             "[StartupTransition] loading closed (normal path, total={}ms)",
             elapsed_ms
         );
     });
+    if let Ok(mut listener) = STARTUP_CONFIG_READY_LISTENER.lock() {
+        *listener = Some(listener_id);
+    }
+
+    let window = match build_window(spec.label, spec.url, spec.to_window_config()) {
+        Ok(window) => window,
+        Err(e) => {
+            error!(
+                "open_config_with_loading_transition: 创建 config 窗口失败: {}",
+                e
+            );
+            cancel_startup_transition_for_user_action("config_build_failed");
+            return;
+        }
+    };
+    info!("[StartupTransition] config created and preloading under loading");
+    ensure_config_cleanup_listener(&window);
 
     // 显示重试：某些平台首次 show 可能失败，导致前端不挂载
     let window_for_retry = window.clone();
@@ -1142,6 +1162,7 @@ pub async fn open_config_with_loading_transition() {
             return;
         };
         let elapsed_ms = started_at.elapsed().as_millis();
+        clear_startup_config_ready_listener();
 
         if let Some(app) = APP.get() {
             if let Some(config_window) = app.get_webview_window("config") {
@@ -1183,6 +1204,7 @@ pub async fn open_config_with_loading_transition() {
 pub fn hotkey_config() {
     // 先关闭搜索窗口（与 open_config_settings 保持一致）
     WindowManager::close_search_window_if_visible();
+    cancel_startup_transition_for_user_action("hotkey_config");
 
     // 定义窗口规格 - 不等待 ready_event
     let spec = WindowSpec {
@@ -1209,6 +1231,22 @@ pub fn hotkey_config() {
     };
 
     ensure_config_cleanup_listener(&window);
+}
+
+// 单实例再次启动时只激活 config，不执行“已聚焦则隐藏”的快捷键切换语义。
+pub fn activate_config_window() {
+    WindowManager::close_search_window_if_visible();
+    cancel_startup_transition_for_user_action("single_instance_activation");
+
+    if let Some(app) = APP.get() {
+        if let Some(window) = app.get_webview_window("config") {
+            let _ = WindowManager::restore_and_focus(&window);
+            ensure_config_cleanup_listener(&window);
+            return;
+        }
+    }
+
+    hotkey_config();
 }
 
 // 划词翻译快捷键处理
@@ -1315,11 +1353,36 @@ pub fn show_loading_window() {
     let _ = WindowManager::get_or_create_with_behavior(&spec, WindowShowBehavior::AlwaysShow, None);
 }
 
+fn clear_startup_config_ready_listener() {
+    let listener_id = STARTUP_CONFIG_READY_LISTENER
+        .lock()
+        .ok()
+        .and_then(|mut listener| listener.take());
+    if let (Some(app), Some(listener_id)) = (APP.get(), listener_id) {
+        app.unlisten(listener_id);
+    }
+}
+
+fn cancel_startup_transition_for_user_action(reason: &str) {
+    let was_active = STARTUP_TRANSITION_STARTED_AT
+        .lock()
+        .map(|mut started| started.take().is_some())
+        .unwrap_or(false);
+    clear_startup_config_ready_listener();
+    close_and_destroy_loading_window();
+    if was_active {
+        info!("[StartupTransition] cancelled by user action: {}", reason);
+    }
+}
+
 // 关闭并销毁 loading 窗口
 pub fn close_and_destroy_loading_window() {
     if let Some(app) = APP.get() {
         if let Some(window) = app.get_webview_window("loading") {
-            let _ = window.close();
+            let _ = window.hide();
+            if let Err(error) = window.destroy() {
+                warn!("[StartupTransition] destroy loading failed: {}", error);
+            }
         }
     }
 }
@@ -1327,6 +1390,7 @@ pub fn close_and_destroy_loading_window() {
 // 关闭并销毁截图窗口，避免仅隐藏不释放导致残留窗口
 pub fn close_and_destroy_screenshot_window() -> Result<(), String> {
     let app = APP.get().ok_or("无法获取应用句柄")?;
+    SCREENSHOT_GENERATION.fetch_add(1, Ordering::AcqRel);
 
     if let Some(window) = app.get_webview_window("screenshot") {
         let _ = window.emit("screenshot-close-requested", ());
@@ -1341,36 +1405,7 @@ pub fn close_and_destroy_screenshot_window() -> Result<(), String> {
     }
 
     // 同步清理截图资源，防止下次快速截图复用到旧状态
-    if let Err(e) = SCREENSHOT_BACKGROUND.lock().map(|mut bg| *bg = None) {
-        error!(
-            "close_and_destroy_screenshot_window: 清理截图背景锁定失败: {}",
-            e
-        );
-    }
-    if let Err(e) = SCREENSHOT_PREVIEW.lock().map(|mut preview| *preview = None) {
-        error!(
-            "close_and_destroy_screenshot_window: 清理截图预览锁定失败: {}",
-            e
-        );
-    }
-    if let Err(e) = CACHED_WINDOW_LIST.lock().map(|mut cached| *cached = None) {
-        error!(
-            "close_and_destroy_screenshot_window: 清理窗口列表缓存锁定失败: {}",
-            e
-        );
-    }
-    if let Err(e) = CACHED_MONITOR_INFO.lock().map(|mut cached| *cached = None) {
-        error!(
-            "close_and_destroy_screenshot_window: 清理显示器缓存锁定失败: {}",
-            e
-        );
-    }
-    if let Err(e) = IS_CAPTURING.lock().map(|mut capturing| *capturing = false) {
-        error!(
-            "close_and_destroy_screenshot_window: 重置截图捕获状态锁定失败: {}",
-            e
-        );
-    }
+    clear_screenshot_resource_caches();
 
     Ok(())
 }
@@ -1404,7 +1439,7 @@ pub async fn show_hide_window_command(label: &str, context: Option<String>) -> R
             hotkey_selection_translate();
         }
         "screenshot" => {
-            hotkey_screenshot();
+            hotkey_screenshot().await?;
         }
         "screen_recorder" => {
             crate::plugins::screen_recorder::open_screen_recorder_window();
@@ -1746,20 +1781,33 @@ pub fn emit_scan_progress_for(
     let emit_started = std::time::Instant::now();
 
     // 更新状态
-    let should_update_tray = {
+    let (should_emit, should_update_tray) = {
         let mut state = PROGRESS_STATE.lock().unwrap();
-        let previous_bucket = if state.total > 0 {
-            state.current.saturating_mul(20) / state.total
+        let previous_emit_bucket = if state.total > 0 {
+            state.current.saturating_mul(50) / state.total
         } else {
             0
         };
-        let next_bucket = if total > 0 {
-            current.saturating_mul(20) / total
+        let next_emit_bucket = if total > 0 {
+            current.saturating_mul(50) / total
         } else {
             0
         };
-        let stage_changed =
-            state.completed || state.owner != owner || state.task != task || state.stage != stage;
+        let previous_tray_bucket = if state.total > 0 {
+            state.current.saturating_mul(10) / state.total
+        } else {
+            0
+        };
+        let next_tray_bucket = if total > 0 {
+            current.saturating_mul(10) / total
+        } else {
+            0
+        };
+        let context_changed = state.completed
+            || state.owner != owner
+            || state.task != task
+            || state.stage != stage
+            || state.total != total;
         state.owner = owner.to_string();
         state.task = task.to_string();
         state.stage = stage.to_string();
@@ -1767,10 +1815,16 @@ pub fn emit_scan_progress_for(
         state.total = total;
         state.current_item = current_item.to_string();
         state.completed = false;
-        stage_changed || previous_bucket != next_bucket || current == total
+        (
+            context_changed || previous_emit_bucket != next_emit_bucket || current == total,
+            context_changed || previous_tray_bucket != next_tray_bucket || current == total,
+        )
     };
 
-    if let Some(app) = APP.get() {
+    if should_emit {
+        let Some(app) = APP.get() else {
+            return;
+        };
         let emit_result = app.emit(
             "scan-progress",
             serde_json::json!({
@@ -2032,12 +2086,6 @@ fn capture_screen_and_encode() -> Result<(String, String), String> {
 
     let base64_str = general_purpose::STANDARD.encode(&jpeg_data);
 
-    // 存储预览图（备用）
-    {
-        let mut preview = SCREENSHOT_PREVIEW.lock().unwrap();
-        *preview = Some(base64_str.clone());
-    }
-
     Ok((base64_str.clone(), base64_str))
 }
 
@@ -2046,150 +2094,177 @@ fn capture_full_screen_to_base64() -> Result<(String, String), String> {
     capture_screen_and_encode()
 }
 
-pub fn preload_screen_background_for_window(window_label: &'static str) {
-    let Some(app_handle) = APP.get() else {
-        info!("preload_screen_background_for_window: 无法获取应用句柄");
-        return;
-    };
-
-    {
-        let mut bg = SCREENSHOT_BACKGROUND.lock().unwrap();
+fn clear_screenshot_resource_caches() {
+    if let Ok(mut bg) = SCREENSHOT_BACKGROUND.lock() {
         *bg = None;
     }
-    {
-        let mut preview = SCREENSHOT_PREVIEW.lock().unwrap();
+    if let Ok(mut preview) = SCREENSHOT_PREVIEW.lock() {
         *preview = None;
     }
-
-    let app_handle_capture = app_handle.clone();
-    tauri::async_runtime::spawn(async move {
-        {
-            let mut is_capturing = IS_CAPTURING.lock().unwrap();
-            if *is_capturing {
-                *is_capturing = false;
-            }
-            *is_capturing = true;
-        }
-
-        let capture_result = tokio::task::spawn_blocking(capture_full_screen_to_base64).await;
-
-        let screen_image = match capture_result {
-            Ok(Ok(img)) => img,
-            Ok(Err(e)) => {
-                log::error!("屏幕背景预捕获失败: {}", e);
-                let mut is_capturing = IS_CAPTURING.lock().unwrap();
-                *is_capturing = false;
-                return;
-            }
-            Err(e) => {
-                log::error!("屏幕背景预捕获线程错误: {}", e);
-                let mut is_capturing = IS_CAPTURING.lock().unwrap();
-                *is_capturing = false;
-                return;
-            }
-        };
-
-        {
-            let mut bg = SCREENSHOT_BACKGROUND.lock().unwrap();
-            let mut preview = SCREENSHOT_PREVIEW.lock().unwrap();
-            *bg = Some(screen_image.1);
-            *preview = Some(screen_image.0);
-        }
-
-        {
-            let mut is_capturing = IS_CAPTURING.lock().unwrap();
-            *is_capturing = false;
-        }
-
-        if let Some(window) = app_handle_capture.get_webview_window(window_label) {
-            let _ = window.emit("background-ready", ());
-        }
-    });
+    if let Ok(mut cached) = CACHED_WINDOW_LIST.lock() {
+        *cached = None;
+    }
+    if let Ok(mut cached) = CACHED_MONITOR_INFO.lock() {
+        *cached = None;
+    }
 }
 
-// 创建截图窗口
-pub fn hotkey_screenshot() {
-    let app_handle = match APP.get() {
-        Some(app) => app,
-        None => {
-            info!("无法获取应用句柄");
-            return;
-        }
-    };
+fn notify_screenshot_start_failed(app_handle: &AppHandle, message: &str) {
+    use tauri_plugin_notification::NotificationExt;
+
+    if let Err(error) = app_handle
+        .notification()
+        .builder()
+        .title("截图启动失败")
+        .body(message)
+        .show()
+    {
+        warn!("[Plugin:screenshot] 显示失败通知时出错: {}", error);
+    }
+}
+
+// 创建截图窗口。串行等待旧窗口彻底销毁，并且只在前端完成初始化后显示。
+pub async fn hotkey_screenshot() -> Result<(), String> {
+    let _open_guard = SCREENSHOT_OPEN_LOCK.lock().await;
+    let app_handle = APP.get().ok_or("无法获取应用句柄")?.clone();
 
     info!("[Plugin:screenshot] hotkey_screenshot requested");
-    if let Err(error) = crate::app_config::require_plugin_enabled(app_handle, "screenshot") {
+    crate::app_config::require_plugin_enabled(&app_handle, "screenshot").map_err(|error| {
         log::warn!("[Plugin:screenshot] hotkey_screenshot blocked: {}", error);
-        return;
-    }
+        error
+    })?;
 
     WindowManager::prepare_search_window_for_capture();
 
-    // 检查窗口是否已存在，如果存在则先关闭（不等待）
+    // 先使旧捕获、旧 ready 和旧超时任务失效，再处理可能残留的全屏窗口。
+    let generation = SCREENSHOT_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
+    clear_screenshot_resource_caches();
     if let Some(existing_window) = app_handle.get_webview_window("screenshot") {
-        let _ = existing_window.emit("screenshot-close-requested", ());
+        warn!(
+            "[Plugin:screenshot] removing stale window before generation={}",
+            generation
+        );
         let _ = existing_window.set_ignore_cursor_events(false);
-        let _ = existing_window.destroy();
+        let _ = existing_window.hide();
+        if let Err(error) = existing_window.destroy() {
+            return Err(format!("销毁旧截图窗口失败: {}", error));
+        }
 
-        // 只等待很短时间，避免阻塞
-        thread::sleep(Duration::from_millis(50));
+        for _ in 0..40 {
+            if app_handle.get_webview_window("screenshot").is_none() {
+                break;
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(25)).await;
+        }
+        if app_handle.get_webview_window("screenshot").is_some() {
+            notify_screenshot_start_failed(&app_handle, "旧截图窗口未能正常关闭，请稍后重试。");
+            return Err("旧截图窗口在超时后仍存在".to_string());
+        }
     }
 
-    // 获取主显示器信息（同步操作，很快）
-    let monitor = match app_handle.primary_monitor() {
-        Ok(Some(m)) => m,
-        _ => {
-            info!("无法获取主显示器信息");
-            return;
-        }
-    };
+    let monitor = app_handle
+        .primary_monitor()
+        .map_err(|error| format!("获取主显示器失败: {}", error))?
+        .ok_or("未找到主显示器")?;
     let monitor_size = monitor.size();
     let monitor_pos = monitor.position();
-    // scale_factor() 返回 f64，不需要 unwrap_or
-    let scale_factor = monitor.scale_factor();
-
-    // 【优化】立即预加载窗口列表到缓存（同步操作，很快）
-    // 这样前端初始化时可以直接获取，无需等待
-    let windows_result = get_all_windows();
-    match windows_result {
-        Ok(windows) => {
-            let mut cached = CACHED_WINDOW_LIST.lock().unwrap();
-            *cached = Some(windows);
-            info!(
-                "窗口列表已预加载到缓存 (窗口数: {})",
-                cached.as_ref().map(|w| w.len()).unwrap_or(0)
-            );
-        }
-        Err(e) => {
-            info!("预加载窗口列表失败: {}", e);
-        }
-    }
-
-    // 【优化】缓存显示器信息（必须在创建窗口之前完成）
     let cached_monitor = MonitorInfo {
         x: monitor_pos.x,
         y: monitor_pos.y,
         width: monitor_size.width,
         height: monitor_size.height,
-        scale: scale_factor,
+        scale: monitor.scale_factor(),
     };
-    {
-        let mut cached = CACHED_MONITOR_INFO.lock().unwrap();
-        *cached = Some(cached_monitor.clone());
-        info!(
-            "显示器信息已预缓存: {:?}",
-            cached.as_ref().map(|m| format!(
-                "{}x{} @({},{}) scale:{}",
-                m.width, m.height, m.x, m.y, m.scale
-            ))
-        );
+
+    // 截图和窗口枚举都属于阻塞式 Windows API；在创建全屏窗口前并行完成，
+    // 防止捕获到自身，也避免把未就绪的透明窗口显示为输入拦截层。
+    let window_list_task = tokio::task::spawn_blocking(get_all_windows);
+    let capture_task = tokio::task::spawn_blocking(capture_full_screen_to_base64);
+    let preparation_result =
+        tokio::time::timeout(tokio::time::Duration::from_secs(5), async move {
+            tokio::join!(window_list_task, capture_task)
+        })
+        .await;
+    let (window_list_result, capture_result) = match preparation_result {
+        Ok(result) => result,
+        Err(_) => {
+            clear_screenshot_resource_caches();
+            notify_screenshot_start_failed(&app_handle, "屏幕捕获超时，已自动取消，请稍后重试。");
+            return Err("截图资源准备超时".to_string());
+        }
+    };
+
+    if SCREENSHOT_GENERATION.load(Ordering::Acquire) != generation {
+        return Ok(());
     }
 
-    preload_screen_background_for_window("screenshot");
+    match window_list_result {
+        Ok(Ok(windows)) => {
+            info!("窗口列表已预加载到缓存 (窗口数: {})", windows.len());
+            if let Ok(mut cached) = CACHED_WINDOW_LIST.lock() {
+                *cached = Some(windows);
+            }
+        }
+        Ok(Err(error)) => warn!("预加载窗口列表失败: {}", error),
+        Err(error) => warn!("窗口列表预加载任务失败: {}", error),
+    }
 
-    // 【优化2】创建窗口（与屏幕捕获并行）
+    let (preview, background) = match capture_result {
+        Ok(Ok(result)) => result,
+        Ok(Err(error)) => {
+            clear_screenshot_resource_caches();
+            notify_screenshot_start_failed(&app_handle, "无法读取屏幕画面，请稍后重试。");
+            return Err(format!("屏幕捕获失败: {}", error));
+        }
+        Err(error) => {
+            clear_screenshot_resource_caches();
+            notify_screenshot_start_failed(&app_handle, "屏幕捕获任务异常，请稍后重试。");
+            return Err(format!("屏幕捕获任务失败: {}", error));
+        }
+    };
+    if let Ok(mut cached) = CACHED_MONITOR_INFO.lock() {
+        *cached = Some(cached_monitor.clone());
+    }
+    if let Ok(mut cached) = SCREENSHOT_PREVIEW.lock() {
+        *cached = Some(preview);
+    }
+    if let Ok(mut cached) = SCREENSHOT_BACKGROUND.lock() {
+        *cached = Some(background);
+    }
+    info!(
+        "截图资源准备完成: {}x{} @({},{}) scale:{}",
+        cached_monitor.width,
+        cached_monitor.height,
+        cached_monitor.x,
+        cached_monitor.y,
+        cached_monitor.scale
+    );
+
+    // 在创建 WebView 前监听全局 ready，消除 build 与前端 emit 之间的竞态。
+    let ready = Arc::new(AtomicBool::new(false));
+    let ready_for_event = Arc::clone(&ready);
+    let app_for_ready = app_handle.clone();
+    let ready_listener_id = app_handle.once("screenshot_ready", move |_| {
+        if SCREENSHOT_GENERATION.load(Ordering::Acquire) != generation {
+            return;
+        }
+        if let Some(window) = app_for_ready.get_webview_window("screenshot") {
+            info!(
+                "[Plugin:screenshot] frontend ready; showing generation={}",
+                generation
+            );
+            match WindowManager::restore_and_focus(&window) {
+                Ok(_) => ready_for_event.store(true, Ordering::Release),
+                Err(error) => warn!(
+                    "[Plugin:screenshot] frontend ready but show failed: {}",
+                    error
+                ),
+            }
+        }
+    });
+
     let builder = WebviewWindowBuilder::new(
-        app_handle,
+        &app_handle,
         "screenshot",
         WebviewUrl::App("/#/screenshot".into()),
     )
@@ -2205,32 +2280,66 @@ pub fn hotkey_screenshot() {
     .visible(false);
 
     let window = match builder.build() {
-        Ok(w) => w,
-        Err(e) => {
-            log::error!("创建截图窗口失败: {}", e);
-            return;
+        Ok(window) => window,
+        Err(error) => {
+            app_handle.unlisten(ready_listener_id);
+            clear_screenshot_resource_caches();
+            notify_screenshot_start_failed(&app_handle, "截图窗口创建失败，请稍后重试。");
+            return Err(format!("创建截图窗口失败: {}", error));
         }
     };
 
-    // 【优化3】立即显示窗口，不等待背景加载
-    // 监听窗口准备事件
-    let window_clone = window.clone();
-    window.once("screenshot_ready", move |_| {
-        let _ = window_clone.show();
-        let _ = window_clone.set_focus();
-    });
-
-    // 【优化4】添加超时保护，确保窗口一定会显示
-    let window_timeout = window.clone();
-    tauri::async_runtime::spawn(async move {
-        tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
-        if let Ok(visible) = window_timeout.is_visible() {
-            if !visible {
-                let _ = window_timeout.show();
-                let _ = window_timeout.set_focus();
-            }
+    let app_for_destroy = app_handle.clone();
+    window.on_window_event(move |event| {
+        if matches!(event, WindowEvent::Destroyed)
+            && SCREENSHOT_GENERATION
+                .compare_exchange(
+                    generation,
+                    generation.saturating_add(1),
+                    Ordering::AcqRel,
+                    Ordering::Acquire,
+                )
+                .is_ok()
+        {
+            clear_screenshot_resource_caches();
+            info!(
+                "[Plugin:screenshot] window destroyed; generation={} invalidated",
+                generation
+            );
+            app_for_destroy.unlisten(ready_listener_id);
         }
     });
+
+    let app_for_timeout = app_handle.clone();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(tokio::time::Duration::from_secs(
+            SCREENSHOT_READY_TIMEOUT_SECS,
+        ))
+        .await;
+        if ready.load(Ordering::Acquire)
+            || SCREENSHOT_GENERATION.load(Ordering::Acquire) != generation
+        {
+            return;
+        }
+
+        warn!(
+            "[Plugin:screenshot] frontend ready timeout; destroying generation={}",
+            generation
+        );
+        app_for_timeout.unlisten(ready_listener_id);
+        if let Some(window) = app_for_timeout.get_webview_window("screenshot") {
+            let _ = window.set_ignore_cursor_events(false);
+            let _ = window.hide();
+            let _ = window.destroy();
+        }
+        clear_screenshot_resource_caches();
+        notify_screenshot_start_failed(
+            &app_for_timeout,
+            "截图界面初始化超时，已自动恢复，不会影响其他功能。",
+        );
+    });
+
+    Ok(())
 }
 
 // 获取窗口信息
@@ -2323,33 +2432,8 @@ pub fn clear_screenshot_background() {
 
 // 清理所有截图相关的缓存和状态（可选的深度清理）
 pub fn cleanup_screenshot_resources() {
-    // 清理截图背景
-    {
-        let mut bg = SCREENSHOT_BACKGROUND.lock().unwrap();
-        *bg = None;
-    }
-    // 清理截图预览
-    {
-        let mut preview = SCREENSHOT_PREVIEW.lock().unwrap();
-        *preview = None;
-    }
-    // 清理预缓存的窗口列表
-    {
-        let mut cached = CACHED_WINDOW_LIST.lock().unwrap();
-        *cached = None;
-    }
-    // 清理预缓存的显示器信息
-    {
-        let mut cached = CACHED_MONITOR_INFO.lock().unwrap();
-        *cached = None;
-    }
-
-    // 重置捕获状态
-    {
-        let mut capturing = IS_CAPTURING.lock().unwrap();
-        *capturing = false;
-    }
-
+    SCREENSHOT_GENERATION.fetch_add(1, Ordering::AcqRel);
+    clear_screenshot_resource_caches();
     info!("所有截图资源已清理");
 }
 

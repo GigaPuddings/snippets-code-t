@@ -40,7 +40,7 @@
   "entry": {
     "frontend": "dist/frontend.js",
     "styles": [
-      "dist/assets/runtime-entry-DZm2wdvN.css"
+      "dist/assets/runtime-entry-B3WEouHX.css"
     ]
   },
   "minAppVersion": "2.1.42",

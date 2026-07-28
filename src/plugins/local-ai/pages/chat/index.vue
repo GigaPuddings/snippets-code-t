@@ -168,7 +168,7 @@
         <div class="chat-panel-meta">
           <span class="header-model-pill" :title="currentModelDisplay">
             <Cube theme="outline" size="14" />
-            <span>{{ currentModelDisplay }}</span>
+            <span class="header-model-name">{{ currentModelDisplay }}</span>
           </span>
           <span
             :class="[
@@ -588,23 +588,6 @@
               </button>
             </div>
           </div>
-          <div class="composer-label-row">
-            <span :class="{ 'composer-label-row--busy': promptEnhancing }">
-              <Refresh
-                v-if="promptEnhancing"
-                class="animate-spin"
-                theme="outline"
-                size="12"
-              />
-              <i v-else></i>
-              {{
-                promptEnhancing
-                  ? t('localAi.enhancingPrompt')
-                  : t('localAi.composerLabel')
-              }}
-            </span>
-            <small v-if="draft.length">{{ draft.length }}</small>
-          </div>
           <textarea
             ref="composerInputRef"
             v-model="draft"
@@ -749,10 +732,6 @@
                 <Send theme="outline" size="15" />
               </button>
             </div>
-          </div>
-          <div class="composer-footnote">
-            <span>{{ t('localAi.privateLocalHint') }}</span>
-            <span>{{ t('localAi.dragDropHint') }}</span>
           </div>
         </form>
       </div>

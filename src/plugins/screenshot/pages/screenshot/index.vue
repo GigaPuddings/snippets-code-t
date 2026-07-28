@@ -40,11 +40,11 @@
     <!-- 文字输入框 -->
     <div v-if="isTextInputVisible" class="text-input-container" :style="textInputStyle">
       <input ref="textInputRef" v-model="textInput" type="text" class="text-input" :style="{
-        color: state.currentStyle.color,
-        fontFamily: TEXT_FONT_FAMILY,
-        fontSize: textInputFontSize + 'px',
-        height: textInputFontSize + 'px',
-        lineHeight: textInputFontSize + 'px'
+          color: state.currentStyle.color,
+          fontFamily: TEXT_FONT_FAMILY,
+          fontSize: textInputFontSize + 'px',
+          height: textInputFontSize + 'px',
+          lineHeight: textInputFontSize + 'px'
       }" @keydown.enter="confirmTextInput" @keydown.escape="cancelTextInput" @blur="confirmTextInput" autofocus />
     </div>
   </div>
@@ -97,7 +97,6 @@ const state = ref({
 })
 
 const unlistenBlur = ref<() => void>()
-const unlistenBgReady = ref<() => void>()
 const unlistenCloseRequested = ref<() => void>()
 
 // 计算属性 - 从状态获取绘制状态
@@ -165,7 +164,7 @@ const toolbarStyle = computed(() => {
   // 1. 优先尝试放在选区下方
   if (y + height + toolbarHeight + toolbarGap <= window.innerHeight - edgeMargin) {
     top = y + height + toolbarGap
-  } 
+  }
   // 2. 否则，尝试放在选区上方
   else if (y - toolbarHeight - toolbarGap >= edgeMargin) {
     top = y - toolbarHeight - toolbarGap
@@ -242,7 +241,7 @@ const handleToolSelect = (tool: ToolType) => {
     handleOcr()
     return
   }
-  
+
   screenshotManager?.setTool(tool)
 }
 
@@ -307,14 +306,13 @@ const handleSave = async () => {
     await screenshotManager?.processScreenshot('save')
     closeWindow()
   } catch (error: any) {
-    
     const errorMessage = error?.message || error?.toString() || '保存失败'
-    
+
     // 如果是用户取消保存，不显示错误
     if (errorMessage.includes('保存已取消') || errorMessage.includes('cancelled')) {
       return
     }
-    
+
     logger.error('保存截图时发生错误', errorMessage)
   }
 }
@@ -398,12 +396,12 @@ const confirmTextInput = () => {
 const cancelTextInput = () => {
   isTextInputVisible.value = false
   textInput.value = ''
-  
+
   // 清除编辑状态，恢复显示原始注释
   if (editingAnnotation) {
     screenshotManager?.clearEditingAnnotation()
   }
-  
+
   editingAnnotation = null
 }
 
@@ -521,7 +519,7 @@ const closeWindow = async () => {
   // 先销毁截图管理器，清理所有资源
   screenshotManager?.destroy()
   screenshotManager = null
-  
+
   // 清理后台截图缓存和相关资源，释放内存
   try {
     await invoke('cleanup_screenshot_resources')
@@ -533,7 +531,7 @@ const closeWindow = async () => {
       logger.error('[截图] 清理后台缓存失败', fallbackError)
     }
   }
-  
+
   // 清理前端状态
   state.value = {
     selectionRect: null,
@@ -548,16 +546,16 @@ const closeWindow = async () => {
     selectedAnnotation: null,
     isDrawing: false
   }
-  
+
   // 清理文字输入状态
   isTextInputVisible.value = false
   textInput.value = ''
   editingAnnotation = null
-  
+
   // 清理其他状态
   isLoading.value = false
   showSizeInfo.value = true
-  
+
   // 关闭并销毁窗口，避免仅隐藏导致任务管理器残留
   try {
     await invoke('close_and_destroy_screenshot_window')
@@ -594,9 +592,8 @@ onMounted(async () => {
   if (!canvasRef.value) return
 
   appWindow.value = new Window('screenshot')
-  await appWindow.value.emit('screenshot_ready')
 
-  // 初始化截图管理器（不需要加载完成回调，让用户可以立即开始截图）
+  // 后端已在创建 WebView 前准备好背景；先完成管理器和退出监听，再声明 ready。
   screenshotManager = new ScreenshotManager(
     canvasRef.value,
     handleStateChange,
@@ -604,34 +601,10 @@ onMounted(async () => {
     handleColorPicked
   )
 
-  // 从后端获取翻译引擎设置
-  try {
-    const savedEngine = await invoke<string>('get_translation_engine')
-    if (savedEngine && ['google', 'bing', 'offline', 'local-ai'].includes(savedEngine)) {
-      translateEngine.value = savedEngine as 'google' | 'bing' | 'offline' | 'local-ai'
-      screenshotManager?.setTranslationEngine(savedEngine as 'google' | 'bing' | 'offline' | 'local-ai')
-    }
-  } catch (error) {
-    logger.error('[截图] 获取翻译引擎设置失败', error)
-  }
-
-  // 从后端获取离线模型激活状态
-  try {
-    const backendActivated = await invoke<boolean>('get_offline_model_activated')
-    screenshotManager?.setOfflineModelActivated(backendActivated)
-  } catch (error) {
-    logger.error('[截图] 获取离线模型激活状态失败', error)
-  }
-
   // 添加键盘事件监听
   document.addEventListener('keydown', handleKeydown)
   window.addEventListener('resize', updateToolbarSize)
   window.addEventListener('screenshot-toolbar-resize', handleToolbarResize)
-
-  // 监听后端背景准备完成事件
-  unlistenBgReady.value = await listen('background-ready', () => {
-    screenshotManager?.triggerBackgroundReload()
-  })
 
   // 监听后端主动请求关闭截图窗口
   unlistenCloseRequested.value = await listen('screenshot-close-requested', () => {
@@ -650,7 +623,7 @@ onMounted(async () => {
     if (translationState?.isLoading || translationState?.isVisible) {
       return
     }
-    
+
     // 延迟一下再关闭，避免误触
     setTimeout(() => {
       // 再次检查文字输入状态
@@ -665,30 +638,48 @@ onMounted(async () => {
     }, 100)
   })
 
-  nextTick(updateToolbarSize)
+  await nextTick()
+  updateToolbarSize()
+  await appWindow.value.emit('screenshot_ready')
+
+  // 非关键设置在窗口可安全退出后加载，避免单个 invoke 延迟 ready。
+  try {
+    const savedEngine = await invoke<string>('get_translation_engine')
+    if (savedEngine && ['google', 'bing', 'offline', 'local-ai'].includes(savedEngine)) {
+      translateEngine.value = savedEngine as 'google' | 'bing' | 'offline' | 'local-ai'
+      screenshotManager?.setTranslationEngine(savedEngine as 'google' | 'bing' | 'offline' | 'local-ai')
+    }
+  } catch (error) {
+    logger.error('[截图] 获取翻译引擎设置失败', error)
+  }
+
+  try {
+    const backendActivated = await invoke<boolean>('get_offline_model_activated')
+    screenshotManager?.setOfflineModelActivated(backendActivated)
+  } catch (error) {
+    logger.error('[截图] 获取离线模型激活状态失败', error)
+  }
 })
 
 onUnmounted(() => {
   // 确保所有资源都被清理
   screenshotManager?.destroy()
   screenshotManager = null
-  
+
   // 移除事件监听器
   document.removeEventListener('keydown', handleKeydown)
   window.removeEventListener('resize', updateToolbarSize)
   window.removeEventListener('screenshot-toolbar-resize', handleToolbarResize)
-  
+
   // 清理Tauri事件监听器
   unlistenBlur.value?.()
-  unlistenBgReady.value?.()
   unlistenCloseRequested.value?.()
 
   // 清理引用
   unlistenBlur.value = undefined
-  unlistenBgReady.value = undefined
   unlistenCloseRequested.value = undefined
   appWindow.value = null
-  
+
   // 清理DOM引用
   // canvasRef 和 textInputRef 会被Vue自动清理
 })
@@ -721,8 +712,9 @@ onUnmounted(() => {
 .size-info {
   @apply absolute pointer-events-none z-10;
 
-    .size-text {
+  .size-text {
     @apply text-sm font-medium whitespace-nowrap min-w-[60px] py-1 px-[7px] text-white bg-[rgb(16_24_40/82%)] border border-white/15 rounded;
+
     backdrop-filter: blur(8px);
     box-shadow: 0 4px 12px rgb(0 0 0 / 18%);
   }
@@ -735,14 +727,16 @@ onUnmounted(() => {
 .text-input-container {
   @apply absolute z-20;
 
-    &::after {
+  &::after {
     @apply absolute -inset-1 pointer-events-none rounded;
+
     content: '';
     border: 1px dashed color-mix(in srgb, var(--text-accent-color) 78%, transparent);
   }
 
   .text-input {
     @apply block min-w-[136px] p-0 m-0 bg-transparent border-0 outline-none;
+
     color: var(--text-accent-color);
     caret-color: var(--text-accent-color);
     box-shadow: none;
@@ -798,12 +792,13 @@ onUnmounted(() => {
 // 加载提示
 .loading-overlay {
   @apply absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/80;
-  
+
   .loading-spinner {
     @apply w-12 h-12 border-4 border-white border-t-transparent rounded-full;
+
     animation: spin 1s linear infinite;
   }
-  
+
   p {
     @apply text-white text-lg mt-4;
   }

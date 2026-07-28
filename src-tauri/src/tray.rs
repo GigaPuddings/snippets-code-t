@@ -458,23 +458,31 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
             match menu_id {
                 "search" => {
                     debug!("[托盘菜单] 执行：快速搜索");
-                    hotkey_search(None);
+                    tauri::async_runtime::spawn(async move {
+                        hotkey_search(None);
+                    });
                 }
                 "config" => {
                     debug!("[托盘菜单] 执行：打开配置窗口");
-                    open_config_settings();
+                    tauri::async_runtime::spawn(async move {
+                        open_config_settings();
+                    });
                 }
                 "plugin_install_status" => {
                     debug!("[托盘菜单] 执行：查看插件安装状态");
-                    open_plugin_settings();
+                    tauri::async_runtime::spawn(async move {
+                        open_plugin_settings();
+                    });
                 }
                 "background_index_status" => {
                     debug!("[托盘菜单] 执行：查看本地索引状态");
-                    if crate::window::get_scan_progress_state().owner == "local-launcher" {
-                        open_local_launcher_settings();
-                    } else {
-                        open_plugin_settings();
-                    }
+                    tauri::async_runtime::spawn(async move {
+                        if crate::window::get_scan_progress_state().owner == "local-launcher" {
+                            open_local_launcher_settings();
+                        } else {
+                            open_plugin_settings();
+                        }
+                    });
                 }
                 "check_update" => {
                     debug!("[托盘菜单] 执行：检查更新");
@@ -504,7 +512,9 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
                 ..
             } = event
             {
-                hotkey_config();
+                tauri::async_runtime::spawn(async move {
+                    hotkey_config();
+                });
             }
         })
         .build(app)?;

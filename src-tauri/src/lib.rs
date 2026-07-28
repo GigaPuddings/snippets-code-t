@@ -133,14 +133,6 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         // 单实例插件：防止程序多开
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
-            let windows = app.webview_windows();
-            let visible_window = windows
-                .values()
-                .find(|window| window.is_visible().unwrap_or(false));
-            if let Some(window) = visible_window {
-                let _ = window.set_focus();
-            }
-
             // 捕获从系统传入的 .md 文件路径（例如双击打开、文件关联）
             // 推迟到 config_ready 后再让前端导航，避免窗口未就绪
             let md_paths: Vec<String> = args
@@ -161,8 +153,17 @@ pub fn run() {
             }
 
             let is_auto_start_attempt = args.iter().any(|arg| arg == "--flag1" || arg == "--flag2");
-            if !is_auto_start_attempt && visible_window.is_none() {
-                crate::window::hotkey_config();
+            if !is_auto_start_attempt {
+                let screenshot_active = app
+                    .get_webview_window("screenshot")
+                    .filter(|window| window.is_visible().unwrap_or(false));
+                tauri::async_runtime::spawn(async move {
+                    if let Some(window) = screenshot_active {
+                        let _ = crate::window::WindowManager::restore_and_focus(&window);
+                    } else {
+                        crate::window::activate_config_window();
+                    }
+                });
             }
         }))
         .plugin(tauri_plugin_shell::init())
