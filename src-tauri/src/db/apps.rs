@@ -1,6 +1,6 @@
 use crate::apps::AppInfo;
 use crate::db::entity::{
-    clear_entities, count_entities, get_all_entities, insert_entities, replace_entities,
+    count_entities, count_scanner_entities, get_all_entities, insert_entities, replace_entities,
     update_entity_icon,
 };
 use crate::db::DbConnectionManager;
@@ -44,18 +44,13 @@ pub fn update_app_icon_silent(app_id: &str, icon: &str) -> Result<(), rusqlite::
     update_entity_icon::<AppInfo>(app_id, icon)
 }
 
-// 清空所有应用
-pub fn clear_apps() -> Result<(), rusqlite::Error> {
-    let result = clear_entities::<AppInfo>();
-    if result.is_ok() {
-        invalidate_apps_cache();
-    }
-    result
-}
-
 // 统计应用数量
 pub fn count_apps() -> Result<i64, rusqlite::Error> {
     count_entities::<AppInfo>()
+}
+
+pub fn count_scanned_apps() -> Result<i64, rusqlite::Error> {
+    count_scanner_entities::<AppInfo>()
 }
 
 // ============= 应用管理函数 =============

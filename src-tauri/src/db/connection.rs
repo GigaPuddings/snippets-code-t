@@ -351,9 +351,17 @@ pub fn set_setup_completed(app_handle: tauri::AppHandle) {
 // ============= 进度窗口显示标记 =============
 
 // 设置重启后显示进度窗口标记，并记录本次重置类型
-pub fn set_show_progress_on_restart_with_kind(app_handle: &tauri::AppHandle, reset_kind: &str) {
-    let _ = json_config::set_app_config_value(app_handle, "show_progress_on_restart", true);
-    let _ = json_config::set_app_config_value(app_handle, "show_progress_reset_kind", reset_kind);
+pub fn set_show_progress_on_restart_with_kind(
+    app_handle: &tauri::AppHandle,
+    reset_kind: &str,
+) -> Result<(), String> {
+    json_config::set_app_config_value(app_handle, "show_progress_reset_kind", reset_kind)?;
+    json_config::set_app_config_value(app_handle, "show_progress_on_restart", true)
+}
+
+pub fn clear_show_progress_on_restart(app_handle: &tauri::AppHandle) -> Result<(), String> {
+    json_config::set_app_config_value(app_handle, "show_progress_on_restart", false)?;
+    json_config::set_app_config_value(app_handle, "show_progress_reset_kind", "")
 }
 
 // 读取进度窗口标记与重置类型，但不清除，便于各插件按需消费自己的重置任务。
@@ -373,14 +381,15 @@ pub fn peek_show_progress_kind(app_handle: &tauri::AppHandle) -> Option<String> 
 }
 
 // 消费进度窗口标记与重置类型（读取后清除）
-pub fn consume_show_progress_kind(app_handle: &tauri::AppHandle) -> Option<String> {
-    let reset_kind = peek_show_progress_kind(app_handle)?;
+pub fn consume_show_progress_kind(app_handle: &tauri::AppHandle) -> Result<Option<String>, String> {
+    let Some(reset_kind) = peek_show_progress_kind(app_handle) else {
+        return Ok(None);
+    };
 
     // 清除标记
-    let _ = json_config::set_app_config_value(app_handle, "show_progress_on_restart", false);
-    let _ = json_config::set_app_config_value(app_handle, "show_progress_reset_kind", "");
+    clear_show_progress_on_restart(app_handle)?;
 
-    Some(reset_kind)
+    Ok(Some(reset_kind))
 }
 
 // 验证目录是否有写入权限

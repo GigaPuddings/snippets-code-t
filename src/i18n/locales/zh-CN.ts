@@ -131,15 +131,15 @@ export default {
     resetSoftwareDesc:
       '仅重建应用、书签或桌面文件索引；搜索使用历史、用户配置、工作区内容和图标缓存均会保留',
     resetSoftwareTitle: '重置软件',
-    resetSelectContent: '请选择要重置的内容：',
+    resetSelectContent: '请选择要重建的本机索引；提交后应用将自动重启：',
     resetAll: '重置全部',
     resetApps: '重置应用数据',
     resetBookmarks: '重置书签数据',
     resetDesktopFiles: '重置桌面文件数据',
-    resetAppsSuccess: '重置应用列表成功',
-    resetBookmarksSuccess: '重置书签数据成功',
-    resetDesktopFilesSuccess: '重置桌面文件数据成功',
-    resetAllSuccess: '重置软件成功',
+    resetAppsSuccess: '应用索引已重置，应用即将重启',
+    resetBookmarksSuccess: '书签索引已重置，应用即将重启',
+    resetDesktopFilesSuccess: '桌面文件索引已重置，应用即将重启',
+    resetAllSuccess: '本机索引已重置，应用即将重启',
     resetFailed: '重置失败',
     clearSearchHistory: '清除使用历史',
     clearSearchHistoryDesc:
@@ -778,7 +778,9 @@ export default {
     deleteFailed: '删除失败',
     operationFailed: '操作失败',
     deleteConfirm: '确定要删除"{name}"吗？',
-    deleteTitle: '删除确认'
+    deleteTitle: '删除确认',
+    firstIndexingHint: '正在准备本地应用和浏览器书签，可继续使用其他功能',
+    backgroundIndexingHint: '数据将在后台更新，当前列表可继续浏览'
   },
 
   // 编辑对话框
@@ -1090,8 +1092,9 @@ export default {
     scanningApps: '正在扫描本地应用',
     scanningBookmarks: '正在扫描浏览器书签',
     scanningDesktopFiles: '正在扫描桌面文件',
-    loadingIcons: '正在加载图标',
+    loadingIcons: '正在加载本地图标',
     savingToDatabase: '正在保存到数据库',
+    desktopScanComplete: '扫描完成：{desktopFiles} 个桌面文件',
     scanComplete:
       '扫描完成：{apps} 个应用，{bookmarks} 个书签，{desktopFiles} 个桌面文件'
   },

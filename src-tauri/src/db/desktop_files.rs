@@ -103,9 +103,3 @@ pub fn replace_desktop_file_cache(
     }
     transaction.commit()
 }
-
-pub fn clear_desktop_file_cache() -> Result<(), rusqlite::Error> {
-    let conn = DbConnectionManager::get()?;
-    conn.execute("DELETE FROM desktop_file_cache", [])?;
-    Ok(())
-}

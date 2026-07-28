@@ -16,8 +16,10 @@ export function useConfigLifecycle(deps: ConfigLifecycleDeps) {
   const logger = deps.logger ?? defaultLogger;
 
   const start = async () => {
-    await deps.startup.start();
+    // 后端会在 config_ready 后立即发送导航请求，必须先建立监听，避免
+    // 首次打开配置窗口时丢失插件管理或插件设置页跳转。
     await deps.navigationEvents.setup();
+    await deps.startup.start();
   };
 
   const cleanup = () => {

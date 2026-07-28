@@ -1,11 +1,14 @@
 use crate::db;
 use crate::json_config;
 use log::{info, LevelFilter};
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers};
 
 // 注：所有配置存储在 JSON 文件系统：
 // - path.json: 数据目录路径
 // - app.json: 所有应用配置（更新、翻译、快捷键、语言等）
+
+static RESET_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 
 // 解析快捷键
 pub fn parse_hotkey(hotkey: &str) -> Result<(Option<Modifiers>, Code), String> {
@@ -179,24 +182,6 @@ fn log_reset_step(reset_type: &str, step: &str, status: &str, detail: &str) {
     }
 }
 
-fn log_reset_db_result(
-    reset_type: &str,
-    step: &str,
-    result: Result<(), rusqlite::Error>,
-) -> Result<(), String> {
-    match result {
-        Ok(_) => {
-            log_reset_step(reset_type, step, "ok", "");
-            Ok(())
-        }
-        Err(e) => {
-            let detail = e.to_string();
-            log_reset_step(reset_type, step, "error", &detail);
-            Err(format!("{} failed: {}", step, detail))
-        }
-    }
-}
-
 fn schedule_reset_restart(app_handle: tauri::AppHandle, reset_type: String) {
     log_reset_step(&reset_type, "restart_scheduled", "ok", "delay_secs=3");
     std::thread::spawn(move || {
@@ -214,6 +199,10 @@ fn schedule_reset_restart(app_handle: tauri::AppHandle, reset_type: String) {
 // 重置软件
 #[tauri::command]
 pub fn reset_software(app_handle: tauri::AppHandle, reset_type: String) -> Result<(), String> {
+    if RESET_IN_PROGRESS.swap(true, Ordering::AcqRel) {
+        return Err("重置任务已提交，应用即将重启".to_string());
+    }
+
     let normalized_reset_type = if reset_type.is_empty() {
         "all".to_string()
     } else {
@@ -222,34 +211,13 @@ pub fn reset_software(app_handle: tauri::AppHandle, reset_type: String) -> Resul
 
     log_reset_step(&normalized_reset_type, "request", "start", "");
 
-    match normalized_reset_type.as_str() {
-        "all" => {
-            log_reset_db_result(&normalized_reset_type, "clear_apps", db::clear_apps())?;
-            log_reset_db_result(
-                &normalized_reset_type,
-                "clear_bookmarks",
-                db::clear_bookmarks(),
-            )?;
-            crate::plugins::desktop_files::clear_desktop_files_cache_for_reset(
-                &normalized_reset_type,
-            )?;
-        }
-        "apps" => {
-            log_reset_db_result(&normalized_reset_type, "clear_apps", db::clear_apps())?;
-        }
-        "bookmarks" => {
-            log_reset_db_result(
-                &normalized_reset_type,
-                "clear_bookmarks",
-                db::clear_bookmarks(),
-            )?;
-        }
-        "desktopFiles" => {
-            crate::plugins::desktop_files::clear_desktop_files_cache_for_reset(
-                &normalized_reset_type,
-            )?;
-        }
+    let (reset_apps, reset_bookmarks, reset_desktop_files) = match normalized_reset_type.as_str() {
+        "all" => (true, true, true),
+        "apps" => (true, false, false),
+        "bookmarks" => (false, true, false),
+        "desktopFiles" => (false, false, true),
         _ => {
+            RESET_IN_PROGRESS.store(false, Ordering::Release);
             log_reset_step(
                 &normalized_reset_type,
                 "request",
@@ -258,10 +226,86 @@ pub fn reset_software(app_handle: tauri::AppHandle, reset_type: String) -> Resul
             );
             return Err(format!("不支持的重置类型: {}", normalized_reset_type));
         }
+    };
+
+    if reset_apps || reset_bookmarks {
+        crate::icon::cancel_app_and_bookmark_icons();
+    }
+    if reset_desktop_files {
+        crate::plugins::desktop_files::cancel_desktop_file_icon_rebuild();
     }
 
-    db::set_show_progress_on_restart_with_kind(&app_handle, &normalized_reset_type);
-    log_reset_step(&normalized_reset_type, "set_progress_on_restart", "ok", "");
+    let local_launcher_enabled =
+        crate::app_config::is_plugin_enabled(&app_handle, "local-launcher");
+    let desktop_files_enabled = crate::app_config::is_plugin_enabled(&app_handle, "desktop-files");
+    let progress_kind = if (reset_apps || reset_bookmarks) && local_launcher_enabled {
+        Some(match normalized_reset_type.as_str() {
+            "apps" => "apps",
+            "bookmarks" => "bookmarks",
+            _ => "launcher",
+        })
+    } else if reset_desktop_files && desktop_files_enabled {
+        Some("desktopFiles")
+    } else {
+        None
+    };
+
+    if let Some(progress_kind) = progress_kind {
+        if let Err(error) = db::set_show_progress_on_restart_with_kind(&app_handle, progress_kind) {
+            RESET_IN_PROGRESS.store(false, Ordering::Release);
+            return Err(error);
+        }
+    } else {
+        if let Err(error) = db::clear_show_progress_on_restart(&app_handle) {
+            RESET_IN_PROGRESS.store(false, Ordering::Release);
+            return Err(error);
+        }
+    }
+    log_reset_step(
+        &normalized_reset_type,
+        "persist_rebuild_task",
+        "ok",
+        progress_kind.unwrap_or("none"),
+    );
+
+    if let Err(error) =
+        db::reset_rebuildable_indexes(reset_apps, reset_bookmarks, reset_desktop_files)
+    {
+        let _ = db::clear_show_progress_on_restart(&app_handle);
+        RESET_IN_PROGRESS.store(false, Ordering::Release);
+        log_reset_step(
+            &normalized_reset_type,
+            "clear_indexes_transaction",
+            "error",
+            &error.to_string(),
+        );
+        return Err(format!("重置索引事务失败: {}", error));
+    }
+    log_reset_step(
+        &normalized_reset_type,
+        "clear_indexes_transaction",
+        "ok",
+        "",
+    );
+
+    if reset_apps {
+        crate::plugins::local_launcher::invalidate_apps_cache();
+        log_reset_step(&normalized_reset_type, "clear_apps", "ok", "");
+    }
+    if reset_bookmarks {
+        crate::plugins::local_launcher::invalidate_bookmarks_cache();
+        log_reset_step(&normalized_reset_type, "clear_bookmarks", "ok", "");
+    }
+    if reset_desktop_files {
+        crate::plugins::desktop_files::invalidate_desktop_files_cache();
+        log_reset_step(
+            &normalized_reset_type,
+            "clear_desktop_files_cache",
+            "ok",
+            "",
+        );
+    }
+
     log_reset_step(&normalized_reset_type, "request", "ok", "");
     schedule_reset_restart(app_handle, normalized_reset_type);
 

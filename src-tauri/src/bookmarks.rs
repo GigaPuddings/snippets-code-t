@@ -2,11 +2,16 @@ use crate::db;
 use crate::icon;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use glob::glob;
-use rusqlite::{backup::Backup, Connection, OpenFlags};
+use rusqlite::{
+    backup::{Backup, StepResult},
+    Connection, OpenFlags,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Once;
+use std::time::{Duration, Instant, SystemTime};
 use uuid::Uuid;
 
 // 从URL提取域名作为标题
@@ -161,30 +166,115 @@ fn get_all_browser_favicon_paths() -> std::collections::HashMap<&'static str, Pa
 }
 
 struct BrowserDbSnapshot {
-    path: PathBuf,
+    temp_dir: Option<PathBuf>,
     connection: Option<Connection>,
+}
+
+static BROWSER_SNAPSHOT_CLEANUP: Once = Once::new();
+
+fn cleanup_stale_browser_snapshots() {
+    BROWSER_SNAPSHOT_CLEANUP.call_once(|| {
+        let Ok(entries) = fs::read_dir(std::env::temp_dir()) else {
+            return;
+        };
+        let cutoff = SystemTime::now()
+            .checked_sub(Duration::from_secs(60 * 60))
+            .unwrap_or(SystemTime::UNIX_EPOCH);
+
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if !name.starts_with("snippets-favicons-") && !name.starts_with("snippets-places-") {
+                continue;
+            }
+            let is_stale = entry
+                .metadata()
+                .and_then(|metadata| metadata.modified())
+                .map(|modified| modified < cutoff)
+                .unwrap_or(false);
+            if !is_stale {
+                continue;
+            }
+            let path = entry.path();
+            if path.is_dir() {
+                let _ = fs::remove_dir_all(path);
+            } else {
+                let _ = fs::remove_file(path);
+            }
+        }
+    });
+}
+
+fn copy_sqlite_snapshot(source: &Path, target: &Path) -> std::io::Result<()> {
+    fs::copy(source, target)?;
+    for suffix in ["-wal", "-shm"] {
+        let source_sidecar = PathBuf::from(format!("{}{}", source.to_string_lossy(), suffix));
+        if !source_sidecar.is_file() {
+            continue;
+        }
+        let target_sidecar = PathBuf::from(format!("{}{}", target.to_string_lossy(), suffix));
+        let _ = fs::copy(source_sidecar, target_sidecar);
+    }
+    Ok(())
+}
+
+fn open_readonly_browser_db(path: &Path) -> Option<Connection> {
+    let connection = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY).ok()?;
+    let _ = connection.busy_timeout(Duration::from_millis(250));
+    Some(connection)
+}
+
+fn create_bounded_online_backup(source: &Path, target: &Path) -> bool {
+    let Some(source_connection) = open_readonly_browser_db(source) else {
+        return false;
+    };
+    let Ok(mut target_connection) = Connection::open(target) else {
+        return false;
+    };
+    let Ok(backup) = Backup::new(&source_connection, &mut target_connection) else {
+        return false;
+    };
+    let deadline = Instant::now() + Duration::from_millis(750);
+
+    loop {
+        match backup.step(256) {
+            Ok(StepResult::Done) => return true,
+            Ok(StepResult::More) if Instant::now() < deadline => {}
+            Ok(StepResult::Busy | StepResult::Locked) if Instant::now() < deadline => {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            Ok(_) | Err(_) => return false,
+        }
+    }
 }
 
 impl BrowserDbSnapshot {
     fn open(source: &Path, prefix: &str) -> Option<Self> {
-        let path = std::env::temp_dir().join(format!("{}-{}.sqlite", prefix, Uuid::new_v4()));
-        let source_connection =
-            Connection::open_with_flags(source, OpenFlags::SQLITE_OPEN_READ_ONLY).ok()?;
-        let mut connection = Connection::open(&path).ok()?;
-        {
-            // Online Backup API 从浏览器的同一读事务复制主库和 WAL 可见页，
-            // 避免逐文件复制时主库/WAL 版本不一致。
-            let backup = Backup::new(&source_connection, &mut connection).ok()?;
-            if backup
-                .run_to_completion(128, std::time::Duration::from_millis(5), None)
-                .is_err()
-            {
-                let _ = fs::remove_file(&path);
-                return None;
+        cleanup_stale_browser_snapshots();
+
+        // 浏览器可能长期持有写事务。先尝试有 750ms 截止时间的在线备份，保证
+        // 主库与 WAL 一致；Busy/Locked 超时后改用有界文件复制。任何路径失败
+        // 都只会跳过本轮图标，不再让整个本地索引永久停留在“后台加载”。
+        let temp_dir = std::env::temp_dir().join(format!("{}-{}", prefix, Uuid::new_v4()));
+        if fs::create_dir(&temp_dir).is_ok() {
+            let snapshot_path = temp_dir.join("snapshot.sqlite");
+            let online_backup_completed = create_bounded_online_backup(source, &snapshot_path);
+            if !online_backup_completed {
+                let _ = fs::remove_file(&snapshot_path);
             }
+            if online_backup_completed || copy_sqlite_snapshot(source, &snapshot_path).is_ok() {
+                if let Some(connection) = open_readonly_browser_db(&snapshot_path) {
+                    return Some(Self {
+                        temp_dir: Some(temp_dir),
+                        connection: Some(connection),
+                    });
+                }
+            }
+            let _ = fs::remove_dir_all(&temp_dir);
         }
-        Some(Self {
-            path,
+
+        open_readonly_browser_db(source).map(|connection| Self {
+            temp_dir: None,
             connection: Some(connection),
         })
     }
@@ -199,7 +289,9 @@ impl BrowserDbSnapshot {
 impl Drop for BrowserDbSnapshot {
     fn drop(&mut self) {
         drop(self.connection.take());
-        let _ = fs::remove_file(&self.path);
+        if let Some(temp_dir) = self.temp_dir.take() {
+            let _ = fs::remove_dir_all(temp_dir);
+        }
     }
 }
 

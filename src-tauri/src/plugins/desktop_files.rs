@@ -3,14 +3,14 @@ use crate::db::DesktopFileCacheRecord;
 use crate::icon::{extract_app_icon, CachedIcon};
 use crate::search::{fuzzy_search, SearchResult};
 use dirs::desktop_dir;
-use log::{info, warn};
+use log::warn;
 use lopdf::{content::Content, Document, Object};
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{LazyLock, Mutex};
 use std::time::SystemTime;
 use tauri::AppHandle;
@@ -49,10 +49,23 @@ pub struct DesktopFilePreview {
 static DESKTOP_FILES_CACHE: LazyLock<Mutex<Option<Vec<DesktopFileInfo>>>> =
     LazyLock::new(|| Mutex::new(None));
 static DESKTOP_FILES_INITIALIZED: AtomicBool = AtomicBool::new(false);
+static DESKTOP_ICON_REBUILD_GENERATION: AtomicU64 = AtomicU64::new(0);
 
 pub fn invalidate_desktop_files_cache() {
     DESKTOP_FILES_INITIALIZED.store(false, Ordering::Release);
     invalidate_desktop_files_memory_cache();
+}
+
+pub fn cancel_desktop_file_icon_rebuild() {
+    DESKTOP_ICON_REBUILD_GENERATION.fetch_add(1, Ordering::AcqRel);
+}
+
+fn desktop_icon_rebuild_active(generation: u64) -> bool {
+    DESKTOP_ICON_REBUILD_GENERATION.load(Ordering::Acquire) == generation
+        && crate::APP
+            .get()
+            .map(|app| crate::app_config::is_plugin_enabled(app, "desktop-files"))
+            .unwrap_or(false)
 }
 
 pub fn invalidate_desktop_files_memory_cache() {
@@ -438,9 +451,14 @@ pub fn refresh_missing_desktop_file_icons() -> usize {
     if !crate::icon::is_icon_cache_enabled() {
         return 0;
     }
+    let generation = DESKTOP_ICON_REBUILD_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
+
     let mut files = load_desktop_files_from_db().unwrap_or_default();
     let mut changed = Vec::new();
     for file in &mut files {
+        if !desktop_icon_rebuild_active(generation) {
+            break;
+        }
         if file.icon.is_some() {
             continue;
         }
@@ -450,6 +468,9 @@ pub fn refresh_missing_desktop_file_icons() -> usize {
             changed.push(file.clone());
         }
     }
+    if !desktop_icon_rebuild_active(generation) {
+        return 0;
+    }
     if !changed.is_empty() {
         if let Err(error) = db::upsert_desktop_file_cache(&desktop_file_records(&changed)) {
             warn!("重建桌面文件图标失败: {}", error);
@@ -457,7 +478,9 @@ pub fn refresh_missing_desktop_file_icons() -> usize {
         }
     }
     let count = changed.len();
-    set_desktop_files_memory_cache(files);
+    if desktop_icon_rebuild_active(generation) {
+        set_desktop_files_memory_cache(files);
+    }
     count
 }
 
@@ -484,32 +507,6 @@ pub fn refresh_desktop_files_cache_with_count() -> usize {
     DESKTOP_FILES_INITIALIZED.store(true, Ordering::Release);
     let _ = db::mark_index_success("desktop-files", 1, 1);
     count
-}
-
-pub fn clear_desktop_files_cache_for_reset(reset_type: &str) -> Result<(), String> {
-    invalidate_desktop_files_cache();
-    info!(
-        "[Reset] type={} step=clear_desktop_files_memory_cache status=ok",
-        reset_type
-    );
-
-    match db::clear_desktop_file_cache() {
-        Ok(_) => {
-            info!(
-                "[Reset] type={} step=clear_desktop_files_db_cache status=ok",
-                reset_type
-            );
-            Ok(())
-        }
-        Err(e) => {
-            let detail = e.to_string();
-            warn!(
-                "[Reset] type={} step=clear_desktop_files_db_cache status=error detail={}",
-                reset_type, detail
-            );
-            Err(format!("clear_desktop_files_db_cache failed: {}", detail))
-        }
-    }
 }
 
 #[tauri::command]

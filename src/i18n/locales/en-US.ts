@@ -138,15 +138,17 @@ export default {
     resetSoftwareDesc:
       'Rebuild only app, bookmark, or desktop-file indexes; usage history, settings, workspace content, and icon cache are preserved',
     resetSoftwareTitle: 'Reset Software',
-    resetSelectContent: 'Select content to reset:',
+    resetSelectContent:
+      'Select local indexes to rebuild. The app will restart after submission:',
     resetAll: 'Reset All',
     resetApps: 'Reset Apps',
     resetBookmarks: 'Reset Bookmarks',
     resetDesktopFiles: 'Reset Desktop Files',
-    resetAppsSuccess: 'Apps reset successfully',
-    resetBookmarksSuccess: 'Bookmarks reset successfully',
-    resetDesktopFilesSuccess: 'Desktop files reset successfully',
-    resetAllSuccess: 'Software reset successfully',
+    resetAppsSuccess: 'App index reset; the app will restart shortly',
+    resetBookmarksSuccess: 'Bookmark index reset; the app will restart shortly',
+    resetDesktopFilesSuccess:
+      'Desktop file index reset; the app will restart shortly',
+    resetAllSuccess: 'Local indexes reset; the app will restart shortly',
     resetFailed: 'Reset failed',
     clearSearchHistory: 'Clear Usage History',
     clearSearchHistoryDesc:
@@ -800,7 +802,11 @@ export default {
     deleteFailed: 'Delete failed',
     operationFailed: 'Operation failed',
     deleteConfirm: 'Delete "{name}"?',
-    deleteTitle: 'Confirm Delete'
+    deleteTitle: 'Confirm Delete',
+    firstIndexingHint:
+      'Preparing local apps and browser bookmarks. Other features remain available.',
+    backgroundIndexingHint:
+      'Data is updating in the background. You can keep browsing this list.'
   },
 
   // Edit Dialog
@@ -1115,8 +1121,9 @@ export default {
     scanningApps: 'Scanning local applications',
     scanningBookmarks: 'Scanning browser bookmarks',
     scanningDesktopFiles: 'Scanning desktop files',
-    loadingIcons: 'Loading icons',
+    loadingIcons: 'Loading local icons',
     savingToDatabase: 'Saving to database',
+    desktopScanComplete: 'Scan complete: {desktopFiles} desktop files',
     scanComplete:
       'Scan complete: {apps} apps, {bookmarks} bookmarks, {desktopFiles} desktop files'
   },

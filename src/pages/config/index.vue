@@ -49,12 +49,18 @@ let hasCompletedInitialConfigStartup = false;
 
 <script setup lang="ts">
 import { useRouter } from 'vue-router';
-import type { RouteLocationNormalizedLoaded, RouteRecordNormalized } from 'vue-router';
+import type {
+  RouteLocationNormalizedLoaded,
+  RouteRecordNormalized
+} from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { logger } from '@/utils/logger';
 import modal from '@/utils/modal';
 import { usePluginStore } from '@/store';
-import { pluginHostComponents, type ConfigHostContext } from '@/plugins/host-components';
+import {
+  pluginHostComponents,
+  type ConfigHostContext
+} from '@/plugins/host-components';
 import { useConfigNavigationEvents } from './composables/useConfigNavigationEvents';
 import { useConfigStartup } from './composables/useConfigStartup';
 import { useConfigLifecycle } from './composables/useConfigLifecycle';
@@ -71,7 +77,9 @@ defineOptions({
 const router = useRouter();
 const configHostComponents = computed(() => {
   pluginStore.runtimeRevision;
-  return pluginHostComponents.filter((component) => component.target === 'config');
+  return pluginHostComponents.filter(
+    (component) => component.target === 'config'
+  );
 });
 const getPluginRouteId = (currentRoute: RouteLocationNormalizedLoaded) =>
   currentRoute.matched
@@ -91,9 +99,11 @@ const getConfigChildRecord = (
   return currentRoute.matched[configRecordIndex + 1] ?? null;
 };
 
-const shouldKeepAliveConfigChild = (currentRoute: RouteLocationNormalizedLoaded) =>
-  Boolean(getConfigChildRecord(currentRoute)?.meta.keepAlive)
-  && !getPluginRouteId(currentRoute);
+const shouldKeepAliveConfigChild = (
+  currentRoute: RouteLocationNormalizedLoaded
+) =>
+  Boolean(getConfigChildRecord(currentRoute)?.meta.keepAlive) &&
+  !getPluginRouteId(currentRoute);
 
 const getConfigChildKey = (currentRoute: RouteLocationNormalizedLoaded) => {
   const pluginId = getPluginRouteId(currentRoute);
@@ -104,6 +114,24 @@ const getConfigChildKey = (currentRoute: RouteLocationNormalizedLoaded) => {
   const record = getConfigChildRecord(currentRoute);
   return String(record?.name ?? record?.path ?? currentRoute.fullPath);
 };
+
+watch(
+  () => pluginStore.runtimeRevision,
+  () => {
+    const currentRoute = router.currentRoute.value;
+    const pluginId = getPluginRouteId(currentRoute);
+    if (!pluginId || pluginStore.isEnabled(pluginId)) return;
+
+    void router.replace({
+      path: '/config/category/settings',
+      query: {
+        tab: 'plugins',
+        disabled: pluginId
+      }
+    });
+  }
+);
+
 const configHostContext = reactive<ConfigHostContext>({
   shouldInit: null,
   isPluginEnabled: (pluginId) => pluginStore.isEnabled(pluginId),
@@ -114,8 +142,13 @@ const configNavigationEvents = useConfigNavigationEvents({
   t,
   modalMsg: modal.msg.bind(modal)
 });
+const initializeConfigPlugins = async (): Promise<void> => {
+  await pluginStore.initialize();
+  // 配置页导航依赖插件动态路由，首屏结束前必须完成运行时注册。
+  await pluginStore.loadEnabledPluginEntries();
+};
 const configStartup = useConfigStartup({
-  initializePlugins: () => pluginStore.initialize(),
+  initializePlugins: initializeConfigPlugins,
   onReadyNavigationCheck: configNavigationEvents.checkPendingNavigationRequests,
   onShouldInit: (shouldInit) => {
     configHostContext.shouldInit = shouldInit;
@@ -133,8 +166,8 @@ onMounted(async () => {
   const shouldShowStartupProgress = !hasCompletedInitialConfigStartup;
   const timer = shouldShowStartupProgress
     ? window.setInterval(() => {
-      startupProgress.value = Math.min(88, startupProgress.value + 8);
-    }, 110)
+        startupProgress.value = Math.min(88, startupProgress.value + 8);
+      }, 110)
     : null;
   try {
     await configLifecycle.start();
@@ -166,27 +199,54 @@ onUnmounted(() => {
 
 .config-startup {
   @apply absolute inset-0 z-[100] flex items-center justify-center;
+
   background-color: var(--categories-content-bg);
 
   &__card {
     @apply grid w-[min(25rem,76vw)] grid-cols-[minmax(0,1fr)_auto] items-end gap-x-4 gap-y-2 text-panel;
   }
 
-  &__copy { @apply flex min-w-0 flex-col gap-0.5; }
-  &__copy strong { @apply text-sm font-medium; }
-  &__copy small { @apply truncate text-xs; color: var(--categories-info-text-color); }
-  &__percent { @apply text-xs tabular-nums; color: var(--categories-info-text-color); }
-  &__track { @apply col-span-2 h-1 w-full overflow-hidden; background-color: var(--categories-border-color); }
+  &__copy {
+    @apply flex min-w-0 flex-col gap-0.5;
+  }
+
+  &__copy strong {
+    @apply text-sm font-medium;
+  }
+
+  &__copy small {
+    @apply truncate text-xs;
+
+    color: var(--categories-info-text-color);
+  }
+
+  &__percent {
+    @apply text-xs tabular-nums;
+
+    color: var(--categories-info-text-color);
+  }
+
+  &__track {
+    @apply col-span-2 h-1 w-full overflow-hidden;
+
+    background-color: var(--categories-border-color);
+  }
 
   &__track i {
     @apply block h-full;
+
     background-color: var(--el-color-primary);
     transition: width 0.18s ease-out;
   }
 }
 
 .config-startup-enter-active,
-.config-startup-leave-active { transition: opacity 0.18s ease; }
+.config-startup-leave-active {
+  transition: opacity 0.18s ease;
+}
+
 .config-startup-enter-from,
-.config-startup-leave-to { opacity: 0; }
+.config-startup-leave-to {
+  opacity: 0;
+}
 </style>

@@ -37,6 +37,23 @@ const isWorkspaceSearchUnavailableError = (error: unknown): boolean => {
   ].some((keyword) => normalized.includes(keyword.toLowerCase()));
 };
 
+const LOCAL_LAUNCHER_RESULT_SOURCES = new Set(['app', 'bookmark']);
+
+const getResultSource = (item: ContentType): string =>
+  typeof item.metadata?.source === 'string'
+    ? item.metadata.source
+    : (item.summarize ?? 'text');
+
+export const removeDisabledPluginResults = (
+  results: ContentType[],
+  isPluginEnabled: (pluginId: string) => boolean
+): ContentType[] =>
+  results.filter(
+    (item) =>
+      isPluginEnabled('local-launcher') ||
+      !LOCAL_LAUNCHER_RESULT_SOURCES.has(getResultSource(item))
+  );
+
 /**
  * 搜索功能配置选项
  */
@@ -101,6 +118,7 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
   const pluginStore = usePluginStore();
   let unlistenSearchEngineUpdates: UnlistenFn | null = null;
   let unlistenLocalLauncherUpdates: UnlistenFn | null = null;
+  let unlistenSearchHistoryCleared: UnlistenFn | null = null;
   let isSearchActive = true;
   let searchRequestVersion = 0;
 
@@ -547,6 +565,10 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
         'local-launcher-index-updated',
         refreshCurrentSearch
       );
+      unlistenSearchHistoryCleared = await listen(
+        'search-history-cleared',
+        refreshCurrentSearch
+      );
     } catch (error) {
       ErrorHandler.handle(error, {
         type: ErrorType.API_ERROR,
@@ -560,10 +582,17 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
     () =>
       [
         pluginStore.isEnabled('search-engines'),
+        pluginStore.isEnabled('local-launcher'),
         pluginStore.runtimeRevision
       ] as const,
     async () => {
       try {
+        debouncedSearch.cancel();
+        nextSearchRequest();
+        searchResults.value = removeDisabledPluginResults(
+          searchResults.value,
+          (pluginId) => pluginStore.isEnabled(pluginId)
+        );
         await syncSearchEngineRuntime();
         if (searchText.value.trim()) {
           debouncedSearch(nextSearchRequest());
@@ -585,6 +614,8 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
     cleanupSearchEngineUpdates();
     unlistenLocalLauncherUpdates?.();
     unlistenLocalLauncherUpdates = null;
+    unlistenSearchHistoryCleared?.();
+    unlistenSearchHistoryCleared = null;
   });
 
   return {

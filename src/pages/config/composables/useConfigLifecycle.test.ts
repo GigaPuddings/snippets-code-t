@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { useConfigLifecycle } from './useConfigLifecycle';
 
 describe('useConfigLifecycle', () => {
-  it('starts config startup before navigation listeners', async () => {
+  it('registers navigation listeners before announcing config readiness', async () => {
     const calls: string[] = [];
     const lifecycle = useConfigLifecycle({
       startup: {
@@ -27,7 +27,7 @@ describe('useConfigLifecycle', () => {
 
     await lifecycle.start();
 
-    expect(calls).toEqual(['startup', 'navigation']);
+    expect(calls).toEqual(['navigation', 'startup']);
   });
 
   it('cleans navigation listeners with config logs', () => {

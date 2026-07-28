@@ -113,8 +113,16 @@ pub fn clear_all_icon_cache() -> Result<usize, rusqlite::Error> {
             |row| row.get::<_, bool>(0),
         )?;
         if exists {
+            let has_source_kind = transaction
+                .prepare(&format!("SELECT source_kind FROM {} LIMIT 1", table))
+                .is_ok();
+            let predicate = if has_source_kind {
+                "source_kind = 'scanner' AND icon IS NOT NULL"
+            } else {
+                "icon IS NOT NULL"
+            };
             affected += transaction.execute(
-                &format!("UPDATE {} SET icon = NULL WHERE icon IS NOT NULL", table),
+                &format!("UPDATE {} SET icon = NULL WHERE {}", table, predicate),
                 [],
             )?;
         }

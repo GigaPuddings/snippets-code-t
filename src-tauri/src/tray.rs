@@ -41,6 +41,7 @@ struct TrayTranslations {
     view_log: &'static str,
     plugin_installing: &'static str,
     background_indexing: &'static str,
+    background_icons: &'static str,
     quit: &'static str,
 }
 
@@ -132,6 +133,7 @@ fn get_translations(lang: &str) -> TrayTranslations {
             view_log: "View Logs",
             plugin_installing: "Plugin installs",
             background_indexing: "Background indexing",
+            background_icons: "Background icons",
             quit: "Quit",
         },
         _ => TrayTranslations {
@@ -154,6 +156,7 @@ fn get_translations(lang: &str) -> TrayTranslations {
             view_log: "日志记录",
             plugin_installing: "插件安装",
             background_indexing: "后台索引",
+            background_icons: "后台图标",
             quit: "退出程序",
         },
     }
@@ -286,15 +289,21 @@ fn build_tray_menu(app: &AppHandle, lang: &str) -> tauri::Result<Menu<tauri::Wry
         })
         .transpose()?;
     let scan_state = crate::window::get_scan_progress_state();
-    let background_index_i = (!scan_state.completed && !scan_state.stage.is_empty())
+    let scan_visible = !scan_state.completed
+        && !scan_state.stage.is_empty()
+        && (scan_state.owner != "local-launcher"
+            || app_config::is_plugin_enabled(app, "local-launcher"));
+    let background_index_i = scan_visible
         .then(|| {
-            let progress = if scan_state.total > 0 {
-                format!(
-                    "{}：{}/{}",
-                    trans.background_indexing, scan_state.current, scan_state.total
-                )
+            let label = if scan_state.task == "icons" {
+                trans.background_icons
             } else {
-                trans.background_indexing.to_string()
+                trans.background_indexing
+            };
+            let progress = if scan_state.total > 0 {
+                format!("{}：{}/{}", label, scan_state.current, scan_state.total)
+            } else {
+                label.to_string()
             };
             MenuItem::with_id(app, "background_index_status", progress, true, None::<&str>)
         })
@@ -461,7 +470,11 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
                 }
                 "background_index_status" => {
                     debug!("[托盘菜单] 执行：查看本地索引状态");
-                    open_local_launcher_settings();
+                    if crate::window::get_scan_progress_state().owner == "local-launcher" {
+                        open_local_launcher_settings();
+                    } else {
+                        open_plugin_settings();
+                    }
                 }
                 "check_update" => {
                     debug!("[托盘菜单] 执行：检查更新");
@@ -527,9 +540,14 @@ pub fn update_plugin_install_status(app_handle: &AppHandle) {
     }
     let scan_state = crate::window::get_scan_progress_state();
     if !scan_state.completed && !scan_state.stage.is_empty() {
+        let label = if scan_state.task == "icons" {
+            trans.background_icons
+        } else {
+            trans.background_indexing
+        };
         tooltip_parts.push(format!(
             "{}：{}/{}",
-            trans.background_indexing, scan_state.current, scan_state.total
+            label, scan_state.current, scan_state.total
         ));
     }
     let tooltip = tooltip_parts.join(" · ");

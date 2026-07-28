@@ -78,21 +78,33 @@ async fn hotkey_update_command() -> Result<(), String> {
 
 // 获取网站favicon
 #[tauri::command]
-async fn fetch_favicon(url: String) -> String {
-    match icon::fetch_favicon_async(&url).await {
+async fn fetch_favicon(app_handle: AppHandle, url: String) -> Result<String, String> {
+    if !app_config::is_plugin_enabled(&app_handle, "local-launcher")
+        && !app_config::is_plugin_enabled(&app_handle, "search-engines")
+    {
+        return Err("本地图标相关插件未启用".to_string());
+    }
+    Ok(match icon::fetch_favicon_async(&url).await {
         Some(icon_data) => icon_data,
         None => "".to_string(),
-    }
+    })
 }
 
 // 使用指定源获取网站favicon
 #[tauri::command]
-async fn fetch_favicon_with_source(url: String, source: String) -> String {
+async fn fetch_favicon_with_source(
+    app_handle: AppHandle,
+    url: String,
+    source: String,
+) -> Result<String, String> {
+    app_config::require_plugin_enabled(&app_handle, "local-launcher")?;
     let icon_source = icon::IconSource::from_str(&source);
-    match icon::fetch_favicon_with_source(&url, icon_source).await {
-        Some(icon_data) => icon_data,
-        None => "".to_string(),
-    }
+    Ok(
+        match icon::fetch_favicon_with_source(&url, icon_source).await {
+            Some(icon_data) => icon_data,
+            None => "".to_string(),
+        },
+    )
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -494,8 +506,6 @@ pub fn run() {
                                             log::warn!("文件监听器启动失败: {}", e);
                                         }
                                     }
-
-                                    app_config::apply_enabled_plugin_runtime_change(&app_handle_markdown, "desktop-files");
                                 }
                                 Err(e) => {
                                     log::warn!("搜索索引构建失败: {}", e);

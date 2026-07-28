@@ -54,7 +54,8 @@ const SEARCH_RESULT_TAB_DEFINITIONS: SearchResultTabDefinition[] = [
   {
     labelKey: 'searchResult.tools',
     value: 'tool',
-    matcher: (item) => getResultSource(item) === 'quick-tools' || item.summarize === 'tool',
+    matcher: (item) =>
+      getResultSource(item) === 'quick-tools' || item.summarize === 'tool',
     pluginId: 'quick-tools'
   },
   {
@@ -71,19 +72,34 @@ const SEARCH_RESULT_TAB_DEFINITIONS: SearchResultTabDefinition[] = [
   }
 ];
 
-const getRowKey = (item: ContentType, index: number) => `${String(item.id)}-${item.summarize ?? 'text'}-${index}`;
+const getResultPluginId = (item: ContentType): string | undefined =>
+  SEARCH_RESULT_TAB_DEFINITIONS.find(
+    (definition) => definition.pluginId && definition.matcher?.(item)
+  )?.pluginId;
 
-export function useSearchResultTabs(results: MaybeRefOrGetter<ContentType[]>, t: ComposerTranslation) {
+const getRowKey = (item: ContentType, index: number) =>
+  `${String(item.id)}-${item.summarize ?? 'text'}-${index}`;
+
+export function useSearchResultTabs(
+  results: MaybeRefOrGetter<ContentType[]>,
+  t: ComposerTranslation
+) {
   const pluginStore = usePluginStore();
   const tabEntries = computed(() => {
     const sourceResults = toValue(results);
-    const groupedResults = new Map<SearchResultTabValue, Array<ContentType & { __rowKey: string }>>();
+    const groupedResults = new Map<
+      SearchResultTabValue,
+      Array<ContentType & { __rowKey: string }>
+    >();
 
     for (const definition of SEARCH_RESULT_TAB_DEFINITIONS) {
       groupedResults.set(definition.value, []);
     }
 
     sourceResults.forEach((item, index) => {
+      const pluginId = getResultPluginId(item);
+      if (pluginId && !pluginStore.isEnabled(pluginId)) return;
+
       const resultWithKey = {
         ...item,
         __rowKey: getRowKey(item, index)
@@ -102,21 +118,26 @@ export function useSearchResultTabs(results: MaybeRefOrGetter<ContentType[]>, t:
     return groupedResults;
   });
 
-  const tabs = computed<SearchResultTab[]>(() => SEARCH_RESULT_TAB_DEFINITIONS
-    .map((definition) => ({
+  const tabs = computed<SearchResultTab[]>(() =>
+    SEARCH_RESULT_TAB_DEFINITIONS.map((definition) => ({
       label: t(definition.labelKey),
       value: definition.value,
       count: tabEntries.value.get(definition.value)?.length ?? 0,
       matcher: definition.matcher,
       visible:
         definition.alwaysVisible ||
-        (definition.pluginId ? pluginStore.isEnabled(definition.pluginId) : false)
-    }))
-    .filter((tab) => tab.visible || tab.count > 0));
+        (definition.pluginId
+          ? pluginStore.isEnabled(definition.pluginId)
+          : false)
+    })).filter((tab) => tab.visible)
+  );
 
-  const getTabResults = (tab: SearchResultTabValue) => tabEntries.value.get(tab) ?? [];
-  const getTabCount = (tab: SearchResultTabValue) => tabEntries.value.get(tab)?.length ?? 0;
-  const getTabIndex = (tab: SearchResultTabValue) => tabs.value.findIndex((item) => item.value === tab);
+  const getTabResults = (tab: SearchResultTabValue) =>
+    tabEntries.value.get(tab) ?? [];
+  const getTabCount = (tab: SearchResultTabValue) =>
+    tabEntries.value.get(tab)?.length ?? 0;
+  const getTabIndex = (tab: SearchResultTabValue) =>
+    tabs.value.findIndex((item) => item.value === tab);
 
   return {
     tabs,

@@ -1,6 +1,6 @@
 use crate::bookmarks::BookmarkInfo;
 use crate::db::entity::{
-    clear_entities, count_entities, get_all_entities, insert_entities, replace_entities,
+    count_entities, count_scanner_entities, get_all_entities, insert_entities, replace_entities,
     update_entity_icon,
 };
 use crate::db::DbConnectionManager;
@@ -44,18 +44,13 @@ pub fn update_bookmark_icon_silent(bookmark_id: &str, icon: &str) -> Result<(), 
     update_entity_icon::<BookmarkInfo>(bookmark_id, icon)
 }
 
-// 清空所有书签
-pub fn clear_bookmarks() -> Result<(), rusqlite::Error> {
-    let result = clear_entities::<BookmarkInfo>();
-    if result.is_ok() {
-        invalidate_bookmarks_cache();
-    }
-    result
-}
-
 // 统计书签数量
 pub fn count_bookmarks() -> Result<i64, rusqlite::Error> {
     count_entities::<BookmarkInfo>()
+}
+
+pub fn count_scanned_bookmarks() -> Result<i64, rusqlite::Error> {
+    count_scanner_entities::<BookmarkInfo>()
 }
 
 // ============= 书签管理函数 =============

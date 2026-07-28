@@ -757,17 +757,28 @@ fn apply_desktop_files_runtime_change(app_handle: &AppHandle, enabled: bool) {
             return;
         }
         let progress_reset_kind = crate::db::peek_show_progress_kind(app_handle);
-        if matches!(progress_reset_kind.as_deref(), Some("desktopFiles" | "all")) {
-            let _ = crate::db::consume_show_progress_kind(app_handle);
+        if matches!(progress_reset_kind.as_deref(), Some("desktopFiles")) {
+            if let Err(error) = crate::db::consume_show_progress_kind(app_handle) {
+                warn!("[Plugin] 消费桌面文件重置任务失败: {}", error);
+                return;
+            }
             crate::window::create_progress_notification_window();
             std::thread::sleep(std::time::Duration::from_millis(100));
-            crate::window::emit_scan_progress("正在扫描桌面文件...", 0, 1, "");
+            crate::window::emit_scan_progress_for(
+                "desktop-files",
+                "index",
+                "正在扫描桌面文件...",
+                0,
+                1,
+                "",
+            );
             let count = crate::plugins::desktop_files::refresh_desktop_files_cache_with_count();
-            crate::window::emit_scan_complete(0, 0, count);
+            crate::window::emit_scan_complete_for("desktop-files", 0, 0, count);
         } else {
             crate::plugins::desktop_files::initialize_desktop_files_cache_with_count();
         }
     } else {
+        crate::plugins::desktop_files::cancel_desktop_file_icon_rebuild();
         crate::plugins::desktop_files::invalidate_desktop_files_cache();
     }
 }
@@ -780,6 +791,7 @@ fn apply_local_launcher_runtime_change(app_handle: &AppHandle, enabled: bool) {
         }
         crate::icon::init_app_and_bookmark_icons(app_handle);
     } else {
+        crate::icon::cancel_app_and_bookmark_icons();
         crate::plugins::local_launcher::invalidate_apps_cache();
         crate::plugins::local_launcher::invalidate_bookmarks_cache();
     }
@@ -791,60 +803,20 @@ fn refresh_search_plugin_index_feedback(app_handle: AppHandle, plugin_id: String
     }
 
     std::thread::spawn(move || match plugin_id.as_str() {
-        "local-launcher" => {
-            crate::window::create_progress_notification_window();
-            std::thread::sleep(std::time::Duration::from_millis(100));
-            crate::window::emit_scan_progress("正在检索本地应用...", 0, 4, "");
-            let apps = crate::apps::get_installed_apps();
-            crate::window::emit_scan_progress(
-                "正在保存应用数据...",
-                1,
-                4,
-                &format!("共 {} 个应用", apps.len()),
-            );
-            if let Err(e) = crate::db::replace_apps(&apps) {
-                warn!("[Plugin] 原子替换本地应用索引失败: {}", e);
-            } else {
-                let _ = crate::db::mark_index_success("apps", 1, 1);
-            }
-            crate::plugins::local_launcher::invalidate_apps_cache();
-
-            crate::window::emit_scan_progress("正在检索浏览器书签...", 2, 4, "");
-            let bookmarks = crate::bookmarks::get_browser_bookmarks();
-            crate::window::emit_scan_progress(
-                "正在保存书签数据...",
-                3,
-                4,
-                &format!("共 {} 个书签", bookmarks.len()),
-            );
-            if let Err(e) = crate::db::replace_bookmarks(&bookmarks) {
-                warn!("[Plugin] 原子替换浏览器书签索引失败: {}", e);
-            } else {
-                let _ = crate::db::mark_index_success("bookmarks", 1, 1);
-            }
-            crate::plugins::local_launcher::invalidate_bookmarks_cache();
-            if crate::icon::is_icon_cache_enabled() {
-                let updated_count = std::sync::Arc::new(std::sync::Mutex::new(0usize));
-                let completion_counter = std::sync::Arc::new(std::sync::Mutex::new(0usize));
-                crate::apps::load_app_icons_async_silent(
-                    apps.clone(),
-                    updated_count.clone(),
-                    completion_counter.clone(),
-                );
-                crate::bookmarks::load_bookmark_icons_async_silent(
-                    bookmarks.clone(),
-                    updated_count,
-                    completion_counter,
-                );
-            }
-            crate::window::emit_scan_complete(apps.len(), bookmarks.len(), 0);
-        }
+        "local-launcher" => crate::icon::rebuild_app_and_bookmark_index(app_handle),
         "desktop-files" => {
             crate::window::create_progress_notification_window();
             std::thread::sleep(std::time::Duration::from_millis(100));
-            crate::window::emit_scan_progress("正在检索桌面文件...", 0, 1, "");
+            crate::window::emit_scan_progress_for(
+                "desktop-files",
+                "index",
+                "正在检索桌面文件...",
+                0,
+                1,
+                "",
+            );
             let count = crate::plugins::desktop_files::refresh_desktop_files_cache_with_count();
-            crate::window::emit_scan_complete(0, 0, count);
+            crate::window::emit_scan_complete_for("desktop-files", 0, 0, count);
         }
         _ => {
             let _ = app_handle;
@@ -1184,15 +1156,16 @@ pub fn set_setup_index_preferences(
     }
 
     if let Some(reset_kind) = match (local_launcher, desktop_files) {
-        (true, true) => Some("all"),
+        // 本地启动器负责前台重建反馈；桌面文件按自身空缓存静默恢复，
+        // 避免两个插件竞争消费同一个 all 标记并互相覆盖完成态。
+        (true, true) => Some("launcher"),
         (true, false) => Some("launcher"),
         (false, true) => Some("desktopFiles"),
         (false, false) => None,
     } {
-        crate::db::set_show_progress_on_restart_with_kind(&app_handle, reset_kind);
+        crate::db::set_show_progress_on_restart_with_kind(&app_handle, reset_kind)?;
     } else {
-        crate::json_config::set_app_config_value(&app_handle, "show_progress_on_restart", false)?;
-        crate::json_config::set_app_config_value(&app_handle, "show_progress_reset_kind", "")?;
+        crate::db::clear_show_progress_on_restart(&app_handle)?;
     }
 
     info!(

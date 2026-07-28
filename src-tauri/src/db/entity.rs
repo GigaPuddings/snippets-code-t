@@ -176,19 +176,6 @@ pub(crate) fn update_entity_icon<T: DbEntity>(
     Ok(())
 }
 
-// 清理可重建的扫描来源，保留用户手动添加/编辑项。
-pub(crate) fn clear_entities<T: DbEntity>() -> Result<(), rusqlite::Error> {
-    let conn = DbConnectionManager::get()?;
-    conn.execute(
-        &format!(
-            "DELETE FROM {} WHERE source_kind = 'scanner'",
-            T::TABLE_NAME
-        ),
-        [],
-    )?;
-    Ok(())
-}
-
 // 通用计数
 pub(crate) fn count_entities<T: DbEntity>() -> Result<i64, rusqlite::Error> {
     let conn = DbConnectionManager::get()?;
@@ -198,6 +185,18 @@ pub(crate) fn count_entities<T: DbEntity>() -> Result<i64, rusqlite::Error> {
         |row| row.get(0),
     )?;
     Ok(count)
+}
+
+pub(crate) fn count_scanner_entities<T: DbEntity>() -> Result<i64, rusqlite::Error> {
+    let conn = DbConnectionManager::get()?;
+    conn.query_row(
+        &format!(
+            "SELECT COUNT(*) FROM {} WHERE source_kind = 'scanner'",
+            T::TABLE_NAME
+        ),
+        [],
+        |row| row.get(0),
+    )
 }
 
 fn reconcile_legacy_entities<T: DbEntity>(
@@ -256,8 +255,8 @@ pub(crate) fn insert_entities<T: DbEntity>(entities: &[T]) -> Result<(), rusqlit
     transaction.commit()
 }
 
-/// 在单个事务中替换扫描来源索引，保留用户手动项，并避免
-/// “先清表、扫描/写入失败后只剩空表”。
+/// 在单个事务中替换扫描来源索引，保留用户手动项。扫描与解析先在事务外完成，
+/// 写入失败时旧索引仍可继续使用，不会留下只清空一半的状态。
 pub(crate) fn replace_entities<T: DbEntity>(entities: &[T]) -> Result<(), rusqlite::Error> {
     let mut conn = DbConnectionManager::get()?;
     let transaction = conn.transaction()?;

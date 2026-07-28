@@ -7,6 +7,7 @@ mod desktop_files;
 mod entity;
 mod icon_cache;
 mod init;
+mod reset;
 mod search_engines;
 mod search_history;
 mod settings;
@@ -17,19 +18,20 @@ pub use connection::DbConnectionManager;
 // 重新导出初始化函数
 pub use init::init_db;
 pub use init::{ensure_plugin_storage, mark_index_success};
+pub use reset::reset_rebuildable_indexes;
 
 // 重新导出应用相关函数
 pub use apps::{add_app, delete_app, get_apps, update_app};
 pub use apps::{
-    clear_apps, count_apps, get_all_apps, insert_apps, replace_apps, update_app_icon,
+    count_apps, count_scanned_apps, get_all_apps, insert_apps, replace_apps, update_app_icon,
     update_app_icon_silent,
 };
 
 // 重新导出书签相关函数
 pub use bookmarks::{add_bookmark, delete_bookmark, get_bookmarks, update_bookmark};
 pub use bookmarks::{
-    clear_bookmarks, count_bookmarks, get_all_bookmarks, insert_bookmarks, replace_bookmarks,
-    update_bookmark_icon, update_bookmark_icon_silent,
+    count_bookmarks, count_scanned_bookmarks, get_all_bookmarks, insert_bookmarks,
+    replace_bookmarks, update_bookmark_icon, update_bookmark_icon_silent,
 };
 
 // 重新导出搜索引擎相关函数
@@ -43,8 +45,8 @@ pub use alarm::{add_or_update_alarm_card, delete_alarm_card_by_id, get_all_alarm
 
 // 重新导出图标缓存相关函数
 pub use desktop_files::{
-    apply_desktop_file_cache_changes, clear_desktop_file_cache, load_all_desktop_file_cache,
-    replace_desktop_file_cache, upsert_desktop_file_cache, DesktopFileCacheRecord,
+    apply_desktop_file_cache_changes, load_all_desktop_file_cache, replace_desktop_file_cache,
+    upsert_desktop_file_cache, DesktopFileCacheRecord,
 };
 pub use icon_cache::{
     cleanup_old_icon_cache, clear_all_icon_cache, delete_icon_from_cache, get_icon_from_cache,
@@ -57,7 +59,8 @@ pub use connection::{
     restore_database, set_custom_db_path,
 };
 pub use connection::{
-    consume_show_progress_kind, peek_show_progress_kind, set_show_progress_on_restart_with_kind,
+    clear_show_progress_on_restart, consume_show_progress_kind, peek_show_progress_kind,
+    set_show_progress_on_restart_with_kind,
 };
 pub use connection::{
     is_setup_completed, is_setup_completed_internal, set_data_dir_from_setup, set_setup_completed,

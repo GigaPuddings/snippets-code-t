@@ -1442,14 +1442,6 @@ pub fn create_notification_window_unified(ntype: NotificationType) -> Option<Web
             let _ = window.set_focus();
             return Some(window);
         }
-        // 重置进度状态
-        match PROGRESS_STATE.lock() {
-            Ok(mut state) => *state = ScanProgressState::default(),
-            Err(e) => error!(
-                "create_notification_window_unified: 重置进度状态锁定失败: {}",
-                e
-            ),
-        }
     }
 
     // 获取主显示器
@@ -1742,6 +1734,8 @@ pub fn hotkey_dark_mode() {
 // 扫描进度状态
 #[derive(Debug, Clone, serde::Serialize, Default)]
 pub struct ScanProgressState {
+    pub owner: String,
+    pub task: String,
     pub stage: String,
     pub current: usize,
     pub total: usize,
@@ -1762,25 +1756,47 @@ pub fn get_scan_progress_state() -> ScanProgressState {
 }
 
 // 发送扫描进度事件（使用全局 emit_all 确保所有窗口都能收到）
-pub fn emit_scan_progress(stage: &str, current: usize, total: usize, current_item: &str) {
+pub fn emit_scan_progress_for(
+    owner: &str,
+    task: &str,
+    stage: &str,
+    current: usize,
+    total: usize,
+    current_item: &str,
+) {
     let emit_started = std::time::Instant::now();
 
     // 更新状态
-    let stage_changed = {
+    let should_update_tray = {
         let mut state = PROGRESS_STATE.lock().unwrap();
-        let stage_changed = state.completed || state.stage != stage;
+        let previous_bucket = if state.total > 0 {
+            state.current.saturating_mul(20) / state.total
+        } else {
+            0
+        };
+        let next_bucket = if total > 0 {
+            current.saturating_mul(20) / total
+        } else {
+            0
+        };
+        let stage_changed =
+            state.completed || state.owner != owner || state.task != task || state.stage != stage;
+        state.owner = owner.to_string();
+        state.task = task.to_string();
         state.stage = stage.to_string();
         state.current = current;
         state.total = total;
         state.current_item = current_item.to_string();
         state.completed = false;
-        stage_changed
+        stage_changed || previous_bucket != next_bucket || current == total
     };
 
     if let Some(app) = APP.get() {
         let emit_result = app.emit(
             "scan-progress",
             serde_json::json!({
+                "owner": owner,
+                "task": task,
                 "stage": stage,
                 "current": current,
                 "total": total,
@@ -1811,7 +1827,7 @@ pub fn emit_scan_progress(stage: &str, current: usize, total: usize, current_ite
         }
     }
 
-    if stage_changed {
+    if should_update_tray {
         if let Some(app) = APP.get() {
             crate::tray::update_plugin_install_status(app);
         }
@@ -1819,10 +1835,19 @@ pub fn emit_scan_progress(stage: &str, current: usize, total: usize, current_ite
 }
 
 // 发送扫描完成事件
-pub fn emit_scan_complete(apps_count: usize, bookmarks_count: usize, desktop_files_count: usize) {
+pub fn emit_scan_complete_for(
+    owner: &str,
+    apps_count: usize,
+    bookmarks_count: usize,
+    desktop_files_count: usize,
+) {
     // 更新状态
     {
         let mut state = PROGRESS_STATE.lock().unwrap();
+        if !state.owner.is_empty() && state.owner != owner {
+            return;
+        }
+        state.owner = owner.to_string();
         state.completed = true;
         state.apps_count = apps_count;
         state.bookmarks_count = bookmarks_count;
@@ -1841,9 +1866,37 @@ pub fn emit_scan_complete(apps_count: usize, bookmarks_count: usize, desktop_fil
         let _ = app.emit(
             "scan-complete",
             serde_json::json!({
+                "owner": owner,
                 "appsCount": apps_count,
                 "bookmarksCount": bookmarks_count,
                 "desktopFilesCount": desktop_files_count
+            }),
+        );
+        crate::tray::update_plugin_install_status(app);
+    }
+}
+
+pub fn clear_scan_progress_for(owner: &str) {
+    let cleared = {
+        let mut state = PROGRESS_STATE.lock().unwrap();
+        if state.owner != owner || state.completed {
+            false
+        } else {
+            *state = ScanProgressState {
+                completed: true,
+                ..ScanProgressState::default()
+            };
+            true
+        }
+    };
+    if !cleared {
+        return;
+    }
+    if let Some(app) = APP.get() {
+        let _ = app.emit(
+            "scan-cancelled",
+            serde_json::json!({
+                "owner": owner
             }),
         );
         crate::tray::update_plugin_install_status(app);
