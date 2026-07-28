@@ -23,8 +23,6 @@ export const useConfigurationStore = defineStore('configuration', {
     darkModeHotkey: '',
     wallpaperSwitcherHotkey: '',
     pluginHotkeys: {},
-    dbPath: null, // 数据库路径
-    dbBackup: 'A', // 数据库备份
     theme: 'auto', // 主题
     systemPrefersDark: false, // 系统是否深色
     language: 'zh-CN', // 界面语言
@@ -42,13 +40,6 @@ export const useConfigurationStore = defineStore('configuration', {
   actions: {
     // 初始化配置
     async initialize() {
-      // 获取数据库路径
-      try {
-        this.dbPath = (await invoke('get_db_path')) || '';
-      } catch (error) {
-        logger.error('获取数据库路径失败:', error);
-      }
-
       // 委托给 useHotkeyStore 初始化快捷键
       const hotkeyStore = useHotkeyStore();
       await hotkeyStore.initialize();
@@ -144,7 +135,7 @@ export const useConfigurationStore = defineStore('configuration', {
     }
   },
   persist: {
-    pick: ['theme', 'dbPath']
+    pick: ['theme']
   }
 });
 

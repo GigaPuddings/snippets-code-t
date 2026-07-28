@@ -87,69 +87,6 @@
       <section class="summarize-section">
         <div class="summarize-label">
           <div class="summarize-label-title">
-            {{ $t('settings.resetSoftware') }}
-          </div>
-          <div class="summarize-label-desc">
-            {{ $t('settings.resetSoftwareDesc') }}
-          </div>
-        </div>
-        <div class="summarize-input-wrapper">
-          <CustomButton
-            type="primary"
-            size="small"
-            @click="resetSoftware"
-            :loading="resetSoftwareLoading"
-          >
-            {{ $t('settings.resetSoftwareAction') }}
-          </CustomButton>
-        </div>
-      </section>
-
-      <section class="summarize-section">
-        <div class="summarize-label">
-          <div class="summarize-label-title">
-            {{ $t('settings.clearSearchHistory') }}
-          </div>
-          <div class="summarize-label-desc">
-            {{ $t('settings.clearSearchHistoryDesc') }}
-          </div>
-        </div>
-        <div class="summarize-input-wrapper">
-          <CustomButton
-            type="primary"
-            size="small"
-            @click="showHistoryDialog = true"
-            :loading="historyLoading"
-          >
-            {{ $t('settings.clearSearchHistoryAction') }}
-          </CustomButton>
-        </div>
-      </section>
-
-      <section class="summarize-section">
-        <div class="summarize-label">
-          <div class="summarize-label-title">
-            {{ $t('settings.clearIconCache') }}
-          </div>
-          <div class="summarize-label-desc">
-            {{ $t('settings.clearIconCacheDesc') }}
-          </div>
-        </div>
-        <div class="summarize-input-wrapper">
-          <CustomButton
-            type="primary"
-            size="small"
-            @click="showIconCacheDialog = true"
-            :loading="iconCacheLoading"
-          >
-            {{ $t('settings.clearIconCacheAction') }}
-          </CustomButton>
-        </div>
-      </section>
-
-      <section class="summarize-section">
-        <div class="summarize-label">
-          <div class="summarize-label-title">
             {{ $t('settings.autoUpdateCheck') }}
           </div>
           <div class="summarize-label-desc">
@@ -205,45 +142,6 @@
       </section>
     </main>
 
-    <!-- 重置软件对话框 -->
-    <SelectConfirmDialog
-      v-model="showResetDialog"
-      :title="$t('settings.resetSoftwareTitle')"
-      :message="$t('settings.resetSelectContent')"
-      :options="resetOptions"
-      :default-value="selectedResetType"
-      :confirm-text="$t('common.confirm')"
-      :cancel-text="$t('common.cancel')"
-      :loading="resetSoftwareLoading"
-      @confirm="handleResetConfirm"
-      @cancel="resetSoftwareLoading = false"
-    />
-
-    <SelectConfirmDialog
-      v-model="showHistoryDialog"
-      :title="$t('settings.clearSearchHistory')"
-      :message="$t('settings.clearSearchHistorySelect')"
-      :options="historyOptions"
-      default-value="all"
-      :confirm-text="$t('common.confirm')"
-      :cancel-text="$t('common.cancel')"
-      :loading="historyLoading"
-      @confirm="handleHistoryConfirm"
-      @cancel="historyLoading = false"
-    />
-
-    <ConfirmDialog
-      v-model="showIconCacheDialog"
-      :title="$t('settings.clearIconCache')"
-      :confirm-text="$t('common.confirm')"
-      :cancel-text="$t('common.cancel')"
-      :loading="iconCacheLoading"
-      @confirm="handleIconCacheConfirm"
-      @cancel="iconCacheLoading = false"
-    >
-      <div>{{ $t('settings.clearIconCacheConfirm') }}</div>
-    </ConfirmDialog>
-
     <!-- 退出应用对话框 -->
     <ConfirmDialog
       v-model="showExitDialog"
@@ -267,12 +165,7 @@ import { useConfigurationStore } from '@/store';
 import { broadcastThemeChanged } from '@/utils/theme-sync';
 import { invoke } from '@tauri-apps/api/core';
 import { emit } from '@tauri-apps/api/event';
-import {
-  CustomButton,
-  CustomSwitch,
-  ConfirmDialog,
-  SelectConfirmDialog
-} from '@/components/UI';
+import { CustomButton, CustomSwitch, ConfirmDialog } from '@/components/UI';
 import { setLocale, type LocaleType } from '@/i18n';
 import modal from '@/utils/modal';
 
@@ -283,15 +176,8 @@ defineOptions({
 const { t } = useI18n();
 const store = useConfigurationStore();
 
-const resetSoftwareLoading = ref(false);
-const historyLoading = ref(false);
-const iconCacheLoading = ref(false);
 const exitApplicationLoading = ref(false);
-const showResetDialog = ref(false);
-const showHistoryDialog = ref(false);
-const showIconCacheDialog = ref(false);
 const showExitDialog = ref(false);
-const selectedResetType = ref('all');
 
 const dictTheme = computed(() => [
   { value: 'light', label: t('settings.themeLight'), icon: SunOne },
@@ -367,81 +253,6 @@ const handleAutoStartChange = async (value: boolean): Promise<void> => {
   } catch (error) {
     console.error('Failed to set autostart:', error);
     store.autoStart = !value;
-  }
-};
-
-// 重置软件
-const resetOptions = computed(() => [
-  { value: 'all', label: t('settings.resetAll') },
-  { value: 'apps', label: t('settings.resetApps') },
-  { value: 'bookmarks', label: t('settings.resetBookmarks') },
-  { value: 'desktopFiles', label: t('settings.resetDesktopFiles') }
-]);
-
-const historyOptions = computed(() => [
-  { value: 'all', label: t('settings.historyAll') },
-  { value: 'apps', label: t('settings.historyApps') },
-  { value: 'bookmarks', label: t('settings.historyBookmarks') },
-  { value: 'desktopFiles', label: t('settings.historyDesktopFiles') },
-  { value: 'markdown', label: t('settings.historyMarkdown') }
-]);
-
-const resetSoftware = (): void => {
-  selectedResetType.value = 'all';
-  showResetDialog.value = true;
-};
-
-const handleResetConfirm = async (value: string | number): Promise<void> => {
-  resetSoftwareLoading.value = true;
-  try {
-    await invoke('reset_software', {
-      resetType: value
-    });
-    let successMsg = '';
-    if (value === 'apps') {
-      successMsg = t('settings.resetAppsSuccess');
-    } else if (value === 'bookmarks') {
-      successMsg = t('settings.resetBookmarksSuccess');
-    } else if (value === 'desktopFiles') {
-      successMsg = t('settings.resetDesktopFilesSuccess');
-    } else {
-      successMsg = t('settings.resetAllSuccess');
-    }
-    modal.msg(successMsg);
-    showResetDialog.value = false;
-  } catch (error) {
-    console.error('Reset failed:', error);
-    modal.msg(`${t('settings.resetFailed')}: ${error}`, 'error');
-  } finally {
-    resetSoftwareLoading.value = false;
-  }
-};
-
-const handleHistoryConfirm = async (value: string | number): Promise<void> => {
-  historyLoading.value = true;
-  try {
-    const count = await invoke<number>('clear_search_history', {
-      scope: String(value)
-    });
-    modal.msg(t('settings.clearSearchHistorySuccess', { count }));
-    showHistoryDialog.value = false;
-  } catch (error) {
-    modal.msg(`${t('settings.clearSearchHistoryFailed')}: ${error}`, 'error');
-  } finally {
-    historyLoading.value = false;
-  }
-};
-
-const handleIconCacheConfirm = async (): Promise<void> => {
-  iconCacheLoading.value = true;
-  try {
-    await invoke<number>('clear_icon_cache');
-    modal.msg(t('settings.clearIconCacheSuccess'));
-    showIconCacheDialog.value = false;
-  } catch (error) {
-    modal.msg(`${t('settings.clearIconCacheFailed')}: ${error}`, 'error');
-  } finally {
-    iconCacheLoading.value = false;
   }
 };
 

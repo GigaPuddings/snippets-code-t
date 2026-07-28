@@ -8,6 +8,10 @@ export async function revealFileInFolder(filePath: string): Promise<void> {
   await invoke('show_file_in_folder', { filePath });
 }
 
+export async function openFolder(folderPath: string): Promise<void> {
+  await invoke('open_folder', { folderPath });
+}
+
 export async function openFileWithOtherWays(filePath: string): Promise<void> {
   await invoke('open_path', { pathStr: filePath });
 }

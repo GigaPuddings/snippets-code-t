@@ -55,12 +55,11 @@ pub use icon_cache::{
 
 // 重新导出命令函数
 pub use connection::{
-    backup_database, get_data_dir_info, get_db_path, optimize_database, optimize_database_cmd,
-    restore_database, set_custom_db_path,
-};
-pub use connection::{
     clear_show_progress_on_restart, consume_show_progress_kind, peek_show_progress_kind,
     set_show_progress_on_restart_with_kind,
+};
+pub use connection::{
+    get_data_dir_info, get_db_path, optimize_database, optimize_database_cmd, set_custom_db_path,
 };
 pub use connection::{
     is_setup_completed, is_setup_completed_internal, set_data_dir_from_setup, set_setup_completed,

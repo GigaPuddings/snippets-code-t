@@ -1,7 +1,6 @@
 use crate::json_config;
 use crate::APP;
 use std::fs;
-use std::io::Read;
 use std::path::PathBuf;
 use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
@@ -98,94 +97,6 @@ fn backup_database_to_path(target_path: &std::path::Path) -> Result<(), String> 
         .map_err(|e| format!("备份数据库失败: {}", e))
 }
 
-fn restore_database_from_path(source_path: &std::path::Path) -> Result<(), String> {
-    let source = rusqlite::Connection::open(source_path)
-        .map_err(|e| format!("打开备份数据库失败: {}", e))?;
-    let mut target =
-        DbConnectionManager::get().map_err(|e| format!("打开目标数据库失败: {}", e))?;
-    let backup = rusqlite::backup::Backup::new(&source, &mut target)
-        .map_err(|e| format!("初始化数据库恢复失败: {}", e))?;
-    backup
-        .run_to_completion(64, std::time::Duration::from_millis(20), None)
-        .map_err(|e| format!("恢复数据库失败: {}", e))
-}
-
-#[tauri::command]
-pub async fn backup_database(app_handle: tauri::AppHandle, format: String) -> Result<(), String> {
-    let source_path = get_database_path(&app_handle);
-
-    // 使用对话框选择保存位置
-    let file_path = app_handle
-        .dialog()
-        .file()
-        .set_title("选择备份保存位置")
-        .set_file_name(format!(
-            "snippets_backup_{}.db",
-            generate_backup_suffix(&format)
-        ))
-        .blocking_save_file();
-
-    match file_path {
-        Some(path) => {
-            // 将FilePath转换为PathBuf
-            let target_path = PathBuf::from(path.as_path().unwrap());
-            if target_path == source_path {
-                return Err("备份目标不能与当前数据库相同".to_string());
-            }
-
-            // snippets.db 使用 WAL；直接复制主文件可能漏掉尚未 checkpoint 的事务。
-            // SQLite Online Backup API 会从一致性快照生成可独立恢复的目标数据库。
-            backup_database_to_path(&target_path)?;
-            Ok(())
-        }
-        None => Err("Backup cancelled".to_string()),
-    }
-}
-
-#[tauri::command]
-pub async fn restore_database(app_handle: tauri::AppHandle) -> Result<(), String> {
-    let target_path = get_database_path(&app_handle);
-
-    // 使用对话框选择要恢复的文件
-    let file_path = app_handle
-        .dialog()
-        .file()
-        .set_title("选择要恢复的数据库文件")
-        .add_filter("Database", &["db"])
-        .blocking_pick_file();
-
-    match file_path {
-        Some(path) => {
-            // 将FilePath转换为PathBuf
-            let source_path_buf = PathBuf::from(path.as_path().unwrap());
-            if source_path_buf == target_path {
-                return Err("恢复来源不能与当前数据库相同".to_string());
-            }
-
-            // 验证文件是否为有效的 SQLite 数据库
-            let mut file =
-                fs::File::open(&source_path_buf).map_err(|e| format!("打开文件失败: {}", e))?;
-            let mut header = [0u8; 16];
-            file.read_exact(&mut header)
-                .map_err(|e| format!("读取文件失败: {}", e))?;
-
-            if &header != b"SQLite format 3\0" {
-                return Err("选择的文件不是有效的 SQLite 数据库".to_string());
-            }
-
-            // 当前数据库也可能处于 WAL 模式；通过 Backup API 写入现有连接，
-            // 避免直接替换主文件后与旧 WAL/SHM 状态不一致。
-            restore_database_from_path(&source_path_buf)?;
-
-            // 重启应用以加载新数据库
-            app_handle.restart();
-            #[allow(unreachable_code)]
-            Ok(())
-        }
-        None => Err("Restore cancelled".to_string()),
-    }
-}
-
 fn copy_data_directory(source: &std::path::Path, target: &std::path::Path) -> Result<(), String> {
     fs::create_dir_all(target)
         .map_err(|e| format!("创建迁移目录失败 {}: {}", target.display(), e))?;
@@ -226,11 +137,11 @@ fn copy_data_directory(source: &std::path::Path, target: &std::path::Path) -> Re
 
 #[tauri::command]
 pub async fn set_custom_db_path(app_handle: tauri::AppHandle) -> Result<String, String> {
-    // 使用对话框选择文件夹
+    // 使用对话框选择应用数据目录的上级文件夹
     let folder_path = app_handle
         .dialog()
         .file()
-        .set_title("选择数据库存储位置")
+        .set_title("选择应用数据存储位置")
         .set_directory(std::env::current_dir().unwrap_or_default())
         .blocking_pick_folder();
 
@@ -525,20 +436,6 @@ pub fn set_data_dir_from_setup(
     log::info!("✅ 数据目录设置完成");
     // 返回实际使用的路径
     Ok(final_path)
-}
-
-// ============= 辅助函数 =============
-
-fn generate_backup_suffix(format: &str) -> String {
-    use chrono::Local;
-
-    let now = Local::now();
-    match format {
-        "A" => now.format("%Y%m%d").to_string(),
-        "B" => now.format("%H%M%S").to_string(),
-        "C" => now.format("%Y%m%d_%H%M%S").to_string(),
-        _ => now.format("%Y%m%d_%H%M%S").to_string(),
-    }
 }
 
 // ============= 数据库优化 =============

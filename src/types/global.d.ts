@@ -76,8 +76,6 @@ declare global {
     darkModeHotkey: string;
     wallpaperSwitcherHotkey: string;
     pluginHotkeys: Record<string, string>;
-    dbPath: string | null;
-    dbBackup: string;
     theme: 'light' | 'dark' | 'auto';
     /** 系统偏好是否为深色（仅 theme===auto 时有效，由 applyTheme/syncSystemThemeStyle 更新，用于界面响应式判断） */
     systemPrefersDark: boolean;

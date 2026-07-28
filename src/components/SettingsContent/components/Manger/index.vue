@@ -1,293 +1,148 @@
 <template>
   <div class="settings-panel">
-    <!-- 固定标题 -->
     <div class="panel-header">
       <h3 class="panel-title">{{ $t('dataManager.title') }}</h3>
     </div>
-    
-    <!-- 可滚动内容 -->
-    <main class="panel-content">
-    <section class="summarize-section transparent-input data-manager-section">
-      <div class="summarize-label data-manager-label">
-        <div class="summarize-label-title">{{ $t('dataManager.workspaceDir') }}</div>
-        <div class="summarize-label-desc">{{ $t('dataManager.workspaceDirDesc') }}</div>
-      </div>
-      <div class="summarize-input-wrapper data-manager-controls">
-        <el-input
-          class="summarize-input data-manager-path-input"
-          v-model="workspaceRoot"
-          readonly
-          :placeholder="$t('dataManager.workspaceNotSet')"
-        />
-        <CustomButton
-          type="primary"
-          size="small"
-          class="data-manager-action"
-          @click="selectWorkspaceRoot"
-          :loading="workspaceLoading"
-        >
-          {{ $t('dataManager.changeWorkspace') }}
-        </CustomButton>
-      </div>
-    </section>
 
-    <section class="summarize-section transparent-input data-manager-section">
-      <div class="summarize-label data-manager-label">
-        <div class="summarize-label-title">{{ $t('dataManager.snippetDir') }}</div>
-        <div class="summarize-label-desc">{{ $t('dataManager.snippetDirDesc') }}</div>
-      </div>
-      <div class="summarize-input-wrapper data-manager-controls">
-        <el-input
-          class="summarize-input data-manager-path-input"
-          v-model="store.dbPath"
-          readonly
-        />
-        <CustomButton
-          type="primary"
-          size="small"
-          class="data-manager-action"
-          @click="selectCustomPath"
-          :loading="pathLoading"
-        >
-          {{ $t('dataManager.changePath') }}
-        </CustomButton>
-      </div>
-    </section>
+    <main class="panel-content flex flex-col gap-6">
+      <StorageLocationsSection
+        :workspace-root="workspaceRoot"
+        :data-root="dataRoot"
+        :plugin-dir="pluginDir"
+        :log-dir="logDir"
+        :workspace-loading="workspaceLoading"
+        :path-loading="pathLoading"
+        @select-workspace="selectWorkspaceRoot"
+        @select-data-root="selectCustomPath"
+        @open-directory="openDataDirectory"
+      />
+      <IndexMaintenanceSection
+        :workspace-set="Boolean(workspaceRoot)"
+        :local-index-loading="localIndexLoading"
+        :markdown-index-loading="markdownIndexLoading"
+        @manage-local="showIndexDialog = true"
+        @rebuild-markdown="handleMarkdownIndexRebuild"
+      />
+      <HistoryCacheSection
+        :history-loading="historyLoading"
+        :icon-cache-loading="iconCacheLoading"
+        :wallpaper-cache-available="wallpaperCacheAvailable"
+        :wallpaper-cache-loading="wallpaperCacheLoading"
+        :wallpaper-cache-opening="wallpaperCacheOpening"
+        :wallpaper-cache-size-label="wallpaperCacheSizeLabel"
+        @clear-history="showHistoryDialog = true"
+        @clear-icon-cache="showIconCacheDialog = true"
+        @clear-wallpaper-cache="showWallpaperCacheDialog = true"
+        @open-wallpaper-cache="handleOpenWallpaperCache"
+      />
+    </main>
 
-    <section class="summarize-section transparent-input data-manager-section">
-      <div class="summarize-label data-manager-label">
-        <div class="summarize-label-title">{{ $t('dataManager.backup') }}</div>
-        <div class="summarize-label-desc">{{ $t('dataManager.backupDesc') }}</div>
-      </div>
-      <div class="summarize-input-wrapper data-manager-controls">
-        <el-select
-          class="summarize-input data-manager-select"
-          v-model="store.dbBackup"
-          :placeholder="$t('dataManager.selectFormat')"
-        >
-          <el-option
-            v-for="item in dictDBBackup"
-            :key="item.value"
-            :label="item.label"
-            :value="item.value"
-          />
-        </el-select>
-        <CustomButton
-          type="primary"
-          size="small"
-          class="data-manager-action"
-          @click="startBackup"
-          :loading="backupLoading"
-        >
-          {{ $t('dataManager.backupBtn') }}
-        </CustomButton>
-      </div>
-    </section>
+    <SelectConfirmDialog
+      v-model="showIndexDialog"
+      :title="$t('dataManager.localIndex')"
+      :message="$t('dataManager.localIndexSelect')"
+      :options="indexOptions"
+      default-value="all"
+      :confirm-text="$t('common.confirm')"
+      :cancel-text="$t('common.cancel')"
+      :loading="localIndexLoading"
+      @confirm="handleIndexConfirm"
+      @cancel="localIndexLoading = false"
+    />
 
-    <section class="summarize-section transparent-input data-manager-section">
-      <div class="summarize-label data-manager-label">
-        <div class="summarize-label-title">{{ $t('dataManager.restore') }}</div>
-        <div class="summarize-label-desc">{{ $t('dataManager.restoreDesc') }}</div>
-      </div>
-      <div class="summarize-input-wrapper data-manager-controls">
-        <CustomButton
-          type="primary"
-          size="small"
-          class="data-manager-action"
-          @click="showRestoreDialog = true"
-          :loading="restoreLoading"
-        >
-          {{ $t('dataManager.restoreBtn') }}
-        </CustomButton>
-      </div>
-    </section>
+    <SelectConfirmDialog
+      v-model="showHistoryDialog"
+      :title="$t('dataManager.searchHistory')"
+      :message="$t('dataManager.searchHistorySelect')"
+      :options="historyOptions"
+      default-value="all"
+      :confirm-text="$t('common.confirm')"
+      :cancel-text="$t('common.cancel')"
+      :loading="historyLoading"
+      @confirm="handleHistoryConfirm"
+      @cancel="historyLoading = false"
+    />
 
-  </main>
+    <ConfirmDialog
+      v-model="showIconCacheDialog"
+      :title="$t('dataManager.iconCache')"
+      :confirm-text="$t('common.confirm')"
+      :cancel-text="$t('common.cancel')"
+      :loading="iconCacheLoading"
+      @confirm="handleIconCacheConfirm"
+      @cancel="iconCacheLoading = false"
+    >
+      <div>{{ $t('dataManager.iconCacheConfirm') }}</div>
+    </ConfirmDialog>
 
-  <!-- 恢复数据确认对话框 -->
-  <ConfirmDialog
-    v-model="showRestoreDialog"
-    :title="$t('dataManager.warning')"
-    :confirm-text="$t('common.confirm')"
-    :cancel-text="$t('common.cancel')"
-    type="warning"
-    @confirm="handleRestoreConfirm"
-    @cancel="restoreLoading = false"
-  >
-    <div>{{ $t('dataManager.restoreWarning') }}</div>
-  </ConfirmDialog>
+    <ConfirmDialog
+      v-model="showWallpaperCacheDialog"
+      :title="$t('dataManager.wallpaperCache')"
+      :confirm-text="$t('common.confirm')"
+      :cancel-text="$t('common.cancel')"
+      :loading="wallpaperCacheLoading"
+      @confirm="handleWallpaperCacheConfirm"
+      @cancel="wallpaperCacheLoading = false"
+    >
+      <div>{{ $t('dataManager.wallpaperCacheConfirm') }}</div>
+    </ConfirmDialog>
 
-  <!-- 更改路径确认对话框 -->
-  <ConfirmDialog
-    v-model="showPathDialog"
-    :title="$t('dataManager.warning')"
-    :confirm-text="$t('common.confirm')"
-    :cancel-text="$t('common.cancel')"
-    type="warning"
-    @confirm="handlePathConfirm"
-    @cancel="pathLoading = false"
-  >
-    <div>{{ $t('dataManager.pathWarning') }}</div>
-  </ConfirmDialog>
-
+    <ConfirmDialog
+      v-model="showPathDialog"
+      :title="$t('dataManager.warning')"
+      :confirm-text="$t('common.confirm')"
+      :cancel-text="$t('common.cancel')"
+      type="warning"
+      @confirm="handlePathConfirm"
+      @cancel="pathLoading = false"
+    >
+      <div>{{ $t('dataManager.pathWarning') }}</div>
+    </ConfirmDialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { useConfigurationStore } from '@/store';
-import { useI18n } from 'vue-i18n';
-import { invoke } from '@tauri-apps/api/core';
-import modal from '@/utils/modal';
-import { CustomButton, ConfirmDialog } from '@/components/UI';
-import { getWorkspaceRoot, selectWorkspace, setWorkspaceRoot } from '@/api/markdown';
+import { ConfirmDialog, SelectConfirmDialog } from '@/components/UI';
+import HistoryCacheSection from './HistoryCacheSection.vue';
+import IndexMaintenanceSection from './IndexMaintenanceSection.vue';
+import StorageLocationsSection from './StorageLocationsSection.vue';
+import { useDataManager } from './useDataManager';
 
 defineOptions({
   name: 'Manger'
 });
 
-const { t } = useI18n();
-const store = useConfigurationStore();
-const backupLoading = ref(false);
-const restoreLoading = ref(false);
-const pathLoading = ref(false);
-const workspaceLoading = ref(false);
-const showRestoreDialog = ref(false);
-const showPathDialog = ref(false);
-const workspaceRoot = ref('');
-
-const dictDBBackup = computed(() => [
-  { value: 'A', label: t('dataManager.backupFormat.date') },
-  { value: 'B', label: t('dataManager.backupFormat.time') },
-  { value: 'C', label: t('dataManager.backupFormat.datetime') }
-]);
-
-const loadWorkspaceRoot = async () => {
-  workspaceRoot.value = await getWorkspaceRoot();
-};
-
-const selectWorkspaceRoot = async () => {
-  workspaceLoading.value = true;
-  try {
-    const selected = await selectWorkspace();
-    if (!selected) return;
-
-    await setWorkspaceRoot(selected);
-    workspaceRoot.value = selected;
-    window.dispatchEvent(new CustomEvent('refresh-categories', {
-      detail: { source: 'workspace-root-changed' }
-    }));
-    window.dispatchEvent(new CustomEvent('refresh-data', {
-      detail: { source: 'workspace-root-changed' }
-    }));
-    modal.msg(t('dataManager.workspaceSuccess'));
-  } catch (error) {
-    console.error('Workspace change failed:', error);
-    modal.msg(`${t('dataManager.workspaceFailed')}: ${error}`, 'error');
-  } finally {
-    workspaceLoading.value = false;
-  }
-};
-
-onMounted(loadWorkspaceRoot);
-
-// 备份数据
-const startBackup = async () => {
-  if (!store.dbBackup) {
-    modal.msg(t('dataManager.selectFormat'), 'warning');
-    return;
-  }
-
-  backupLoading.value = true;
-  try {
-    await invoke('backup_database', { format: store.dbBackup });
-    modal.msg(t('dataManager.backupSuccess'));
-  } catch (error: any) {
-    if (error !== 'Backup cancelled') {
-      modal.msg(`${t('dataManager.backupFailed')}: ${error}`, 'error');
-    }
-  } finally {
-    backupLoading.value = false;
-  }
-};
-// 恢复数据
-const handleRestoreConfirm = async () => {
-  restoreLoading.value = true;
-  try {
-    await invoke('restore_database');
-    modal.msg(t('dataManager.restoreSuccess'));
-    showRestoreDialog.value = false;
-  } catch (error) {
-    console.error('Restore failed:', error);
-    modal.msg(`${t('dataManager.restoreFailed')}: ${error}`, 'error');
-  } finally {
-    restoreLoading.value = false;
-  }
-};
-
-// 选择数据库路径
-const selectCustomPath = () => {
-  pathLoading.value = true;
-  showPathDialog.value = true;
-};
-
-const handlePathConfirm = async () => {
-  try {
-    const newPath = await invoke('set_custom_db_path');
-    store.dbPath = newPath as string;
-    modal.msg(t('dataManager.pathSuccess'));
-    showPathDialog.value = false;
-  } catch (error) {
-    console.error('Path change failed:', error);
-    modal.msg(`${t('dataManager.pathFailed')}: ${error}`, 'error');
-  } finally {
-    pathLoading.value = false;
-  }
-};
-
+const {
+  dataRoot,
+  handleHistoryConfirm,
+  handleIconCacheConfirm,
+  handleIndexConfirm,
+  handleMarkdownIndexRebuild,
+  handleOpenWallpaperCache,
+  handlePathConfirm,
+  handleWallpaperCacheConfirm,
+  historyLoading,
+  historyOptions,
+  iconCacheLoading,
+  indexOptions,
+  localIndexLoading,
+  logDir,
+  markdownIndexLoading,
+  openDataDirectory,
+  pathLoading,
+  pluginDir,
+  selectCustomPath,
+  selectWorkspaceRoot,
+  showHistoryDialog,
+  showIconCacheDialog,
+  showIndexDialog,
+  showPathDialog,
+  showWallpaperCacheDialog,
+  wallpaperCacheAvailable,
+  wallpaperCacheLoading,
+  wallpaperCacheOpening,
+  wallpaperCacheSizeLabel,
+  workspaceLoading,
+  workspaceRoot
+} = useDataManager();
 </script>
-
-<style scoped lang="scss">
-.data-manager-section {
-  gap: 1.5rem;
-}
-
-.data-manager-label {
-  flex: 1 1 16rem;
-  min-width: 0;
-}
-
-.data-manager-controls {
-  flex: 1 1 22rem;
-  min-width: 0;
-}
-
-.data-manager-path-input {
-  flex: 1 1 auto;
-  min-width: 0;
-  width: auto !important;
-}
-
-.data-manager-select {
-  width: min(10rem, 100%) !important;
-}
-
-.data-manager-action {
-  flex: 0 0 auto;
-  min-width: 5.5rem;
-  white-space: nowrap;
-}
-
-@media (max-width: 1120px) {
-  .data-manager-section {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.5rem;
-  }
-
-  .data-manager-controls {
-    width: 100%;
-  }
-}
-</style>
-
-

@@ -27,10 +27,10 @@ use crate::config::{
     reset_software, set_auto_update_check, set_language, set_offline_model_activated,
 };
 use crate::db::{
-    add_search_history, backup_database, clear_search_history, get_auto_hide_on_blur,
-    get_data_dir_info, get_db_path, get_search_history, is_setup_completed, optimize_database,
-    optimize_database_cmd, restore_database, set_auto_hide_on_blur, set_auto_start_setting,
-    set_custom_db_path, set_data_dir_from_setup, set_setup_completed,
+    add_search_history, clear_search_history, get_auto_hide_on_blur, get_data_dir_info,
+    get_db_path, get_search_history, is_setup_completed, optimize_database, optimize_database_cmd,
+    set_auto_hide_on_blur, set_auto_start_setting, set_custom_db_path, set_data_dir_from_setup,
+    set_setup_completed,
 };
 use crate::plugins::system_theme as dark_mode;
 use crate::update::{
@@ -662,8 +662,6 @@ pub fn run() {
             insert_text_to_last_window,       // 插入文本到上次活动窗口
             get_db_path,                      // 获取数据库路径
             get_data_dir_info,                // 获取数据目录信息
-            backup_database,                  // 备份数据库
-            restore_database,                 // 恢复数据库
             set_custom_db_path,               // 设置自定义数据库路径
             is_setup_completed,               // 检查是否已完成首次设置
             set_setup_completed,              // 标记首次设置已完成

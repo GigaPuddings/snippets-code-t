@@ -135,44 +135,6 @@ export default {
     autoStartDesc: 'Launch app when system starts',
     autoStartEnabled: 'Auto start enabled',
     autoStartDisabled: 'Auto start disabled',
-    resetSoftware: 'Reset Software',
-    resetSoftwareAction: 'Reset',
-    resetSoftwareDesc:
-      'Rebuild only app, bookmark, or desktop-file indexes; usage history, settings, workspace content, and icon cache are preserved',
-    resetSoftwareTitle: 'Reset Software',
-    resetSelectContent:
-      'Select local indexes to rebuild. The app will restart after submission:',
-    resetAll: 'Reset All',
-    resetApps: 'Reset Apps',
-    resetBookmarks: 'Reset Bookmarks',
-    resetDesktopFiles: 'Reset Desktop Files',
-    resetAppsSuccess: 'App index reset; the app will restart shortly',
-    resetBookmarksSuccess: 'Bookmark index reset; the app will restart shortly',
-    resetDesktopFilesSuccess:
-      'Desktop file index reset; the app will restart shortly',
-    resetAllSuccess: 'Local indexes reset; the app will restart shortly',
-    resetFailed: 'Reset failed',
-    clearSearchHistory: 'Clear Usage History',
-    clearSearchHistoryAction: 'Clear',
-    clearSearchHistoryDesc:
-      'Clear ranking history by source without deleting indexes, icons, bookmarks, apps, or files',
-    clearSearchHistorySelect: 'Select the history scope to clear:',
-    historyAll: 'All usage history',
-    historyApps: 'App usage history',
-    historyBookmarks: 'Bookmark usage history',
-    historyDesktopFiles: 'Desktop file usage history',
-    historyMarkdown: 'Snippet and note usage history',
-    clearSearchHistorySuccess: 'Cleared {count} usage history records',
-    clearSearchHistoryFailed: 'Failed to clear usage history',
-    clearIconCache: 'Clear Icon Cache',
-    clearIconCacheAction: 'Clear',
-    clearIconCacheDesc:
-      'Delete only rebuildable icons; source indexes, usage history, and user data are preserved',
-    clearIconCacheConfirm:
-      'Icons will be re-extracted on demand from Windows Shell and local browser caches.',
-    clearIconCacheSuccess:
-      'Icon cache cleared and is rebuilding in the background',
-    clearIconCacheFailed: 'Failed to clear icon cache',
     autoUpdateCheck: 'Auto Update Check',
     autoUpdateCheckDesc: 'Check for updates on app launch',
     autoUpdateEnabled: 'Auto update check enabled',
@@ -747,38 +709,88 @@ export default {
 
   // Data Management
   dataManager: {
-    title: 'Data Management',
+    title: 'Data & Storage',
+    locationsTitle: 'Storage Locations',
+    locationsDesc:
+      'Click a path to open it in File Explorer. Content and local state are stored separately.',
     workspaceDir: 'Markdown Workspace:',
     workspaceDirDesc:
-      'Set the Markdown file workspace. Plugins and settings remain available before it is set.',
+      'Stores snippets, notes, and attachments. Click the path to open it in File Explorer.',
     workspaceNotSet: 'Workspace not set',
     changeWorkspace: 'Choose',
     workspaceSuccess: 'Workspace set successfully',
     workspaceFailed: 'Failed to set workspace',
     snippetDir: 'App Data Directory:',
     snippetDirDesc:
-      'Stores the database, app config, and default plugins. This is not the Markdown workspace.',
+      'Stores local config, indexes, and plugin data. Click the path to open it in File Explorer.',
     changePath: 'Change',
-    backup: 'Data Backup:',
-    backupDesc: 'Set backup file location',
-    backupBtn: 'Backup',
-    restore: 'Data Restore:',
-    restoreDesc: 'Restore snippet data',
-    restoreBtn: 'Restore',
-    backupFormat: {
-      date: 'Date',
-      time: 'Time',
-      datetime: 'DateTime'
-    },
-    selectFormat: 'Select backup filename format',
-    backupSuccess: 'Backup successful',
-    backupFailed: 'Backup failed',
-    restoreWarning:
-      'Restoring data will replace the current database and requires restarting the app. Continue?',
-    restoreSuccess: 'Data restored. App will restart.',
+    pluginDir: 'Plugin Installation Directory:',
+    pluginDirDesc:
+      'Stores installed plugin packages. Change this location from Plugin Management.',
+    logDir: 'Application Log Directory:',
+    logDirDesc:
+      'Stores diagnostic logs and does not contain Markdown workspace content.',
+    openDirectory: 'Open in File Explorer',
+    openDirectoryFailed: 'Failed to open directory',
+    indexTitle: 'Index Maintenance',
+    indexDesc:
+      'Rebuilds only derived search data without deleting workspace content, settings, or usage history.',
+    localIndex: 'Local Source Indexes',
+    localIndexDesc:
+      'Rebuild app, browser bookmark, or desktop-file indexes. The app restarts after submission.',
+    localIndexSelect: 'Select the local source indexes to rebuild:',
+    manageIndex: 'Select and Rebuild',
+    rebuildIndex: 'Rebuild Index',
+    indexAll: 'All local source indexes',
+    indexApps: 'App index',
+    indexBookmarks: 'Browser bookmark index',
+    indexDesktopFiles: 'Desktop file index',
+    indexAppsSuccess: 'App index rebuild submitted. The app will restart.',
+    indexBookmarksSuccess:
+      'Bookmark index rebuild submitted. The app will restart.',
+    indexDesktopFilesSuccess:
+      'Desktop-file index rebuild submitted. The app will restart.',
+    indexAllSuccess:
+      'Local source index rebuild submitted. The app will restart.',
+    indexFailed: 'Failed to rebuild local source indexes',
+    markdownIndex: 'Markdown Search Index',
+    markdownIndexDesc:
+      'Rebuild the in-memory snippet and note search index from the current workspace.',
+    markdownIndexSuccess: 'Markdown search index rebuilt',
+    markdownIndexFailed: 'Failed to rebuild the Markdown search index',
+    cleanupTitle: 'History & Cache',
+    cleanupDesc:
+      'Each action affects only the named data scope and never cascades into user content.',
+    clearAction: 'Clear',
+    searchHistory: 'Search Usage History',
+    searchHistoryDesc:
+      'Clear ranking history by source without deleting indexes, icons, apps, or files.',
+    searchHistorySelect: 'Select the history scope to clear:',
+    historyAll: 'All usage history',
+    historyApps: 'App usage history',
+    historyBookmarks: 'Bookmark usage history',
+    historyDesktopFiles: 'Desktop file usage history',
+    historyMarkdown: 'Snippet and note usage history',
+    searchHistorySuccess: 'Cleared {count} usage history records',
+    searchHistoryFailed: 'Failed to clear usage history',
+    iconCache: 'Icon Cache',
+    iconCacheDesc:
+      'Deletes only rebuildable icons while preserving source indexes, usage history, and user data.',
+    iconCacheConfirm:
+      'Icons will be re-extracted on demand from Windows Shell and local browser caches.',
+    iconCacheSuccess: 'Icon cache cleared and is rebuilding in the background',
+    iconCacheFailed: 'Failed to clear icon cache',
+    wallpaperCache: 'Wallpaper Cache',
+    wallpaperCacheDesc:
+      'Currently uses {size}; the active wallpaper and fixed image are preserved.',
+    wallpaperCacheConfirm: 'Clear unused downloaded wallpapers?',
+    wallpaperCacheSuccess: 'Wallpaper cache cleared',
+    wallpaperCacheFailed: 'Failed to clear wallpaper cache',
+    sizeUnknown: 'Loading',
     pathWarning:
-      'Changing database location will migrate data and restart the app. Continue?',
-    pathSuccess: 'Path changed. App will restart.',
+      'Changing the app data directory will migrate local config, indexes, and plugin data, then restart the app. Continue?',
+    pathSuccess: 'App data directory changed. The app will restart.',
+    pathFailed: 'Failed to change app data directory',
     warning: 'Warning'
   },
 
