@@ -790,6 +790,7 @@ import type {
 import { useChatAttachments } from './useChatAttachments';
 import { useChatMarkdown } from './useChatMarkdown';
 import {
+  countOrderedPromptItems,
   hasRequiredEnhancedPromptLanguage,
   normalizeEnhancedPrompt,
   requiresChineseEnhancedPrompt
@@ -886,23 +887,43 @@ const quickPrompts = [
   }
 ] as const;
 const PROMPT_ENHANCEMENT_SYSTEM_PROMPT = `
-You are a prompt design assistant. Rewrite the user's rough prompt into a clear,
-high-quality prompt for another AI.
+You are a concise prompt editor. Refine the user's rough prompt for another AI
+without expanding, explaining, or re-planning it.
 
 Rules:
 1. Preserve the user's intent, facts, constraints, tone, and original language.
-2. Correct ambiguous, misspelled, or malformed technical terms inline.
-3. Clarify the objective, useful context, requirements, and expected output.
-4. Do not answer the prompt and do not invent missing requirements.
-5. Return only the rewritten prompt as plain text.
-6. Do not use Markdown syntax, headings, bullets, numbered lists, tables, emphasis,
-   code fences, labels, prefaces, explanations, notes, or correction summaries.
-7. Use direct natural-language sentences and line breaks only.
+2. Preserve the original top-level task structure and item boundaries exactly.
+   When the source is numbered, return the same number of concise numbered items.
+3. Keep each item short and directly actionable; do not merge items into prose.
+4. Correct ambiguous, misspelled, or malformed technical terms inline.
+5. Retain only requirements stated in the source. Do not add inferred requirements,
+   rationale, acceptance criteria, risk notes, or implementation suggestions.
+6. Do not answer the prompt. Return only the refined prompt as plain text.
+7. Do not use headings, bold, tables, code fences, labels, prefaces, explanations,
+   notes, or correction summaries. Ordered items such as "1、" are required when
+   the source uses ordered items.
 8. Never translate the prompt. Keep all natural-language text in the same language as
    the original prompt.
 9. If the original prompt contains Chinese, all natural-language output must be in
    Simplified Chinese. English is allowed only for proper names, code, paths, or
    technical identifiers that should remain unchanged.
+`.trim();
+
+const CHINESE_PROMPT_ENHANCEMENT_SYSTEM_PROMPT = `
+你是一名简洁的提示词编辑。请将用户的原始提示词整理为可直接交给另一个 AI 的版本，
+不要扩写、解释或重新规划任务。
+
+规则：
+1. 保留用户的意图、事实、约束、语气和原始语言。
+2. 完整保留原始顶层任务结构与条目边界。原文有编号时，必须返回相同数量的简洁编号条目。
+3. 每条保持简短、可执行，不得合并为长段落。
+4. 直接修正含糊、拼写错误或格式错误的技术术语。
+5. 仅保留原文已提出的要求。不得新增推断出的要求、理由、验收标准、风险说明或实现建议。
+6. 不要回答原始问题。只输出整理后的纯文本提示词。
+7. 不要使用标题、粗体、表格、代码围栏、标签、前言、解释、备注或修正摘要；原文有编号时，
+   必须使用“1、”等编号。
+8. 不得翻译提示词；所有自然语言必须与原文保持相同语言。
+9. 原始提示词包含中文时，所有自然语言输出必须为简体中文；专有名称、代码、路径和技术标识符除外。
 `.trim();
 
 const canSend = computed(
@@ -1016,23 +1037,35 @@ const requestEnhancedPrompt = async (
   retryForChinese: boolean
 ): Promise<string> => {
   const sourceIsChinese = requiresChineseEnhancedPrompt(source);
+  const orderedItemCount = countOrderedPromptItems(source);
   const languageInstruction = sourceIsChinese
     ? retryForChinese
       ? '强制重试：上一次结果未满足语言要求。必须仅使用简体中文输出完整提示词；不得输出英文句子。'
       : '语言要求：原始提示词包含中文。必须仅使用简体中文输出；不得将中文句子翻译成英文。'
     : 'Keep the natural language of the original prompt unchanged.';
+  const structureInstruction = orderedItemCount
+    ? sourceIsChinese
+      ? `结构要求：原始提示词共有 ${orderedItemCount} 条编号任务。输出必须恰好保留这 ${orderedItemCount} 条，按原顺序使用“1、”“2、”等编号；不得合并、拆分、新增或省略任务。每条只改写为一句简洁、可执行的要求。`
+      : `Structure requirement: the source has ${orderedItemCount} numbered tasks. Return exactly ${orderedItemCount} concise numbered items in the same order. Do not merge, split, add, or omit tasks.`
+    : sourceIsChinese
+      ? '结构要求：保留原有条目边界。每条任务只改写为一句简洁、可执行的要求；不要扩写成长段，不要新增推断。'
+      : 'Preserve the original task boundaries. Keep each task concise and actionable without adding inferences.';
   const originalPromptInstruction = sourceIsChinese
-    ? `原始提示词如下。请仅使用简体中文重写：\n---\n${source}\n---`
-    : `Original prompt:\n---\n${source}\n---`;
+    ? `${structureInstruction}\n\n原始提示词如下。请仅使用简体中文重写：\n---\n${source}\n---`
+    : `${structureInstruction}\n\nOriginal prompt:\n---\n${source}\n---`;
   const response = await chatWithLocalAi({
     messages: [
       {
         role: 'system',
-        content: `${PROMPT_ENHANCEMENT_SYSTEM_PROMPT}\n\n${languageInstruction}`
+        content: `${
+          sourceIsChinese
+            ? CHINESE_PROMPT_ENHANCEMENT_SYSTEM_PROMPT
+            : PROMPT_ENHANCEMENT_SYSTEM_PROMPT
+        }\n\n${languageInstruction}`
       },
       { role: 'user', content: originalPromptInstruction }
     ],
-    temperature: retryForChinese ? 0.1 : 0.25,
+    temperature: retryForChinese ? 0.05 : 0.1,
     enableThinking: false,
     maxTokens: Math.min(
       1200,

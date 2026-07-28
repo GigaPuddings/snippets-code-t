@@ -13,6 +13,9 @@ const TRAILING_SUMMARY =
 const isMarkdownTableSeparator = (value: string): boolean =>
   /^\s*\|?(?:\s*:?-{3,}:?\s*\|)+\s*$/.test(value);
 
+const ORDERED_PROMPT_ITEM = /^\s*(\d+)(?:[.)]\s+|、\s*)/;
+const ORDERED_PROMPT_ITEMS = /^\s*\d+(?:[.)]\s+|、\s*)/gm;
+
 const unwrapMarkdown = (value: string): string =>
   value
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
@@ -43,16 +46,19 @@ const keepCorrectedTerms = (value: string): string =>
 const normalizeMarkdownLine = (line: string): string => {
   const withoutBlockSyntax = line
     .replace(/^\s{0,3}#{1,6}\s+/, '')
-    .replace(/^\s{0,3}>\s?/, '')
+    .replace(/^\s{0,3}>\s?/, '');
+  const orderedItem = withoutBlockSyntax.match(ORDERED_PROMPT_ITEM);
+  const orderedPrefix = orderedItem ? `${orderedItem[1]}、` : '';
+  const withoutListSyntax = withoutBlockSyntax
     .replace(/^\s*[-+*]\s+\[[ xX]\]\s+/, '')
     .replace(/^\s*[-+*]\s+/, '')
-    .replace(/^\s*\d+[.)、]\s+/, '');
+    .replace(ORDERED_PROMPT_ITEM, '');
 
-  if (isMarkdownTableSeparator(withoutBlockSyntax)) {
+  if (isMarkdownTableSeparator(withoutListSyntax)) {
     return '';
   }
 
-  const tableCells = withoutBlockSyntax.trim();
+  const tableCells = withoutListSyntax.trim();
   if (tableCells.startsWith('|') && tableCells.endsWith('|')) {
     return tableCells
       .slice(1, -1)
@@ -62,7 +68,9 @@ const normalizeMarkdownLine = (line: string): string => {
       .join('；');
   }
 
-  return keepCorrectedTerms(unwrapMarkdown(withoutBlockSyntax)).trimEnd();
+  return `${orderedPrefix}${keepCorrectedTerms(
+    unwrapMarkdown(withoutListSyntax)
+  ).trimEnd()}`;
 };
 
 const isLeadingNoise = (line: string, hasContent: boolean): boolean => {
@@ -81,6 +89,9 @@ const shouldAppendLine = (line: string, previous?: string): boolean =>
 
 export const requiresChineseEnhancedPrompt = (source: string): boolean =>
   /[\u3400-\u9fff]/.test(source);
+
+export const countOrderedPromptItems = (source: string): number =>
+  source.match(ORDERED_PROMPT_ITEMS)?.length ?? 0;
 
 export const hasRequiredEnhancedPromptLanguage = (
   source: string,

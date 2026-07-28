@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  countOrderedPromptItems,
   hasRequiredEnhancedPromptLanguage,
   normalizeEnhancedPrompt
 } from './promptEnhancement';
@@ -28,7 +29,7 @@ describe('normalizeEnhancedPrompt', () => {
     );
   });
 
-  it('converts Markdown tables and numbered lists to direct plain text', () => {
+  it('converts Markdown tables while retaining numbered task boundaries', () => {
     const response = `
 Here is the improved prompt:
 1. Preserve the **Vue 3** implementation.
@@ -43,8 +44,8 @@ This version is clearer and ready to use.
 
     expect(normalizeEnhancedPrompt(response)).toBe(
       [
-        'Preserve the Vue 3 implementation.',
-        'Use ResizeObserver when content changes.',
+        '1、Preserve the Vue 3 implementation.',
+        '2、Use ResizeObserver when content changes.',
         '',
         'Term；Required value',
         'Framework；Tauri 2'
@@ -59,6 +60,30 @@ This version is clearer and ready to use.
 
     expect(normalizeEnhancedPrompt(response)).toBe(
       '目标：修复 input_padding 问题。\n\n约束：保持 max-height 为 160px，不修改 llama-server。'
+    );
+  });
+});
+
+describe('ordered prompt preservation', () => {
+  it('counts top-level ordered tasks in the source prompt', () => {
+    expect(
+      countOrderedPromptItems('1、第一项\n2. 第二项\n3) 第三项\n普通补充说明')
+    ).toBe(3);
+  });
+
+  it('preserves ordered task boundaries while removing Markdown syntax', () => {
+    const response = `
+1. **重新设计**搜索检索样式，解决当前界面不够美观的问题。
+2) 移除重置过程中的右下角弹框，仅在完成时显示系统通知。
+3、修复 config 窗口最小化后无法从托盘菜单重新显示的问题。
+`;
+
+    expect(normalizeEnhancedPrompt(response)).toBe(
+      [
+        '1、重新设计搜索检索样式，解决当前界面不够美观的问题。',
+        '2、移除重置过程中的右下角弹框，仅在完成时显示系统通知。',
+        '3、修复 config 窗口最小化后无法从托盘菜单重新显示的问题。'
+      ].join('\n')
     );
   });
 });
