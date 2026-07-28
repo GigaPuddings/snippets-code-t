@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeEnhancedPrompt } from './promptEnhancement';
+import {
+  hasRequiredEnhancedPromptLanguage,
+  normalizeEnhancedPrompt
+} from './promptEnhancement';
 
 describe('normalizeEnhancedPrompt', () => {
   it('removes reasoning, Markdown syntax, labels, and trailing commentary', () => {
@@ -57,5 +60,28 @@ This version is clearer and ready to use.
     expect(normalizeEnhancedPrompt(response)).toBe(
       '目标：修复 input_padding 问题。\n\n约束：保持 max-height 为 160px，不修改 llama-server。'
     );
+  });
+});
+
+describe('enhanced prompt language', () => {
+  it('requires Chinese output when the source prompt contains Chinese', () => {
+    expect(
+      hasRequiredEnhancedPromptLanguage(
+        '请修复聊天页面的输入框。',
+        'Fix the chat input.'
+      )
+    ).toBe(false);
+    expect(
+      hasRequiredEnhancedPromptLanguage(
+        '请修复聊天页面的输入框。',
+        '请修复聊天页面的输入框，并保持 160px 高度上限。'
+      )
+    ).toBe(true);
+    expect(
+      hasRequiredEnhancedPromptLanguage(
+        'Fix the chat input.',
+        'Fix the chat input.'
+      )
+    ).toBe(true);
   });
 });

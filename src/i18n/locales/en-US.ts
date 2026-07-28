@@ -1997,6 +1997,8 @@ export default {
     enhanceNeedsPrompt: 'Enter a prompt before enhancing it',
     enhancingPrompt: 'Enhancing',
     enhancePromptEmpty: 'The model did not return a usable enhanced prompt',
+    enhancePromptLanguageMismatch:
+      'The model did not return a Chinese result, so the original input was kept',
     enhancePromptFailed: 'Failed to enhance prompt',
     viewAllChats: 'View all chats',
     modelLabel: 'Model',

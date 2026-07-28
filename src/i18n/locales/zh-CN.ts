@@ -1940,6 +1940,7 @@ export default {
     enhanceNeedsPrompt: '请先输入需要增强的提示词',
     enhancingPrompt: '正在增强',
     enhancePromptEmpty: '模型没有返回可用的增强结果',
+    enhancePromptLanguageMismatch: '模型没有返回中文结果，原始输入未被替换',
     enhancePromptFailed: '增强提示词失败',
     viewAllChats: '查看全部对话',
     modelLabel: '模型',

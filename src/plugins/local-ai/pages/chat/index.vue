@@ -789,7 +789,11 @@ import type {
 } from './types';
 import { useChatAttachments } from './useChatAttachments';
 import { useChatMarkdown } from './useChatMarkdown';
-import { normalizeEnhancedPrompt } from './promptEnhancement';
+import {
+  hasRequiredEnhancedPromptLanguage,
+  normalizeEnhancedPrompt,
+  requiresChineseEnhancedPrompt
+} from './promptEnhancement';
 
 defineOptions({ name: 'LocalAiChat' });
 
@@ -894,6 +898,11 @@ Rules:
 6. Do not use Markdown syntax, headings, bullets, numbered lists, tables, emphasis,
    code fences, labels, prefaces, explanations, notes, or correction summaries.
 7. Use direct natural-language sentences and line breaks only.
+8. Never translate the prompt. Keep all natural-language text in the same language as
+   the original prompt.
+9. If the original prompt contains Chinese, all natural-language output must be in
+   Simplified Chinese. English is allowed only for proper names, code, paths, or
+   technical identifiers that should remain unchanged.
 `.trim();
 
 const canSend = computed(
@@ -1002,28 +1011,49 @@ const applyQuickPrompt = (key: string): void => {
   draft.value = t(key);
   void focusComposer();
 };
+const requestEnhancedPrompt = async (
+  source: string,
+  retryForChinese: boolean
+): Promise<string> => {
+  const sourceIsChinese = requiresChineseEnhancedPrompt(source);
+  const languageInstruction = sourceIsChinese
+    ? retryForChinese
+      ? '强制重试：上一次结果未满足语言要求。必须仅使用简体中文输出完整提示词；不得输出英文句子。'
+      : '语言要求：原始提示词包含中文。必须仅使用简体中文输出；不得将中文句子翻译成英文。'
+    : 'Keep the natural language of the original prompt unchanged.';
+  const originalPromptInstruction = sourceIsChinese
+    ? `原始提示词如下。请仅使用简体中文重写：\n---\n${source}\n---`
+    : `Original prompt:\n---\n${source}\n---`;
+  const response = await chatWithLocalAi({
+    messages: [
+      {
+        role: 'system',
+        content: `${PROMPT_ENHANCEMENT_SYSTEM_PROMPT}\n\n${languageInstruction}`
+      },
+      { role: 'user', content: originalPromptInstruction }
+    ],
+    temperature: retryForChinese ? 0.1 : 0.25,
+    enableThinking: false,
+    maxTokens: Math.min(
+      1200,
+      Math.max(384, Math.floor(effectiveContextLimit.value / 4))
+    )
+  });
+  return normalizeEnhancedPrompt(response.content);
+};
 const enhancePrompt = async (): Promise<void> => {
   const source = draft.value.trim();
   if (!source || !canEnhancePrompt.value) return;
   promptEnhancing.value = true;
   try {
-    const response = await chatWithLocalAi({
-      messages: [
-        { role: 'system', content: PROMPT_ENHANCEMENT_SYSTEM_PROMPT },
-        {
-          role: 'user',
-          content: `Original prompt:\n---\n${source}\n---`
-        }
-      ],
-      temperature: 0.25,
-      enableThinking: false,
-      maxTokens: Math.min(
-        1200,
-        Math.max(384, Math.floor(effectiveContextLimit.value / 4))
-      )
-    });
-    const normalized = normalizeEnhancedPrompt(response.content);
+    let normalized = await requestEnhancedPrompt(source, false);
+    if (!hasRequiredEnhancedPromptLanguage(source, normalized)) {
+      normalized = await requestEnhancedPrompt(source, true);
+    }
     if (!normalized) throw new Error(t('localAi.enhancePromptEmpty'));
+    if (!hasRequiredEnhancedPromptLanguage(source, normalized)) {
+      throw new Error(t('localAi.enhancePromptLanguageMismatch'));
+    }
     draft.value = normalized;
     await focusComposer();
   } catch (error) {

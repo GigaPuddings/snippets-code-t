@@ -79,6 +79,16 @@ const normalizeFirstPromptLine = (line: string, hasContent: boolean): string =>
 const shouldAppendLine = (line: string, previous?: string): boolean =>
   Boolean(line || previous);
 
+export const requiresChineseEnhancedPrompt = (source: string): boolean =>
+  /[\u3400-\u9fff]/.test(source);
+
+export const hasRequiredEnhancedPromptLanguage = (
+  source: string,
+  result: string
+): boolean =>
+  !requiresChineseEnhancedPrompt(source) ||
+  requiresChineseEnhancedPrompt(result);
+
 export const normalizeEnhancedPrompt = (value: string): string => {
   const withoutThinking = value
     .replace(/^[\s\S]*?<\/think>\s*/i, '')
