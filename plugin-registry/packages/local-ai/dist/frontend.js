@@ -10349,15 +10349,20 @@ const Tk = 24, Ak = 120, Ck = 420, Ek = 1200, xk = 24e3, Ik = 1800, Lk = 5200, g
     ], Qt = `
 Rewrite the user's rough prompt into a clear, compact task brief for another AI.
 Keep the original language, intent, facts, constraints, and top-level numbered
-structure. Within one item, naturally combine related requirements without
-merging different items. Use precise, concise terminology and remove redundant
-wording, but do not invent requirements. Return only the refined prompt as plain
-text, with no preface, explanation, or Markdown.
+structure. Keep uncertain or conditional statements as questions or inspection
+points; never turn them into assumed failures or requirements. For prompts with
+several independent problems and explicit needs, use short plain-text sections
+such as "Problems" and "Requirements" when that improves clarity; keep simple
+prompts simple. Use precise, concise terminology and remove redundant wording.
+When the user asks for analysis or a solution, state the expected deliverable
+clearly, but do not invent facts. Return only the refined prompt.
 `.trim(), Jt = `
 将用户的原始提示词改写为清晰、紧凑、可直接执行的 AI 任务说明。
-保留原始语言、意图、事实、约束和顶层编号结构；同一项内的关联要求可以自然整合，
-但不要合并不同任务。使用准确、简洁的术语并删除重复表达，不得新增原文没有的要求。
-只输出改写后的纯文本，不要前言、解释或 Markdown。
+保留原始语言、意图、事实、约束和顶层编号结构。对原文中尚未确认、带条件或疑问的内容，
+必须保留为排查项或问题，不能改写成既定故障或新增要求。原文包含多个独立问题和明确需求时，
+可使用“问题描述”“功能需求”等简短纯文本分组以提升可读性；简单提示词保持简洁。
+使用准确术语并删除重复表达。用户明确要求分析或方案时，清楚写出预期交付内容，
+但不得编造事实。只输出改写后的提示词。
 `.trim(), pt = C(
       () => (!!R.value.trim() || n.value.length > 0) && !O.value && !E.value
     ), Tt = C(
@@ -10427,7 +10432,7 @@ ${p}
         ],
         temperature: k ? 0.05 : 0.1,
         enableThinking: !1,
-        maxTokens: Math.min(768, Math.max(256, Math.ceil(p.length * 1.5)))
+        maxTokens: Math.min(768, Math.max(384, Math.ceil(p.length * 1.6)))
       });
       return Yk(Se.content);
     }, on = async () => {
@@ -12102,7 +12107,7 @@ ${p}
   for (const [o, r] of t)
     n[o] = r;
   return n;
-}, Q_ = /* @__PURE__ */ ui(X_, [["__scopeId", "data-v-372e9850"]]), J_ = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+}, Q_ = /* @__PURE__ */ ui(X_, [["__scopeId", "data-v-f4c008bc"]]), J_ = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   default: Q_
 }, Symbol.toStringTag, { value: "Module" }));

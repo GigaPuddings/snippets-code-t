@@ -66,6 +66,7 @@
 - 修改官方插件打包路径后，运行 `node scripts/package-official-plugins.mjs` 验证路径可读，验证后清理生成的 `dist-plugin-packages`。
 - 修改前端通用逻辑后，按风险运行 `pnpm typecheck`、`pnpm lint` 或更小范围的项目脚本；如果 `pnpm` 因本机依赖审批失败无法运行，要明确说明。
 - 提交前用 `git status --short` 确认只包含本次需求相关文件。
+- 单测与 lint通过后，所有插件不需要重新进行完整类型检查和官方插件构建。
 
 ## 工作方式
 
