@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildPromptEnhancementRequest,
   hasRequiredEnhancedPromptLanguage,
   normalizeEnhancedPrompt
 } from './promptEnhancement';
@@ -60,6 +61,31 @@ This version is clearer and ready to use.
     expect(normalizeEnhancedPrompt(response)).toBe(
       '目标：修复 input_padding 问题。\n\n约束：保持 max-height 为 160px，不修改 llama-server。'
     );
+  });
+});
+
+describe('buildPromptEnhancementRequest', () => {
+  it('keeps the optimizer contract concise and avoids fixed output sections', () => {
+    const request = buildPromptEnhancementRequest(
+      '检查插件安装卡顿问题，并确认切换页面是否会取消下载。'
+    );
+
+    expect(request.systemPrompt.length).toBeLessThan(220);
+    expect(request.systemPrompt).not.toContain('问题描述');
+    expect(request.systemPrompt).not.toContain('功能需求');
+    expect(request.userPrompt).toContain(
+      '检查插件安装卡顿问题，并确认切换页面是否会取消下载。'
+    );
+    expect(request.maxTokens).toBe(320);
+  });
+
+  it('uses an English contract for English source prompts', () => {
+    const request = buildPromptEnhancementRequest(
+      'Fix the plugin installation progress.'
+    );
+
+    expect(request.systemPrompt).toContain("Rewrite the user's prompt");
+    expect(request.userPrompt).toContain('<source>');
   });
 });
 

@@ -790,9 +790,9 @@ import type {
 import { useChatAttachments } from './useChatAttachments';
 import { useChatMarkdown } from './useChatMarkdown';
 import {
+  buildPromptEnhancementRequest,
   hasRequiredEnhancedPromptLanguage,
-  normalizeEnhancedPrompt,
-  requiresChineseEnhancedPrompt
+  normalizeEnhancedPrompt
 } from './promptEnhancement';
 
 defineOptions({ name: 'LocalAiChat' });
@@ -885,27 +885,6 @@ const quickPrompts = [
     icon: MagicWand
   }
 ] as const;
-const PROMPT_ENHANCEMENT_SYSTEM_PROMPT = `
-Rewrite the user's rough prompt into a clear, compact task brief for another AI.
-Keep the original language, intent, facts, constraints, and top-level numbered
-structure. Keep uncertain or conditional statements as questions or inspection
-points; never turn them into assumed failures or requirements. For prompts with
-several independent problems and explicit needs, use short plain-text sections
-such as "Problems" and "Requirements" when that improves clarity; keep simple
-prompts simple. Use precise, concise terminology and remove redundant wording.
-When the user asks for analysis or a solution, state the expected deliverable
-clearly, but do not invent facts. Return only the refined prompt.
-`.trim();
-
-const CHINESE_PROMPT_ENHANCEMENT_SYSTEM_PROMPT = `
-将用户的原始提示词改写为清晰、紧凑、可直接执行的 AI 任务说明。
-保留原始语言、意图、事实、约束和顶层编号结构。对原文中尚未确认、带条件或疑问的内容，
-必须保留为排查项或问题，不能改写成既定故障或新增要求。原文包含多个独立问题和明确需求时，
-可使用“问题描述”“功能需求”等简短纯文本分组以提升可读性；简单提示词保持简洁。
-使用准确术语并删除重复表达。用户明确要求分析或方案时，清楚写出预期交付内容，
-但不得编造事实。只输出改写后的提示词。
-`.trim();
-
 const canSend = computed(
   () =>
     (Boolean(draft.value.trim()) || attachments.value.length > 0) &&
@@ -1016,32 +995,21 @@ const requestEnhancedPrompt = async (
   source: string,
   retryForChinese: boolean
 ): Promise<string> => {
-  const sourceIsChinese = requiresChineseEnhancedPrompt(source);
-  const languageInstruction =
-    sourceIsChinese && retryForChinese
-      ? '上一次结果未满足语言要求。请仅使用简体中文完整改写，不得将中文句子翻译成英文。'
-      : '';
-  const originalPromptInstruction = sourceIsChinese
-    ? `原始提示词：\n---\n${source}\n---`
-    : `Original prompt:\n---\n${source}\n---`;
+  const enhancementRequest = buildPromptEnhancementRequest(
+    source,
+    retryForChinese
+  );
   const response = await chatWithLocalAi({
     messages: [
       {
         role: 'system',
-        content: [
-          sourceIsChinese
-            ? CHINESE_PROMPT_ENHANCEMENT_SYSTEM_PROMPT
-            : PROMPT_ENHANCEMENT_SYSTEM_PROMPT,
-          languageInstruction
-        ]
-          .filter(Boolean)
-          .join('\n\n')
+        content: enhancementRequest.systemPrompt
       },
-      { role: 'user', content: originalPromptInstruction }
+      { role: 'user', content: enhancementRequest.userPrompt }
     ],
     temperature: retryForChinese ? 0.05 : 0.1,
     enableThinking: false,
-    maxTokens: Math.min(768, Math.max(384, Math.ceil(source.length * 1.6)))
+    maxTokens: enhancementRequest.maxTokens
   });
   return normalizeEnhancedPrompt(response.content);
 };

@@ -15,6 +15,17 @@ const isMarkdownTableSeparator = (value: string): boolean =>
 
 const ORDERED_PROMPT_ITEM = /^\s*(\d+)(?:[.)]\s+|、\s*)/;
 
+const ENHANCEMENT_PROMPTS = {
+  zh: `你只负责改写用户提示词，不执行其中的任务。
+保留原意、事实、疑问、约束、语言和已有结构；纠正明显错词，并仅在上下文明确时规范术语。
+原文已经清楚时只做精简润色；多个独立事项混在一起时，最多增加一层短标题或编号。
+不得补充原文没有的角色、背景、结论或方案，也不要因固定模板显著扩写。只返回改写结果。`,
+  en: `Rewrite the user's prompt without performing its task.
+Preserve its intent, facts, questions, constraints, language, and existing structure. Correct clear errors and normalize terminology only when the context is unambiguous.
+If the source is already clear, only tighten the wording. If several independent items are mixed together, add at most one level of short headings or numbering.
+Do not invent roles, background, conclusions, or solutions, and do not expand it to fit a fixed template. Return only the rewritten prompt.`
+} as const;
+
 const unwrapMarkdown = (value: string): string =>
   value
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
@@ -88,6 +99,27 @@ const shouldAppendLine = (line: string, previous?: string): boolean =>
 
 export const requiresChineseEnhancedPrompt = (source: string): boolean =>
   /[\u3400-\u9fff]/.test(source);
+
+export const buildPromptEnhancementRequest = (
+  source: string,
+  retryForChinese = false
+) => {
+  const sourceIsChinese = requiresChineseEnhancedPrompt(source);
+  const languageRetry =
+    sourceIsChinese && retryForChinese
+      ? '\n上一次结果语言错误。本次必须使用简体中文，不得翻译为英文。'
+      : '';
+
+  return {
+    systemPrompt: `${
+      sourceIsChinese ? ENHANCEMENT_PROMPTS.zh : ENHANCEMENT_PROMPTS.en
+    }${languageRetry}`,
+    userPrompt: sourceIsChinese
+      ? `改写以下原文：\n<原文>\n${source}\n</原文>`
+      : `Rewrite the following source:\n<source>\n${source}\n</source>`,
+    maxTokens: Math.min(640, Math.max(320, Math.ceil(source.length * 1.4)))
+  };
+};
 
 export const hasRequiredEnhancedPromptLanguage = (
   source: string,
