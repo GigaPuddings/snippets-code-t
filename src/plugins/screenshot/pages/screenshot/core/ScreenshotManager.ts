@@ -15,6 +15,7 @@ import { distance } from '../utils/geometry'
 import { reflowOcrBlocks, type ParagraphBlock } from './OcrLayoutReflow'
 import type { DetectedLanguage } from '@/utils/text'
 import { VisualElementDetector } from './VisualElementDetector'
+import { SelectionCandidateStabilizer } from './SelectionCandidateStabilizer'
 
 interface AnnotationHistorySnapshot {
   annotations: AnnotationData[]
@@ -110,6 +111,7 @@ export class ScreenshotManager {
   private snapThreshold = 30 // 吸附阈值（像素）
   private snappedWindow: WindowInfo | null = null
   private snappedElement: SelectionCandidate | null = null
+  private readonly elementCandidateStabilizer = new SelectionCandidateStabilizer()
   private showSnapPreview = false
   private captureMonitor = { x: 0, y: 0, scale: 1 }
   private lastPointerPosition: Point | null = null
@@ -780,21 +782,24 @@ export class ScreenshotManager {
   }
 
   private getActiveSelectionCandidate(): SelectionCandidate | null {
-    if (
-      this.snappedElement &&
-      this.lastPointerPosition
-    ) {
+    if (this.snappedElement) return this.snappedElement
+    return this.getFallbackSelectionCandidate()
+  }
+
+  private getSelectableCandidate(mousePos: Point): SelectionCandidate | null {
+    if (this.snappedElement) {
       const { rect } = this.snappedElement
-      const point = this.lastPointerPosition
-      if (
-        point.x >= rect.x &&
-        point.x <= rect.x + rect.width &&
-        point.y >= rect.y &&
-        point.y <= rect.y + rect.height
-      ) {
-        return this.snappedElement
-      }
+      const containsPointer =
+        mousePos.x >= rect.x &&
+        mousePos.x <= rect.x + rect.width &&
+        mousePos.y >= rect.y &&
+        mousePos.y <= rect.y + rect.height
+      if (containsPointer) return this.snappedElement
     }
+    return this.getFallbackSelectionCandidate()
+  }
+
+  private getFallbackSelectionCandidate(): SelectionCandidate | null {
     if (this.snappedWindow) {
       return {
         rect: {
@@ -850,7 +855,7 @@ export class ScreenshotManager {
           pending.sequence
         )
       }
-    }, 90)
+    }, 50)
   }
 
   private async detectUiElement(
@@ -858,7 +863,10 @@ export class ScreenshotManager {
     targetWindow: WindowInfo,
     sequence: number
   ): Promise<void> {
-    if (!targetWindow.handle) return
+    if (!targetWindow.handle) {
+      this.finalizeVisualElementCandidate(mousePos, targetWindow, sequence)
+      return
+    }
 
     const scale = this.captureMonitor.scale || 1
     const screenX = Math.round(this.captureMonitor.x + mousePos.x * scale)
@@ -877,7 +885,10 @@ export class ScreenshotManager {
         return
       }
 
-      if (!element) return
+      if (!element) {
+        this.finalizeVisualElementCandidate(mousePos, targetWindow, sequence)
+        return
+      }
 
       const rect = {
         x: Math.round((element.x - this.captureMonitor.x) / scale),
@@ -902,15 +913,14 @@ export class ScreenshotManager {
         !isInsideWindow ||
         !containsPointer
       ) {
+        this.finalizeVisualElementCandidate(mousePos, targetWindow, sequence)
         return
       } else {
-        this.snappedElement = {
-          rect,
-          kind: 'element'
-        }
+        this.updateElementCandidate(rect, true)
       }
-      this.draw()
-    } catch {}
+    } catch {
+      this.finalizeVisualElementCandidate(mousePos, targetWindow, sequence)
+    }
   }
 
   private applyVisualElementCandidate(
@@ -926,23 +936,33 @@ export class ScreenshotManager {
     }
 
     const rect = this.visualElementDetector?.detect(mousePos, targetWindow) || null
-    const previousRect = this.snappedElement?.rect || null
-    const isUnchanged =
-      (!previousRect && !rect) ||
-      (
-        previousRect &&
-        rect &&
-        previousRect.x === rect.x &&
-        previousRect.y === rect.y &&
-        previousRect.width === rect.width &&
-        previousRect.height === rect.height
-      )
-    if (isUnchanged) return
+    this.updateElementCandidate(rect, false)
+  }
 
-    this.snappedElement = rect
-      ? { rect, kind: 'element' }
+  private finalizeVisualElementCandidate(
+    mousePos: Point,
+    targetWindow: WindowInfo,
+    sequence: number
+  ): void {
+    if (
+      sequence !== this.smartDetectionSequence ||
+      this.snappedWindow !== targetWindow
+    ) {
+      return
+    }
+
+    const rect = this.visualElementDetector?.detect(mousePos, targetWindow) || null
+    this.updateElementCandidate(rect, true)
+  }
+
+  private updateElementCandidate(rect: Rect | null, finalized: boolean): void {
+    const update = finalized
+      ? this.elementCandidateStabilizer.finalize(rect)
+      : this.elementCandidateStabilizer.preview(rect)
+    this.snappedElement = update.rect
+      ? { rect: update.rect, kind: 'element' }
       : null
-    this.draw()
+    if (update.changed) this.draw()
   }
 
   private cancelSmartDetection(): void {
@@ -1020,7 +1040,7 @@ export class ScreenshotManager {
             this.dragStartPosition = { ...mousePos }
             
             // 检查是否有窗口吸附
-            const selectionCandidate = this.getActiveSelectionCandidate()
+            const selectionCandidate = this.getSelectableCandidate(mousePos)
             if (selectionCandidate) {
               // 先记录待定的智能候选，等待判断是点击还是拖拽
               this.pendingSnapCandidate = selectionCandidate
@@ -1150,6 +1170,7 @@ export class ScreenshotManager {
           this.cancelSmartDetection()
           this.snappedWindow = nearbyWindow
           this.snappedElement = null
+          this.elementCandidateStabilizer.reset()
           this.showSnapPreview = true
           this.draw()
         }
@@ -1207,6 +1228,7 @@ export class ScreenshotManager {
       this.dragStartPosition = null
       this.snappedWindow = null
       this.snappedElement = null
+      this.elementCandidateStabilizer.reset()
       this.showSnapPreview = false
       this.cancelSmartDetection()
       
@@ -2580,6 +2602,7 @@ export class ScreenshotManager {
     // 重置窗口吸附状态
     this.snappedWindow = null
     this.snappedElement = null
+    this.elementCandidateStabilizer.reset()
     this.showSnapPreview = false
     this.pendingSnapCandidate = null
     this.cancelSmartDetection()
@@ -4232,6 +4255,7 @@ export class ScreenshotManager {
     this.dragStartPosition = null
     this.snappedWindow = null
     this.snappedElement = null
+    this.elementCandidateStabilizer.reset()
     
     // 清理窗口信息
     this.allWindows = []

@@ -153,7 +153,7 @@ export class VisualElementDetector {
       candidate.width >= 18 &&
       candidate.height >= 14 &&
       candidateArea >= 320 &&
-      candidateArea < boundsArea * 0.92 &&
+      candidateArea < boundsArea * 0.45 &&
       this.containsLogicalPoint(candidate, point)
     );
   }

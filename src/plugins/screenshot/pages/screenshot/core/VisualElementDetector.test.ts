@@ -103,3 +103,28 @@ describe('VisualElementDetector cache', () => {
     ).toEqual(card);
   });
 });
+
+describe('VisualElementDetector candidate filtering', () => {
+  it('rejects a large page surface that is not a specific UI element', () => {
+    const width = 120;
+    const height = 80;
+    const pixels = createPixels(width, height, [35, 39, 47]);
+    fillRect(
+      pixels,
+      width,
+      { x: 0, y: 20, width, height: 60 },
+      [245, 245, 245]
+    );
+    const detector = new VisualElementDetector(
+      pixels,
+      width,
+      height,
+      width,
+      height
+    );
+
+    expect(
+      detector.detect({ x: 60, y: 50 }, { x: 0, y: 0, width, height })
+    ).toBeNull();
+  });
+});
