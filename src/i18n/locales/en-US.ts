@@ -1377,10 +1377,6 @@ export default {
   // Screenshot Toolbar
   screenshot: {
     select: 'Select',
-    smartSelect: 'Smart Element',
-    windowSelect: 'Window',
-    fullscreenSelect: 'Full Screen',
-    freeSelectHint: 'Drag for a custom area',
     rectangle: 'Rectangle',
     ellipse: 'Ellipse',
     line: 'Line',

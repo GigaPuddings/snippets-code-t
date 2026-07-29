@@ -12,32 +12,6 @@
     <!-- 画布 -->
     <canvas ref="canvasRef" class="drawing-canvas"></canvas>
 
-    <div
-      v-if="!state.selectionRect"
-      class="fixed left-1/2 top-4 z-10 flex -translate-x-1/2 items-center gap-1 rounded-xl border border-white/15 bg-[rgb(16_24_40/88%)] p-1 text-white shadow-xl backdrop-blur-xl"
-      @mousedown.stop
-      @mouseup.stop
-    >
-      <button
-        v-for="mode in selectionModes"
-        :key="mode.value"
-        type="button"
-        :class="[
-          'rounded-lg px-3 py-1.5 text-xs font-medium transition-colors',
-          state.selectionMode === mode.value
-            ? 'bg-white text-gray-900'
-            : 'text-white/75 hover:bg-white/10 hover:text-white'
-        ]"
-        :aria-pressed="state.selectionMode === mode.value"
-        @click="handleSelectionModeChange(mode.value)"
-      >
-        {{ mode.label }}
-      </button>
-      <span class="ml-1 border-l border-white/15 px-2 text-[11px] text-white/55">
-        {{ $t('screenshot.freeSelectHint') }}
-      </span>
-    </div>
-
     <!-- 尺寸信息 -->
     <div v-if="state.selectionRect && showSizeInfo" class="size-info" :style="sizeInfoStyle">
       <span class="size-text">{{ sizeInfoText }}</span>
@@ -78,19 +52,16 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
-import { useI18n } from 'vue-i18n'
 import { Window } from '@tauri-apps/api/window'
 import { listen } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
 import { ScreenshotManager } from './core/ScreenshotManager'
 import type { BaseAnnotation } from './core/BaseAnnotation'
-import { ToolType, ColorInfo, type SelectionMode } from './core/types'
+import { ToolType, ColorInfo } from './core/types'
 import { getTextOrigin, TEXT_FONT_FAMILY } from './annotations/TextAnnotation'
 import { getMarkerTextOrigin } from './annotations/MarkerAnnotation'
 import ToolbarSection from './components/ToolbarSection.vue'
 import { logger } from '@/utils/logger'
-
-const { t } = useI18n()
 
 // 组件引用
 const canvasRef = ref<HTMLCanvasElement>()
@@ -112,16 +83,10 @@ const translateEngine = ref<'google' | 'bing' | 'offline' | 'local-ai'>('bing') 
 const toolbarSize = ref({ width: 590, height: 50 })
 let isClosing = false
 let editingAnnotation: BaseAnnotation | null = null
-const selectionModes = computed(() => [
-  { value: 'smart' as const, label: t('screenshot.smartSelect') },
-  { value: 'window' as const, label: t('screenshot.windowSelect') },
-  { value: 'fullscreen' as const, label: t('screenshot.fullscreenSelect') }
-])
 
 // 响应式状态
 const state = ref({
   selectionRect: null as any,
-  selectionMode: 'smart' as SelectionMode,
   annotations: [] as any[],
   currentTool: ToolType.Select,
   currentStyle: { color: '#ff4444', lineWidth: 3, opacity: 1 },
@@ -287,10 +252,6 @@ const handleToolSelect = (tool: ToolType) => {
   }
 
   screenshotManager?.setTool(tool)
-}
-
-const handleSelectionModeChange = (mode: SelectionMode) => {
-  screenshotManager?.setSelectionMode(mode)
 }
 
 // 处理贴图操作
@@ -587,7 +548,6 @@ const closeWindow = async () => {
   // 清理前端状态
   state.value = {
     selectionRect: null,
-    selectionMode: 'smart',
     annotations: [],
     currentTool: ToolType.Select,
     currentStyle: { color: '#ff4444', lineWidth: 3, opacity: 1 },

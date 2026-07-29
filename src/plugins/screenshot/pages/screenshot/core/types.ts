@@ -11,13 +11,11 @@ export interface Rect {
   height: number
 }
 
-export type SelectionMode = 'smart' | 'window' | 'fullscreen'
 export type SelectionCandidateKind = 'element' | 'window' | 'fullscreen'
 
 export interface SelectionCandidate {
   rect: Rect
   kind: SelectionCandidateKind
-  label: string
 }
 
 export enum OperationType {

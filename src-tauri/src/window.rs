@@ -3316,18 +3316,22 @@ pub fn get_ui_element_at_point(
 
         let mut child = walker.GetFirstChildElement(parent).ok();
         let mut best = None;
+        let mut best_area = i64::MAX;
 
         while let Some(element) = child {
             *visited += 1;
             if let Some(rect) = element_rect(&element) {
                 if point_in_rect(x, y, &rect) {
-                    best = Some((element.clone(), rect));
-                    if let Some(deeper) =
+                    let candidate =
                         deepest_element_at_point(walker, &element, x, y, depth + 1, visited)
-                    {
-                        best = Some(deeper);
+                            .unwrap_or_else(|| (element.clone(), rect));
+                    let candidate_rect = candidate.1;
+                    let area = i64::from(candidate_rect.right - candidate_rect.left)
+                        * i64::from(candidate_rect.bottom - candidate_rect.top);
+                    if area < best_area {
+                        best_area = area;
+                        best = Some(candidate);
                     }
-                    break;
                 }
             }
 

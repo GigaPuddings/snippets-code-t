@@ -5,15 +5,16 @@ import { EventHandler } from './EventHandler'
 import { AnnotationFactory } from './AnnotationFactory'
 import { CanvasPool } from './CanvasPool'
 import { LazyLoader } from './LazyLoader'
-import { Point, Rect, ToolType, AnnotationStyle, OperationType, ColorInfo, ColorPickerState, OcrTextBlock, TranslationOverlay, SampledColor, OverlayStyle, AnnotationData, SelectionMode, SelectionCandidate } from './types'
+import { Point, Rect, ToolType, AnnotationStyle, OperationType, ColorInfo, ColorPickerState, OcrTextBlock, TranslationOverlay, SampledColor, OverlayStyle, AnnotationData, SelectionCandidate } from './types'
 import { invoke } from '@tauri-apps/api/core'
 import { Window } from '@tauri-apps/api/window'
 import { logger, ocrDiagnosticLogger } from '@/utils/logger'
 import { chatWithLocalAi, startLocalAiService, getLocalAiStatus } from '@/api/localAi'
 import { canTranslateDetectedLanguage, detectTranslationLanguage } from '@/utils/text'
-import { distance, getRectCenter } from '../utils/geometry'
+import { distance } from '../utils/geometry'
 import { reflowOcrBlocks, type ParagraphBlock } from './OcrLayoutReflow'
 import type { DetectedLanguage } from '@/utils/text'
+import { VisualElementDetector } from './VisualElementDetector'
 
 interface AnnotationHistorySnapshot {
   annotations: AnnotationData[]
@@ -110,11 +111,16 @@ export class ScreenshotManager {
   private snappedWindow: WindowInfo | null = null
   private snappedElement: SelectionCandidate | null = null
   private showSnapPreview = false
-  private selectionMode: SelectionMode = 'smart'
   private captureMonitor = { x: 0, y: 0, scale: 1 }
   private lastPointerPosition: Point | null = null
   private smartDetectionSequence = 0
   private smartDetectionTimer: number | null = null
+  private accessibilityDetectionTimer: number | null = null
+  private pendingSmartDetection: {
+    mousePos: Point
+    targetWindow: WindowInfo
+    sequence: number
+  } | null = null
   
   // 点击拖拽区分
   private pendingSnapCandidate: SelectionCandidate | null = null
@@ -131,6 +137,7 @@ export class ScreenshotManager {
 
   // 背景图像（预捕获的屏幕）
   private backgroundImage: HTMLImageElement | null = null
+  private visualElementDetector: VisualElementDetector | null = null
   // 是否正在加载完整背景图
   private isLoadingBackground = false
 
@@ -171,6 +178,7 @@ export class ScreenshotManager {
       this.backgroundImage.onload = null
       this.backgroundImage.onerror = null
       this.backgroundImage = null
+      this.visualElementDetector = null
     }
 
     // 异步重新加载背景
@@ -315,6 +323,7 @@ export class ScreenshotManager {
         this.backgroundImage.onload = null
         this.backgroundImage.onerror = null
         this.backgroundImage = null
+        this.visualElementDetector = null
       }
 
       // 1. 优先加载预览图（快速显示）
@@ -392,6 +401,18 @@ export class ScreenshotManager {
             img.onload = () => {
               clearTimeout(timeout)
               this.backgroundImage = img
+              const dpr = window.devicePixelRatio || 1
+              this.visualElementDetector = VisualElementDetector.fromImage(
+                img,
+                this.canvas.width / dpr,
+                this.canvas.height / dpr
+              )
+              if (this.lastPointerPosition && this.snappedWindow) {
+                this.scheduleUiElementDetection(
+                  this.lastPointerPosition,
+                  this.snappedWindow
+                )
+              }
               this.draw()
               resolve()
             }
@@ -624,6 +645,8 @@ export class ScreenshotManager {
         this.draw()
         this.scheduleUiElementDetection(canvasMousePos, nearbyWindow)
       } else {
+        this.showSnapPreview = true
+        this.draw()
       }
     } catch (error) {
       logger.error('[截图] 初始窗口吸附检测失败', error)
@@ -752,17 +775,12 @@ export class ScreenshotManager {
         width: this.canvas.width / dpr,
         height: this.canvas.height / dpr
       },
-      kind: 'fullscreen',
-      label: ''
+      kind: 'fullscreen'
     }
   }
 
   private getActiveSelectionCandidate(): SelectionCandidate | null {
-    if (this.selectionMode === 'fullscreen') {
-      return this.getFullscreenCandidate()
-    }
     if (
-      this.selectionMode === 'smart' &&
       this.snappedElement &&
       this.lastPointerPosition
     ) {
@@ -777,33 +795,62 @@ export class ScreenshotManager {
         return this.snappedElement
       }
     }
-    if (!this.snappedWindow) return null
-    return {
-      rect: {
-        x: this.snappedWindow.x,
-        y: this.snappedWindow.y,
-        width: this.snappedWindow.width,
-        height: this.snappedWindow.height
-      },
-      kind: 'window',
-      label: this.snappedWindow.title
+    if (this.snappedWindow) {
+      return {
+        rect: {
+          x: this.snappedWindow.x,
+          y: this.snappedWindow.y,
+          width: this.snappedWindow.width,
+          height: this.snappedWindow.height
+        },
+        kind: 'window'
+      }
     }
+    return this.lastPointerPosition ? this.getFullscreenCandidate() : null
   }
 
   private scheduleUiElementDetection(
     mousePos: Point,
     targetWindow: WindowInfo
   ): void {
-    if (this.selectionMode !== 'smart' || !targetWindow.handle) return
-
     const sequence = ++this.smartDetectionSequence
-    if (this.smartDetectionTimer !== null) {
-      window.clearTimeout(this.smartDetectionTimer)
+    this.pendingSmartDetection = {
+      mousePos: { ...mousePos },
+      targetWindow,
+      sequence
     }
-    this.smartDetectionTimer = window.setTimeout(() => {
-      this.smartDetectionTimer = null
-      void this.detectUiElement(mousePos, targetWindow, sequence)
-    }, 70)
+
+    // 移动期间按帧节流视觉检测，避免“必须停下鼠标才出现候选框”。
+    if (this.smartDetectionTimer === null) {
+      this.smartDetectionTimer = window.setTimeout(() => {
+        this.smartDetectionTimer = null
+        const pending = this.pendingSmartDetection
+        if (pending) {
+          this.applyVisualElementCandidate(
+            pending.mousePos,
+            pending.targetWindow,
+            pending.sequence
+          )
+        }
+      }, 24)
+    }
+
+    // UI Automation 成本更高，只在指针短暂停稳后用于精确修正候选框。
+    if (this.accessibilityDetectionTimer !== null) {
+      window.clearTimeout(this.accessibilityDetectionTimer)
+    }
+    this.accessibilityDetectionTimer = window.setTimeout(() => {
+      this.accessibilityDetectionTimer = null
+      const pending = this.pendingSmartDetection
+      this.pendingSmartDetection = null
+      if (pending) {
+        void this.detectUiElement(
+          pending.mousePos,
+          pending.targetWindow,
+          pending.sequence
+        )
+      }
+    }, 90)
   }
 
   private async detectUiElement(
@@ -811,6 +858,8 @@ export class ScreenshotManager {
     targetWindow: WindowInfo,
     sequence: number
   ): Promise<void> {
+    if (!targetWindow.handle) return
+
     const scale = this.captureMonitor.scale || 1
     const screenX = Math.round(this.captureMonitor.x + mousePos.x * scale)
     const screenY = Math.round(this.captureMonitor.y + mousePos.y * scale)
@@ -823,19 +872,12 @@ export class ScreenshotManager {
       })
       if (
         sequence !== this.smartDetectionSequence ||
-        this.selectionMode !== 'smart' ||
-        this.snappedWindow?.handle !== targetWindow.handle
+        this.snappedWindow !== targetWindow
       ) {
         return
       }
 
-      if (!element) {
-        if (this.snappedElement) {
-          this.snappedElement = null
-          this.draw()
-        }
-        return
-      }
+      if (!element) return
 
       const rect = {
         x: Math.round((element.x - this.captureMonitor.x) / scale),
@@ -860,48 +902,60 @@ export class ScreenshotManager {
         !isInsideWindow ||
         !containsPointer
       ) {
-        this.snappedElement = null
+        return
       } else {
         this.snappedElement = {
           rect,
-          kind: 'element',
-          label: element.name
+          kind: 'element'
         }
       }
       this.draw()
-    } catch {
-      if (sequence === this.smartDetectionSequence) {
-        this.snappedElement = null
-      }
-    }
+    } catch {}
   }
 
-  setSelectionMode(mode: SelectionMode): void {
-    if (this.selectionRect || this.selectionMode === mode) return
+  private applyVisualElementCandidate(
+    mousePos: Point,
+    targetWindow: WindowInfo,
+    sequence: number
+  ): void {
+    if (
+      sequence !== this.smartDetectionSequence ||
+      this.snappedWindow !== targetWindow
+    ) {
+      return
+    }
 
-    this.selectionMode = mode
+    const rect = this.visualElementDetector?.detect(mousePos, targetWindow) || null
+    const previousRect = this.snappedElement?.rect || null
+    const isUnchanged =
+      (!previousRect && !rect) ||
+      (
+        previousRect &&
+        rect &&
+        previousRect.x === rect.x &&
+        previousRect.y === rect.y &&
+        previousRect.width === rect.width &&
+        previousRect.height === rect.height
+      )
+    if (isUnchanged) return
+
+    this.snappedElement = rect
+      ? { rect, kind: 'element' }
+      : null
+    this.draw()
+  }
+
+  private cancelSmartDetection(): void {
     this.smartDetectionSequence += 1
     if (this.smartDetectionTimer !== null) {
       window.clearTimeout(this.smartDetectionTimer)
       this.smartDetectionTimer = null
     }
-    this.snappedElement = null
-    this.pendingSnapCandidate = null
-    this.showSnapPreview = false
-
-    if (mode === 'fullscreen') {
-      this.snappedWindow = null
-      this.showSnapPreview = true
-    } else if (this.lastPointerPosition) {
-      this.snappedWindow = this.detectNearbyWindow(this.lastPointerPosition)
-      this.showSnapPreview = !!this.snappedWindow
-      if (mode === 'smart' && this.snappedWindow) {
-        this.scheduleUiElementDetection(this.lastPointerPosition, this.snappedWindow)
-      }
+    if (this.accessibilityDetectionTimer !== null) {
+      window.clearTimeout(this.accessibilityDetectionTimer)
+      this.accessibilityDetectionTimer = null
     }
-
-    this.draw()
-    this.onStateChange?.()
+    this.pendingSmartDetection = null
   }
 
 
@@ -1090,18 +1144,20 @@ export class ScreenshotManager {
     } else {
       // 非绘制状态时检测窗口吸附
       if (this.currentTool === ToolType.Select && !this.selectionRect) {
-        const nearbyWindow = this.selectionMode === 'fullscreen'
-          ? null
-          : this.detectNearbyWindow(mousePos)
+        const nearbyWindow = this.detectNearbyWindow(mousePos)
         
         if (nearbyWindow !== this.snappedWindow) {
+          this.cancelSmartDetection()
           this.snappedWindow = nearbyWindow
           this.snappedElement = null
-          this.smartDetectionSequence += 1
-          this.showSnapPreview = this.selectionMode === 'fullscreen' || !!nearbyWindow
+          this.showSnapPreview = true
           this.draw()
         }
-        if (this.selectionMode === 'smart' && nearbyWindow) {
+        if (!this.showSnapPreview) {
+          this.showSnapPreview = true
+          this.draw()
+        }
+        if (nearbyWindow) {
           this.scheduleUiElementDetection(mousePos, nearbyWindow)
         }
       }
@@ -1152,11 +1208,7 @@ export class ScreenshotManager {
       this.snappedWindow = null
       this.snappedElement = null
       this.showSnapPreview = false
-      this.smartDetectionSequence += 1
-      if (this.smartDetectionTimer !== null) {
-        window.clearTimeout(this.smartDetectionTimer)
-        this.smartDetectionTimer = null
-      }
+      this.cancelSmartDetection()
       
       // 完成标注
       this.finishAnnotation()
@@ -2495,34 +2547,6 @@ export class ScreenshotManager {
       rect.height
     )
     
-    // 显示窗口标题
-    if (candidate.label) {
-      ctx.setLineDash([])
-      ctx.font = '12px sans-serif'
-      ctx.fillStyle = '#00a8ff'
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'bottom'
-      
-      const center = getRectCenter(rect)
-      const titleX = center.x
-      const titleY = rect.y > 28 ? rect.y - 5 : rect.y + 20
-      
-      // 绘制文字背景
-      const metrics = ctx.measureText(candidate.label)
-      const padding = 4
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
-      ctx.fillRect(
-        titleX - metrics.width / 2 - padding,
-        titleY - 12 - padding,
-        metrics.width + padding * 2,
-        16
-      )
-      
-      // 绘制文字
-      ctx.fillStyle = '#00a8ff'
-      ctx.fillText(candidate.label, titleX, titleY)
-    }
-    
     ctx.restore()
   }
 
@@ -2558,11 +2582,7 @@ export class ScreenshotManager {
     this.snappedElement = null
     this.showSnapPreview = false
     this.pendingSnapCandidate = null
-    this.smartDetectionSequence += 1
-    if (this.smartDetectionTimer !== null) {
-      window.clearTimeout(this.smartDetectionTimer)
-      this.smartDetectionTimer = null
-    }
+    this.cancelSmartDetection()
     this.dragStartPosition = null
     
     // 【光标更新】切换工具时更新光标样式
@@ -3090,7 +3110,6 @@ export class ScreenshotManager {
   getState() {
     return {
       selectionRect: this.selectionRect,
-      selectionMode: this.selectionMode,
       annotations: this.annotations.map(a => a.getData()),
       currentTool: this.currentTool,
       currentStyle: {
@@ -4172,10 +4191,7 @@ export class ScreenshotManager {
       cancelAnimationFrame(this.throttleTimer)
       this.throttleTimer = null
     }
-    if (this.smartDetectionTimer !== null) {
-      window.clearTimeout(this.smartDetectionTimer)
-      this.smartDetectionTimer = null
-    }
+    this.cancelSmartDetection()
 
     // 清理背景图像引用，释放内存
     if (this.backgroundImage) {
@@ -4183,6 +4199,7 @@ export class ScreenshotManager {
       this.backgroundImage.onerror = null
       this.backgroundImage.src = ''
       this.backgroundImage = null
+      this.visualElementDetector = null
     }
     
     // 清理标注数组
@@ -4215,7 +4232,6 @@ export class ScreenshotManager {
     this.dragStartPosition = null
     this.snappedWindow = null
     this.snappedElement = null
-    this.smartDetectionSequence += 1
     
     // 清理窗口信息
     this.allWindows = []

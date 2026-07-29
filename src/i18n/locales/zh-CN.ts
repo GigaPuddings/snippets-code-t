@@ -1334,10 +1334,6 @@ export default {
   // 截图工具栏
   screenshot: {
     select: '选择',
-    smartSelect: '智能元素',
-    windowSelect: '窗口',
-    fullscreenSelect: '全屏',
-    freeSelectHint: '拖拽自由框选',
     rectangle: '矩形',
     ellipse: '椭圆',
     line: '直线',
