@@ -7,6 +7,7 @@ import { ArrowAnnotation } from '../annotations/ArrowAnnotation'
 import { PenAnnotation } from '../annotations/PenAnnotation'
 import { TextAnnotation } from '../annotations/TextAnnotation'
 import { MosaicAnnotation } from '../annotations/MosaicAnnotation'
+import { MarkerAnnotation } from '../annotations/MarkerAnnotation'
 
 // 标注工厂 - 统一创建不同类型的标注
 export class AnnotationFactory {
@@ -17,6 +18,7 @@ export class AnnotationFactory {
     options: {
       text?: string
       fontSize?: number
+      markerNumber?: number
       mosaicSize?: number
     } = {}
   ): BaseAnnotation | null {
@@ -39,6 +41,15 @@ export class AnnotationFactory {
       case ToolType.Text:
         return new TextAnnotation(
           startPoint,
+          options.text || '',
+          style,
+          options.fontSize || 16
+        )
+
+      case ToolType.Marker:
+        return new MarkerAnnotation(
+          startPoint,
+          options.markerNumber || 1,
           options.text || '',
           style,
           options.fontSize || 16
@@ -66,6 +77,7 @@ export class AnnotationFactory {
     const annotation = this.createAnnotation(type, startPoint, style, {
       text: data.text,
       fontSize: data.fontSize,
+      markerNumber: data.markerNumber,
       mosaicSize: data.mosaicSize
     })
 
@@ -95,6 +107,7 @@ export class AnnotationFactory {
       [ToolType.Arrow]: 'drawing-arrow',
       [ToolType.Pen]: 'drawing-pen',
       [ToolType.Text]: 'drawing-text',
+      [ToolType.Marker]: 'drawing-marker',
       [ToolType.Mosaic]: 'drawing-mosaic',
       [ToolType.Select]: 'none'
     } as Record<ToolType, string>;
@@ -120,7 +133,8 @@ export class AnnotationFactory {
       ToolType.Line,
       ToolType.Arrow,
       ToolType.Pen,
-      ToolType.Text
+      ToolType.Text,
+      ToolType.Marker
     ].includes(toolType)
   }
 
@@ -137,7 +151,7 @@ export class AnnotationFactory {
 
   // 检查工具是否支持文字大小设置
   static supportsTextSizeSettings(toolType: ToolType): boolean {
-    return toolType === ToolType.Text
+    return toolType === ToolType.Text || toolType === ToolType.Marker
   }
 
   // 检查工具是否支持马赛克大小设置

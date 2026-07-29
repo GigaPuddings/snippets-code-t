@@ -11,6 +11,15 @@ export interface Rect {
   height: number
 }
 
+export type SelectionMode = 'smart' | 'window' | 'fullscreen'
+export type SelectionCandidateKind = 'element' | 'window' | 'fullscreen'
+
+export interface SelectionCandidate {
+  rect: Rect
+  kind: SelectionCandidateKind
+  label: string
+}
+
 export enum OperationType {
   None = 'none',
   Drawing = 'drawing',
@@ -33,6 +42,7 @@ export enum OperationType {
   ResizingAnnotationNW = 'resizing-annotation-nw',
   ResizingAnnotationSE = 'resizing-annotation-se',
   DrawingText = 'drawing-text',
+  DrawingMarker = 'drawing-marker',
   DrawingMosaic = 'drawing-mosaic',
   ColorPicking = 'color-picking',
   Pinning = 'pinning'
@@ -47,6 +57,7 @@ export enum ToolType {
   Pen = 'pen',
   Mosaic = 'mosaic',
   Text = 'text',
+  Marker = 'marker',
   ColorPicker = 'color-picker',
   Ocr = 'ocr',
   Pin = 'pin',
@@ -106,6 +117,7 @@ export interface AnnotationData {
   // 扩展属性
   text?: string
   fontSize?: number
+  markerNumber?: number
   mosaicSize?: number
   mosaicColor?: string
 }

@@ -717,6 +717,7 @@ pub fn run() {
             plugins::screenshot::get_pixel_color,                  // 获取像素颜色
             plugins::screenshot::get_screen_preview,               // 获取屏幕预览
             plugins::screenshot::get_all_windows,                  // 获取所有窗口信息
+            plugins::screenshot::get_ui_element_at_point,          // 获取光标下的 UI 控件边界
             plugins::screenshot::get_screenshot_background,        // 获取预捕获的屏幕背景
             plugins::screenshot::get_screenshot_preview,           // 获取截图预览图
             plugins::screenshot::get_cached_window_list,          // 获取预缓存的窗口列表

@@ -300,9 +300,21 @@ pub struct WindowInfo {
     width: i32,
     height: i32,
     title: String,
+    #[serde(default)]
+    handle: isize,
     z_order: i32,        // 原始窗口层级
     is_fullscreen: bool, // 是否为全屏窗口
     display_order: i32,  // 实际显示层级（考虑全屏优先后），值越小层级越高
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct UiElementInfo {
+    x: i32,
+    y: i32,
+    width: i32,
+    height: i32,
+    name: String,
+    control_type: i32,
 }
 
 // 窗口拖拽状态跟踪
@@ -3059,6 +3071,7 @@ pub fn get_all_windows() -> Result<Vec<WindowInfo>, String> {
                             width: final_width,
                             height: final_height,
                             title,
+                            handle: hwnd.0 as isize,
                             z_order,
                             is_fullscreen,
                             display_order: 0,
@@ -3255,6 +3268,141 @@ pub fn get_all_windows() -> Result<Vec<WindowInfo>, String> {
     }
 
     Ok(windows)
+}
+
+fn point_in_rect(x: i32, y: i32, rect: &RECT) -> bool {
+    x >= rect.left && x < rect.right && y >= rect.top && y < rect.bottom
+}
+
+// 从指定顶层窗口的 UI Automation 控件树中查找光标下最深、最精确的控件。
+// 截图遮罩本身位于最上层，因此不能直接使用 ElementFromPoint；从目标 HWND
+// 向下遍历可以稳定避开截图窗口，并覆盖 Win32、WPF、WinUI 和浏览器可访问控件。
+pub fn get_ui_element_at_point(
+    window_handle: isize,
+    x: i32,
+    y: i32,
+) -> Result<Option<UiElementInfo>, String> {
+    use windows::Win32::System::Com::{
+        CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_INPROC_SERVER,
+        COINIT_MULTITHREADED,
+    };
+    use windows::Win32::UI::Accessibility::{
+        CUIAutomation, IUIAutomation, IUIAutomationElement, IUIAutomationTreeWalker,
+    };
+
+    if window_handle == 0 {
+        return Ok(None);
+    }
+
+    unsafe fn element_rect(element: &IUIAutomationElement) -> Option<RECT> {
+        if element.CurrentIsOffscreen().ok()?.as_bool() {
+            return None;
+        }
+        let rect = element.CurrentBoundingRectangle().ok()?;
+        (rect.right > rect.left && rect.bottom > rect.top).then_some(rect)
+    }
+
+    unsafe fn deepest_element_at_point(
+        walker: &IUIAutomationTreeWalker,
+        parent: &IUIAutomationElement,
+        x: i32,
+        y: i32,
+        depth: usize,
+        visited: &mut usize,
+    ) -> Option<(IUIAutomationElement, RECT)> {
+        if depth >= 24 || *visited >= 512 {
+            return None;
+        }
+
+        let mut child = walker.GetFirstChildElement(parent).ok();
+        let mut best = None;
+
+        while let Some(element) = child {
+            *visited += 1;
+            if let Some(rect) = element_rect(&element) {
+                if point_in_rect(x, y, &rect) {
+                    best = Some((element.clone(), rect));
+                    if let Some(deeper) =
+                        deepest_element_at_point(walker, &element, x, y, depth + 1, visited)
+                    {
+                        best = Some(deeper);
+                    }
+                    break;
+                }
+            }
+
+            if *visited >= 512 {
+                break;
+            }
+            child = walker.GetNextSiblingElement(&element).ok();
+        }
+
+        best
+    }
+
+    let initialized_here = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED).is_ok() };
+    let result = (|| unsafe {
+        let automation: IUIAutomation =
+            CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER)
+                .map_err(|error| format!("初始化 UI Automation 失败: {}", error))?;
+        let hwnd = HWND(window_handle as *mut std::ffi::c_void);
+        if !IsWindow(Some(hwnd)).as_bool() {
+            return Ok(None);
+        }
+
+        let root = automation
+            .ElementFromHandle(hwnd)
+            .map_err(|error| format!("读取目标窗口控件树失败: {}", error))?;
+        let root_rect = root
+            .CurrentBoundingRectangle()
+            .map_err(|error| format!("读取目标窗口边界失败: {}", error))?;
+        if !point_in_rect(x, y, &root_rect) {
+            return Ok(None);
+        }
+
+        let walker = automation
+            .ControlViewWalker()
+            .map_err(|error| format!("创建控件树遍历器失败: {}", error))?;
+        let mut visited = 0;
+        let Some((element, rect)) = deepest_element_at_point(&walker, &root, x, y, 0, &mut visited)
+        else {
+            return Ok(None);
+        };
+
+        let width = rect.right - rect.left;
+        let height = rect.bottom - rect.top;
+        let root_width = root_rect.right - root_rect.left;
+        let root_height = root_rect.bottom - root_rect.top;
+        if width < 8
+            || height < 8
+            || (width >= root_width.saturating_sub(4) && height >= root_height.saturating_sub(4))
+        {
+            return Ok(None);
+        }
+
+        let name = element
+            .CurrentName()
+            .map(|value| value.to_string())
+            .unwrap_or_default();
+        let control_type = element
+            .CurrentControlType()
+            .map(|value| value.0)
+            .unwrap_or_default();
+
+        Ok(Some(UiElementInfo {
+            x: rect.left,
+            y: rect.top,
+            width,
+            height,
+            name,
+            control_type,
+        }))
+    })();
+
+    if initialized_here {
+        unsafe { CoUninitialize() };
+    }
+    result
 }
 
 // 计算两个窗口的重叠面积

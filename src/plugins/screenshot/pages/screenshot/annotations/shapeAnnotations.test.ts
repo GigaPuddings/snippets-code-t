@@ -4,6 +4,7 @@ import { ToolType } from '../core/types'
 import { EllipseAnnotation } from './EllipseAnnotation'
 import { LineAnnotation } from './LineAnnotation'
 import { getTextOrigin } from './TextAnnotation'
+import { getMarkerTextOrigin, MarkerAnnotation } from './MarkerAnnotation'
 
 const style = { color: '#ff4444', lineWidth: 3 }
 
@@ -76,5 +77,34 @@ describe('shape annotations', () => {
 
   it('uses a stable text origin for input and canvas rendering', () => {
     expect(getTextOrigin({ x: 20, y: 30 })).toEqual({ x: 24, y: 22 })
+  })
+
+  it('creates a numbered marker and restores its linked text', () => {
+    const marker = new MarkerAnnotation(
+      { x: 50, y: 60 },
+      3,
+      '重点',
+      style,
+      16
+    )
+
+    expect(marker.getData()).toMatchObject({
+      type: ToolType.Marker,
+      markerNumber: 3,
+      text: '重点'
+    })
+    expect(marker.hitTest({ x: 50, y: 60 })).toBe(true)
+    expect(getMarkerTextOrigin({ x: 50, y: 60 }, 16)).toEqual({ x: 74, y: 52 })
+
+    const restored = AnnotationFactory.fromData({
+      ...marker.getData(),
+      id: 'marker-id'
+    })
+    expect(restored).toBeInstanceOf(MarkerAnnotation)
+    expect(restored?.getData()).toMatchObject({
+      id: 'marker-id',
+      markerNumber: 3,
+      text: '重点'
+    })
   })
 })

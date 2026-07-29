@@ -95,6 +95,7 @@ export class EventHandler {
       [ToolType.Arrow]: OperationType.DrawingArrow,
       [ToolType.Pen]: OperationType.DrawingPen,
       [ToolType.Text]: OperationType.DrawingText,
+      [ToolType.Marker]: OperationType.DrawingMarker,
       [ToolType.Mosaic]: OperationType.DrawingMosaic,
       [ToolType.ColorPicker]: OperationType.ColorPicking,
       [ToolType.Ocr]: OperationType.None,
@@ -192,7 +193,7 @@ export class EventHandler {
     }
 
     // 文字标注不需要控制点缩放，只需要移动
-    if (data.type === ToolType.Text) {
+    if (data.type === ToolType.Text || data.type === ToolType.Marker) {
       return OperationType.None
     }
 

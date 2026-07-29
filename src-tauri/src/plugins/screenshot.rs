@@ -1,4 +1,4 @@
-use crate::window::{MonitorInfo, PinWindowData, WindowInfo};
+use crate::window::{MonitorInfo, PinWindowData, UiElementInfo, WindowInfo};
 use serde::de::DeserializeOwned;
 use tauri::AppHandle;
 
@@ -264,6 +264,28 @@ pub fn get_all_windows(app_handle: AppHandle) -> Result<Vec<WindowInfo>, String>
         return Ok(result);
     }
     crate::window::get_all_windows()
+}
+
+#[tauri::command]
+pub fn get_ui_element_at_point(
+    app_handle: AppHandle,
+    window_handle: isize,
+    x: i32,
+    y: i32,
+) -> Result<Option<UiElementInfo>, String> {
+    require_screenshot_plugin(&app_handle)?;
+    if let Some(result) = try_screenshot_backend(
+        &app_handle,
+        "get_ui_element_at_point",
+        serde_json::json!({
+            "windowHandle": window_handle,
+            "x": x,
+            "y": y
+        }),
+    )? {
+        return Ok(result);
+    }
+    crate::window::get_ui_element_at_point(window_handle, x, y)
 }
 
 #[tauri::command]

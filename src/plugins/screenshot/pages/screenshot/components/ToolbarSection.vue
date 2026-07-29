@@ -235,7 +235,8 @@ import {
   Platte, 
   Pushpin, 
   Translate, 
-  TextRecognition
+  TextRecognition,
+  ListNumbers
 } from '@icon-park/vue-next'
 
 const toolbarContainerRef = ref<HTMLElement | null>(null)
@@ -287,6 +288,7 @@ const tools = computed(() => [
   { type: ToolType.Pen, icon: Write, title: t('screenshot.pen') },
   { type: ToolType.Mosaic, icon: Mosaic, title: t('screenshot.mosaic') },
   { type: ToolType.Text, icon: FontSize, title: t('screenshot.text') },
+  { type: ToolType.Marker, icon: ListNumbers, title: t('screenshot.marker') },
   { type: ToolType.ColorPicker, icon: Platte, title: t('screenshot.colorPicker') },
   { type: ToolType.Ocr, icon: TextRecognition, title: t('screenshot.ocr') },
   { type: ToolType.Translate, icon: Translate, title: t('screenshot.translate') },
@@ -325,7 +327,7 @@ const showLineWidth = computed(() =>
 )
 
 const showColors = computed(() => 
-  [ToolType.Rectangle, ToolType.Ellipse, ToolType.Line, ToolType.Arrow, ToolType.Pen, ToolType.Text].includes(props.currentTool)
+  [ToolType.Rectangle, ToolType.Ellipse, ToolType.Line, ToolType.Arrow, ToolType.Pen, ToolType.Text, ToolType.Marker].includes(props.currentTool)
 )
 
 const showOpacity = computed(() =>
@@ -336,11 +338,14 @@ const showOpacity = computed(() =>
     ToolType.Arrow,
     ToolType.Pen,
     ToolType.Mosaic,
-    ToolType.Text
+    ToolType.Text,
+    ToolType.Marker
   ].includes(props.currentTool)
 )
 
-const showTextSize = computed(() => props.currentTool === ToolType.Text)
+const showTextSize = computed(() =>
+  props.currentTool === ToolType.Text || props.currentTool === ToolType.Marker
+)
 
 const showMosaicSize = computed(() => props.currentTool === ToolType.Mosaic)
 

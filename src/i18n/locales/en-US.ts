@@ -1377,6 +1377,10 @@ export default {
   // Screenshot Toolbar
   screenshot: {
     select: 'Select',
+    smartSelect: 'Smart Element',
+    windowSelect: 'Window',
+    fullscreenSelect: 'Full Screen',
+    freeSelectHint: 'Drag for a custom area',
     rectangle: 'Rectangle',
     ellipse: 'Ellipse',
     line: 'Line',
@@ -1384,6 +1388,7 @@ export default {
     pen: 'Pen',
     mosaic: 'Mosaic',
     text: 'Text',
+    marker: 'Numbered Marker',
     undo: 'Undo',
     redo: 'Redo',
     pin: 'Pin',
