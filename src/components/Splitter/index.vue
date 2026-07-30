@@ -1,24 +1,28 @@
 <template>
-  <main class="splitter-container" ref="splitterRef">
-    <div class="splitter-panel first-panel" :style="{ width: effectiveFirstWidth, minWidth: effectiveFirstWidth }">
+  <main ref="splitterRef" class="splitter-container">
+    <div
+      class="splitter-panel first-panel"
+      :style="{ width: effectiveFirstWidth, minWidth: effectiveFirstWidth }"
+    >
       <slot name="first"></slot>
     </div>
     <div
-      v-if="!firstCollapsed"
+      v-if="!firstCollapsed && !secondCollapsed"
       class="splitter-divider"
-      @mousedown="startResize"
       :style="{ left: effectiveFirstWidth }"
+      role="separator"
+      aria-orientation="vertical"
+      @mousedown="startResize"
     >
       <div class="splitter-divider-line"></div>
     </div>
-    <div class="splitter-panel second-panel">
+    <div v-if="!secondCollapsed" class="splitter-panel second-panel">
       <slot name="second"></slot>
     </div>
   </main>
 </template>
 
 <script setup lang="ts">
-
 defineOptions({
   name: 'Splitter'
 });
@@ -29,13 +33,16 @@ interface Props {
   maxSize?: number | string;
   /** 为 true 时第一栏固定为 48px，隐藏分隔条，用于折叠片段列表 */
   firstCollapsed?: boolean;
+  /** 为 true 时第二栏完全隐藏，第一栏占满可用宽度 */
+  secondCollapsed?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   defaultSize: '0%',
   minSize: '0%',
   maxSize: '100%',
-  firstCollapsed: false
+  firstCollapsed: false,
+  secondCollapsed: false
 });
 
 const splitterRef = ref<HTMLElement | null>(null);
@@ -66,6 +73,7 @@ const computedWidth = computed(() => {
 // 折叠时第一栏宽度为 0，不再显示边条/箭头
 const effectiveFirstWidth = computed(() => {
   if (props.firstCollapsed) return '0px';
+  if (props.secondCollapsed) return '100%';
   return computedWidth.value;
 });
 
@@ -90,7 +98,8 @@ const convertPercentageToPixel = (percentage: number): number => {
 const startResize = (e: MouseEvent) => {
   e.preventDefault();
   e.stopPropagation();
-  if (!splitterRef.value || props.firstCollapsed) return;
+  if (!splitterRef.value || props.firstCollapsed || props.secondCollapsed)
+    return;
 
   isResizing = true;
   startX = e.clientX;

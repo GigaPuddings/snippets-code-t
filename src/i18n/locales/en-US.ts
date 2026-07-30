@@ -1198,11 +1198,13 @@ export default {
     translationResult: 'Translation',
     viewResult: 'View Result',
     sourceImage: 'Source image',
-    imageTextSelectable: 'Selectable',
-    dragToSelectText: 'Drag across text in the image, then copy the selection',
+    imageTextSelectable: 'Text selectable',
+    dragToSelectText: 'Click a text line, or drag to select part of it',
     imageSelectionPreparing: 'Preparing the image text selection layer',
     imageSelectionUnavailable:
       'Image selection is unavailable; copy the complete result on the right',
+    showAiPanel: 'Show AI result',
+    hideAiPanel: 'Hide AI result',
     selectedCharacters: '{count} characters selected',
     copySelection: 'Copy selection',
     aiRecognizedText: 'AI-recognized text',
@@ -1217,7 +1219,6 @@ export default {
     aiOcrFallbackNotice:
       'The vision model is unavailable, so local OCR returned the result',
     resultStats: '{sections} blocks · {characters} characters',
-    keywords: 'Keywords',
     copyAll: 'Copy all',
     selectSection: 'Select this block',
     aiRecognizeAgain: 'Recognize with AI',

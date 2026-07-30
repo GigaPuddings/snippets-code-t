@@ -108,215 +108,231 @@
       </header>
 
       <main class="ocr-reading-surface" @mousedown.stop>
-        <div class="ocr-result-layout">
-          <section class="ocr-preview-pane">
-            <header class="ocr-pane-header">
-              <div>
-                <strong>{{ $t('pin.sourceImage') }}</strong>
-                <span>{{ imageSelectionHint }}</span>
-              </div>
-              <span
-                v-if="ocrSelectableBlocks.length > 0"
-                class="ocr-ready-badge"
-              >
-                {{ $t('pin.imageTextSelectable') }}
-              </span>
-            </header>
-
-            <div class="ocr-preview-canvas">
-              <div class="ocr-preview-stage">
-                <img
-                  ref="ocrPreviewImageRef"
-                  :src="imageBlobUrl || imageData"
-                  :alt="$t('pin.ocrSourceAlt')"
-                  @load="handleImageLoad"
-                />
-                <div
-                  v-if="ocrSelectionHighlights.length > 0"
-                  class="ocr-selection-highlight-layer"
-                  aria-hidden="true"
-                >
-                  <span
-                    v-for="highlight in ocrSelectionHighlights"
-                    :key="highlight.id"
-                    class="ocr-selection-highlight"
-                    :style="getOcrSelectionHighlightStyle(highlight)"
-                  ></span>
+        <Splitter
+          class="ocr-result-layout"
+          default-size="44%"
+          min-size="26%"
+          max-size="72%"
+          :second-collapsed="isResultPaneCollapsed"
+        >
+          <template #first>
+            <section class="ocr-preview-pane">
+              <header class="ocr-pane-header">
+                <div class="ocr-pane-heading">
+                  <strong>{{ $t('pin.sourceImage') }}</strong>
+                  <span>{{ imageSelectionHint }}</span>
                 </div>
-                <div
-                  v-if="ocrSelectableBlocks.length > 0"
-                  class="ocr-text-overlay"
-                  @pointerdown="handleOcrOverlayPointerDown"
-                  @pointermove="handleOcrOverlayPointerMove"
-                  @pointerup="handleOcrOverlayPointerUp"
-                  @pointercancel="handleOcrOverlayPointerCancel"
-                >
+                <div class="ocr-pane-header-actions">
                   <span
-                    v-for="(block, index) in ocrSelectableBlocks"
-                    :key="block.id"
-                    class="ocr-overlay-block"
-                    :data-selection-index="index"
-                    :style="getOcrOverlayStyle(block)"
-                    v-text="block.text.trim()"
-                  ></span>
-                </div>
-              </div>
-            </div>
-
-            <div v-if="selectedOcrOverlayText" class="ocr-selection-copy">
-              <div>
-                <span>{{ $t('pin.selectedText') }}</span>
-                <strong>
-                  {{
-                    $t('pin.selectedCharacters', {
-                      count: selectedOcrOverlayText.length
-                    })
-                  }}
-                </strong>
-              </div>
-              <button type="button" @click.stop="handleCopySelectedImageText">
-                <Copy size="15" theme="outline" />
-                {{ $t('pin.copySelection') }}
-              </button>
-            </div>
-          </section>
-
-          <section class="ocr-record-pane">
-            <header class="ocr-pane-header result-header">
-              <div>
-                <strong>{{ $t('pin.aiRecognizedText') }}</strong>
-                <span v-if="ocrText.trim()">
-                  {{
-                    $t('pin.resultStats', {
-                      sections: ocrRecords.length,
-                      characters: ocrText.length
-                    })
-                  }}
-                </span>
-                <span v-else>{{ ocrStatusText }}</span>
-              </div>
-              <CustomButton
-                class="ocr-inline-copy"
-                type="text"
-                :title="$t('pin.copyText')"
-                :disabled="!ocrText.trim()"
-                @click.stop="handleCopyOcrText"
-              >
-                <Copy size="16" theme="outline" />
-                <span>{{ $t('pin.copyAll') }}</span>
-              </CustomButton>
-            </header>
-
-            <div v-if="ocrLoading && !ocrText.trim()" class="ocr-state">
-              <div class="ocr-ai-orbit">
-                <Magic size="22" theme="outline" />
-              </div>
-              <strong>{{ $t('pin.aiReadingImage') }}</strong>
-              <span>{{ $t('pin.aiReadingHint') }}</span>
-            </div>
-            <div
-              v-else-if="ocrError && !ocrText.trim()"
-              class="ocr-state error"
-            >
-              <strong>{{ ocrError }}</strong>
-              <span>{{ $t('pin.aiOcrRetryHint') }}</span>
-            </div>
-            <div v-else-if="!ocrText.trim()" class="ocr-state muted">
-              {{ $t('pin.noTextRecognized') }}
-            </div>
-
-            <div v-else class="ocr-result-scroll">
-              <div v-if="ocrKeywords.length > 0" class="ocr-keywords">
-                <span class="ocr-keywords-label">{{ $t('pin.keywords') }}</span>
-                <span
-                  v-for="keyword in ocrKeywords"
-                  :key="keyword"
-                  class="ocr-keyword"
-                >
-                  {{ keyword }}
-                </span>
-              </div>
-
-              <section
-                v-if="ocrSelectionTranslation"
-                class="ocr-selection-translation"
-              >
-                <div class="ocr-translation-section">
-                  <span class="ocr-translation-label">
-                    {{ $t('pin.selectedText') }}
+                    v-if="ocrSelectableBlocks.length > 0"
+                    class="ocr-ready-badge"
+                  >
+                    {{ $t('pin.imageTextSelectable') }}
                   </span>
-                  <div class="ocr-translation-source">
-                    {{ ocrSelectionTranslation.sourceText }}
+                  <button
+                    v-if="isResultPaneCollapsed"
+                    type="button"
+                    class="ocr-panel-toggle"
+                    :title="$t('pin.showAiPanel')"
+                    @click.stop="isResultPaneCollapsed = false"
+                  >
+                    <Left size="14" theme="outline" />
+                    <span>{{ $t('pin.showAiPanel') }}</span>
+                  </button>
+                </div>
+              </header>
+
+              <div class="ocr-preview-canvas">
+                <div class="ocr-preview-stage">
+                  <img
+                    ref="ocrPreviewImageRef"
+                    :src="imageBlobUrl || imageData"
+                    :alt="$t('pin.ocrSourceAlt')"
+                    @load="handleImageLoad"
+                  />
+                  <div
+                    v-if="ocrSelectionHighlights.length > 0"
+                    class="ocr-selection-highlight-layer"
+                    aria-hidden="true"
+                  >
+                    <span
+                      v-for="highlight in ocrSelectionHighlights"
+                      :key="highlight.id"
+                      class="ocr-selection-highlight"
+                      :style="getOcrSelectionHighlightStyle(highlight)"
+                    ></span>
+                  </div>
+                  <div
+                    v-if="ocrSelectableBlocks.length > 0"
+                    class="ocr-text-overlay"
+                    @pointerdown="handleOcrOverlayPointerDown"
+                    @pointermove="handleOcrOverlayPointerMove"
+                    @pointerup="handleOcrOverlayPointerUp"
+                    @pointercancel="handleOcrOverlayPointerCancel"
+                    @pointerleave="handleOcrOverlayPointerLeave"
+                  >
+                    <span
+                      v-for="(block, index) in ocrSelectableBlocks"
+                      :key="block.id"
+                      class="ocr-overlay-block"
+                      :class="{
+                        hovered: hoveredOcrBlockIndex === index,
+                        selected: selectedOcrBlockIndexes.has(index)
+                      }"
+                      :data-selection-index="index"
+                      :style="getOcrOverlayStyle(block)"
+                      v-text="block.text.trim()"
+                    ></span>
                   </div>
                 </div>
-                <div class="ocr-translation-section result">
-                  <span class="ocr-translation-label">
-                    {{ translationResultLabel }}
-                  </span>
-                  <div
-                    class="ocr-selection-translation-editor"
-                    contenteditable="plaintext-only"
-                    spellcheck="false"
-                    v-text="ocrSelectionTranslation.translatedText"
-                    @blur="handleSelectionTranslationInput"
-                  ></div>
-                </div>
-              </section>
+              </div>
 
-              <article
-                v-for="(record, index) in ocrRecords"
-                :key="record.id"
-                class="ocr-record-item"
-                :class="[`is-${record.kind}`, { selected: record.selected }]"
-              >
-                <header class="ocr-record-header">
+              <div v-if="selectedOcrOverlayText" class="ocr-selection-copy">
+                <div>
+                  <span>{{ $t('pin.selectedText') }}</span>
+                  <strong>
+                    {{
+                      $t('pin.selectedCharacters', {
+                        count: selectedOcrOverlayText.length
+                      })
+                    }}
+                  </strong>
+                </div>
+                <button type="button" @click.stop="handleCopySelectedImageText">
+                  <Copy size="14" theme="outline" />
+                  {{ $t('pin.copySelection') }}
+                </button>
+              </div>
+            </section>
+          </template>
+
+          <template #second>
+            <section class="ocr-record-pane">
+              <header class="ocr-pane-header result-header">
+                <div class="ocr-pane-heading">
+                  <strong>{{ $t('pin.aiRecognizedText') }}</strong>
+                  <span v-if="ocrText.trim()">
+                    {{
+                      $t('pin.resultStats', {
+                        sections: ocrRecords.length,
+                        characters: ocrText.length
+                      })
+                    }}
+                  </span>
+                  <span v-else>{{ ocrStatusText }}</span>
+                </div>
+                <div class="ocr-pane-header-actions">
+                  <CustomButton
+                    class="ocr-inline-copy"
+                    type="text"
+                    :title="$t('pin.copyText')"
+                    :disabled="!ocrText.trim()"
+                    @click.stop="handleCopyOcrText"
+                  >
+                    <Copy size="15" theme="outline" />
+                    <span>{{ $t('pin.copyAll') }}</span>
+                  </CustomButton>
                   <button
                     type="button"
-                    class="ocr-record-select"
-                    :class="{ selected: record.selected }"
-                    :aria-pressed="record.selected"
-                    :title="$t('pin.selectSection')"
-                    @click.stop="toggleOcrRecordSelection(record.id)"
+                    class="ocr-panel-toggle icon-only"
+                    :title="$t('pin.hideAiPanel')"
+                    @click.stop="isResultPaneCollapsed = true"
                   >
-                    <Check v-if="record.selected" size="11" theme="outline" />
-                    <span v-else>{{ index + 1 }}</span>
+                    <Right size="14" theme="outline" />
                   </button>
-                  <span class="ocr-record-kind">
-                    {{ getOcrSectionLabel(record.kind) }}
-                  </span>
-                  <span v-if="record.confidence > 0" class="ocr-record-score">
-                    {{ Math.round(record.confidence) }}%
-                  </span>
-                </header>
-
-                <div class="ocr-record-text">
-                  <template
-                    v-for="(
-                      segment, segmentIndex
-                    ) in getHighlightedTextSegments(record.text)"
-                    :key="`${record.id}-${segmentIndex}`"
-                  >
-                    <mark v-if="segment.highlighted">{{ segment.text }}</mark>
-                    <span v-else>{{ segment.text }}</span>
-                  </template>
                 </div>
+              </header>
 
-                <div
-                  v-if="record.translatedText"
-                  class="ocr-record-translation"
+              <div v-if="ocrLoading && !ocrText.trim()" class="ocr-state">
+                <div class="ocr-ai-orbit">
+                  <Magic size="22" theme="outline" />
+                </div>
+                <strong>{{ $t('pin.aiReadingImage') }}</strong>
+                <span>{{ $t('pin.aiReadingHint') }}</span>
+              </div>
+              <div
+                v-else-if="ocrError && !ocrText.trim()"
+                class="ocr-state error"
+              >
+                <strong>{{ ocrError }}</strong>
+                <span>{{ $t('pin.aiOcrRetryHint') }}</span>
+              </div>
+              <div v-else-if="!ocrText.trim()" class="ocr-state muted">
+                {{ $t('pin.noTextRecognized') }}
+              </div>
+
+              <div v-else class="ocr-result-scroll">
+                <section
+                  v-if="ocrSelectionTranslation"
+                  class="ocr-selection-translation"
                 >
-                  <span class="ocr-translation-label">
-                    {{ translationResultLabel }}
-                  </span>
+                  <div class="ocr-translation-section">
+                    <span class="ocr-translation-label">
+                      {{ $t('pin.selectedText') }}
+                    </span>
+                    <div class="ocr-translation-source">
+                      {{ ocrSelectionTranslation.sourceText }}
+                    </div>
+                  </div>
+                  <div class="ocr-translation-section result">
+                    <span class="ocr-translation-label">
+                      {{ translationResultLabel }}
+                    </span>
+                    <div
+                      class="ocr-selection-translation-editor"
+                      contenteditable="plaintext-only"
+                      spellcheck="false"
+                      v-text="ocrSelectionTranslation.translatedText"
+                      @blur="handleSelectionTranslationInput"
+                    ></div>
+                  </div>
+                </section>
+
+                <article
+                  v-for="(record, index) in ocrRecords"
+                  :key="record.id"
+                  class="ocr-record-item"
+                  :class="[`is-${record.kind}`, { selected: record.selected }]"
+                >
+                  <header class="ocr-record-header">
+                    <button
+                      type="button"
+                      class="ocr-record-select"
+                      :class="{ selected: record.selected }"
+                      :aria-pressed="record.selected"
+                      :title="$t('pin.selectSection')"
+                      @click.stop="toggleOcrRecordSelection(record.id)"
+                    >
+                      <Check v-if="record.selected" size="11" theme="outline" />
+                      <span v-else>{{ index + 1 }}</span>
+                    </button>
+                    <span class="ocr-record-kind">
+                      {{ getOcrSectionLabel(record.kind) }}
+                    </span>
+                    <span v-if="record.confidence > 0" class="ocr-record-score">
+                      {{ Math.round(record.confidence) }}%
+                    </span>
+                  </header>
+
+                  <div class="ocr-record-text" v-text="record.text"></div>
+
                   <div
-                    class="ocr-record-text translated"
-                    v-text="record.translatedText"
-                  ></div>
-                </div>
-              </article>
-            </div>
-          </section>
-        </div>
+                    v-if="record.translatedText"
+                    class="ocr-record-translation"
+                  >
+                    <span class="ocr-translation-label">
+                      {{ translationResultLabel }}
+                    </span>
+                    <div
+                      class="ocr-record-text translated"
+                      v-text="record.translatedText"
+                    ></div>
+                  </div>
+                </article>
+              </div>
+            </section>
+          </template>
+        </Splitter>
       </main>
 
       <footer class="ocr-action-bar">
@@ -327,7 +343,7 @@
           :disabled="!ocrText.trim()"
           @click.stop="handleCopyOcrText"
         >
-          <Copy size="22" theme="outline" :strokeWidth="2.7" />
+          <Copy size="18" theme="outline" :strokeWidth="2.5" />
           <span>
             {{
               selectedOcrRecordCount > 0
@@ -346,16 +362,16 @@
           >
             <Translate
               v-if="!isTranslating"
-              size="22"
+              size="18"
               theme="outline"
-              :strokeWidth="2.7"
+              :strokeWidth="2.5"
             />
             <Loading
               v-else
               class="ocr-loading-icon"
-              size="22"
+              size="18"
               theme="outline"
-              :strokeWidth="2.7"
+              :strokeWidth="2.5"
             />
             <span>{{ $t('pin.translate') }}</span>
           </CustomButton>
@@ -365,7 +381,7 @@
             :disabled="!ocrText.trim() || isTranslating"
             @click.stop="toggleTranslateMenu"
           >
-            <Down size="17" theme="outline" :strokeWidth="2.8" />
+            <Down size="14" theme="outline" :strokeWidth="2.7" />
           </CustomButton>
           <!-- 翻译引擎菜单 -->
           <div
@@ -401,7 +417,7 @@
             :disabled="ocrLoading"
             @click.stop="toggleOcrLanguageMenu"
           >
-            <TextRecognition size="22" theme="outline" :strokeWidth="2.7" />
+            <TextRecognition size="18" theme="outline" :strokeWidth="2.5" />
             <span>{{ currentOcrLanguageLabel }}</span>
           </CustomButton>
           <CustomButton
@@ -442,7 +458,7 @@
             :disabled="ocrLoading || !imageData"
             @click.stop="recognizeCurrentImage"
           >
-            <Magic size="21" theme="outline" :strokeWidth="2.7" />
+            <Magic size="17" theme="outline" :strokeWidth="2.5" />
             <span>{{ $t('pin.aiRecognizeAgain') }}</span>
           </CustomButton>
         </div>
@@ -453,7 +469,7 @@
           :disabled="!ocrText.trim()"
           @click.stop="handleSaveOcrText"
         >
-          <Save size="22" theme="outline" :strokeWidth="2.7" />
+          <Save size="18" theme="outline" :strokeWidth="2.5" />
           <span>{{ $t('pin.saveAsText') }}</span>
         </CustomButton>
         <span class="ocr-action-divider"></span>
@@ -463,7 +479,7 @@
           :title="$t('pin.more')"
           @click.stop="handleMoreActions"
         >
-          <More size="22" theme="outline" :strokeWidth="2.8" />
+          <More size="18" theme="outline" :strokeWidth="2.7" />
         </CustomButton>
       </footer>
     </section>
@@ -567,11 +583,14 @@ import {
   Translate,
   More,
   Check,
-  Magic
+  Magic,
+  Left,
+  Right
 } from '@icon-park/vue-next';
 import { logger, ocrDiagnosticLogger } from '@/utils/logger';
 import modal from '@/utils/modal';
 import CustomButton from '@/components/UI/CustomButton.vue';
+import Splitter from '@/components/Splitter/index.vue';
 import {
   translateOffline,
   getModelCacheInfo,
@@ -588,6 +607,7 @@ import {
 import {
   buildSelectedOcrText,
   findNearestOcrCharacterOffset,
+  findNearestOcrSelectionHit,
   getOcrTextSelectionSegments,
   type OcrTextSelectionRange
 } from '@/plugins/screenshot/pages/screenshot/core/OcrTextSelection';
@@ -597,7 +617,6 @@ import type {
 } from '@/plugins/screenshot/pages/screenshot/core/types';
 import {
   recognizeImageWithLocalAi,
-  segmentTextByKeywords,
   type AiOcrResult,
   type AiOcrSectionKind
 } from '@/plugins/screenshot/utils/aiOcr';
@@ -614,7 +633,6 @@ const mode = ref<'pin' | 'ocr'>('pin');
 const ocrText = ref('');
 const ocrRecords = ref<OcrRecord[]>([]);
 const ocrGeometryRecords = ref<OcrRecord[]>([]);
-const ocrKeywords = ref<string[]>([]);
 const ocrLoading = ref(false);
 const ocrError = ref('');
 const recognitionEngine = ref<'pending' | 'ai' | 'rapidocr'>('pending');
@@ -632,13 +650,17 @@ const ocrSelectionTranslation = ref<{
 // Umi-OCR-style selection: track block and character endpoints instead of DOM Selection.
 const ocrOverlaySelection = ref<OcrTextSelectionRange | null>(null);
 const isSelectingOcrOverlay = ref(false);
+const hoveredOcrBlockIndex = ref<number | null>(null);
+const isResultPaneCollapsed = ref(false);
 let ocrOverlayPointerId: number | null = null;
+let ocrOverlayPointerStart: { x: number; y: number } | null = null;
 
 const isTranslating = ref(false);
 const showTranslateMenu = ref(false);
 const translateMenuAnchorRef = ref<HTMLElement>();
 const translateMenuStyle = ref<CSSProperties>({});
-const currentTranslateEngine = ref<'google' | 'bing' | 'offline'>('bing');
+type TranslateEngine = 'google' | 'bing' | 'offline' | 'local-ai';
+const currentTranslateEngine = ref<TranslateEngine>('bing');
 const showOcrLanguageMenu = ref(false);
 const ocrLanguageMenuAnchorRef = ref<HTMLElement>();
 const ocrLanguageMenuStyle = ref<CSSProperties>({});
@@ -699,6 +721,11 @@ const translateEngines = computed(() => [
     value: 'offline' as const,
     label: t('translate.offlineTranslate'),
     short: t('translate.offlineMark')
+  },
+  {
+    value: 'local-ai' as const,
+    label: t('translate.localAiTranslate'),
+    short: 'AI'
   }
 ]);
 
@@ -868,6 +895,10 @@ const ocrSelectionSegments = computed(() =>
   )
 );
 
+const selectedOcrBlockIndexes = computed(
+  () => new Set(ocrSelectionSegments.value.map((segment) => segment.blockIndex))
+);
+
 const selectedOcrOverlayText = computed(() =>
   buildSelectedOcrText(ocrSelectableBlocks.value, ocrOverlaySelection.value)
 );
@@ -891,9 +922,6 @@ const ocrSelectionHighlights = computed<OcrSelectionHighlight[]>(() =>
 );
 
 const selectedOcrRecordCount = computed(() => selectedOcrRecords.value.length);
-
-const getHighlightedTextSegments = (text: string) =>
-  segmentTextByKeywords(text, ocrKeywords.value);
 
 const getOcrSectionLabel = (kind: AiOcrSectionKind): string =>
   t(`pin.sectionKinds.${kind}`);
@@ -1179,7 +1207,6 @@ const applyPinWindowData = (payload: PinWindowDataPayload): boolean => {
     ocrText.value = '';
     ocrRecords.value = [];
     ocrGeometryRecords.value = [];
-    ocrKeywords.value = [];
   }
 
   return true;
@@ -1196,7 +1223,6 @@ const recognizeCurrentImage = async () => {
   ocrError.value = '';
   recognitionEngine.value = 'pending';
   recognitionModelName.value = '';
-  ocrKeywords.value = [];
   const startedAt = Date.now();
 
   ocrDiagnosticLogger.log('[Pin AI OCR] recognize start', {
@@ -1235,7 +1261,6 @@ const recognizeCurrentImage = async () => {
         aiRecords.length > 0
           ? aiRecords
           : createRecordsFromPlainText(aiAttempt.value.text);
-      ocrKeywords.value = aiAttempt.value.keywords;
       syncOcrTextFromRecords();
       recognitionEngine.value = 'ai';
       recognitionModelName.value = aiAttempt.value.modelName;
@@ -1554,7 +1579,7 @@ const toggleTranslateMenu = async () => {
   }
 };
 
-const selectTranslateEngine = (engine: 'google' | 'bing' | 'offline') => {
+const selectTranslateEngine = (engine: TranslateEngine) => {
   currentTranslateEngine.value = engine;
   showTranslateMenu.value = false;
   // 将用户选择保存到后端或本地（可选，这里先简单调用）
@@ -2056,7 +2081,8 @@ const handleOcrOverlayPointerDown = (event: PointerEvent) => {
   const point = getOcrSelectionPointAtPosition(
     overlay,
     event.clientX,
-    event.clientY
+    event.clientY,
+    false
   );
   window.getSelection()?.removeAllRanges();
   if (!point) {
@@ -2067,7 +2093,9 @@ const handleOcrOverlayPointerDown = (event: PointerEvent) => {
   event.preventDefault();
   overlay.setPointerCapture(event.pointerId);
   ocrOverlayPointerId = event.pointerId;
+  ocrOverlayPointerStart = { x: event.clientX, y: event.clientY };
   isSelectingOcrOverlay.value = true;
+  hoveredOcrBlockIndex.value = point.blockIndex;
   ocrOverlaySelection.value = {
     anchor: point,
     focus: point
@@ -2075,16 +2103,19 @@ const handleOcrOverlayPointerDown = (event: PointerEvent) => {
 };
 
 const handleOcrOverlayPointerMove = (event: PointerEvent) => {
-  if (!isSelectingOcrOverlay.value || event.pointerId !== ocrOverlayPointerId) {
-    return;
-  }
-
   const overlay = event.currentTarget as HTMLElement;
   const point = getOcrSelectionPointAtPosition(
     overlay,
     event.clientX,
-    event.clientY
+    event.clientY,
+    isSelectingOcrOverlay.value
   );
+  hoveredOcrBlockIndex.value = point?.blockIndex ?? null;
+
+  if (!isSelectingOcrOverlay.value || event.pointerId !== ocrOverlayPointerId) {
+    return;
+  }
+
   if (!point || !ocrOverlaySelection.value) {
     return;
   }
@@ -2106,8 +2137,32 @@ const handleOcrOverlayPointerUp = (event: PointerEvent) => {
   if (overlay.hasPointerCapture(event.pointerId)) {
     overlay.releasePointerCapture(event.pointerId);
   }
+
+  const pointerStart = ocrOverlayPointerStart;
+  const point = getOcrSelectionPointAtPosition(
+    overlay,
+    event.clientX,
+    event.clientY,
+    true
+  );
+  if (
+    pointerStart &&
+    point &&
+    Math.hypot(event.clientX - pointerStart.x, event.clientY - pointerStart.y) <
+      4
+  ) {
+    const block = ocrSelectableBlocks.value[point.blockIndex];
+    if (block) {
+      ocrOverlaySelection.value = {
+        anchor: { blockIndex: point.blockIndex, offset: 0 },
+        focus: { blockIndex: point.blockIndex, offset: block.text.length }
+      };
+    }
+  }
+
   isSelectingOcrOverlay.value = false;
   ocrOverlayPointerId = null;
+  ocrOverlayPointerStart = null;
 };
 
 const handleOcrOverlayPointerCancel = (event: PointerEvent) => {
@@ -2116,12 +2171,21 @@ const handleOcrOverlayPointerCancel = (event: PointerEvent) => {
   }
   isSelectingOcrOverlay.value = false;
   ocrOverlayPointerId = null;
+  ocrOverlayPointerStart = null;
+};
+
+const handleOcrOverlayPointerLeave = () => {
+  if (!isSelectingOcrOverlay.value) {
+    hoveredOcrBlockIndex.value = null;
+  }
 };
 
 const clearOcrOverlaySelection = () => {
   ocrOverlaySelection.value = null;
   isSelectingOcrOverlay.value = false;
+  hoveredOcrBlockIndex.value = null;
   ocrOverlayPointerId = null;
+  ocrOverlayPointerStart = null;
 };
 
 const selectAllOcrOverlayText = () => {
@@ -2143,42 +2207,54 @@ const selectAllOcrOverlayText = () => {
 const getOcrSelectionPointAtPosition = (
   overlay: HTMLElement,
   clientX: number,
-  clientY: number
+  clientY: number,
+  allowNearest: boolean
 ) => {
-  const elements = overlay.querySelectorAll<HTMLElement>(
-    '.ocr-overlay-block[data-selection-index]'
+  const elements = Array.from(
+    overlay.querySelectorAll<HTMLElement>(
+      '.ocr-overlay-block[data-selection-index]'
+    )
   );
-
-  for (const element of elements) {
+  const boxes = elements.map((element) => {
     const rect = element.getBoundingClientRect();
-    if (
-      clientX < rect.left ||
-      clientX > rect.right ||
-      clientY < rect.top ||
-      clientY > rect.bottom
-    ) {
-      continue;
-    }
-
-    const blockIndex = Number(element.dataset.selectionIndex);
-    const block = ocrSelectableBlocks.value[blockIndex];
-    if (!block) {
-      return null;
-    }
-
-    const metrics = getOcrOverlayMetrics(block);
-    const xRatio = clampNumber(
-      (clientX - rect.left) / Math.max(rect.width, 1),
-      0,
-      1
-    );
-    const targetWidth = xRatio * metrics.renderedWidth;
     return {
-      blockIndex,
-      offset: findNearestOcrCharacterOffset(metrics.boundaries, targetWidth)
+      blockIndex: Number(element.dataset.selectionIndex),
+      left: rect.left,
+      top: rect.top,
+      right: rect.right,
+      bottom: rect.bottom
     };
+  });
+  const hit = findNearestOcrSelectionHit(
+    boxes,
+    clientX,
+    clientY,
+    allowNearest ? Number.POSITIVE_INFINITY : 14
+  );
+  if (!hit) {
+    return null;
   }
-  return null;
+
+  const element = elements.find(
+    (candidate) => Number(candidate.dataset.selectionIndex) === hit.blockIndex
+  );
+  const block = ocrSelectableBlocks.value[hit.blockIndex];
+  if (!element || !block) {
+    return null;
+  }
+
+  const rect = element.getBoundingClientRect();
+  const metrics = getOcrOverlayMetrics(block);
+  const xRatio = clampNumber(
+    (clientX - rect.left) / Math.max(rect.width, 1),
+    0,
+    1
+  );
+  const targetWidth = xRatio * metrics.renderedWidth;
+  return {
+    blockIndex: hit.blockIndex,
+    offset: findNearestOcrCharacterOffset(metrics.boundaries, targetWidth)
+  };
 };
 
 const handleKeydown = (event: KeyboardEvent): void => {
@@ -2284,7 +2360,8 @@ onMounted(async () => {
     if (
       translationEngine === 'google' ||
       translationEngine === 'bing' ||
-      translationEngine === 'offline'
+      translationEngine === 'offline' ||
+      translationEngine === 'local-ai'
     ) {
       currentTranslateEngine.value = translationEngine;
     }
@@ -2522,17 +2599,39 @@ onUnmounted(() => {
       box-shadow: none;
 
       .ocr-result-layout {
-        display: grid;
-        grid-template-rows: minmax(0, 1fr);
-        grid-template-columns: minmax(220px, 0.88fr) minmax(300px, 1.12fr);
         gap: 10px;
         height: 100%;
+
+        :deep(.splitter-divider) {
+          top: 0;
+          width: 10px;
+          height: 100%;
+          background: transparent;
+        }
+
+        :deep(.splitter-divider-line) {
+          left: 5px;
+          width: 2px;
+          height: 28px;
+          background: color-mix(in srgb, var(--ocr-border) 88%, transparent);
+          border-radius: 999px;
+          transition:
+            height 0.15s ease,
+            background-color 0.15s ease;
+        }
+
+        :deep(.splitter-divider:hover .splitter-divider-line) {
+          height: 44px;
+          background: var(--primary-color);
+        }
       }
 
       .ocr-preview-pane,
       .ocr-record-pane {
         @apply min-h-0 overflow-hidden bg-ocr-panel border border-ocr;
 
+        width: 100%;
+        height: 100%;
         padding: 0;
         border-radius: 9px;
         box-shadow: var(--ocr-panel-shadow);
@@ -2541,6 +2640,7 @@ onUnmounted(() => {
       .ocr-preview-pane {
         @apply flex flex-col;
 
+        position: relative;
         background: color-mix(
           in srgb,
           var(--ocr-panel-bg) 92%,
@@ -2557,7 +2657,7 @@ onUnmounted(() => {
         border-bottom: 1px solid
           color-mix(in srgb, var(--ocr-border) 64%, transparent);
 
-        > div {
+        .ocr-pane-heading {
           @apply flex min-w-0 flex-col;
 
           gap: 3px;
@@ -2573,6 +2673,46 @@ onUnmounted(() => {
           font-size: 10px;
           line-height: 1.3;
           color: var(--ocr-text-muted);
+        }
+      }
+
+      .ocr-pane-header-actions {
+        @apply flex flex-shrink-0 items-center;
+
+        gap: 5px;
+      }
+
+      .ocr-panel-toggle {
+        @apply flex flex-shrink-0 items-center justify-center rounded-md text-ocr-secondary;
+
+        gap: 4px;
+        height: 27px;
+        padding: 0 7px;
+        font-size: 10px;
+        background: color-mix(
+          in srgb,
+          var(--ocr-panel-hover-bg) 55%,
+          transparent
+        );
+        border: 1px solid color-mix(in srgb, var(--ocr-border) 72%, transparent);
+
+        &:hover {
+          color: var(--primary-color);
+          background: color-mix(
+            in srgb,
+            var(--primary-color) 8%,
+            var(--ocr-panel-bg)
+          );
+          border-color: color-mix(
+            in srgb,
+            var(--primary-color) 28%,
+            var(--ocr-border)
+          );
+        }
+
+        &.icon-only {
+          width: 27px;
+          padding: 0;
         }
       }
 
@@ -2646,12 +2786,13 @@ onUnmounted(() => {
       .ocr-selection-highlight {
         position: absolute;
         display: block;
-        background: color-mix(in srgb, var(--primary-color) 28%, transparent);
+        background: color-mix(in srgb, var(--primary-color) 24%, transparent);
         border-radius: 2px;
       }
 
       .ocr-overlay-block {
         position: absolute;
+        box-sizing: border-box;
         display: block;
         padding: 0;
         overflow: visible;
@@ -2662,23 +2803,57 @@ onUnmounted(() => {
         pointer-events: none;
         cursor: text;
         user-select: none;
-        background: transparent;
-        border-radius: 1px;
+        background: color-mix(in srgb, var(--primary-color) 3%, transparent);
+        border: 1px solid
+          color-mix(in srgb, var(--primary-color) 24%, transparent);
+        border-radius: 2px;
+        transition:
+          background-color 0.12s ease,
+          border-color 0.12s ease,
+          box-shadow 0.12s ease;
+
+        &.hovered {
+          background: color-mix(in srgb, var(--primary-color) 10%, transparent);
+          border-color: color-mix(
+            in srgb,
+            var(--primary-color) 68%,
+            transparent
+          );
+          box-shadow: 0 0 0 1px
+            color-mix(in srgb, var(--primary-color) 15%, transparent);
+        }
+
+        &.selected {
+          border-color: color-mix(
+            in srgb,
+            var(--primary-color) 84%,
+            transparent
+          );
+        }
       }
 
       .ocr-selection-copy {
-        @apply flex flex-shrink-0 items-center justify-between;
+        @apply absolute flex items-center justify-between;
 
+        bottom: 10px;
+        left: 50%;
+        z-index: 6;
         gap: 10px;
-        min-height: 44px;
-        padding: 7px 9px 7px 12px;
+        width: max-content;
+        max-width: calc(100% - 20px);
+        min-height: 38px;
+        padding: 5px 6px 5px 10px;
         background: color-mix(
           in srgb,
-          var(--primary-color) 8%,
+          var(--primary-color) 7%,
           var(--ocr-panel-bg)
         );
-        border-top: 1px solid
-          color-mix(in srgb, var(--primary-color) 18%, transparent);
+        border: 1px solid
+          color-mix(in srgb, var(--primary-color) 22%, var(--ocr-border));
+        border-radius: 8px;
+        box-shadow: 0 8px 24px
+          color-mix(in srgb, var(--ocr-text) 16%, transparent);
+        transform: translateX(-50%);
 
         > div {
           @apply flex min-w-0 flex-col;
@@ -2787,32 +2962,6 @@ onUnmounted(() => {
         padding: 12px 13px 16px;
         user-select: text;
         scrollbar-width: thin;
-      }
-
-      .ocr-keywords {
-        @apply flex flex-wrap items-center;
-
-        gap: 5px;
-        margin-bottom: 11px;
-      }
-
-      .ocr-keywords-label {
-        margin-right: 2px;
-        font-size: 10px;
-        font-weight: 650;
-        color: var(--ocr-text-muted);
-      }
-
-      .ocr-keyword {
-        @apply rounded-full;
-
-        padding: 3px 8px;
-        font-size: 10px;
-        line-height: 1.35;
-        color: var(--primary-color);
-        background: color-mix(in srgb, var(--primary-color) 9%, transparent);
-        border: 1px solid
-          color-mix(in srgb, var(--primary-color) 17%, transparent);
       }
 
       .ocr-selection-translation {
@@ -2967,18 +3116,6 @@ onUnmounted(() => {
         white-space: pre-wrap;
         user-select: text;
 
-        mark {
-          padding: 1px 2px;
-          margin: 0 1px;
-          color: inherit;
-          background: color-mix(
-            in srgb,
-            var(--el-color-warning) 25%,
-            transparent
-          );
-          border-radius: 3px;
-        }
-
         &.translated {
           color: var(--ocr-text-secondary);
         }
@@ -2993,8 +3130,22 @@ onUnmounted(() => {
 
       @media (width <= 620px) {
         .ocr-result-layout {
-          grid-template-rows: minmax(145px, 0.78fr) minmax(190px, 1.22fr);
-          grid-template-columns: minmax(0, 1fr);
+          flex-direction: column;
+          gap: 8px;
+
+          :deep(.first-panel) {
+            width: 100% !important;
+            min-width: 100% !important;
+            height: 42%;
+          }
+
+          :deep(.second-panel) {
+            height: 58%;
+          }
+
+          :deep(.splitter-divider) {
+            display: none;
+          }
         }
 
         .ocr-pane-header {
@@ -3015,9 +3166,9 @@ onUnmounted(() => {
     .ocr-action-bar {
       @apply flex flex-shrink-0 items-center;
 
-      gap: 6px;
-      height: 56px;
-      padding: 8px 10px;
+      gap: 4px;
+      height: 46px;
+      padding: 6px 8px;
       margin-bottom: 0;
       overflow: auto hidden;
       white-space: nowrap;
@@ -3039,7 +3190,7 @@ onUnmounted(() => {
 
         .translate-main,
         .ocr-engine-main {
-          min-width: 74px;
+          min-width: 64px;
           padding-right: 4px;
           border-right: 0;
           border-top-right-radius: 0;
@@ -3049,8 +3200,8 @@ onUnmounted(() => {
 
         .translate-arrow,
         .ocr-engine-arrow {
-          width: 30px;
-          min-width: 30px;
+          width: 26px;
+          min-width: 26px;
           padding-inline: 4px;
           border-left: 0;
           border-top-left-radius: 0;
@@ -3100,11 +3251,11 @@ onUnmounted(() => {
       .ocr-action-btn {
         @apply flex flex-shrink-0 items-center justify-center text-ocr-secondary bg-ocr-panel border border-ocr shadow-ocr-panel;
 
-        gap: 6px;
+        gap: 5px;
         min-width: 0;
-        height: 38px;
-        padding: 0 10px;
-        font-size: 13px;
+        height: 32px;
+        padding: 0 8px;
+        font-size: 12px;
         font-weight: 500;
         line-height: 1;
         border-radius: 6px;
@@ -3124,8 +3275,8 @@ onUnmounted(() => {
         }
 
         &.more {
-          width: 36px;
-          min-width: 36px;
+          width: 32px;
+          min-width: 32px;
           padding: 0;
           background: transparent;
           border-color: transparent;
@@ -3150,7 +3301,7 @@ onUnmounted(() => {
       .ocr-action-divider {
         flex: 0 0 auto;
         width: 1px;
-        height: 24px;
+        height: 20px;
         margin-left: 1px;
         background: var(--ocr-border);
       }
@@ -3163,15 +3314,15 @@ onUnmounted(() => {
         .translate-btn-group .translate-main,
         .ocr-engine-btn-group .ocr-engine-main,
         .ocr-action-btn {
-          width: 38px;
-          min-width: 38px;
+          width: 32px;
+          min-width: 32px;
           padding: 0;
         }
 
         .translate-btn-group .translate-arrow,
         .ocr-engine-btn-group .ocr-engine-arrow {
-          width: 28px;
-          min-width: 28px;
+          width: 24px;
+          min-width: 24px;
         }
       }
     }

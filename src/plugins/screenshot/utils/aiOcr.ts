@@ -20,19 +20,13 @@ export interface AiOcrSection {
 export interface AiOcrResult {
   text: string;
   sections: AiOcrSection[];
-  keywords: string[];
   modelName: string;
-}
-
-export interface HighlightedTextSegment {
-  text: string;
-  highlighted: boolean;
 }
 
 const AI_OCR_SYSTEM_PROMPT = `你是高精度图片文字识别引擎。逐字读取图片，保留原语言、标点、数字、换行、列表和代码，不要翻译、总结或解释。
 仅返回合法 JSON，结构必须为：
-{"text":"完整文字","sections":[{"type":"title|paragraph|list|code|table","text":"原文分块"}],"keywords":["值得突出显示的原文关键词"]}
-sections 必须覆盖完整文字；keywords 最多 8 个，只能取自图片原文。`;
+{"text":"完整文字","sections":[{"type":"title|paragraph|list|code|table","text":"原文分块"}]}
+sections 必须覆盖完整文字。`;
 
 const languageHints: Record<string, string> = {
   auto: '自动判断图片文字语言',
@@ -92,29 +86,6 @@ const extractJsonCandidate = (response: string): string | null => {
   return start >= 0 && end > start ? response.slice(start, end + 1) : null;
 };
 
-const uniqueKeywords = (keywords: unknown, text: string): string[] => {
-  if (!Array.isArray(keywords)) return [];
-  const normalizedText = text.toLocaleLowerCase();
-  const seen = new Set<string>();
-
-  return keywords
-    .map((keyword) => (typeof keyword === 'string' ? keyword.trim() : ''))
-    .filter((keyword) => {
-      const key = keyword.toLocaleLowerCase();
-      if (
-        !keyword ||
-        keyword.length > 32 ||
-        seen.has(key) ||
-        !normalizedText.includes(key)
-      ) {
-        return false;
-      }
-      seen.add(key);
-      return true;
-    })
-    .slice(0, 8);
-};
-
 export const parseAiOcrResponse = (
   response: string
 ): Omit<AiOcrResult, 'modelName'> => {
@@ -159,8 +130,7 @@ export const parseAiOcrResponse = (
 
   return {
     text,
-    sections: normalizedSections,
-    keywords: uniqueKeywords(payload?.keywords, text)
+    sections: normalizedSections
   };
 };
 
@@ -210,30 +180,4 @@ export const recognizeImageWithLocalAi = async (
       fileNameFromPath(modelScan.selectedModelPath) ||
       'Local Vision'
   };
-};
-
-export const segmentTextByKeywords = (
-  text: string,
-  keywords: string[]
-): HighlightedTextSegment[] => {
-  const normalizedKeywords = [...new Set(keywords.map((item) => item.trim()))]
-    .filter(Boolean)
-    .sort((a, b) => b.length - a.length);
-  if (!text || normalizedKeywords.length === 0) {
-    return [{ text, highlighted: false }];
-  }
-
-  const pattern = normalizedKeywords
-    .map((keyword) => keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-    .join('|');
-  const regex = new RegExp(`(${pattern})`, 'giu');
-  return text
-    .split(regex)
-    .filter(Boolean)
-    .map((segment) => ({
-      text: segment,
-      highlighted: normalizedKeywords.some(
-        (keyword) => keyword.toLocaleLowerCase() === segment.toLocaleLowerCase()
-      )
-    }));
 };

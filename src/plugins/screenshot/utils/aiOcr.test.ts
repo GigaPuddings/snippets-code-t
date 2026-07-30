@@ -1,17 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { parseAiOcrResponse, segmentTextByKeywords } from './aiOcr';
+import { parseAiOcrResponse } from './aiOcr';
 
 describe('AI OCR response parsing', () => {
   it('normalizes fenced JSON into structured sections', () => {
     const result = parseAiOcrResponse(`\`\`\`json
-{"text":"文字识别结果\\n\\n支持一键复制","sections":[{"type":"title","text":"文字识别结果"},{"type":"paragraph","text":"支持一键复制"}],"keywords":["文字识别","一键复制","不存在"]}
+{"text":"文字识别结果\\n\\n支持一键复制","sections":[{"type":"title","text":"文字识别结果"},{"type":"paragraph","text":"支持一键复制"}]}
 \`\`\``);
 
     expect(result.sections).toEqual([
       { type: 'title', text: '文字识别结果' },
       { type: 'paragraph', text: '支持一键复制' }
     ]);
-    expect(result.keywords).toEqual(['文字识别', '一键复制']);
   });
 
   it('falls back to readable paragraphs for a plain-text model response', () => {
@@ -20,23 +19,5 @@ describe('AI OCR response parsing', () => {
     expect(result.text).toContain('第一段正文');
     expect(result.sections).toHaveLength(3);
     expect(result.sections[0].type).toBe('title');
-  });
-});
-
-describe('OCR keyword highlighting', () => {
-  it('prefers the longest keyword and preserves original text', () => {
-    const segments = segmentTextByKeywords('AI 文字识别支持文字复制', [
-      '文字',
-      '文字识别'
-    ]);
-
-    expect(segments.map((segment) => segment.text).join('')).toBe(
-      'AI 文字识别支持文字复制'
-    );
-    expect(
-      segments
-        .filter((segment) => segment.highlighted)
-        .map((segment) => segment.text)
-    ).toEqual(['文字识别', '文字']);
   });
 });

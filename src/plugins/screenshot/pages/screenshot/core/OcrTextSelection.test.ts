@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildSelectedOcrText,
   findNearestOcrCharacterOffset,
+  findNearestOcrSelectionHit,
   getOcrTextSelectionSegments,
   type OcrTextSelectionBlock,
   type OcrTextSelectionRange
@@ -58,5 +59,22 @@ describe('OcrTextSelection', () => {
     expect(findNearestOcrCharacterOffset(boundaries, 2)).toBe(0)
     expect(findNearestOcrCharacterOffset(boundaries, 13)).toBe(2)
     expect(findNearestOcrCharacterOffset(boundaries, 39)).toBe(4)
+  })
+
+  it('keeps selection active while the pointer crosses gaps between OCR boxes', () => {
+    const boxes = [
+      { blockIndex: 0, left: 10, top: 10, right: 110, bottom: 30 },
+      { blockIndex: 1, left: 10, top: 50, right: 150, bottom: 70 }
+    ]
+
+    expect(findNearestOcrSelectionHit(boxes, 40, 40)).toEqual({
+      blockIndex: 0,
+      distance: 10
+    })
+    expect(findNearestOcrSelectionHit(boxes, 40, 47)).toEqual({
+      blockIndex: 1,
+      distance: 3
+    })
+    expect(findNearestOcrSelectionHit(boxes, 300, 300, 16)).toBeNull()
   })
 })

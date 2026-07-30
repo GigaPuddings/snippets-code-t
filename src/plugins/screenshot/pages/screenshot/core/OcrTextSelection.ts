@@ -19,6 +19,19 @@ export interface OcrTextSelectionSegment {
   end: number
 }
 
+export interface OcrTextSelectionHitBox {
+  blockIndex: number
+  left: number
+  top: number
+  right: number
+  bottom: number
+}
+
+export interface OcrTextSelectionHit {
+  blockIndex: number
+  distance: number
+}
+
 export function normalizeOcrTextSelection(
   selection: OcrTextSelectionRange
 ): { start: OcrTextSelectionPoint, end: OcrTextSelectionPoint } {
@@ -83,6 +96,38 @@ export function findNearestOcrCharacterOffset(boundaries: number[], target: numb
     }
   }
   return nearestOffset
+}
+
+export function findNearestOcrSelectionHit(
+  boxes: OcrTextSelectionHitBox[],
+  x: number,
+  y: number,
+  maxDistance = Number.POSITIVE_INFINITY
+): OcrTextSelectionHit | null {
+  let nearest: OcrTextSelectionHit | null = null
+
+  for (const box of boxes) {
+    const deltaX = x < box.left
+      ? box.left - x
+      : x > box.right
+        ? x - box.right
+        : 0
+    const deltaY = y < box.top
+      ? box.top - y
+      : y > box.bottom
+        ? y - box.bottom
+        : 0
+    const distance = Math.hypot(deltaX, deltaY)
+
+    if (distance <= maxDistance && (!nearest || distance < nearest.distance)) {
+      nearest = {
+        blockIndex: box.blockIndex,
+        distance
+      }
+    }
+  }
+
+  return nearest
 }
 
 function comparePoints(left: OcrTextSelectionPoint, right: OcrTextSelectionPoint): number {
