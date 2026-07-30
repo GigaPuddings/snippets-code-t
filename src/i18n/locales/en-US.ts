@@ -1205,8 +1205,6 @@ export default {
       'Image selection is unavailable; copy the complete result on the right',
     showAiPanel: 'Show AI result',
     hideAiPanel: 'Hide AI result',
-    selectedCharacters: '{count} characters selected',
-    copySelection: 'Copy selection',
     aiRecognizedText: 'AI-recognized text',
     aiReadingImage: 'AI is reading the image',
     aiReadingHint:

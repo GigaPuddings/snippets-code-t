@@ -1164,8 +1164,6 @@ export default {
     imageSelectionUnavailable: '当前图片定位层不可用，可复制右侧完整结果',
     showAiPanel: '显示 AI 结果',
     hideAiPanel: '隐藏 AI 结果',
-    selectedCharacters: '已选择 {count} 个字符',
-    copySelection: '复制选中',
     aiRecognizedText: 'AI 识别文本',
     aiReadingImage: 'AI 正在阅读图片',
     aiReadingHint: '视觉模型会保留原文结构、列表和标点',
