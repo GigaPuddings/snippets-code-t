@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "screenshot",
-  "version": "2.0.42",
+  "version": "2.0.43",
   "kind": "local",
   "name": {
     "i18nKey": "plugins.screenshot.name",
@@ -34,16 +34,17 @@
   ],
   "dependencies": [
     "screenshot-rapidocr",
-    "translation"
+    "translation",
+    "local-ai"
   ],
-  "compatibleAppVersion": ">=2.1.40",
+  "compatibleAppVersion": ">=2.1.48",
   "entry": {
     "frontend": "dist/frontend.js",
     "styles": [
-      "dist/assets/runtime-entry-DTB_zezD.css"
+      "dist/assets/runtime-entry-BkpH1yeg.css"
     ]
   },
-  "minAppVersion": "2.1.40",
+  "minAppVersion": "2.1.48",
   "repository": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot",
-  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/releases/tag/2.0.42"
+  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/releases/tag/2.0.43"
 }

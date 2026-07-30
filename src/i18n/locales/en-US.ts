@@ -1196,7 +1196,38 @@ export default {
     sourceText: 'Source',
     selectedText: 'Selected Text',
     translationResult: 'Translation',
-    viewResult: 'View Result'
+    viewResult: 'View Result',
+    sourceImage: 'Source image',
+    imageTextSelectable: 'Selectable',
+    dragToSelectText: 'Drag across text in the image, then copy the selection',
+    imageSelectionPreparing: 'Preparing the image text selection layer',
+    imageSelectionUnavailable:
+      'Image selection is unavailable; copy the complete result on the right',
+    selectedCharacters: '{count} characters selected',
+    copySelection: 'Copy selection',
+    aiRecognizedText: 'AI-recognized text',
+    aiReadingImage: 'AI is reading the image',
+    aiReadingHint:
+      'The vision model preserves structure, lists, and punctuation',
+    aiOcrRetryHint:
+      'Enable a local AI vision model, then try recognition again',
+    aiRecognizing: 'AI recognizing',
+    aiVision: 'AI vision',
+    rapidOcrFallback: 'Local OCR fallback',
+    aiOcrFallbackNotice:
+      'The vision model is unavailable, so local OCR returned the result',
+    resultStats: '{sections} blocks · {characters} characters',
+    keywords: 'Keywords',
+    copyAll: 'Copy all',
+    selectSection: 'Select this block',
+    aiRecognizeAgain: 'Recognize with AI',
+    sectionKinds: {
+      title: 'Title',
+      paragraph: 'Paragraph',
+      list: 'List',
+      code: 'Code',
+      table: 'Table'
+    }
   },
 
   // Wallpaper Switcher Plugin

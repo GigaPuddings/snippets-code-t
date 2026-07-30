@@ -1156,7 +1156,34 @@ export default {
     sourceText: '原文',
     selectedText: '已选文字',
     translationResult: '译文',
-    viewResult: '查看结果'
+    viewResult: '查看结果',
+    sourceImage: '原始图片',
+    imageTextSelectable: '可框选',
+    dragToSelectText: '在图片文字上拖动，松开后即可复制',
+    imageSelectionPreparing: '正在生成图片文字定位层',
+    imageSelectionUnavailable: '当前图片定位层不可用，可复制右侧完整结果',
+    selectedCharacters: '已选择 {count} 个字符',
+    copySelection: '复制选中',
+    aiRecognizedText: 'AI 识别文本',
+    aiReadingImage: 'AI 正在阅读图片',
+    aiReadingHint: '视觉模型会保留原文结构、列表和标点',
+    aiOcrRetryHint: '请确认本地 AI 视觉模型已启用后重新识别',
+    aiRecognizing: 'AI 识别中',
+    aiVision: 'AI 视觉模型',
+    rapidOcrFallback: '本地 OCR 降级',
+    aiOcrFallbackNotice: '视觉模型暂不可用，已使用本地 OCR 返回结果',
+    resultStats: '{sections} 个内容块 · {characters} 字',
+    keywords: '关键词',
+    copyAll: '复制全部',
+    selectSection: '选择此内容块',
+    aiRecognizeAgain: 'AI 重新识别',
+    sectionKinds: {
+      title: '标题',
+      paragraph: '正文',
+      list: '列表',
+      code: '代码',
+      table: '表格'
+    }
   },
 
   // 壁纸切换插件

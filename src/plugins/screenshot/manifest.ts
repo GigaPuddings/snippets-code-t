@@ -9,6 +9,6 @@ export const screenshotPlugin: BuiltinPlugin = {
   routeNames: ['Screenshot', 'Pin'],
   hotkeys: ['screenshot'],
   trayItems: ['screenshot'],
-  dependencies: ['screenshot-rapidocr', 'translation'],
+  dependencies: ['screenshot-rapidocr', 'translation', 'local-ai'],
   resourceHintKey: 'plugins.screenshot.resourceHint'
 };

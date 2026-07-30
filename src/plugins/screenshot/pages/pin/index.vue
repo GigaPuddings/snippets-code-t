@@ -36,136 +36,100 @@
           data-tauri-drag-region
           @mousedown="handleMouseDown"
         >
-          <div class="ocr-window-title" data-tauri-drag-region>
-            <text-recognition theme="outline" size="18" />
-            <span data-tauri-drag-region>{{ $t('pin.ocrResult') }}</span>
+          <div class="ocr-title-copy" data-tauri-drag-region>
+            <div class="ocr-window-title" data-tauri-drag-region>
+              <text-recognition theme="outline" size="18" />
+              <span data-tauri-drag-region>{{ $t('pin.ocrResult') }}</span>
+            </div>
+            <div class="ocr-source-inline" data-tauri-drag-region>
+              <span class="ocr-source-name" data-tauri-drag-region>
+                {{ ocrFileName }}
+              </span>
+              <span class="ocr-meta-dot" data-tauri-drag-region>·</span>
+              <span data-tauri-drag-region>{{ ocrImageMeta }}</span>
+            </div>
           </div>
 
-          <div class="ocr-window-controls">
-            <button
-              class="ocr-window-btn"
-              :title="isAlwaysOnTop ? $t('pin.togglePin') : $t('pin.pinWindow')"
-              @click.stop="handleToggleAlwaysOnTop"
+          <div class="ocr-title-actions">
+            <div
+              class="ocr-engine-status"
+              :class="`is-${recognitionEngine}`"
+              :title="recognitionModelTitle"
             >
-              <component
-                :is="isAlwaysOnTop ? Pushpin : Pin"
-                size="18"
+              <Loading
+                v-if="ocrLoading"
+                class="ocr-loading-icon"
+                size="14"
                 theme="outline"
               />
-            </button>
-            <span class="ocr-window-divider"></span>
-            <button
-              class="ocr-window-btn"
-              :title="$t('pin.minimize')"
-              @click.stop="handleMinimize"
-            >
-              <Minus size="18" theme="outline" />
-            </button>
-            <button
-              class="ocr-window-btn"
-              :title="$t('pin.maximize')"
-              @click.stop="handleToggleMaximize"
-            >
-              <Square size="14" theme="outline" :strokeWidth="5" />
-            </button>
-            <button
-              class="ocr-window-btn"
-              :title="$t('pin.close')"
-              @click.stop="handleClose"
-            >
-              <Close size="14" theme="outline" :strokeWidth="6" />
-            </button>
-          </div>
-        </div>
-
-        <div
-          class="ocr-source-card"
-          data-tauri-drag-region
-          @mousedown="handleMouseDown"
-        >
-          <div class="ocr-source-thumb" data-tauri-drag-region>
-            <img
-              v-if="imageBlobUrl"
-              :src="imageBlobUrl"
-              :alt="$t('pin.ocrPreviewAlt')"
-              @load="handleImageLoad"
-              draggable="false"
-            />
-          </div>
-
-          <div class="ocr-source-meta" data-tauri-drag-region>
-            <div class="ocr-source-name" data-tauri-drag-region>
-              {{ ocrFileName }}
+              <Magic v-else size="14" theme="outline" />
+              <span>{{ recognitionSourceLabel }}</span>
             </div>
-            <div class="ocr-source-status" data-tauri-drag-region>
-              <span data-tauri-drag-region>{{ ocrImageMeta }}</span>
-              <span class="ocr-status-separator" data-tauri-drag-region></span>
-              <span data-tauri-drag-region>{{ ocrStatusText }}</span>
-              <span
-                v-if="!ocrLoading && !ocrError && ocrText.trim()"
-                class="ocr-status-check"
-                data-tauri-drag-region
+
+            <div class="ocr-window-controls">
+              <button
+                class="ocr-window-btn"
+                :title="
+                  isAlwaysOnTop ? $t('pin.togglePin') : $t('pin.pinWindow')
+                "
+                @click.stop="handleToggleAlwaysOnTop"
               >
-                ✓
-              </span>
+                <component
+                  :is="isAlwaysOnTop ? Pushpin : Pin"
+                  size="18"
+                  theme="outline"
+                />
+              </button>
+              <span class="ocr-window-divider"></span>
+              <button
+                class="ocr-window-btn"
+                :title="$t('pin.minimize')"
+                @click.stop="handleMinimize"
+              >
+                <Minus size="18" theme="outline" />
+              </button>
+              <button
+                class="ocr-window-btn"
+                :title="$t('pin.maximize')"
+                @click.stop="handleToggleMaximize"
+              >
+                <Square size="14" theme="outline" :strokeWidth="5" />
+              </button>
+              <button
+                class="ocr-window-btn"
+                :title="$t('pin.close')"
+                @click.stop="handleClose"
+              >
+                <Close size="14" theme="outline" :strokeWidth="6" />
+              </button>
             </div>
           </div>
-
-          <button
-            class="ocr-view-original"
-            :title="
-              showOriginalImage ? $t('pin.viewResult') : $t('pin.viewOriginal')
-            "
-            @click.stop="handleViewOriginal"
-          >
-            <component
-              :is="showOriginalImage ? TextRecognition : Picture"
-              size="24"
-              theme="outline"
-              :strokeWidth="2.6"
-            />
-            <span>
-              {{
-                showOriginalImage
-                  ? $t('pin.viewResult')
-                  : $t('pin.viewOriginal')
-              }}
-            </span>
-          </button>
         </div>
       </header>
 
       <main class="ocr-reading-surface" @mousedown.stop>
-        <div v-if="showOriginalImage" class="ocr-original-image">
-          <img :src="imageBlobUrl || imageData" :alt="$t('pin.originalImageAlt')" />
-        </div>
-        <template v-else>
-          <div v-if="ocrLoading" class="ocr-state">
-            <Loading
-              class="ocr-loading-icon"
-              size="20"
-              theme="outline"
-              :strokeWidth="3"
-            />
-            <span>{{ $t('pin.recognizing') }}</span>
-          </div>
-          <div v-else-if="ocrError" class="ocr-state error">{{ ocrError }}</div>
-          <div v-else-if="!ocrText.trim()" class="ocr-state muted">
-            {{ $t('pin.noTextRecognized') }}
-          </div>
+        <div class="ocr-result-layout">
+          <section class="ocr-preview-pane">
+            <header class="ocr-pane-header">
+              <div>
+                <strong>{{ $t('pin.sourceImage') }}</strong>
+                <span>{{ imageSelectionHint }}</span>
+              </div>
+              <span
+                v-if="ocrSelectableBlocks.length > 0"
+                class="ocr-ready-badge"
+              >
+                {{ $t('pin.imageTextSelectable') }}
+              </span>
+            </header>
 
-          <div
-            v-else
-            class="ocr-result-layout"
-            :class="{ 'records-open': showOcrRecordPane }"
-          >
-            <section class="ocr-preview-pane">
+            <div class="ocr-preview-canvas">
               <div class="ocr-preview-stage">
                 <img
                   ref="ocrPreviewImageRef"
                   :src="imageBlobUrl || imageData"
                   :alt="$t('pin.ocrSourceAlt')"
-                  @load="updateOcrPreviewImageMetrics"
+                  @load="handleImageLoad"
                 />
                 <div
                   v-if="ocrSelectionHighlights.length > 0"
@@ -197,13 +161,82 @@
                   ></span>
                 </div>
               </div>
-            </section>
+            </div>
 
-            <section
-              v-if="showOcrRecordPane"
-              class="ocr-record-pane"
-              @pointerdown="clearOcrOverlaySelection"
+            <div v-if="selectedOcrOverlayText" class="ocr-selection-copy">
+              <div>
+                <span>{{ $t('pin.selectedText') }}</span>
+                <strong>
+                  {{
+                    $t('pin.selectedCharacters', {
+                      count: selectedOcrOverlayText.length
+                    })
+                  }}
+                </strong>
+              </div>
+              <button type="button" @click.stop="handleCopySelectedImageText">
+                <Copy size="15" theme="outline" />
+                {{ $t('pin.copySelection') }}
+              </button>
+            </div>
+          </section>
+
+          <section class="ocr-record-pane">
+            <header class="ocr-pane-header result-header">
+              <div>
+                <strong>{{ $t('pin.aiRecognizedText') }}</strong>
+                <span v-if="ocrText.trim()">
+                  {{
+                    $t('pin.resultStats', {
+                      sections: ocrRecords.length,
+                      characters: ocrText.length
+                    })
+                  }}
+                </span>
+                <span v-else>{{ ocrStatusText }}</span>
+              </div>
+              <CustomButton
+                class="ocr-inline-copy"
+                type="text"
+                :title="$t('pin.copyText')"
+                :disabled="!ocrText.trim()"
+                @click.stop="handleCopyOcrText"
+              >
+                <Copy size="16" theme="outline" />
+                <span>{{ $t('pin.copyAll') }}</span>
+              </CustomButton>
+            </header>
+
+            <div v-if="ocrLoading && !ocrText.trim()" class="ocr-state">
+              <div class="ocr-ai-orbit">
+                <Magic size="22" theme="outline" />
+              </div>
+              <strong>{{ $t('pin.aiReadingImage') }}</strong>
+              <span>{{ $t('pin.aiReadingHint') }}</span>
+            </div>
+            <div
+              v-else-if="ocrError && !ocrText.trim()"
+              class="ocr-state error"
             >
+              <strong>{{ ocrError }}</strong>
+              <span>{{ $t('pin.aiOcrRetryHint') }}</span>
+            </div>
+            <div v-else-if="!ocrText.trim()" class="ocr-state muted">
+              {{ $t('pin.noTextRecognized') }}
+            </div>
+
+            <div v-else class="ocr-result-scroll">
+              <div v-if="ocrKeywords.length > 0" class="ocr-keywords">
+                <span class="ocr-keywords-label">{{ $t('pin.keywords') }}</span>
+                <span
+                  v-for="keyword in ocrKeywords"
+                  :key="keyword"
+                  class="ocr-keyword"
+                >
+                  {{ keyword }}
+                </span>
+              </div>
+
               <section
                 v-if="ocrSelectionTranslation"
                 class="ocr-selection-translation"
@@ -234,56 +267,61 @@
                 v-for="(record, index) in ocrRecords"
                 :key="record.id"
                 class="ocr-record-item"
-                :class="{ selected: record.selected }"
+                :class="[`is-${record.kind}`, { selected: record.selected }]"
               >
-                <div class="ocr-record-main-row">
-                  <header
-                    class="ocr-record-header"
+                <header class="ocr-record-header">
+                  <button
+                    type="button"
+                    class="ocr-record-select"
+                    :class="{ selected: record.selected }"
+                    :aria-pressed="record.selected"
+                    :title="$t('pin.selectSection')"
                     @click.stop="toggleOcrRecordSelection(record.id)"
                   >
-                    <input
-                      class="ocr-record-checkbox"
-                      type="checkbox"
-                      :checked="record.selected"
-                      @change.stop="toggleOcrRecordSelection(record.id)"
-                      @click.stop
-                    />
-                    <span class="ocr-record-index">#{{ index + 1 }}</span>
-                  </header>
-                  <div
-                    class="ocr-record-editor"
-                    contenteditable="plaintext-only"
-                    spellcheck="false"
-                    v-text="record.text"
-                    @blur="handleOcrRecordInput(record.id, 'text', $event)"
-                  ></div>
+                    <Check v-if="record.selected" size="11" theme="outline" />
+                    <span v-else>{{ index + 1 }}</span>
+                  </button>
+                  <span class="ocr-record-kind">
+                    {{ getOcrSectionLabel(record.kind) }}
+                  </span>
                   <span v-if="record.confidence > 0" class="ocr-record-score">
                     {{ Math.round(record.confidence) }}%
                   </span>
+                </header>
+
+                <div class="ocr-record-text">
+                  <template
+                    v-for="(
+                      segment, segmentIndex
+                    ) in getHighlightedTextSegments(record.text)"
+                    :key="`${record.id}-${segmentIndex}`"
+                  >
+                    <mark v-if="segment.highlighted">{{ segment.text }}</mark>
+                    <span v-else>{{ segment.text }}</span>
+                  </template>
                 </div>
-                <div v-if="record.translatedText" class="ocr-record-translation">
+
+                <div
+                  v-if="record.translatedText"
+                  class="ocr-record-translation"
+                >
                   <span class="ocr-translation-label">
                     {{ translationResultLabel }}
                   </span>
                   <div
-                    class="ocr-record-editor translated"
-                    contenteditable="plaintext-only"
-                    spellcheck="false"
+                    class="ocr-record-text translated"
                     v-text="record.translatedText"
-                    @blur="
-                      handleOcrRecordInput(record.id, 'translatedText', $event)
-                    "
                   ></div>
                 </div>
               </article>
-            </section>
-          </div>
-        </template>
+            </div>
+          </section>
+        </div>
       </main>
 
       <footer class="ocr-action-bar">
         <CustomButton
-          class="ocr-action-btn"
+          class="ocr-action-btn primary"
           type="text"
           :title="$t('pin.copyText')"
           :disabled="!ocrText.trim()"
@@ -296,18 +334,6 @@
                 ? `${$t('pin.copyText')} (${selectedOcrRecordCount})`
                 : $t('pin.copyText')
             }}
-          </span>
-        </CustomButton>
-        <CustomButton
-          class="ocr-action-btn"
-          type="text"
-          :title="showOcrRecordPane ? hideRecordsLabel : showRecordsLabel"
-          :disabled="ocrRecords.length === 0"
-          @click.stop="toggleOcrRecordPane"
-        >
-          <TextRecognition size="22" theme="outline" :strokeWidth="2.7" />
-          <span>
-            {{ showOcrRecordPane ? hideRecordsLabel : showRecordsLabel }}
           </span>
         </CustomButton>
         <div ref="translateMenuAnchorRef" class="translate-btn-group relative">
@@ -364,7 +390,10 @@
             </div>
           </div>
         </div>
-        <div ref="ocrLanguageMenuAnchorRef" class="ocr-engine-btn-group relative">
+        <div
+          ref="ocrLanguageMenuAnchorRef"
+          class="ocr-engine-btn-group relative"
+        >
           <CustomButton
             class="ocr-action-btn ocr-engine-main"
             type="text"
@@ -413,8 +442,8 @@
             :disabled="ocrLoading || !imageData"
             @click.stop="recognizeCurrentImage"
           >
-            <Refresh size="22" theme="outline" :strokeWidth="2.7" />
-            <span>{{ $t('pin.recognizeAgain') }}</span>
+            <Magic size="21" theme="outline" :strokeWidth="2.7" />
+            <span>{{ $t('pin.aiRecognizeAgain') }}</span>
           </CustomButton>
         </div>
         <CustomButton
@@ -530,16 +559,15 @@ import {
   Copy,
   Save,
   Close,
-  Refresh,
   Loading,
   TextRecognition,
   Minus,
   Square,
-  Picture,
   Down,
   Translate,
   More,
-  Check
+  Check,
+  Magic
 } from '@icon-park/vue-next';
 import { logger, ocrDiagnosticLogger } from '@/utils/logger';
 import modal from '@/utils/modal';
@@ -567,6 +595,12 @@ import type {
   OcrTextBlock as LayoutOcrTextBlock,
   Rect
 } from '@/plugins/screenshot/pages/screenshot/core/types';
+import {
+  recognizeImageWithLocalAi,
+  segmentTextByKeywords,
+  type AiOcrResult,
+  type AiOcrSectionKind
+} from '@/plugins/screenshot/utils/aiOcr';
 
 const { t } = useI18n();
 
@@ -579,19 +613,21 @@ const imageBlobUrl = ref<string>('');
 const mode = ref<'pin' | 'ocr'>('pin');
 const ocrText = ref('');
 const ocrRecords = ref<OcrRecord[]>([]);
+const ocrGeometryRecords = ref<OcrRecord[]>([]);
+const ocrKeywords = ref<string[]>([]);
 const ocrLoading = ref(false);
 const ocrError = ref('');
+const recognitionEngine = ref<'pending' | 'ai' | 'rapidocr'>('pending');
+const recognitionModelName = ref('');
 const ocrFileName = ref('');
 const imageWidth = ref(0);
 const imageHeight = ref(0);
 const ocrPreviewImageSize = ref({ width: 0, height: 0 });
 const initialWindowSize = ref({ width: 0, height: 0 });
 
-const showOriginalImage = ref(false);
-const showOcrRecordPane = ref(false);
 const ocrSelectionTranslation = ref<{
-  sourceText: string
-  translatedText: string
+  sourceText: string;
+  translatedText: string;
 } | null>(null);
 // Umi-OCR-style selection: track block and character endpoints instead of DOM Selection.
 const ocrOverlaySelection = ref<OcrTextSelectionRange | null>(null);
@@ -610,40 +646,50 @@ type OcrLanguageValue = 'auto' | 'zh' | 'zh-tw' | 'en' | 'ja' | 'ko';
 const currentOcrLanguage = ref<OcrLanguageValue>('auto');
 
 type PinOcrTextBlock = LayoutOcrTextBlock & {
-  confidence?: number
-}
+  confidence?: number;
+};
 
 interface OcrRecord {
-  id: string
-  text: string
-  sourceText: string
-  translatedText: string
-  bbox: Rect
-  blocks: PinOcrTextBlock[]
-  confidence: number
-  selected: boolean
+  id: string;
+  kind: AiOcrSectionKind;
+  text: string;
+  sourceText: string;
+  translatedText: string;
+  bbox: Rect;
+  blocks: PinOcrTextBlock[];
+  confidence: number;
+  selected: boolean;
 }
 
 type OcrSelectableBlock = PinOcrTextBlock & {
-  id: string
-  recordId: string
-  separator: string
-}
+  id: string;
+  recordId: string;
+  separator: string;
+};
 
 interface OcrSelectionHighlight {
-  id: string
-  left: number
-  top: number
-  width: number
-  height: number
+  id: string;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
 }
 
 interface OcrOverlayMetrics {
-  fontSize: number
-  lineHeight: number
-  letterSpacing: number
-  boundaries: number[]
-  renderedWidth: number
+  fontSize: number;
+  lineHeight: number;
+  letterSpacing: number;
+  boundaries: number[];
+  renderedWidth: number;
+}
+
+interface RapidOcrResult {
+  text?: string;
+  full_text?: string;
+  engine?: string;
+  language?: string;
+  confidence?: number;
+  blocks?: unknown[];
 }
 
 const translateEngines = computed(() => [
@@ -688,10 +734,6 @@ const currentOcrLanguageLabel = computed(() => {
   );
 });
 
-const showRecordsLabel = computed(() => t('pin.showRecords'));
-
-const hideRecordsLabel = computed(() => t('pin.hideRecords'));
-
 const translationResultLabel = computed(() => t('pin.translationResult'));
 
 const updateFloatingMenuStyle = (
@@ -707,7 +749,10 @@ const updateFloatingMenuStyle = (
   const estimatedMenuWidth = 180;
   const viewportPadding = 8;
   const left = Math.min(
-    Math.max(rect.left + rect.width / 2, viewportPadding + estimatedMenuWidth / 2),
+    Math.max(
+      rect.left + rect.width / 2,
+      viewportPadding + estimatedMenuWidth / 2
+    ),
     window.innerWidth - viewportPadding - estimatedMenuWidth / 2
   );
 
@@ -722,7 +767,10 @@ const updateFloatingMenuStyles = () => {
     updateFloatingMenuStyle(translateMenuAnchorRef.value, translateMenuStyle);
   }
   if (showOcrLanguageMenu.value) {
-    updateFloatingMenuStyle(ocrLanguageMenuAnchorRef.value, ocrLanguageMenuStyle);
+    updateFloatingMenuStyle(
+      ocrLanguageMenuAnchorRef.value,
+      ocrLanguageMenuStyle
+    );
   }
 };
 
@@ -776,25 +824,48 @@ const ocrStatusText = computed(() => {
   return t('pin.noTextRecognized');
 });
 
+const recognitionSourceLabel = computed(() => {
+  if (ocrLoading.value) return t('pin.aiRecognizing');
+  if (recognitionEngine.value === 'ai') return t('pin.aiVision');
+  if (recognitionEngine.value === 'rapidocr') return t('pin.rapidOcrFallback');
+  return t('pin.aiVision');
+});
+
+const recognitionModelTitle = computed(() => {
+  const source = recognitionSourceLabel.value;
+  return recognitionModelName.value
+    ? `${source} · ${recognitionModelName.value}`
+    : source;
+});
+
 const selectedOcrRecords = computed(() =>
   ocrRecords.value.filter((record) => record.selected)
 );
 
 const ocrSelectableBlocks = computed<OcrSelectableBlock[]>(() =>
-  ocrRecords.value.flatMap((record) =>
-    record.blocks
-      .filter(hasBlockGeometry)
-      .map((block, index) => ({
-        ...block,
-        id: `${record.id}-block-${index}`,
-        recordId: record.id,
-        separator: getOcrBlockSeparator(block, record.blocks[index + 1])
-      }))
+  ocrGeometryRecords.value.flatMap((record) =>
+    record.blocks.filter(hasBlockGeometry).map((block, index) => ({
+      ...block,
+      id: `${record.id}-block-${index}`,
+      recordId: record.id,
+      separator: getOcrBlockSeparator(block, record.blocks[index + 1])
+    }))
   )
 );
 
+const imageSelectionHint = computed(() =>
+  ocrSelectableBlocks.value.length > 0
+    ? t('pin.dragToSelectText')
+    : ocrLoading.value
+      ? t('pin.imageSelectionPreparing')
+      : t('pin.imageSelectionUnavailable')
+);
+
 const ocrSelectionSegments = computed(() =>
-  getOcrTextSelectionSegments(ocrSelectableBlocks.value, ocrOverlaySelection.value)
+  getOcrTextSelectionSegments(
+    ocrSelectableBlocks.value,
+    ocrOverlaySelection.value
+  )
 );
 
 const selectedOcrOverlayText = computed(() =>
@@ -821,15 +892,18 @@ const ocrSelectionHighlights = computed<OcrSelectionHighlight[]>(() =>
 
 const selectedOcrRecordCount = computed(() => selectedOcrRecords.value.length);
 
+const getHighlightedTextSegments = (text: string) =>
+  segmentTextByKeywords(text, ocrKeywords.value);
+
+const getOcrSectionLabel = (kind: AiOcrSectionKind): string =>
+  t(`pin.sectionKinds.${kind}`);
+
 const getRecordDisplayText = (record: OcrRecord): string => {
   return (record.translatedText || record.text).trim();
 };
 
 const buildDisplayTextFromRecords = (records: OcrRecord[]): string => {
-  return records
-    .map(getRecordDisplayText)
-    .filter(Boolean)
-    .join('\n\n');
+  return records.map(getRecordDisplayText).filter(Boolean).join('\n\n');
 };
 
 const syncOcrTextFromRecords = () => {
@@ -881,7 +955,9 @@ const getOcrOverlayStyle = (block: OcrSelectableBlock): CSSProperties => {
   };
 };
 
-const getOcrSelectionHighlightStyle = (highlight: OcrSelectionHighlight): CSSProperties => {
+const getOcrSelectionHighlightStyle = (
+  highlight: OcrSelectionHighlight
+): CSSProperties => {
   if (imageWidth.value <= 0 || imageHeight.value <= 0) {
     return {};
   }
@@ -911,7 +987,10 @@ const getOcrOverlayMetrics = (block: OcrSelectableBlock): OcrOverlayMetrics => {
   const targetWidth = Math.max(block.width * scale, 1);
   const targetHeight = Math.max(block.height * scale, 1);
   let fontSize = clampNumber(
-    Math.min((block.fontSize || block.height * 0.8) * scale, targetHeight * 0.86),
+    Math.min(
+      (block.fontSize || block.height * 0.8) * scale,
+      targetHeight * 0.86
+    ),
     5,
     28
   );
@@ -924,13 +1003,16 @@ const getOcrOverlayMetrics = (block: OcrSelectableBlock): OcrOverlayMetrics => {
     measuredWidth = Math.max(context.measureText(text).width, 1);
   }
 
-  const letterSpacing = text.length > 0
-    ? Math.max(0, (targetWidth - measuredWidth) / text.length)
-    : 0;
+  const letterSpacing =
+    text.length > 0
+      ? Math.max(0, (targetWidth - measuredWidth) / text.length)
+      : 0;
   const boundaries = Array.from({ length: text.length + 1 }, (_, offset) => {
     if (offset === 0) return 0;
     context.font = `${fontSize}px ${OCR_OVERLAY_FONT_FAMILY}`;
-    return context.measureText(text.slice(0, offset)).width + letterSpacing * offset;
+    return (
+      context.measureText(text.slice(0, offset)).width + letterSpacing * offset
+    );
   });
   const renderedWidth = Math.max(boundaries[text.length] || measuredWidth, 1);
   const metrics = {
@@ -1033,7 +1115,6 @@ const updateImageData = (base64Data: string) => {
   initialWindowSize.value = { width: 0, height: 0 };
   if (mode.value === 'ocr') {
     ocrFileName.value = formatOcrFileName();
-    showOcrRecordPane.value = false;
   }
 
   if (imageBlobUrl.value) {
@@ -1090,15 +1171,15 @@ const applyPinWindowData = (payload: PinWindowDataPayload): boolean => {
   if (mode.value === 'ocr') {
     setOcrTextFromPlainText(payload.text || '');
     ocrError.value = '';
-    if (!payload.text) {
-      recognizeCurrentImage();
-    }
+    recognizeCurrentImage();
   } else {
     ocrRequestId++;
     ocrLoading.value = false;
     ocrError.value = '';
     ocrText.value = '';
     ocrRecords.value = [];
+    ocrGeometryRecords.value = [];
+    ocrKeywords.value = [];
   }
 
   return true;
@@ -1113,9 +1194,12 @@ const recognizeCurrentImage = async () => {
   ocrOverlayMetricsCache.clear();
   ocrLoading.value = true;
   ocrError.value = '';
+  recognitionEngine.value = 'pending';
+  recognitionModelName.value = '';
+  ocrKeywords.value = [];
   const startedAt = Date.now();
 
-  ocrDiagnosticLogger.log('[Pin OCR] recognize start', {
+  ocrDiagnosticLogger.log('[Pin AI OCR] recognize start', {
     requestId,
     imageDataLength: imageData.value.length,
     imageWidth: imageWidth.value,
@@ -1125,47 +1209,74 @@ const recognizeCurrentImage = async () => {
   });
 
   try {
-    ocrDiagnosticLogger.log('[Pin OCR] invoking RapidOCR backend', {
-      requestId,
-      language: currentOcrLanguage.value,
-      backendLanguage: backendOcrLanguage.value
-    });
-    const result = await invoke<any>('recognize_text_from_image', {
-      imageData: imageData.value,
-      engine: 'rapidocr',
-      language: backendOcrLanguage.value
-    });
-    const records = createOcrRecordsFromResult(result);
-    const text = records.length > 0
-      ? buildDisplayTextFromRecords(records)
-      : extractTextFromOcrResult(result);
-    ocrDiagnosticLogger.log('[Pin OCR] backend OCR success', {
-      requestId,
-      resultEngine: result?.engine,
-      resultLanguage: result?.language,
-      confidence: result?.confidence,
-      blocks: Array.isArray(result?.blocks) ? result.blocks.length : 0,
-      textLength: text.trim().length
-    });
+    const [aiAttempt, geometryAttempt] = await Promise.allSettled([
+      recognizeImageWithLocalAi(imageData.value, currentOcrLanguage.value),
+      invoke<RapidOcrResult>('recognize_text_from_image', {
+        imageData: imageData.value,
+        engine: 'rapidocr',
+        language: backendOcrLanguage.value
+      })
+    ]);
 
     if (requestId !== ocrRequestId) return;
-    if (records.length > 0) {
-      ocrRecords.value = records;
+
+    const geometryRecords =
+      geometryAttempt.status === 'fulfilled'
+        ? createOcrRecordsFromResult(geometryAttempt.value)
+        : [];
+    ocrGeometryRecords.value = geometryRecords;
+
+    if (aiAttempt.status === 'fulfilled') {
+      const aiRecords = createOcrRecordsFromAiResult(aiAttempt.value);
+      if (aiRecords.length === 0 && !aiAttempt.value.text.trim()) {
+        throw new Error('AI_OCR_EMPTY_RESPONSE');
+      }
+      ocrRecords.value =
+        aiRecords.length > 0
+          ? aiRecords
+          : createRecordsFromPlainText(aiAttempt.value.text);
+      ocrKeywords.value = aiAttempt.value.keywords;
       syncOcrTextFromRecords();
+      recognitionEngine.value = 'ai';
+      recognitionModelName.value = aiAttempt.value.modelName;
+    } else if (geometryAttempt.status === 'fulfilled') {
+      const rapidText =
+        geometryRecords.length > 0
+          ? buildDisplayTextFromRecords(geometryRecords)
+          : extractTextFromOcrResult(geometryAttempt.value);
+      ocrRecords.value =
+        geometryRecords.length > 0
+          ? geometryRecords
+          : createRecordsFromPlainText(rapidText);
+      syncOcrTextFromRecords();
+      recognitionEngine.value = 'rapidocr';
+      ocrDiagnosticLogger.log('[Pin AI OCR] vision fallback', {
+        requestId,
+        error: formatErrorForLog(aiAttempt.reason)
+      });
+      modal.warning(t('pin.aiOcrFallbackNotice'));
     } else {
-      setOcrTextFromPlainText(text.trim());
+      throw new Error(
+        [
+          formatErrorForLog(aiAttempt.reason),
+          formatErrorForLog(geometryAttempt.reason)
+        ].join('\n')
+      );
     }
+
     ocrOverlayMetricsCache.clear();
-    ocrDiagnosticLogger.log('[Pin OCR] recognize success', {
+    ocrDiagnosticLogger.log('[Pin AI OCR] recognize success', {
       requestId,
       durationMs: Date.now() - startedAt,
+      engine: recognitionEngine.value,
+      geometryBlocks: ocrSelectableBlocks.value.length,
       textLength: ocrText.value.length,
       textPreview: ocrText.value.slice(0, 300)
     });
   } catch (error) {
     if (requestId !== ocrRequestId) return;
-    logger.error('[PIN窗口] OCR 识别失败', error);
-    ocrDiagnosticLogger.log('[Pin OCR] recognize failed', {
+    logger.error('[PIN窗口] AI OCR 识别失败', error);
+    ocrDiagnosticLogger.log('[Pin AI OCR] recognize failed', {
       requestId,
       durationMs: Date.now() - startedAt,
       error: formatErrorForLog(error)
@@ -1173,6 +1284,7 @@ const recognizeCurrentImage = async () => {
     ocrError.value = t('pin.recognizeFailed');
     ocrText.value = '';
     ocrRecords.value = [];
+    ocrGeometryRecords.value = [];
     modal.error(t('pin.recognizeFailed'));
   } finally {
     if (requestId === ocrRequestId) {
@@ -1184,16 +1296,28 @@ const recognizeCurrentImage = async () => {
 const setOcrTextFromPlainText = (text: string) => {
   const normalized = text.trim();
   ocrText.value = normalized;
-  ocrRecords.value = normalized
-    ? normalized
-        .split(/\n{2,}|\n/)
-        .map((paragraph, index) => createFallbackOcrRecord(paragraph, index))
-        .filter((record) => record.text.trim())
-    : [];
+  ocrRecords.value = createRecordsFromPlainText(normalized);
+};
+
+const createRecordsFromPlainText = (text: string): OcrRecord[] =>
+  text
+    .split(/\n{2,}|\n/)
+    .map((paragraph, index) => createFallbackOcrRecord(paragraph, index))
+    .filter((record) => record.text.trim());
+
+const inferOcrSectionKind = (text: string, index: number): AiOcrSectionKind => {
+  if (index === 0 && text.length <= 80 && !/[。！？.!?]\s*$/.test(text)) {
+    return 'title';
+  }
+  if (/^\s*(?:[-*+•·]|\d+[.)、）])\s+/.test(text)) {
+    return 'list';
+  }
+  return 'paragraph';
 };
 
 const createFallbackOcrRecord = (text: string, index: number): OcrRecord => ({
   id: `plain-${Date.now()}-${index}`,
+  kind: inferOcrSectionKind(text, index),
   text: text.trim(),
   sourceText: text.trim(),
   translatedText: '',
@@ -1202,6 +1326,21 @@ const createFallbackOcrRecord = (text: string, index: number): OcrRecord => ({
   confidence: 0,
   selected: false
 });
+
+const createOcrRecordsFromAiResult = (result: AiOcrResult): OcrRecord[] =>
+  result.sections
+    .map<OcrRecord>((section, index) => ({
+      id: `ai-${Date.now()}-${index}`,
+      kind: section.type,
+      text: section.text.trim(),
+      sourceText: section.text.trim(),
+      translatedText: '',
+      bbox: { x: 0, y: 0, width: 0, height: 0 },
+      blocks: [],
+      confidence: 0,
+      selected: false
+    }))
+    .filter((record) => record.text);
 
 const createOcrRecordsFromResult = (result: any): OcrRecord[] => {
   const blocks = normalizeOcrBlocks(result?.blocks);
@@ -1223,6 +1362,7 @@ const createOcrRecordFromParagraph = (
   const blocks = paragraph.blocks as PinOcrTextBlock[];
   return {
     id: `ocr-${Date.now()}-${index}`,
+    kind: inferOcrSectionKind(text, index),
     text,
     sourceText: text,
     translatedText: paragraph.translatedText?.trim() || '',
@@ -1245,7 +1385,8 @@ const normalizeOcrBlocks = (blocks: unknown): PinOcrTextBlock[] => {
       }
 
       const candidate = block as Record<string, unknown>;
-      const text = typeof candidate.text === 'string' ? candidate.text.trim() : '';
+      const text =
+        typeof candidate.text === 'string' ? candidate.text.trim() : '';
       if (!text) {
         return null;
       }
@@ -1312,6 +1453,16 @@ const handleCopyOcrText = async () => {
   const text = getCopyCandidateText();
   if (!text) return;
 
+  await copyOcrTextToClipboard(text);
+};
+
+const handleCopySelectedImageText = async () => {
+  const text = selectedOcrOverlayText.value.trim();
+  if (!text) return;
+  await copyOcrTextToClipboard(text);
+};
+
+const copyOcrTextToClipboard = async (text: string) => {
   try {
     await navigator.clipboard.writeText(text);
     modal.success(t('pin.copySuccess'));
@@ -1329,7 +1480,7 @@ const handleSaveOcrText = async () => {
   if (!text) return;
 
   try {
-    await invoke('save_text_to_file', { text })
+    await invoke('save_text_to_file', { text });
     modal.success(t('pin.saveSuccess'));
   } catch (error: any) {
     if (error !== 'SAVE_CANCELLED') {
@@ -1349,7 +1500,9 @@ const getCopyCandidateText = (): string => {
     return selectedOcrOverlayText.value;
   }
 
-  const selectedRecordsText = buildDisplayTextFromRecords(selectedOcrRecords.value);
+  const selectedRecordsText = buildDisplayTextFromRecords(
+    selectedOcrRecords.value
+  );
   if (selectedRecordsText) {
     return selectedRecordsText;
   }
@@ -1381,24 +1534,6 @@ const toggleOcrRecordSelection = (recordId: string) => {
   if (record) {
     record.selected = !record.selected;
   }
-};
-
-const handleOcrRecordInput = (
-  recordId: string,
-  field: 'text' | 'translatedText',
-  event: Event
-) => {
-  const record = ocrRecords.value.find((item) => item.id === recordId);
-  const target = event.target as HTMLElement | null;
-  if (!record || !target) {
-    return;
-  }
-
-  record[field] = target.innerText.trim();
-  if (field === 'text' && !record.sourceText.trim()) {
-    record.sourceText = record.text;
-  }
-  syncOcrTextFromRecords();
 };
 
 const handleSelectionTranslationInput = (event: Event) => {
@@ -1459,11 +1594,13 @@ const handleTranslateOcr = async () => {
   const recordsToTranslate = selectedSourceText
     ? []
     : selectedOcrRecords.value.length > 0
-    ? selectedOcrRecords.value
-    : ocrRecords.value;
-  const sourceText = selectedSourceText || (recordsToTranslate.length > 0
-    ? recordsToTranslate.map((record) => record.text).join('\n\n')
-    : ocrText.value);
+      ? selectedOcrRecords.value
+      : ocrRecords.value;
+  const sourceText =
+    selectedSourceText ||
+    (recordsToTranslate.length > 0
+      ? recordsToTranslate.map((record) => record.text).join('\n\n')
+      : ocrText.value);
   const sourceLanguage = detectTranslationLanguage(sourceText);
   if (!canTranslateDetectedLanguage(sourceLanguage)) {
     modal.warning(t('pin.unsupportedTranslateLanguage'));
@@ -1476,27 +1613,34 @@ const handleTranslateOcr = async () => {
     await ensureOfflineTranslatorReadyIfNeeded();
 
     if (selectedSourceText) {
-      const translatedText = await translateOcrText(selectedSourceText, sourceLanguage);
+      const translatedText = await translateOcrText(
+        selectedSourceText,
+        sourceLanguage
+      );
       if (translatedText) {
         ocrSelectionTranslation.value = {
           sourceText: selectedSourceText,
           translatedText: translatedText.trim()
         };
-        showOcrRecordPane.value = true;
       }
       modal.success(t('pin.translateSuccess'));
     } else if (recordsToTranslate.length > 0) {
       for (const record of recordsToTranslate) {
-        const translatedText = await translateOcrText(record.text, sourceLanguage);
+        const translatedText = await translateOcrText(
+          record.text,
+          sourceLanguage
+        );
         if (translatedText) {
           record.translatedText = translatedText.trim();
         }
       }
       syncOcrTextFromRecords();
-      showOcrRecordPane.value = true;
       modal.success(t('pin.translateSuccess'));
     } else {
-      const translatedText = await translateOcrText(ocrText.value, sourceLanguage);
+      const translatedText = await translateOcrText(
+        ocrText.value,
+        sourceLanguage
+      );
       if (translatedText) {
         setOcrTextFromPlainText(translatedText);
       }
@@ -1558,14 +1702,6 @@ const translateOcrText = async (
   })) as string;
 };
 
-const handleViewOriginal = () => {
-  showOriginalImage.value = !showOriginalImage.value;
-};
-
-const toggleOcrRecordPane = () => {
-  showOcrRecordPane.value = !showOcrRecordPane.value;
-};
-
 const handleMoreActions = (event: MouseEvent) => {
   handleContextMenu(event);
 };
@@ -1597,6 +1733,9 @@ const handleImageLoad = async (event: Event) => {
   const img = event.target as HTMLImageElement;
   imageWidth.value = img.naturalWidth;
   imageHeight.value = img.naturalHeight;
+  if (img === ocrPreviewImageRef.value) {
+    updateOcrPreviewImageMetrics();
+  }
 
   if (appWindow.value && initialWindowSize.value.width === 0) {
     try {
@@ -1914,7 +2053,11 @@ const handleOcrOverlayPointerDown = (event: PointerEvent) => {
   }
 
   const overlay = event.currentTarget as HTMLElement;
-  const point = getOcrSelectionPointAtPosition(overlay, event.clientX, event.clientY);
+  const point = getOcrSelectionPointAtPosition(
+    overlay,
+    event.clientX,
+    event.clientY
+  );
   window.getSelection()?.removeAllRanges();
   if (!point) {
     clearOcrOverlaySelection();
@@ -1937,7 +2080,11 @@ const handleOcrOverlayPointerMove = (event: PointerEvent) => {
   }
 
   const overlay = event.currentTarget as HTMLElement;
-  const point = getOcrSelectionPointAtPosition(overlay, event.clientX, event.clientY);
+  const point = getOcrSelectionPointAtPosition(
+    overlay,
+    event.clientX,
+    event.clientY
+  );
   if (!point || !ocrOverlaySelection.value) {
     return;
   }
@@ -2020,7 +2167,11 @@ const getOcrSelectionPointAtPosition = (
     }
 
     const metrics = getOcrOverlayMetrics(block);
-    const xRatio = clampNumber((clientX - rect.left) / Math.max(rect.width, 1), 0, 1);
+    const xRatio = clampNumber(
+      (clientX - rect.left) / Math.max(rect.width, 1),
+      0,
+      1
+    );
     const targetWidth = xRatio * metrics.renderedWidth;
     return {
       blockIndex,
@@ -2046,7 +2197,9 @@ const handleKeydown = (event: KeyboardEvent): void => {
   } else if (event.ctrlKey || event.metaKey) {
     const target = event.target as HTMLElement | null;
     const isEditingText = Boolean(
-      target?.closest('input, textarea, [contenteditable="true"], [contenteditable="plaintext-only"]')
+      target?.closest(
+        'input, textarea, [contenteditable="true"], [contenteditable="plaintext-only"]'
+      )
     );
     if (
       event.key.toLowerCase() === 'c' &&
@@ -2214,11 +2367,12 @@ onUnmounted(() => {
 <style scoped lang="scss">
 .pin-container {
   @apply w-full h-full relative overflow-hidden select-none;
+
   user-select: none;
-  -webkit-user-select: none;
 
   &.ocr-mode {
     @apply flex flex-col;
+
     background: transparent;
   }
 
@@ -2228,200 +2382,232 @@ onUnmounted(() => {
 
     img {
       @apply block select-none;
+
       user-select: none;
       -webkit-user-drag: none;
     }
   }
 
+  // AI OCR workspace: compact source metadata, selectable image, structured result.
   .ocr-shell {
-    @apply flex flex-col flex-1 min-h-0 overflow-hidden bg-ocr-shell text-ocr border border-ocr;
-    border-radius: 10px;
+    @apply flex flex-1 flex-col min-h-0 overflow-hidden bg-ocr-shell text-ocr border border-ocr;
+
     backdrop-filter: blur(16px);
+    border-radius: 12px;
 
     .ocr-header {
-      @apply flex flex-col flex-shrink-0;
+      @apply flex flex-shrink-0 flex-col;
+
+      border-bottom: 1px solid
+        color-mix(in srgb, var(--ocr-border) 72%, transparent);
 
       .ocr-titlebar {
         @apply flex items-center justify-between;
-        height: 40px;
-        padding: 0 10px;
 
-        .ocr-window-title {
-          @apply flex items-center min-w-0 text-ocr;
-          gap: 8px;
-          font-size: 15px;
-          font-weight: 500;
+        gap: 12px;
+        height: 54px;
+        padding: 7px 10px 7px 14px;
+      }
+
+      .ocr-title-copy {
+        @apply flex min-w-0 flex-1 items-center;
+
+        gap: 12px;
+      }
+
+      .ocr-window-title {
+        @apply flex items-center text-ocr;
+
+        flex: 0 0 auto;
+        gap: 8px;
+        font-size: 14px;
+        font-weight: 650;
+      }
+
+      .ocr-source-inline {
+        @apply flex min-w-0 items-center text-ocr-muted;
+
+        gap: 5px;
+        font-size: 11px;
+        line-height: 1;
+
+        .ocr-source-name {
+          @apply truncate;
+
+          max-width: min(32vw, 240px);
         }
 
-        .ocr-window-controls {
-          @apply flex items-center flex-shrink-0 text-ocr;
-          gap: 10px;
-
-          .ocr-window-divider {
-            width: 1px;
-            height: 16px;
-            margin: 0 1px;
-            background: var(--ocr-border);
-          }
-
-          .ocr-window-btn {
-            @apply flex items-center justify-center rounded-md transition-colors duration-150;
-            width: 24px;
-            height: 24px;
-
-            &:hover {
-              @apply bg-ocr-panel-hover;
-            }
-          }
+        .ocr-meta-dot {
+          opacity: 0.72;
         }
       }
 
-      .ocr-source-card {
-        @apply flex items-center bg-ocr-panel border border-ocr shadow-ocr-panel;
-        height: 92px;
-        padding: 10px 14px;
-        border-radius: 8px;
+      .ocr-title-actions {
+        @apply flex flex-shrink-0 items-center;
 
-        .ocr-source-thumb {
-          @apply flex-shrink-0 overflow-hidden;
-          width: 126px;
-          height: 70px;
-          padding: 0;
-          background: var(--ocr-panel-hover-bg);
-          border: 1px solid var(--ocr-border);
-          border-radius: 6px;
+        gap: 10px;
+      }
 
-          img {
-            @apply w-full h-full object-contain block;
-            user-select: none;
-            -webkit-user-drag: none;
-          }
+      .ocr-engine-status {
+        @apply flex items-center rounded-full;
+
+        gap: 5px;
+        max-width: 180px;
+        height: 26px;
+        padding: 0 9px;
+        font-size: 11px;
+        font-weight: 650;
+        color: var(--primary-color);
+        background: color-mix(in srgb, var(--primary-color) 10%, transparent);
+        border: 1px solid
+          color-mix(in srgb, var(--primary-color) 22%, transparent);
+
+        span {
+          @apply truncate;
         }
 
-        .ocr-source-meta {
-          @apply min-w-0 flex-1;
-          margin-left: 14px;
-
-          .ocr-source-name {
-            @apply truncate;
-            font-size: 15px;
-            font-weight: 600;
-            line-height: 1.25;
-            color: var(--ocr-text);
-          }
-
-          .ocr-source-status {
-            @apply flex items-center text-ocr-muted;
-            margin-top: 8px;
-            font-size: 12px;
-            line-height: 1;
-
-            .ocr-status-separator {
-              @apply w-px mx-2;
-              height: 13px;
-              background: var(--ocr-border);
-            }
-
-            .ocr-status-check {
-              @apply inline-flex items-center justify-center rounded-full text-xs text-white;
-              width: 16px;
-              height: 16px;
-              margin-left: 7px;
-              background: #20b24a;
-              font-size: 0;
-
-              &::before {
-                width: 8px;
-                height: 5px;
-                content: '';
-                border-bottom: 2px solid #fff;
-                border-left: 2px solid #fff;
-                transform: rotate(-45deg) translate(1px, -1px);
-              }
-            }
-          }
+        &.is-rapidocr {
+          color: var(--el-color-warning);
+          background: color-mix(
+            in srgb,
+            var(--el-color-warning) 10%,
+            transparent
+          );
+          border-color: color-mix(
+            in srgb,
+            var(--el-color-warning) 24%,
+            transparent
+          );
         }
 
-        .ocr-view-original {
-          @apply flex items-center flex-shrink-0 text-ocr-secondary transition-colors duration-150 rounded-md;
-          gap: 6px;
-          padding: 6px 0 6px 10px;
-          font-size: 13px;
-          font-weight: 500;
+        .ocr-loading-icon {
+          flex: 0 0 auto;
+          animation: spin 0.8s linear infinite;
+        }
+      }
+
+      .ocr-window-controls {
+        @apply flex flex-shrink-0 items-center text-ocr;
+
+        gap: 6px;
+
+        .ocr-window-divider {
+          width: 1px;
+          height: 16px;
+          margin: 0 1px;
+          background: var(--ocr-border);
+        }
+
+        .ocr-window-btn {
+          @apply flex items-center justify-center rounded-md transition-colors duration-150;
+
+          width: 24px;
+          height: 24px;
 
           &:hover {
-            @apply text-ocr;
+            @apply bg-ocr-panel-hover;
           }
         }
       }
     }
 
     .ocr-reading-surface {
-      @apply relative flex-1 min-h-0 overflow-hidden bg-ocr-panel border border-ocr shadow-ocr-panel;
-      margin-top: 6px;
-      border-radius: 8px;
+      @apply relative flex-1 min-h-0 overflow-hidden;
 
-      .ocr-original-image {
-        @apply w-full h-full flex items-center justify-center;
-        padding: 18px;
-
-        img {
-          @apply max-w-full max-h-full object-contain;
-          border-radius: 6px;
-        }
-      }
-      .ocr-state {
-        @apply absolute z-10 flex items-center gap-2;
-        left: 20px;
-        top: 18px;
-        color: var(--ocr-text-muted);
-        font-size: 14px;
-        pointer-events: none;
-
-        &.error {
-          color: #dc2626;
-        }
-
-        &.muted {
-          color: #9ca3af;
-        }
-
-        .ocr-loading-icon {
-          animation: spin 0.8s linear infinite;
-        }
-      }
+      padding: 10px 10px 0;
+      margin-top: 0;
+      background: transparent;
+      border: 0;
+      border-radius: 0;
+      box-shadow: none;
 
       .ocr-result-layout {
         display: grid;
         grid-template-rows: minmax(0, 1fr);
-        gap: 0;
+        grid-template-columns: minmax(220px, 0.88fr) minmax(300px, 1.12fr);
+        gap: 10px;
         height: 100%;
-        min-height: 0;
-        padding: 0;
-        color: var(--ocr-text);
-        letter-spacing: 0;
-        user-select: text;
-        -webkit-user-select: text;
+      }
 
-        &.records-open {
-          grid-template-rows: minmax(150px, 34%) minmax(0, 1fr);
-        }
+      .ocr-preview-pane,
+      .ocr-record-pane {
+        @apply min-h-0 overflow-hidden bg-ocr-panel border border-ocr;
+
+        padding: 0;
+        border-radius: 9px;
+        box-shadow: var(--ocr-panel-shadow);
       }
 
       .ocr-preview-pane {
-        @apply flex min-h-0 justify-center overflow-auto;
-        padding: 14px 18px;
-        background: linear-gradient(
-          180deg,
-          color-mix(in srgb, var(--ocr-shell-bg, #f8fafc) 72%, transparent),
-          transparent
+        @apply flex flex-col;
+
+        background: color-mix(
+          in srgb,
+          var(--ocr-panel-bg) 92%,
+          var(--ocr-shell-bg)
         );
-        user-select: text;
-        -webkit-user-select: text;
       }
 
-      .ocr-result-layout.records-open .ocr-preview-pane {
-        border-bottom: 1px solid color-mix(in srgb, var(--ocr-border) 68%, transparent);
+      .ocr-pane-header {
+        @apply flex flex-shrink-0 items-center justify-between;
+
+        gap: 10px;
+        min-height: 51px;
+        padding: 9px 12px;
+        border-bottom: 1px solid
+          color-mix(in srgb, var(--ocr-border) 64%, transparent);
+
+        > div {
+          @apply flex min-w-0 flex-col;
+
+          gap: 3px;
+        }
+
+        strong {
+          font-size: 12px;
+          font-weight: 650;
+          color: var(--ocr-text);
+        }
+
+        span {
+          font-size: 10px;
+          line-height: 1.3;
+          color: var(--ocr-text-muted);
+        }
+      }
+
+      .ocr-ready-badge {
+        @apply flex-shrink-0 rounded-full;
+
+        padding: 3px 7px;
+        font-weight: 600;
+        color: var(--el-color-success) !important;
+        background: color-mix(
+          in srgb,
+          var(--el-color-success) 10%,
+          transparent
+        );
+        border: 1px solid
+          color-mix(in srgb, var(--el-color-success) 22%, transparent);
+      }
+
+      .ocr-preview-canvas {
+        @apply flex min-h-0 flex-1 items-center justify-center overflow-auto;
+
+        padding: 12px;
+        background:
+          linear-gradient(
+              135deg,
+              color-mix(in srgb, var(--ocr-border) 17%, transparent) 25%,
+              transparent 25%
+            )
+            0 0 / 16px 16px,
+          linear-gradient(
+              315deg,
+              color-mix(in srgb, var(--ocr-border) 17%, transparent) 25%,
+              transparent 25%
+            )
+            0 0 / 16px 16px;
       }
 
       .ocr-preview-stage {
@@ -2433,34 +2619,35 @@ onUnmounted(() => {
         img {
           display: block;
           max-width: 100%;
-          max-height: 100%;
-          border-radius: 3px;
+          max-height: calc(100vh - 194px);
           user-select: none;
-          -webkit-user-drag: none;
+          border-radius: 5px;
+          box-shadow: 0 8px 24px
+            color-mix(in srgb, var(--ocr-text) 12%, transparent);
         }
       }
 
-      .ocr-text-overlay {
-        position: absolute;
-        inset: 0;
-        cursor: text;
-        pointer-events: auto;
-        touch-action: none;
-        user-select: none;
-        -webkit-user-select: none;
-      }
-
+      .ocr-text-overlay,
       .ocr-selection-highlight-layer {
         position: absolute;
         inset: 0;
+      }
+
+      .ocr-text-overlay {
+        touch-action: none;
+        cursor: text;
+        user-select: none;
+      }
+
+      .ocr-selection-highlight-layer {
         pointer-events: none;
       }
 
       .ocr-selection-highlight {
         position: absolute;
         display: block;
+        background: color-mix(in srgb, var(--primary-color) 28%, transparent);
         border-radius: 2px;
-        background: rgb(37 99 235 / 28%);
       }
 
       .ocr-overlay-block {
@@ -2468,41 +2655,182 @@ onUnmounted(() => {
         display: block;
         padding: 0;
         overflow: visible;
+        font-family: 'Microsoft YaHei', 'PingFang SC', 'Segoe UI', Arial,
+          sans-serif;
         color: transparent;
-        font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", Arial, sans-serif;
         white-space: nowrap;
+        pointer-events: none;
         cursor: text;
         user-select: none;
-        pointer-events: none;
         background: transparent;
         border-radius: 1px;
-        -webkit-user-select: none;
+      }
+
+      .ocr-selection-copy {
+        @apply flex flex-shrink-0 items-center justify-between;
+
+        gap: 10px;
+        min-height: 44px;
+        padding: 7px 9px 7px 12px;
+        background: color-mix(
+          in srgb,
+          var(--primary-color) 8%,
+          var(--ocr-panel-bg)
+        );
+        border-top: 1px solid
+          color-mix(in srgb, var(--primary-color) 18%, transparent);
+
+        > div {
+          @apply flex min-w-0 flex-col;
+
+          gap: 2px;
+        }
+
+        span {
+          font-size: 9px;
+          color: var(--ocr-text-muted);
+        }
+
+        strong {
+          @apply truncate;
+
+          font-size: 11px;
+          color: var(--ocr-text);
+        }
+
+        button {
+          @apply flex flex-shrink-0 items-center rounded-md;
+
+          gap: 5px;
+          height: 28px;
+          padding: 0 9px;
+          font-size: 10px;
+          font-weight: 650;
+          color: var(--primary-color);
+          background: color-mix(in srgb, var(--primary-color) 10%, transparent);
+
+          &:hover {
+            background: color-mix(
+              in srgb,
+              var(--primary-color) 16%,
+              transparent
+            );
+          }
+        }
       }
 
       .ocr-record-pane {
-        @apply flex min-h-0 flex-col;
-        flex: 1 1 auto;
+        @apply flex flex-col;
+
         gap: 0;
-        overflow-x: hidden;
-        overflow-y: auto;
-        padding: 8px 20px 16px;
+      }
+
+      .result-header {
+        padding-left: 15px;
+      }
+
+      .ocr-inline-copy {
+        @apply flex flex-shrink-0 items-center text-ocr-secondary;
+
+        gap: 5px;
+        height: 30px;
+        padding: 0 9px;
+        font-size: 10px;
+        border-radius: 6px;
+
+        &:hover:not(:disabled) {
+          color: var(--primary-color);
+          background: color-mix(in srgb, var(--primary-color) 9%, transparent);
+        }
+      }
+
+      .ocr-state {
+        @apply static flex min-h-0 flex-1 flex-col items-center justify-center text-center;
+
+        gap: 7px;
+        padding: 28px;
+        color: var(--ocr-text-muted);
+        pointer-events: auto;
+
+        strong {
+          font-size: 13px;
+          font-weight: 650;
+          color: var(--ocr-text-secondary);
+        }
+
+        span {
+          max-width: 260px;
+          font-size: 11px;
+          line-height: 1.55;
+        }
+
+        &.error strong {
+          color: var(--el-color-danger);
+        }
+      }
+
+      .ocr-ai-orbit {
+        @apply flex items-center justify-center rounded-2xl;
+
+        width: 46px;
+        height: 46px;
+        color: var(--primary-color);
+        background: color-mix(in srgb, var(--primary-color) 10%, transparent);
+        border: 1px solid
+          color-mix(in srgb, var(--primary-color) 18%, transparent);
+        animation: ai-breathe 1.6s ease-in-out infinite;
+      }
+
+      .ocr-result-scroll {
+        @apply min-h-0 flex-1 overflow-y-auto;
+
+        padding: 12px 13px 16px;
         user-select: text;
-        -webkit-user-select: text;
+        scrollbar-width: thin;
+      }
+
+      .ocr-keywords {
+        @apply flex flex-wrap items-center;
+
+        gap: 5px;
+        margin-bottom: 11px;
+      }
+
+      .ocr-keywords-label {
+        margin-right: 2px;
+        font-size: 10px;
+        font-weight: 650;
+        color: var(--ocr-text-muted);
+      }
+
+      .ocr-keyword {
+        @apply rounded-full;
+
+        padding: 3px 8px;
+        font-size: 10px;
+        line-height: 1.35;
+        color: var(--primary-color);
+        background: color-mix(in srgb, var(--primary-color) 9%, transparent);
+        border: 1px solid
+          color-mix(in srgb, var(--primary-color) 17%, transparent);
       }
 
       .ocr-selection-translation {
         display: grid;
         grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-        margin: 0 -20px 6px;
-        background: color-mix(in srgb, var(--ocr-panel-hover-bg) 48%, transparent);
-        border-bottom: 1px solid color-mix(in srgb, var(--ocr-border) 62%, transparent);
+        margin: 0 0 10px;
+        overflow: hidden;
+        border: 1px solid
+          color-mix(in srgb, var(--primary-color) 18%, var(--ocr-border));
+        border-radius: 8px;
 
         .ocr-translation-section {
           min-width: 0;
-          padding: 12px 20px 14px;
+          padding: 11px 12px;
 
           &.result {
-            border-left: 1px solid color-mix(in srgb, var(--ocr-border) 62%, transparent);
+            border-left: 1px solid
+              color-mix(in srgb, var(--ocr-border) 62%, transparent);
           }
         }
       }
@@ -2510,97 +2838,145 @@ onUnmounted(() => {
       .ocr-translation-label {
         display: block;
         margin-bottom: 5px;
-        color: var(--ocr-text-muted);
-        font-size: 11px;
-        font-weight: 600;
+        font-size: 9px;
+        font-weight: 650;
         line-height: 1.2;
+        color: var(--ocr-text-muted);
       }
 
       .ocr-translation-source,
       .ocr-selection-translation-editor {
-        color: var(--ocr-text);
-        font-size: 14px;
+        font-size: 12px;
         line-height: 1.65;
-        white-space: pre-wrap;
+        color: var(--ocr-text);
         word-break: break-word;
+        white-space: pre-wrap;
         user-select: text;
-        -webkit-user-select: text;
       }
 
       .ocr-selection-translation-editor {
-        min-height: 24px;
+        min-height: 22px;
         color: var(--ocr-text-secondary);
         outline: none;
-
-        &:focus {
-          background: color-mix(in srgb, var(--ocr-panel-hover-bg) 70%, transparent);
-        }
       }
 
       .ocr-record-item {
-        position: relative;
-        padding: 13px 0 16px;
-        border-bottom: 1px solid color-mix(in srgb, var(--ocr-border) 58%, transparent);
-        transition: background-color 0.15s ease;
-
-        &.selected {
-          background: color-mix(in srgb, var(--ocr-panel-hover-bg) 56%, transparent);
-        }
+        padding: 11px 12px 12px;
+        margin-bottom: 9px;
+        background: color-mix(
+          in srgb,
+          var(--ocr-panel-hover-bg) 38%,
+          var(--ocr-panel-bg)
+        );
+        border: 1px solid color-mix(in srgb, var(--ocr-border) 66%, transparent);
+        border-radius: 8px;
+        transition:
+          border-color 0.15s ease,
+          background-color 0.15s ease;
 
         &:last-child {
-          border-bottom: 0;
+          margin-bottom: 0;
+          border-bottom: 1px solid
+            color-mix(in srgb, var(--ocr-border) 66%, transparent);
         }
-      }
 
-      .ocr-record-main-row {
-        display: grid;
-        grid-template-columns: auto minmax(0, 1fr) auto;
-        align-items: start;
-        gap: 10px;
+        &:hover,
+        &.selected {
+          background: color-mix(
+            in srgb,
+            var(--primary-color) 5%,
+            var(--ocr-panel-bg)
+          );
+          border-color: color-mix(
+            in srgb,
+            var(--primary-color) 22%,
+            var(--ocr-border)
+          );
+        }
+
+        &.is-title .ocr-record-text {
+          font-size: 16px;
+          font-weight: 700;
+          line-height: 1.5;
+        }
+
+        &.is-list .ocr-record-text {
+          padding-left: 4px;
+        }
+
+        &.is-code .ocr-record-text,
+        &.is-table .ocr-record-text {
+          padding: 9px 10px;
+          overflow-x: auto;
+          font-family: var(--font-mono, 'Cascadia Code', Consolas, monospace);
+          font-size: 11px;
+          line-height: 1.6;
+          background: color-mix(in srgb, var(--ocr-shell-bg) 70%, transparent);
+          border-radius: 6px;
+        }
       }
 
       .ocr-record-header {
-        @apply flex items-center text-ocr-muted;
-        gap: 7px;
-        min-width: 46px;
-        padding-top: 5px;
-        cursor: pointer;
-        user-select: none;
-        -webkit-user-select: none;
+        @apply flex items-center;
+
+        gap: 6px;
+        min-width: 0;
+        padding: 0;
+        margin-bottom: 7px;
+        cursor: default;
       }
 
-      .ocr-record-checkbox {
-        width: 14px;
-        height: 14px;
-        accent-color: var(--primary-color, #2563eb);
+      .ocr-record-select {
+        @apply flex flex-shrink-0 items-center justify-center rounded-full;
+
+        width: 19px;
+        height: 19px;
+        font-size: 9px;
+        font-weight: 700;
+        color: var(--ocr-text-muted);
+        background: color-mix(in srgb, var(--ocr-border) 42%, transparent);
+
+        &:hover,
+        &.selected {
+          color: var(--primary-color);
+          background: color-mix(in srgb, var(--primary-color) 13%, transparent);
+        }
       }
 
-      .ocr-record-index {
-        font-size: 12px;
-        font-weight: 600;
-        line-height: 1;
+      .ocr-record-kind {
+        @apply min-w-0 flex-1;
+
+        font-size: 9px;
+        font-weight: 650;
+        color: var(--ocr-text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
       }
 
       .ocr-record-score {
-        padding-top: 5px;
-        font-size: 12px;
-        font-variant-numeric: tabular-nums;
+        padding-top: 0;
+        font-size: 9px;
+        color: var(--ocr-text-muted);
       }
 
-      .ocr-record-editor {
-        min-height: 24px;
-        padding: 0;
-        color: var(--ocr-text);
-        white-space: pre-wrap;
-        word-break: break-word;
-        outline: none;
-        font-size: 15px;
+      .ocr-record-text {
+        font-size: 13px;
         line-height: 1.72;
+        color: var(--ocr-text);
+        word-break: break-word;
+        white-space: pre-wrap;
         user-select: text;
-        -webkit-user-select: text;
 
-        &:focus {
-          background: color-mix(in srgb, var(--ocr-panel-hover-bg) 52%, transparent);
+        mark {
+          padding: 1px 2px;
+          margin: 0 1px;
+          color: inherit;
+          background: color-mix(
+            in srgb,
+            var(--el-color-warning) 25%,
+            transparent
+          );
+          border-radius: 3px;
         }
 
         &.translated {
@@ -2609,81 +2985,51 @@ onUnmounted(() => {
       }
 
       .ocr-record-translation {
-        display: block;
-        margin-top: 8px;
-        padding: 8px 10px 10px;
-        background: color-mix(in srgb, var(--ocr-panel-hover-bg) 48%, transparent);
-
-        .ocr-translation-label {
-          margin-bottom: 4px;
-          text-align: left;
-        }
-
-        .ocr-record-editor {
-          min-width: 0;
-        }
+        padding: 9px 10px;
+        margin-top: 9px;
+        background: color-mix(in srgb, var(--primary-color) 5%, transparent);
+        border-radius: 6px;
       }
 
-      @media (min-width: 920px) {
-        .ocr-result-layout.records-open {
-          grid-template-columns: minmax(300px, 0.92fr) minmax(360px, 1.08fr);
-          grid-template-rows: minmax(0, 1fr);
-        }
-
-        .ocr-result-layout.records-open .ocr-preview-pane {
-          align-items: flex-start;
-          border-right: 1px solid color-mix(in srgb, var(--ocr-border) 68%, transparent);
-          border-bottom: 0;
-        }
-
-        .ocr-record-pane {
-          padding: 10px 22px 16px;
-        }
-      }
-
-      @media (max-width: 720px) {
-        .ocr-result-layout.records-open {
-          grid-template-rows: minmax(132px, 30%) minmax(0, 1fr);
-        }
-
-        .ocr-preview-pane {
-          padding: 12px;
-        }
-
-        .ocr-record-pane {
-          padding: 8px 14px 14px;
-        }
-
-        .ocr-selection-translation {
+      @media (width <= 620px) {
+        .ocr-result-layout {
+          grid-template-rows: minmax(145px, 0.78fr) minmax(190px, 1.22fr);
           grid-template-columns: minmax(0, 1fr);
-          margin-inline: -14px;
-
-          .ocr-translation-section.result {
-            border-top: 1px solid color-mix(in srgb, var(--ocr-border) 62%, transparent);
-            border-left: 0;
-          }
         }
 
-        .ocr-record-translation {
-          padding-inline: 8px;
+        .ocr-pane-header {
+          min-height: 44px;
+          padding-block: 7px;
+        }
+
+        .ocr-preview-canvas {
+          padding: 8px;
+        }
+
+        .ocr-preview-stage img {
+          max-height: 28vh;
         }
       }
     }
 
     .ocr-action-bar {
-      @apply flex items-center flex-shrink-0 mb-1;
+      @apply flex flex-shrink-0 items-center;
+
       gap: 6px;
-      height: 54px;
-      padding: 8px 8px 0;
-      overflow-x: auto;
-      overflow-y: hidden;
-      scrollbar-width: thin;
+      height: 56px;
+      padding: 8px 10px;
+      margin-bottom: 0;
+      overflow: auto hidden;
       white-space: nowrap;
+      background: color-mix(in srgb, var(--ocr-shell-bg) 86%, transparent);
+      border-top: 1px solid
+        color-mix(in srgb, var(--ocr-border) 68%, transparent);
+      scrollbar-width: thin;
 
       .translate-btn-group,
       .ocr-engine-btn-group {
-        @apply flex items-center bg-transparent;
-        flex: 0 0 auto;
+        @apply flex flex-shrink-0 items-center bg-transparent;
+
         border-radius: 6px;
         box-shadow: var(--ocr-panel-shadow);
 
@@ -2693,8 +3039,8 @@ onUnmounted(() => {
 
         .translate-main,
         .ocr-engine-main {
-          @apply pr-1 hover:bg-transparent;
           min-width: 74px;
+          padding-right: 4px;
           border-right: 0;
           border-top-right-radius: 0;
           border-bottom-right-radius: 0;
@@ -2703,9 +3049,9 @@ onUnmounted(() => {
 
         .translate-arrow,
         .ocr-engine-arrow {
-          @apply px-1 hover:bg-transparent;
-          min-width: 30px;
           width: 30px;
+          min-width: 30px;
+          padding-inline: 4px;
           border-left: 0;
           border-top-left-radius: 0;
           border-bottom-left-radius: 0;
@@ -2714,49 +3060,58 @@ onUnmounted(() => {
 
         .translate-menu,
         .ocr-engine-menu {
-          @apply absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-panel rounded-lg py-1.5 shadow-lg border z-50;
+          position: absolute;
+          bottom: 100%;
+          left: 50%;
+          z-index: 50;
           min-width: 130px;
-          border-color: var(--panel-border);
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+          padding-block: 6px;
+          margin-bottom: 8px;
+          background: var(--panel-bg);
+          border: 1px solid var(--panel-border);
+          border-radius: 8px;
+          box-shadow: 0 4px 12px rgb(0 0 0 / 15%);
+          transform: translateX(-50%);
 
           &.ocr-floating-menu {
             position: fixed;
             top: auto;
             right: auto;
-            transform: translateX(-50%);
             z-index: 9999;
           }
 
           .menu-item {
-            @apply px-3 py-1.5 mx-1.5 my-0.5 rounded-md hover:bg-panel-hover-bg cursor-pointer text-sm flex items-center justify-between whitespace-nowrap transition-colors;
+            @apply flex cursor-pointer items-center justify-between whitespace-nowrap rounded-md text-sm transition-colors hover:bg-panel-hover-bg;
+
+            padding: 6px 12px;
+            margin: 2px 6px;
 
             &.active {
               @apply text-primary font-medium;
-              background-color: transparent;
             }
 
             .engine-label {
-              @apply mr-4;
+              margin-right: 16px;
             }
           }
         }
       }
 
       .ocr-action-btn {
-        @apply flex items-center justify-center text-ocr-secondary bg-ocr-panel border border-ocr shadow-ocr-panel;
-        flex: 0 0 auto;
+        @apply flex flex-shrink-0 items-center justify-center text-ocr-secondary bg-ocr-panel border border-ocr shadow-ocr-panel;
+
         gap: 6px;
         min-width: 0;
         height: 38px;
         padding: 0 10px;
-        border-radius: 6px;
         font-size: 13px;
         font-weight: 500;
         line-height: 1;
+        border-radius: 6px;
 
         span {
-          white-space: nowrap;
           word-break: keep-all;
+          white-space: nowrap;
         }
 
         &:hover:not(:disabled) {
@@ -2764,18 +3119,32 @@ onUnmounted(() => {
         }
 
         &:disabled {
-          opacity: 0.42;
           cursor: not-allowed;
+          opacity: 0.42;
         }
 
         &.more {
-          min-width: 36px;
           width: 36px;
+          min-width: 36px;
           padding: 0;
           background: transparent;
           border-color: transparent;
           box-shadow: none;
         }
+      }
+
+      .ocr-action-btn.primary {
+        color: var(--primary-color);
+        background: color-mix(
+          in srgb,
+          var(--primary-color) 10%,
+          var(--ocr-panel-bg)
+        );
+        border-color: color-mix(
+          in srgb,
+          var(--primary-color) 24%,
+          var(--ocr-border)
+        );
       }
 
       .ocr-action-divider {
@@ -2786,24 +3155,7 @@ onUnmounted(() => {
         background: var(--ocr-border);
       }
 
-      @media (max-width: 760px) {
-        gap: 4px;
-        padding-inline: 6px;
-
-        .ocr-action-btn {
-          gap: 4px;
-          height: 36px;
-          padding: 0 8px;
-          font-size: 12px;
-        }
-
-        .translate-btn-group .translate-main,
-        .ocr-engine-btn-group .ocr-engine-main {
-          min-width: 0;
-        }
-      }
-
-      @media (max-width: 560px) {
+      @media (width <= 560px) {
         .ocr-action-btn:not(.more) span {
           display: none;
         }
@@ -2823,18 +3175,32 @@ onUnmounted(() => {
         }
       }
     }
+
+    @media (width <= 780px) {
+      .ocr-header {
+        .ocr-source-inline {
+          display: none;
+        }
+
+        .ocr-engine-status {
+          max-width: 112px;
+        }
+      }
+    }
   }
 
   .zoom-info {
     @apply absolute top-4 right-4 bg-black/70 text-white px-3 py-1 rounded-md text-sm z-30;
+
     pointer-events: none;
   }
 
   .context-menu {
     @apply fixed bg-panel rounded-lg py-2;
+
+    z-index: 9999;
     min-width: 176px;
     border: 1px solid var(--panel-border);
-    z-index: 9999;
 
     .menu-item {
       @apply px-3 py-1 hover:bg-panel-hover-bg cursor-pointer text-sm flex items-center whitespace-nowrap;
@@ -2857,6 +3223,19 @@ onUnmounted(() => {
 @keyframes spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes ai-breathe {
+  0%,
+  100% {
+    opacity: 0.78;
+    transform: scale(0.96);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1);
   }
 }
 </style>
