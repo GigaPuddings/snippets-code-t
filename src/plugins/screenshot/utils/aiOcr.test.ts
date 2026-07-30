@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  hasSuspiciousAiLocationBounds,
   parseAiOcrLocationResponse,
   parseAiOcrResponse,
   shouldRetryAiOcrResult
@@ -134,5 +135,93 @@ describe('AI OCR response parsing', () => {
       text: 'Body copy',
       bbox: { x: 80, y: 180, width: 620, height: 80 }
     });
+  });
+
+  it('maps located lines back to sections by text instead of trusting wrong indexes', () => {
+    const sections = [
+      { type: 'list' as const, text: '* First section ending text.' },
+      { type: 'list' as const, text: '* Second section body.' },
+      { type: 'list' as const, text: '* Third section deployment text.' }
+    ];
+    const result = parseAiOcrLocationResponse(
+      JSON.stringify([
+        {
+          index: 2,
+          lines: [
+            {
+              text: 'First section ending text.',
+              bbox: [80, 300, 920, 330]
+            }
+          ]
+        },
+        {
+          index: 0,
+          lines: [
+            {
+              text: 'Third section deployment text.',
+              bbox: [80, 700, 920, 730]
+            }
+          ]
+        }
+      ]),
+      sections
+    );
+
+    expect(result[0].lines?.[0].text).toBe('First section ending text.');
+    expect(result[2].lines?.[0].text).toBe('Third section deployment text.');
+  });
+
+  it('detects repeated column-wide bounds returned for visibly different lines', () => {
+    expect(
+      hasSuspiciousAiLocationBounds([
+        {
+          type: 'title',
+          text: 'Short title',
+          lines: [
+            {
+              text: 'Short title',
+              bbox: { x: 80, y: 50, width: 860, height: 60 }
+            }
+          ]
+        },
+        {
+          type: 'paragraph',
+          text: 'A much longer visual line with substantially more text',
+          lines: [
+            {
+              text: 'A much longer visual line with substantially more text',
+              bbox: { x: 80, y: 140, width: 860, height: 30 }
+            },
+            {
+              text: 'Tiny ending',
+              bbox: { x: 80, y: 180, width: 860, height: 30 }
+            }
+          ]
+        }
+      ])
+    ).toBe(true);
+
+    expect(
+      hasSuspiciousAiLocationBounds([
+        {
+          type: 'paragraph',
+          text: 'Different line widths',
+          lines: [
+            {
+              text: 'A much longer visual line',
+              bbox: { x: 80, y: 100, width: 600, height: 30 }
+            },
+            {
+              text: 'Medium visual line',
+              bbox: { x: 80, y: 140, width: 430, height: 30 }
+            },
+            {
+              text: 'Short line',
+              bbox: { x: 80, y: 180, width: 220, height: 30 }
+            }
+          ]
+        }
+      ])
+    ).toBe(false);
   });
 });

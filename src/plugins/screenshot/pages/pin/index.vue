@@ -2800,9 +2800,8 @@ onUnmounted(() => {
         pointer-events: none;
         cursor: text;
         user-select: none;
-        background: color-mix(in srgb, var(--primary-color) 3%, transparent);
-        border: 1px solid
-          color-mix(in srgb, var(--primary-color) 24%, transparent);
+        background: transparent;
+        border: 1px solid transparent;
         border-radius: 2px;
         transition:
           background-color 0.12s ease,

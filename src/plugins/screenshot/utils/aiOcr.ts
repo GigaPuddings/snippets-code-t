@@ -55,8 +55,10 @@ const AI_OCR_LOCATION_SYSTEM_PROMPT = `你是视觉文本定位器。用户会�
 要求：
 1. index 使用用户给出的 0 基序号，不能遗漏分块；
 2. line.text 必须逐字取自对应分块，不得改写、补写或重新识别；
-3. bbox 是该视觉行的最小外接矩形，坐标归一化到 0..1000；
-4. 多行段落必须返回多个 lines；不得输出解释或 Markdown。`;
+3. bbox 是该视觉行实际可见字形的紧密最小外接矩形，right 必须停在本行最后一个字符之后，不能使用整列、整段或文本容器的宽度；
+4. 每一条视觉行分别测量 bbox，不得为长短明显不同的行重复同一组 left/right；
+5. 坐标以整张原图左上角为 [0,0]、右下角为 [1000,1000]，必须计入图片四周留白和内容边距；
+6. 多行段落必须返回多个 lines；不得输出解释或 Markdown。`;
 
 const languageHints: Record<string, string> = {
   auto: '自动判断图片文字语言',
@@ -265,6 +267,62 @@ const normalizeAiBoundingBox = (value: unknown): AiOcrBoundingBox | null => {
   };
 };
 
+const normalizeLocationText = (value: string): string =>
+  value.toLocaleLowerCase().replace(/[\s\p{P}\p{S}]/gu, '');
+
+const locationTextTokens = (value: string): Set<string> =>
+  new Set(
+    value
+      .toLocaleLowerCase()
+      .match(/[\p{L}\p{N}]{3,}/gu)
+      ?.filter(Boolean) || []
+  );
+
+const findSectionIndexForLocatedLine = (
+  lineText: string,
+  sections: AiOcrSection[],
+  fallbackIndex: number
+): number => {
+  const normalizedLine = normalizeLocationText(lineText);
+  if (normalizedLine.length >= 3) {
+    const exactCandidates = sections
+      .map((section, index) => ({
+        index,
+        text: normalizeLocationText(section.text)
+      }))
+      .filter(
+        (section) =>
+          section.text.includes(normalizedLine) ||
+          normalizedLine.includes(section.text)
+      )
+      .sort(
+        (left, right) =>
+          Math.abs(left.text.length - normalizedLine.length) -
+          Math.abs(right.text.length - normalizedLine.length)
+      );
+    if (exactCandidates.length > 0) {
+      return exactCandidates[0].index;
+    }
+  }
+
+  const lineTokens = locationTextTokens(lineText);
+  if (lineTokens.size === 0) return fallbackIndex;
+  let bestIndex = fallbackIndex;
+  let bestCoverage = 0;
+  sections.forEach((section, index) => {
+    const sectionTokens = locationTextTokens(section.text);
+    const matches = [...lineTokens].filter((token) =>
+      sectionTokens.has(token)
+    ).length;
+    const coverage = matches / lineTokens.size;
+    if (coverage > bestCoverage) {
+      bestCoverage = coverage;
+      bestIndex = index;
+    }
+  });
+  return bestCoverage >= 0.65 ? bestIndex : fallbackIndex;
+};
+
 export const parseAiOcrLocationResponse = (
   response: string,
   sections: AiOcrSection[]
@@ -378,9 +436,25 @@ export const parseAiOcrLocationResponse = (
     }
   });
 
+  const textMatchedLines = new Map<number, AiOcrLine[]>();
+  linesBySection.forEach((lines, fallbackIndex) => {
+    lines.forEach((line) => {
+      const sectionIndex = findSectionIndexForLocatedLine(
+        line.text,
+        sections,
+        fallbackIndex
+      );
+      const sectionLines = textMatchedLines.get(sectionIndex) || [];
+      sectionLines.push(line);
+      textMatchedLines.set(sectionIndex, sectionLines);
+    });
+  });
+
   return sections.map((section, index) => ({
     ...section,
-    lines: linesBySection.get(index) || []
+    lines: (textMatchedLines.get(index) || []).sort(
+      (left, right) => left.bbox.y - right.bbox.y || left.bbox.x - right.bbox.x
+    )
   }));
 };
 
@@ -464,6 +538,33 @@ const aiLocationCoverage = (sections: AiOcrSection[]): number =>
     return coverage + Math.min(1, locatedLength / sectionLength);
   }, 0);
 
+export const hasSuspiciousAiLocationBounds = (
+  sections: AiOcrSection[]
+): boolean => {
+  const lines = sections.flatMap((section) => section.lines || []);
+  if (lines.length < 3) return false;
+
+  const horizontalBounds = new Map<string, number[]>();
+  for (const line of lines) {
+    const key = `${Math.round(line.bbox.x / 5)}:${Math.round(line.bbox.width / 5)}`;
+    const matchingBounds = horizontalBounds.get(key) || [];
+    matchingBounds.push(countMeaningfulCharacters(line.text));
+    horizontalBounds.set(key, matchingBounds);
+  }
+
+  const repeatedBoundsThreshold = Math.max(3, Math.ceil(lines.length * 0.5));
+  return [...horizontalBounds.values()].some((matchingBounds) => {
+    if (matchingBounds.length < repeatedBoundsThreshold) return false;
+    const textLengths = matchingBounds.filter((length) => length > 0);
+    if (textLengths.length < repeatedBoundsThreshold) return false;
+    return Math.max(...textLengths) / Math.min(...textLengths) >= 1.6;
+  });
+};
+
+const aiLocationScore = (sections: AiOcrSection[]): number =>
+  aiLocationCoverage(sections) -
+  (hasSuspiciousAiLocationBounds(sections) ? 1 : 0);
+
 const aiLocationStatus = (
   sections: AiOcrSection[]
 ): NonNullable<AiOcrResult['locationStatus']> => {
@@ -540,7 +641,7 @@ export const recognizeImageWithLocalAi = async (
     type: section.type,
     text: section.text
   }));
-  const locate = async (retry: boolean) => {
+  const locate = async (retryReason: 'incomplete' | 'broad-bounds' | null) => {
     const response = await chatWithLocalAi({
       messages: [
         { role: 'system', content: AI_OCR_LOCATION_SYSTEM_PROMPT },
@@ -550,9 +651,11 @@ export const recognizeImageWithLocalAi = async (
             {
               type: 'text',
               text: [
-                retry
-                  ? '上一次坐标输出不可用，请重新定位并严格返回完整 JSON。'
-                  : '请定位以下 AI 原文分块。',
+                retryReason === 'broad-bounds'
+                  ? '上一次坐标把长短不同的行重复定位成整列宽度。请重新观察原图，逐行返回贴合实际字形的紧密 bbox；right 必须停在该行最后一个可见字符之后。'
+                  : retryReason === 'incomplete'
+                    ? '上一次坐标输出不完整，请重新定位并严格返回完整 JSON。'
+                    : '请定位以下 AI 原文分块。',
                 JSON.stringify(sectionPayload)
               ].join('\n')
             },
@@ -566,7 +669,7 @@ export const recognizeImageWithLocalAi = async (
       enableThinking: false
     });
     ocrDiagnosticLogger.log('[Pin AI OCR] AI location response', {
-      retry,
+      retryReason,
       responseLength: response.content.length,
       responsePreview: response.content.slice(0, 1200)
     });
@@ -584,9 +687,11 @@ export const recognizeImageWithLocalAi = async (
     lines: []
   }));
   try {
-    initialLocatedSections = await locate(false);
-    if (!hasCompleteAiLocations(initialLocatedSections)) {
-      retryLocatedSections = await locate(true);
+    initialLocatedSections = await locate(null);
+    if (hasSuspiciousAiLocationBounds(initialLocatedSections)) {
+      retryLocatedSections = await locate('broad-bounds');
+    } else if (!hasCompleteAiLocations(initialLocatedSections)) {
+      retryLocatedSections = await locate('incomplete');
     }
   } catch (error) {
     ocrDiagnosticLogger.log('[Pin AI OCR] AI location unavailable', {
@@ -594,8 +699,8 @@ export const recognizeImageWithLocalAi = async (
     });
   }
   const locatedSections =
-    aiLocationCoverage(retryLocatedSections) >
-    aiLocationCoverage(initialLocatedSections)
+    aiLocationScore(retryLocatedSections) >
+    aiLocationScore(initialLocatedSections)
       ? retryLocatedSections
       : initialLocatedSections;
   const locationStatus = aiLocationStatus(locatedSections);
