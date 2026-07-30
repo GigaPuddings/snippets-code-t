@@ -11,7 +11,7 @@ import { Window } from '@tauri-apps/api/window'
 import { logger, ocrDiagnosticLogger } from '@/utils/logger'
 import { chatWithLocalAi, startLocalAiService, getLocalAiStatus } from '@/api/localAi'
 import { canTranslateDetectedLanguage, detectTranslationLanguage } from '@/utils/text'
-import { distance } from '../utils/geometry'
+import { clampCornerRadius, constrainShapeEndPoint, distance } from '../utils/geometry'
 import { reflowOcrBlocks, type ParagraphBlock } from './OcrLayoutReflow'
 import type { DetectedLanguage } from '@/utils/text'
 import { VisualElementDetector } from './VisualElementDetector'
@@ -94,6 +94,7 @@ export class ScreenshotManager {
   private currentStyle: AnnotationStyle = { color: '#ff4444', lineWidth: 3, opacity: 1 }
   private textSize = 16
   private mosaicSize = 8
+  private selectionCornerRadius = 0
   private showGuides = true
 
   // 取色器状态
@@ -328,10 +329,8 @@ export class ScreenshotManager {
         this.visualElementDetector = null
       }
 
-      // 1. 优先加载预览图（快速显示）
-      await this.loadPreviewImage()
-
-      // 2. 再加载完整背景图（高质量）
+      // 后端预览图与完整背景来自同一次捕获；只拉取实际显示的背景，
+      // 避免启动时通过 IPC 重复传输并丢弃整张大图。
       await this.loadFullBackgroundImage()
 
     } catch (error) {
@@ -340,45 +339,6 @@ export class ScreenshotManager {
     } finally {
       this.isLoadingBackground = false
     }
-  }
-
-  // 加载预览图（等待但不显示）
-  // 注意：预览图只用于等待，不作为背景显示（避免模糊）
-  private async loadPreviewImage(): Promise<void> {
-    const maxWaitTime = 5000  // 预览图最多等待5秒
-    const checkInterval = 100   // 每100ms检查一次
-    let waitedTime = 0
-
-    while (waitedTime < maxWaitTime) {
-      try {
-        // 尝试获取预览图（JPEG格式，小体积）
-        const previewData = await invoke('get_screenshot_preview') as string
-
-        // 检查是否有效（非空字符串）
-        if (previewData && previewData.trim().length > 0) {
-          // 预览图数据已可用，但不作为背景显示
-          // 直接返回，让 loadFullBackgroundImage 继续
-          return
-        }
-        // 预览图不可用，等待后重试
-        await new Promise(resolve => setTimeout(resolve, checkInterval))
-        waitedTime += checkInterval
-      } catch (error: any) {
-        const errorMsg = error?.toString() || ''
-        // 检查是否是"不可用"或"正在捕获"的错误，如果是则等待重试
-        if (errorMsg.includes('No screenshot preview available') ||
-            errorMsg.includes('being captured') ||
-            errorMsg.includes('Preview load timeout')) {
-          await new Promise(resolve => setTimeout(resolve, checkInterval))
-          waitedTime += checkInterval
-          continue
-        }
-        // 其他错误，继续尝试加载完整图
-          break
-      }
-    }
-
-    // 等待超时，让完整图继续加载
   }
 
   // 加载完整背景图（高质量PNG）
@@ -1761,7 +1721,10 @@ export class ScreenshotManager {
     
     // 【遮罩层】绘制选择区域外的半透明遮罩
     if (this.selectionRect) {
-      this.drawingEngine.drawMask(this.selectionRect)
+      this.drawingEngine.drawMask(
+        this.selectionRect,
+        this.selectionCornerRadius
+      )
     }
 
     // 绘制窗口吸附预览
@@ -1784,7 +1747,11 @@ export class ScreenshotManager {
 
     // 绘制选择框
     if (this.selectionRect) {
-      this.drawingEngine.drawSelectionBox(this.selectionRect, this.showGuides)
+      this.drawingEngine.drawSelectionBox(
+        this.selectionRect,
+        this.showGuides,
+        this.selectionCornerRadius
+      )
     }
 
     // 绘制取色器UI
@@ -2676,7 +2643,12 @@ export class ScreenshotManager {
       case ToolType.Line:
       case ToolType.Arrow:
         // 两点图形只需要起点和终点
-        point = this.getConstrainedShapeEndPoint(data.type, data.points[0], point)
+        point = constrainShapeEndPoint(
+          data.type,
+          data.points[0],
+          point,
+          this.isShiftPressed
+        )
         if (data.points.length === 1) {
           // 如果只有起点，添加终点
           this.currentAnnotation.addPoint(point)
@@ -2696,33 +2668,6 @@ export class ScreenshotManager {
         this.currentAnnotation.addPoint(point)
         break
     }
-  }
-
-  private getConstrainedShapeEndPoint(type: ToolType, start: Point, end: Point): Point {
-    if (!this.isShiftPressed) return end
-
-    const deltaX = end.x - start.x
-    const deltaY = end.y - start.y
-
-    if (type === ToolType.Ellipse || type === ToolType.Rectangle) {
-      const size = Math.max(Math.abs(deltaX), Math.abs(deltaY))
-      return {
-        x: start.x + Math.sign(deltaX || 1) * size,
-        y: start.y + Math.sign(deltaY || 1) * size
-      }
-    }
-
-    if (type === ToolType.Line || type === ToolType.Arrow) {
-      const distanceToEnd = Math.sqrt(deltaX * deltaX + deltaY * deltaY)
-      const angleStep = Math.PI / 4
-      const snappedAngle = Math.round(Math.atan2(deltaY, deltaX) / angleStep) * angleStep
-      return {
-        x: start.x + Math.cos(snappedAngle) * distanceToEnd,
-        y: start.y + Math.sin(snappedAngle) * distanceToEnd
-      }
-    }
-
-    return end
   }
 
   // 完成标注创建
@@ -3093,6 +3038,31 @@ export class ScreenshotManager {
             })
           }
 
+          const logicalRadius = clampCornerRadius(
+            this.selectionCornerRadius,
+            captureResult.logical_width,
+            captureResult.logical_height
+          )
+          if (logicalRadius > 0) {
+            const outputScale =
+              captureResult.logical_width > 0
+                ? captureResult.adjusted_width / captureResult.logical_width
+                : scale
+            tempCtx.save()
+            tempCtx.globalCompositeOperation = 'destination-in'
+            tempCtx.fillStyle = '#000'
+            tempCtx.beginPath()
+            tempCtx.roundRect(
+              0,
+              0,
+              tempCanvas.width,
+              tempCanvas.height,
+              logicalRadius * outputScale
+            )
+            tempCtx.fill()
+            tempCtx.restore()
+          }
+
           // 根据操作类型选择编码方式
           let dataUrl: string
           if (action === 'copy') {
@@ -3141,6 +3111,7 @@ export class ScreenshotManager {
       },
       textSize: this.textSize,
       mosaicSize: this.mosaicSize,
+      selectionCornerRadius: this.selectionCornerRadius,
       hasSelection: !!this.selectionRect,
       // 有标注或有翻译覆盖层时都可以撤销
       hasAnnotations: this.annotations.length > 0 || (this.translationOverlay.isVisible && this.translationOverlay.blocks.length > 0),
@@ -3178,6 +3149,13 @@ export class ScreenshotManager {
     if (this.currentTool === ToolType.Mosaic) {
       this.updateToolCursor()
     }
+    this.onStateChange?.()
+  }
+
+  updateSelectionCornerRadius(radius: number): void {
+    if (!Number.isFinite(radius)) return
+    this.selectionCornerRadius = Math.max(0, Math.min(120, radius))
+    this.draw()
     this.onStateChange?.()
   }
 

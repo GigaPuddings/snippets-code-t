@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import type {
   FfmpegStatus,
+  RecordingClipPreview,
   RecordingExportResult,
   RecordingRegion,
   RecordingSettings,
@@ -61,6 +62,9 @@ export const pickTargetWindow = (): Promise<RecorderSnapRegion> =>
 export const closeRecorderWindow = (): Promise<void> =>
   invokeWithLog('screen_recorder_close_window');
 
+export const copyRecordingFileToClipboard = (path: string): Promise<void> =>
+  invokeWithLog('screen_recorder_copy_file_to_clipboard', { path });
+
 export const startRecording = (
   region: RecordingRegion,
   settings: RecordingSettings
@@ -91,6 +95,15 @@ export const resumeRecording = (
 export const stopRecording = (): Promise<void> =>
   invokeWithLog('screen_recorder_stop_recording');
 
+export const getRecordingClipPreview = (
+  durationMs: number,
+  maxThumbnails = 8
+): Promise<RecordingClipPreview> =>
+  invokeWithLog('screen_recorder_get_clip_preview', {
+    durationMs,
+    maxThumbnails
+  });
+
 export const cancelRecording = (): Promise<void> =>
   invokeWithLog('screen_recorder_cancel_recording');
 
@@ -99,12 +112,16 @@ export const cancelExportRecording = (): Promise<void> =>
 
 export const exportRecording = (
   settings: RecordingSettings,
-  durationMs?: number
+  durationMs?: number,
+  trimStartMs?: number,
+  trimEndMs?: number
 ): Promise<RecordingExportResult> =>
   invokeWithLog('screen_recorder_export_recording', {
     format: settings.format,
     fps: settings.fps,
     quality: settings.quality,
     savePath: settings.savePath,
-    durationMs
+    durationMs,
+    trimStartMs,
+    trimEndMs
   });

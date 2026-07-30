@@ -2042,46 +2042,40 @@ fn capture_screen_gdi_optimized() -> Result<(Vec<u8>, i32, i32), String> {
             return Err("GetDIBits failed".to_string());
         }
 
-        // BGRA -> RGBA 转换
-        let rgba_buffer: Vec<u8> = buffer
+        // JPEG 最终只需要 RGB，直接从 GDI 的 BGRA 转换，避免先生成 RGBA
+        // 再为编码器复制一份 RGB 的全屏缓冲区。
+        let rgb_buffer: Vec<u8> = buffer
             .chunks_exact(4)
-            .flat_map(|chunk| [chunk[2], chunk[1], chunk[0], chunk[3]])
+            .flat_map(|chunk| [chunk[2], chunk[1], chunk[0]])
             .collect();
 
-        Ok((rgba_buffer, screen_width, screen_height))
+        Ok((rgb_buffer, screen_width, screen_height))
     }
 }
 
 // 捕获全屏并返回 base64
-fn encode_rgba_as_jpeg(
-    rgba_data: &[u8],
+fn encode_rgb_as_jpeg(
+    rgb_data: &[u8],
     width: u32,
     height: u32,
     quality: u8,
 ) -> Result<Vec<u8>, String> {
     use image::codecs::jpeg::JpegEncoder;
 
-    let expected_len = width as usize * height as usize * 4;
-    if rgba_data.len() != expected_len {
+    let expected_len = width as usize * height as usize * 3;
+    if rgb_data.len() != expected_len {
         return Err(format!(
-            "Invalid RGBA buffer length: expected {}, got {}",
+            "Invalid RGB buffer length: expected {}, got {}",
             expected_len,
-            rgba_data.len()
+            rgb_data.len()
         ));
     }
-
-    // JPEG 不支持 alpha 通道。image 0.25 起会严格拒绝 Rgba8，
-    // 这里显式转换为 RGB，避免依赖编码器隐式丢弃 alpha。
-    let rgb_data: Vec<u8> = rgba_data
-        .chunks_exact(4)
-        .flat_map(|chunk| [chunk[0], chunk[1], chunk[2]])
-        .collect();
 
     let mut jpeg_data = Vec::new();
     {
         let mut encoder = JpegEncoder::new_with_quality(&mut jpeg_data, quality);
         encoder
-            .encode(&rgb_data, width, height, image::ColorType::Rgb8.into())
+            .encode(rgb_data, width, height, image::ColorType::Rgb8.into())
             .map_err(|e| format!("Failed to encode JPEG: {}", e))?;
     }
 
@@ -2091,10 +2085,10 @@ fn encode_rgba_as_jpeg(
 // 捕获全屏并返回 base64
 fn capture_screen_and_encode() -> Result<(String, String), String> {
     // 使用优化后的 GDI 方式捕获
-    let (rgba_data, width, height) = capture_screen_gdi_optimized()?;
+    let (rgb_data, width, height) = capture_screen_gdi_optimized()?;
 
     // 编码为 JPEG
-    let jpeg_data = encode_rgba_as_jpeg(&rgba_data, width as u32, height as u32, 85)?;
+    let jpeg_data = encode_rgb_as_jpeg(&rgb_data, width as u32, height as u32, 85)?;
 
     let base64_str = general_purpose::STANDARD.encode(&jpeg_data);
 
@@ -2188,38 +2182,41 @@ pub async fn hotkey_screenshot() -> Result<(), String> {
         scale: monitor.scale_factor(),
     };
 
-    // 截图和窗口枚举都属于阻塞式 Windows API；在创建全屏窗口前并行完成，
-    // 防止捕获到自身，也避免把未就绪的透明窗口显示为输入拦截层。
+    // 截图和窗口枚举都属于阻塞式 Windows API。窗口枚举只服务智能吸附，
+    // 不应阻塞截图首帧；先等待屏幕捕获，窗口列表在后台完成后再写入缓存。
     let window_list_task = tokio::task::spawn_blocking(get_all_windows);
     let capture_task = tokio::task::spawn_blocking(capture_full_screen_to_base64);
-    let preparation_result =
-        tokio::time::timeout(tokio::time::Duration::from_secs(5), async move {
-            tokio::join!(window_list_task, capture_task)
-        })
-        .await;
-    let (window_list_result, capture_result) = match preparation_result {
-        Ok(result) => result,
-        Err(_) => {
-            clear_screenshot_resource_caches();
-            notify_screenshot_start_failed(&app_handle, "屏幕捕获超时，已自动取消，请稍后重试。");
-            return Err("截图资源准备超时".to_string());
-        }
-    };
+    let capture_result =
+        match tokio::time::timeout(tokio::time::Duration::from_secs(5), capture_task).await {
+            Ok(result) => result,
+            Err(_) => {
+                clear_screenshot_resource_caches();
+                notify_screenshot_start_failed(
+                    &app_handle,
+                    "屏幕捕获超时，已自动取消，请稍后重试。",
+                );
+                return Err("截图资源准备超时".to_string());
+            }
+        };
 
     if SCREENSHOT_GENERATION.load(Ordering::Acquire) != generation {
         return Ok(());
     }
 
-    match window_list_result {
-        Ok(Ok(windows)) => {
-            info!("窗口列表已预加载到缓存 (窗口数: {})", windows.len());
-            if let Ok(mut cached) = CACHED_WINDOW_LIST.lock() {
-                *cached = Some(windows);
+    tokio::spawn(async move {
+        match window_list_task.await {
+            Ok(Ok(windows)) => {
+                if SCREENSHOT_GENERATION.load(Ordering::Acquire) == generation {
+                    info!("窗口列表已预加载到缓存 (窗口数: {})", windows.len());
+                    if let Ok(mut cached) = CACHED_WINDOW_LIST.lock() {
+                        *cached = Some(windows);
+                    }
+                }
             }
+            Ok(Err(error)) => warn!("预加载窗口列表失败: {}", error),
+            Err(error) => warn!("窗口列表预加载任务失败: {}", error),
         }
-        Ok(Err(error)) => warn!("预加载窗口列表失败: {}", error),
-        Err(error) => warn!("窗口列表预加载任务失败: {}", error),
-    }
+    });
 
     let (preview, background) = match capture_result {
         Ok(Ok(result)) => result,

@@ -22,12 +22,15 @@
       :current-tool="state.currentTool" :current-color="state.currentStyle.color"
       :current-line-width="state.currentStyle.lineWidth" :current-opacity="state.currentStyle.opacity"
       :current-text-size="state.textSize"
-      :current-mosaic-size="state.mosaicSize" :can-undo="state.hasAnnotations" :can-redo="state.canRedo"
+      :current-mosaic-size="state.mosaicSize"
+      :current-selection-corner-radius="state.selectionCornerRadius"
+      :can-undo="state.hasAnnotations" :can-redo="state.canRedo"
       :can-delete="!!state.selectedAnnotation"
       :current-translate-engine="translateEngine"
       @tool-select="handleToolSelect" @color-change="handleColorChange" @line-width-change="handleLineWidthChange"
       @opacity-change="handleOpacityChange"
       @text-size-change="handleTextSizeChange" @mosaic-size-change="handleMosaicSizeChange"
+      @selection-corner-radius-change="handleSelectionCornerRadiusChange"
       @translate-engine-change="handleTranslateEngineChange"
       @undo="handleUndo" @redo="handleRedo" @delete="handleDelete" @save="handleSave" @confirm="handleConfirm" @cancel="handleCancel" />
 
@@ -92,6 +95,7 @@ const state = ref({
   currentStyle: { color: '#ff4444', lineWidth: 3, opacity: 1 },
   textSize: 16,
   mosaicSize: 8,
+  selectionCornerRadius: 0,
   hasSelection: false,
   hasAnnotations: false,
   canRedo: false,
@@ -289,6 +293,10 @@ const handleTextSizeChange = (size: number) => {
 
 const handleMosaicSizeChange = (size: number) => {
   screenshotManager?.updateMosaicSize(size)
+}
+
+const handleSelectionCornerRadiusChange = (radius: number) => {
+  screenshotManager?.updateSelectionCornerRadius(radius)
 }
 
 const handleTranslateEngineChange = (engine: 'google' | 'bing' | 'offline' | 'local-ai') => {
@@ -553,6 +561,7 @@ const closeWindow = async () => {
     currentStyle: { color: '#ff4444', lineWidth: 3, opacity: 1 },
     textSize: 16,
     mosaicSize: 8,
+    selectionCornerRadius: 0,
     hasSelection: false,
     hasAnnotations: false,
     canRedo: false,

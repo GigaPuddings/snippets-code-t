@@ -1,6 +1,6 @@
 import { BaseAnnotation } from './BaseAnnotation'
 import { DrawingContext, Rect, CoordinateTransform, ColorPickerState } from './types'
-import { getRectCenter } from '../utils/geometry'
+import { clampCornerRadius, getRectCenter } from '../utils/geometry'
 import { isValidRect } from '../utils/validation'
 
 // 绘制引擎 - 统一处理所有绘制逻辑
@@ -31,7 +31,7 @@ export class DrawingEngine {
   }
 
   // 绘制遮罩层（选择区域外的半透明黑色遮罩）
-  drawMask(selectionRect: Rect) {
+  drawMask(selectionRect: Rect, cornerRadius: number = 0) {
     // 验证输入
     if (!isValidRect(selectionRect)) {
       console.warn('Invalid selection rect in drawMask:', selectionRect);
@@ -49,18 +49,15 @@ export class DrawingEngine {
     const y = Math.round(selectionRect.y)
     const width = Math.round(selectionRect.width)
     const height = Math.round(selectionRect.height)
+    const radius = clampCornerRadius(cornerRadius, width, height)
     
     // 使用 Path2D 和 evenodd 填充规则，一次性绘制带孔的遮罩
     this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'
     this.ctx.beginPath()
     // 外部矩形（整个画布）
     this.ctx.rect(0, 0, canvasWidth, canvasHeight)
-    // 内部矩形（选区，逆时针绘制以创建孔）
-    this.ctx.moveTo(x, y)
-    this.ctx.lineTo(x, y + height)
-    this.ctx.lineTo(x + width, y + height)
-    this.ctx.lineTo(x + width, y)
-    this.ctx.closePath()
+    // 内部圆角矩形（选区）
+    this.ctx.roundRect(x, y, width, height, radius)
     // 使用 evenodd 填充规则
     this.ctx.fill('evenodd')
     
@@ -68,7 +65,11 @@ export class DrawingEngine {
   }
 
   // 绘制选择框
-  drawSelectionBox(rect: Rect, showHandles: boolean = true) {
+  drawSelectionBox(
+    rect: Rect,
+    showHandles: boolean = true,
+    cornerRadius: number = 0
+  ) {
     const { x, y, width, height } = rect
 
     this.ctx.save()
@@ -78,13 +79,24 @@ export class DrawingEngine {
     const strokeY = Math.round(y) + 0.5
     const strokeWidth = Math.max(0, Math.round(width) - 1)
     const strokeHeight = Math.max(0, Math.round(height) - 1)
+    const radius = clampCornerRadius(cornerRadius, strokeWidth, strokeHeight)
 
     this.ctx.lineWidth = 1
     this.ctx.setLineDash([5, 4])
     this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.62)'
-    this.ctx.strokeRect(strokeX + 1, strokeY + 1, strokeWidth, strokeHeight)
+    this.ctx.beginPath()
+    this.ctx.roundRect(
+      strokeX + 1,
+      strokeY + 1,
+      strokeWidth,
+      strokeHeight,
+      radius
+    )
+    this.ctx.stroke()
     this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.96)'
-    this.ctx.strokeRect(strokeX, strokeY, strokeWidth, strokeHeight)
+    this.ctx.beginPath()
+    this.ctx.roundRect(strokeX, strokeY, strokeWidth, strokeHeight, radius)
+    this.ctx.stroke()
 
     if (showHandles) {
       this.drawHandles(rect)

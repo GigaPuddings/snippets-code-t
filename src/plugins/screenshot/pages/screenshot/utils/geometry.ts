@@ -4,7 +4,49 @@
  * 提供常用的几何计算功能，包括距离、角度、矩形操作等
  */
 
-import type { Point, Rect } from '../core/types';
+import { ToolType, type Point, type Rect } from '../core/types';
+
+export function clampCornerRadius(
+  radius: number,
+  width: number,
+  height: number
+): number {
+  if (!Number.isFinite(radius) || radius <= 0) return 0;
+  return Math.min(radius, Math.max(0, width) / 2, Math.max(0, height) / 2);
+}
+
+export function constrainShapeEndPoint(
+  type: ToolType,
+  start: Point,
+  end: Point,
+  constrained: boolean
+): Point {
+  if (!constrained) return end;
+
+  const deltaX = end.x - start.x;
+  const deltaY = end.y - start.y;
+
+  if (type === ToolType.Ellipse || type === ToolType.Rectangle) {
+    const size = Math.max(Math.abs(deltaX), Math.abs(deltaY));
+    return {
+      x: start.x + Math.sign(deltaX || 1) * size,
+      y: start.y + Math.sign(deltaY || 1) * size
+    };
+  }
+
+  if (type === ToolType.Line || type === ToolType.Arrow) {
+    const distanceToEnd = Math.hypot(deltaX, deltaY);
+    const angleStep = Math.PI / 4;
+    const snappedAngle =
+      Math.round(Math.atan2(deltaY, deltaX) / angleStep) * angleStep;
+    return {
+      x: start.x + Math.cos(snappedAngle) * distanceToEnd,
+      y: start.y + Math.sin(snappedAngle) * distanceToEnd
+    };
+  }
+
+  return end;
+}
 
 /**
  * 计算两点之间的距离

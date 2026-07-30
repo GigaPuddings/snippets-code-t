@@ -5,6 +5,7 @@ export type RecordingStatus =
   | 'ready'
   | 'recording'
   | 'paused'
+  | 'editing'
   | 'exporting'
   | 'completed';
 
@@ -56,6 +57,24 @@ export interface RecordingExportProgress {
   progress: number;
   currentFrame: number;
   totalFrames?: number;
+}
+
+export interface RecordingClipThumbnail {
+  timeMs: number;
+  image: string;
+}
+
+export interface RecordingClipPreview {
+  durationMs: number;
+  width: number;
+  height: number;
+  videoPath: string;
+  thumbnails: RecordingClipThumbnail[];
+}
+
+export interface RecordingTrimRange {
+  startMs: number;
+  endMs: number;
 }
 
 export interface RecorderPassthroughRegion {

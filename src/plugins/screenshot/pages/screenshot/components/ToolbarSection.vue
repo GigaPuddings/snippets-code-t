@@ -77,6 +77,26 @@
     <!-- 第二个面板：样式设置区域 -->
     <div v-if="showStyleSettings" class="toolbar-panel second-panel">
       <div class="style-section">
+        <div v-if="showSelectionCornerRadius" class="style-group opacity-group">
+          <span class="style-label">{{ t('screenshot.cornerRadius') }}</span>
+          <input
+            class="opacity-slider"
+            type="range"
+            min="0"
+            max="80"
+            step="2"
+            :value="currentSelectionCornerRadius"
+            :style="{
+              '--opacity-color': '#2e90fa',
+              '--opacity-progress': `${(currentSelectionCornerRadius / 80) * 100}%`
+            }"
+            :title="`${currentSelectionCornerRadius}px`"
+            :aria-label="t('screenshot.cornerRadius')"
+            @input="onSelectionCornerRadiusChange"
+          />
+          <span class="style-value">{{ currentSelectionCornerRadius }} px</span>
+        </div>
+
         <!-- 线宽设置 -->
         <div v-if="showLineWidth" class="style-group">
           <span class="style-label">{{ t('screenshot.lineWidth') }}</span>
@@ -251,6 +271,7 @@ interface Props {
   currentOpacity: number
   currentTextSize: number
   currentMosaicSize: number
+  currentSelectionCornerRadius: number
   canUndo: boolean
   canRedo: boolean
   canDelete: boolean
@@ -264,6 +285,7 @@ interface Emits {
   (e: 'opacity-change', opacity: number): void
   (e: 'text-size-change', size: number): void
   (e: 'mosaic-size-change', size: number): void
+  (e: 'selection-corner-radius-change', radius: number): void
   (e: 'translate-engine-change', engine: 'google' | 'bing' | 'offline' | 'local-ai'): void
   (e: 'undo'): void
   (e: 'redo'): void
@@ -274,7 +296,8 @@ interface Emits {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  currentTranslateEngine: 'bing'
+  currentTranslateEngine: 'bing',
+  currentSelectionCornerRadius: 0
 })
 const emit = defineEmits<Emits>()
 
@@ -320,7 +343,10 @@ const textSizes = [12, 14, 16, 18, 20, 24]
 const mosaicSizes = [8, 12, 16, 20]
 
 // 是否显示样式设置
-const showStyleSettings = computed(() => ![ToolType.Select, ToolType.ColorPicker, ToolType.Ocr, ToolType.Pin].includes(props.currentTool))
+const showStyleSettings = computed(() => ![ToolType.ColorPicker, ToolType.Ocr, ToolType.Pin].includes(props.currentTool))
+const showSelectionCornerRadius = computed(
+  () => props.currentTool === ToolType.Select
+)
 
 const showLineWidth = computed(() => 
   [ToolType.Rectangle, ToolType.Ellipse, ToolType.Line, ToolType.Arrow, ToolType.Pen].includes(props.currentTool)
@@ -360,6 +386,12 @@ const onOpacityChange = (event: Event) => {
 }
 const onTextSizeChange = (size: number) => emit('text-size-change', size)
 const onMosaicSizeChange = (size: number) => emit('mosaic-size-change', size)
+const onSelectionCornerRadiusChange = (event: Event) => {
+  emit(
+    'selection-corner-radius-change',
+    Number((event.target as HTMLInputElement).value)
+  )
+}
 const onUndo = () => emit('undo')
 const onRedo = () => emit('redo')
 const onDelete = () => emit('delete')

@@ -742,10 +742,12 @@ pub fn run() {
             plugins::screen_recorder::screen_recorder_set_overlay_window_region, // 裁剪录屏窗口覆盖区域
             plugins::screen_recorder::screen_recorder_pick_target_window, // 拖拽捕捉目标窗口
             plugins::screen_recorder::screen_recorder_close_window, // 关闭录屏窗口
+            plugins::screen_recorder::screen_recorder_copy_file_to_clipboard, // 复制录制文件到剪贴板
             plugins::screen_recorder::screen_recorder_start_recording, // 开始录屏
             plugins::screen_recorder::screen_recorder_pause_recording, // 暂停录屏
             plugins::screen_recorder::screen_recorder_resume_recording, // 继续录屏
             plugins::screen_recorder::screen_recorder_stop_recording, // 停止录屏
+            plugins::screen_recorder::screen_recorder_get_clip_preview, // 获取录制后剪辑缩略图
             plugins::screen_recorder::screen_recorder_cancel_recording, // 取消录屏
             plugins::screen_recorder::screen_recorder_cancel_export, // 取消录屏导出
             plugins::screen_recorder::screen_recorder_export_recording, // 导出录屏

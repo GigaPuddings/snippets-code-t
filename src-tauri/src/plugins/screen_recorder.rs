@@ -1,3 +1,4 @@
+use base64::{engine::general_purpose, Engine as _};
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use std::fs::{self, File, OpenOptions};
@@ -10,7 +11,9 @@ use std::sync::{
 };
 use std::thread;
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Emitter, Listener, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{
+    AppHandle, Emitter, Listener, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
+};
 
 use std::os::windows::process::CommandExt;
 
@@ -65,7 +68,7 @@ fn validate_recording_region(region: &RecordingRegion) -> Result<(), String> {
     Ok(())
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct PassthroughRegion {
     x: i32,
@@ -116,6 +119,23 @@ pub struct RecordingExportResult {
     has_audio: bool,
     audio_device: Option<String>,
     debug_log_path: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecordingClipThumbnail {
+    time_ms: u64,
+    image: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecordingClipPreview {
+    duration_ms: u64,
+    width: u32,
+    height: u32,
+    video_path: String,
+    thumbnails: Vec<RecordingClipThumbnail>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -894,10 +914,40 @@ fn clear_passthrough_region(app_handle: &AppHandle) {
     if let Ok(mut state) = PASSTHROUGH_STATE.lock() {
         state.region = None;
         if let Some(window) = app_handle.get_webview_window("screen_recorder") {
-            let _ = window.set_ignore_cursor_events(false);
+            let _ = set_window_cursor_passthrough(&window, false);
         }
         state.last_ignored = false;
     }
+}
+
+fn set_window_cursor_passthrough(window: &WebviewWindow, ignore: bool) -> Result<(), String> {
+    window
+        .set_ignore_cursor_events(ignore)
+        .map_err(|e| format!("设置录屏窗口鼠标穿透失败: {}", e))?;
+
+    // Windows 上对透明 WebView 取消 ignore_cursor_events 偶发只更新内部状态，
+    // 原生 WS_EX_TRANSPARENT 仍被保留。同步修正窗口样式，确保剪辑页可立即交互。
+    unsafe {
+        use windows::Win32::Foundation::HWND;
+        use windows::Win32::UI::WindowsAndMessaging::{
+            GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, WS_EX_TRANSPARENT,
+        };
+
+        let raw_hwnd = window.hwnd().map_err(|e| e.to_string())?;
+        let hwnd = HWND(raw_hwnd.0 as _);
+        let current_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+        let transparent_flag = WS_EX_TRANSPARENT.0 as isize;
+        let next_style = if ignore {
+            current_style | transparent_flag
+        } else {
+            current_style & !transparent_flag
+        };
+        if next_style != current_style {
+            SetWindowLongPtrW(hwnd, GWL_EXSTYLE, next_style);
+        }
+    }
+
+    Ok(())
 }
 
 fn ensure_passthrough_tracker(app_handle: AppHandle) {
@@ -928,7 +978,7 @@ fn ensure_passthrough_tracker(app_handle: AppHandle) {
                 state.last_ignored = false;
             }
             if let Some(window) = app_handle.get_webview_window("screen_recorder") {
-                let _ = window.set_ignore_cursor_events(false);
+                let _ = set_window_cursor_passthrough(&window, false);
             }
             break;
         };
@@ -963,13 +1013,16 @@ fn ensure_passthrough_tracker(app_handle: AppHandle) {
 
         let mut changed = false;
         if let Ok(mut state) = PASSTHROUGH_STATE.lock() {
+            if state.region.as_ref() != Some(&region) {
+                continue;
+            }
             if state.last_ignored != should_ignore {
                 state.last_ignored = should_ignore;
                 changed = true;
             }
         }
         if changed {
-            let _ = window.set_ignore_cursor_events(should_ignore);
+            let _ = set_window_cursor_passthrough(&window, should_ignore);
         }
 
         thread::sleep(Duration::from_millis(24));
@@ -999,7 +1052,7 @@ pub fn screen_recorder_set_passthrough_region(
     {
         ensure_passthrough_tracker(app_handle);
     } else if let Some(window) = app_handle.get_webview_window("screen_recorder") {
-        let _ = window.set_ignore_cursor_events(false);
+        set_window_cursor_passthrough(&window, false)?;
     }
 
     Ok(())
@@ -1081,6 +1134,109 @@ pub fn screen_recorder_set_capture_excluded(
         unsafe { SetWindowDisplayAffinity(hwnd, affinity) }.map_err(|e| e.to_string())?;
     }
     Ok(())
+}
+
+fn copy_file_drop_to_clipboard(path: &Path) -> Result<(), String> {
+    use std::mem::size_of;
+    use std::os::windows::ffi::OsStrExt;
+    use std::ptr::{copy_nonoverlapping, write_unaligned};
+    use windows::Win32::Foundation::{GlobalFree, HANDLE};
+    use windows::Win32::System::DataExchange::{
+        CloseClipboard, EmptyClipboard, OpenClipboard, SetClipboardData,
+    };
+    use windows::Win32::System::Memory::{GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE};
+    use windows::Win32::UI::Shell::DROPFILES;
+
+    const CF_HDROP_FORMAT: u32 = 15;
+
+    let canonical =
+        fs::canonicalize(path).map_err(|error| format!("无法读取待复制的录制文件: {}", error))?;
+    if !canonical.is_file() {
+        return Err("待复制的录制文件不存在".to_string());
+    }
+
+    let wide_path = canonical
+        .as_os_str()
+        .encode_wide()
+        .chain([0, 0])
+        .collect::<Vec<_>>();
+    let header_size = size_of::<DROPFILES>();
+    let payload_size = wide_path.len() * size_of::<u16>();
+    let allocation_size = header_size + payload_size;
+
+    unsafe {
+        let memory = GlobalAlloc(GMEM_MOVEABLE, allocation_size)
+            .map_err(|error| format!("分配剪贴板内存失败: {}", error))?;
+        let memory_ptr = GlobalLock(memory);
+        if memory_ptr.is_null() {
+            let _ = GlobalFree(Some(memory));
+            return Err("锁定剪贴板内存失败".to_string());
+        }
+
+        write_unaligned(
+            memory_ptr.cast::<DROPFILES>(),
+            DROPFILES {
+                pFiles: header_size as u32,
+                pt: Default::default(),
+                fNC: false.into(),
+                fWide: true.into(),
+            },
+        );
+        copy_nonoverlapping(
+            wide_path.as_ptr().cast::<u8>(),
+            memory_ptr.cast::<u8>().add(header_size),
+            payload_size,
+        );
+        let _ = GlobalUnlock(memory);
+
+        let mut clipboard_opened = false;
+        let mut last_open_error = None;
+        for _ in 0..8 {
+            match OpenClipboard(None) {
+                Ok(()) => {
+                    clipboard_opened = true;
+                    break;
+                }
+                Err(error) => {
+                    last_open_error = Some(error);
+                    thread::sleep(Duration::from_millis(20));
+                }
+            }
+        }
+        if !clipboard_opened {
+            let _ = GlobalFree(Some(memory));
+            return Err(format!(
+                "打开剪贴板失败: {}",
+                last_open_error
+                    .map(|error| error.to_string())
+                    .unwrap_or_else(|| "剪贴板正被其他程序占用".to_string())
+            ));
+        }
+
+        if let Err(error) = EmptyClipboard() {
+            let _ = CloseClipboard();
+            let _ = GlobalFree(Some(memory));
+            return Err(format!("清空剪贴板失败: {}", error));
+        }
+
+        let set_result = SetClipboardData(CF_HDROP_FORMAT, Some(HANDLE(memory.0)));
+        let _ = CloseClipboard();
+        if let Err(error) = set_result {
+            let _ = GlobalFree(Some(memory));
+            return Err(format!("复制录制文件到剪贴板失败: {}", error));
+        }
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn screen_recorder_copy_file_to_clipboard(
+    app_handle: AppHandle,
+    path: String,
+) -> Result<(), String> {
+    require_plugin(&app_handle)?;
+    copy_file_drop_to_clipboard(Path::new(&path))
 }
 
 #[tauri::command]
@@ -1370,8 +1526,8 @@ fn export_crf(quality: &str) -> &'static str {
 fn gif_colors(quality: &str) -> &'static str {
     match quality {
         "high" => "256",
-        "small" => "96",
-        _ => "160",
+        "small" => "112",
+        _ => "224",
     }
 }
 
@@ -1924,6 +2080,8 @@ pub fn screen_recorder_stop_recording(app_handle: AppHandle) -> Result<(), Strin
     );
     stop_active_segment(session);
     session.stopped = true;
+    drop(state);
+    clear_passthrough_region(&app_handle);
     Ok(())
 }
 
@@ -2011,6 +2169,9 @@ fn validate_video_segment(
 
 fn write_concat_file(session: &RecordingSession, ffmpeg_path: &Path) -> Result<PathBuf, String> {
     let concat_path = session.temp_dir.join("segments.txt");
+    if session.stopped && concat_path.is_file() {
+        return Ok(concat_path);
+    }
     let mut content = String::new();
     let mut segment_errors = Vec::new();
     for segment in &session.segments {
@@ -2061,6 +2222,125 @@ fn write_concat_file(session: &RecordingSession, ffmpeg_path: &Path) -> Result<P
     }
     fs::write(&concat_path, content).map_err(|e| format!("写入片段列表失败: {}", e))?;
     Ok(concat_path)
+}
+
+fn ffmpeg_seconds(duration_ms: u64) -> String {
+    format!("{:.3}", duration_ms as f64 / 1000.0)
+}
+
+#[tauri::command]
+pub fn screen_recorder_get_clip_preview(
+    app_handle: AppHandle,
+    duration_ms: u64,
+    max_thumbnails: Option<u32>,
+) -> Result<RecordingClipPreview, String> {
+    require_plugin(&app_handle)?;
+    let state = RECORDING_SESSION
+        .lock()
+        .map_err(|e| format!("录屏状态锁定失败: {}", e))?;
+    let session = state
+        .as_ref()
+        .ok_or_else(|| "当前没有可预览的录屏任务".to_string())?;
+    if !session.stopped {
+        return Err("请先停止录制再进行剪辑".to_string());
+    }
+
+    let duration_ms = duration_ms.max(1);
+    let thumbnail_limit = max_thumbnails.unwrap_or(8).clamp(4, 12);
+    let (ffmpeg, _) = find_ffmpeg(&app_handle);
+    let ffmpeg = ffmpeg.ok_or_else(|| "未找到 FFmpeg，无法生成剪辑预览".to_string())?;
+    let concat_path = write_concat_file(session, &ffmpeg.path)?;
+    let preview_dir = session.temp_dir.join("clip_preview");
+    let _ = fs::remove_dir_all(&preview_dir);
+    fs::create_dir_all(&preview_dir).map_err(|e| format!("创建剪辑预览目录失败: {}", e))?;
+    let video_path = preview_dir.join("preview.mp4");
+    let frame_pattern = preview_dir.join("thumb_%03d.jpg");
+    let duration_seconds = duration_ms as f64 / 1000.0;
+    let sample_fps = (thumbnail_limit as f64 / duration_seconds.max(0.1)).max(0.1);
+    let preview_filter = format!("fps={:.6},scale='min(960,iw)':-2:flags=lanczos", sample_fps);
+
+    append_debug_log(
+        &session.temp_dir,
+        format!(
+            "clip preview request: duration_ms={} thumbnails={} video={} filter={}",
+            duration_ms,
+            thumbnail_limit,
+            display_path(&video_path),
+            preview_filter
+        ),
+    );
+    let mut video_command = ffmpeg_command(&ffmpeg.path);
+    video_command
+        .args([
+            "-hide_banner",
+            "-nostdin",
+            "-y",
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+        ])
+        .arg(&concat_path)
+        .args([
+            "-map",
+            "0:v:0",
+            "-an",
+            "-c:v",
+            "copy",
+            "-movflags",
+            "+faststart",
+        ])
+        .arg(&video_path);
+    run_ffmpeg(video_command, "生成连续剪辑预览", Some(&session.temp_dir))?;
+
+    let mut command = ffmpeg_command(&ffmpeg.path);
+    command
+        .args(["-hide_banner", "-nostdin", "-y", "-i"])
+        .arg(&video_path)
+        .args(["-an", "-vf", &preview_filter, "-frames:v"])
+        .arg(thumbnail_limit.to_string())
+        .args(["-q:v", "2"])
+        .arg(&frame_pattern);
+    run_ffmpeg(command, "生成剪辑预览", Some(&session.temp_dir))?;
+
+    let mut frame_paths = fs::read_dir(&preview_dir)
+        .map_err(|e| format!("读取剪辑预览目录失败: {}", e))?
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("jpg"))
+        })
+        .collect::<Vec<_>>();
+    frame_paths.sort();
+    if frame_paths.is_empty() {
+        return Err("未能生成剪辑预览缩略图".to_string());
+    }
+
+    let last_index = frame_paths.len().saturating_sub(1).max(1) as u64;
+    let thumbnails = frame_paths
+        .iter()
+        .enumerate()
+        .map(|(index, path)| {
+            let bytes = fs::read(path).map_err(|e| format!("读取剪辑缩略图失败: {}", e))?;
+            Ok(RecordingClipThumbnail {
+                time_ms: duration_ms.saturating_mul(index as u64) / last_index,
+                image: format!(
+                    "data:image/jpeg;base64,{}",
+                    general_purpose::STANDARD.encode(bytes)
+                ),
+            })
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+
+    Ok(RecordingClipPreview {
+        duration_ms,
+        width: session.region.physical_width,
+        height: session.region.physical_height,
+        video_path: display_path(&video_path),
+        thumbnails,
+    })
 }
 
 fn write_combined_audio(session: &RecordingSession) -> Result<Option<AudioSegment>, String> {
@@ -2270,6 +2550,8 @@ pub fn screen_recorder_export_recording(
     quality: String,
     save_path: String,
     duration_ms: Option<u64>,
+    trim_start_ms: Option<u64>,
+    trim_end_ms: Option<u64>,
 ) -> Result<RecordingExportResult, String> {
     require_plugin(&app_handle)?;
     let mut state = RECORDING_SESSION
@@ -2293,16 +2575,34 @@ pub fn screen_recorder_export_recording(
         ensure_parent_dir(&output_path)?;
         let (ffmpeg, _) = find_ffmpeg(&app_handle);
         let ffmpeg = ffmpeg.ok_or_else(|| "未找到 FFmpeg，无法导出录屏".to_string())?;
+        let total_duration_ms = duration_ms.unwrap_or_else(|| {
+            session
+                .started_at
+                .elapsed()
+                .as_millis()
+                .min(u64::MAX as u128) as u64
+        });
+        let trim_start_ms = trim_start_ms
+            .unwrap_or(0)
+            .min(total_duration_ms.saturating_sub(1));
+        let trim_end_ms = trim_end_ms
+            .unwrap_or(total_duration_ms)
+            .clamp(trim_start_ms.saturating_add(1), total_duration_ms.max(1));
+        let trimmed_duration_ms = trim_end_ms.saturating_sub(trim_start_ms).max(1);
+        let has_trim = trim_start_ms > 0 || trim_end_ms < total_duration_ms;
         append_debug_log(
             &session.temp_dir,
             format!(
-                "export request: session={} format={} fps={} quality={} save_path={} duration_ms={:?} segments={} has_audio={} audio_device={:?}",
+                "export request: session={} format={} fps={} quality={} save_path={} duration_ms={:?} trim={}..{} trimmed_duration_ms={} segments={} has_audio={} audio_device={:?}",
                 session.id,
                 format,
                 fps,
                 quality,
                 display_path(&output_path),
                 duration_ms,
+                trim_start_ms,
+                trim_end_ms,
+                trimmed_duration_ms,
                 session.segments.len(),
                 session.audio_device.is_some(),
                 &session.audio_device
@@ -2317,9 +2617,9 @@ pub fn screen_recorder_export_recording(
         match format.as_str() {
             "gif" => {
                 let fps_text = fps.to_string();
-                let estimated_total_frames = duration_ms
-                    .map(|duration| ((duration as f64 / 1000.0) * fps as f64).ceil() as u32)
-                    .filter(|frames| *frames > 0);
+                let estimated_total_frames =
+                    Some(((trimmed_duration_ms as f64 / 1000.0) * fps as f64).ceil() as u32)
+                        .filter(|frames| *frames > 0);
                 let frames_dir = session.temp_dir.join("gif_frames");
                 let _ = fs::remove_dir_all(&frames_dir);
                 fs::create_dir_all(&frames_dir)
@@ -2354,7 +2654,12 @@ pub fn screen_recorder_export_recording(
                         "0",
                         "-i",
                     ])
-                    .arg(&concat_path)
+                    .arg(&concat_path);
+                if trim_start_ms > 0 {
+                    frames_command.args(["-ss", &ffmpeg_seconds(trim_start_ms)]);
+                }
+                frames_command
+                    .args(["-t", &ffmpeg_seconds(trimmed_duration_ms)])
                     .args(["-an", "-vf", &frame_filter])
                     .arg(&frame_pattern);
                 let mut last_frame_progress = Instant::now() - Duration::from_millis(300);
@@ -2413,7 +2718,10 @@ pub fn screen_recorder_export_recording(
                 );
 
                 let palette_path = session.temp_dir.join("palette.png");
-                let palette_filter = format!("palettegen=max_colors={}", gif_colors(&quality));
+                let palette_filter = format!(
+                    "palettegen=max_colors={}:stats_mode=diff",
+                    gif_colors(&quality)
+                );
                 append_debug_log(
                     &session.temp_dir,
                     format!(
@@ -2461,7 +2769,8 @@ pub fn screen_recorder_export_recording(
                     Some(frame_count_u32),
                 );
 
-                let gif_filter = "[0:v][1:v]paletteuse=dither=bayer[v]";
+                let gif_filter =
+                    "[0:v][1:v]paletteuse=dither=bayer:bayer_scale=3:diff_mode=rectangle[v]";
                 append_debug_log(
                     &session.temp_dir,
                     format!(
@@ -2529,7 +2838,8 @@ pub fn screen_recorder_export_recording(
             }
             _ => {
                 emit_export_progress(&app_handle, "encode", "正在导出 MP4", 0.15, 0, None);
-                let should_copy_video = session.quality == quality && session.fps == fps;
+                let should_copy_video =
+                    session.quality == quality && session.fps == fps && !has_trim;
                 append_debug_log(
                     &session.temp_dir,
                     format!(
@@ -2577,6 +2887,12 @@ pub fn screen_recorder_export_recording(
                         .arg("-i")
                         .arg(&audio.path)
                         .args(["-map", "0:v:0", "-map", "1:a:0"]);
+                }
+                if has_trim {
+                    if trim_start_ms > 0 {
+                        mp4_command.args(["-ss", &ffmpeg_seconds(trim_start_ms)]);
+                    }
+                    mp4_command.args(["-t", &ffmpeg_seconds(trimmed_duration_ms)]);
                 }
                 if should_copy_video {
                     mp4_command.args(["-c:v", "copy"]);

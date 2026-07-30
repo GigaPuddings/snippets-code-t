@@ -1,6 +1,7 @@
 import { onUnmounted, ref } from 'vue';
 import type {
   FfmpegStatus,
+  RecordingClipPreview,
   RecordingExportResult,
   RecordingRegion,
   RecordingSettings,
@@ -11,6 +12,7 @@ import {
   cancelRecording,
   exportRecording,
   getFfmpegStatus,
+  getRecordingClipPreview,
   pauseRecording,
   resumeRecording,
   startRecording,
@@ -31,6 +33,10 @@ export function useRecordingSession() {
   const settings = ref<RecordingSettings>(defaultSettings());
   const ffmpegStatus = ref<FfmpegStatus | null>(null);
   const result = ref<RecordingExportResult | null>(null);
+  const clipPreview = ref<RecordingClipPreview | null>(null);
+  const clipPreviewLoading = ref(false);
+  const trimStartMs = ref(0);
+  const trimEndMs = ref(0);
   const errorMessage = ref('');
   const startedAt = ref<number | null>(null);
   const accumulatedMs = ref(0);
@@ -67,6 +73,7 @@ export function useRecordingSession() {
   const begin = async (region: RecordingRegion) => {
     errorMessage.value = '';
     result.value = null;
+    clipPreview.value = null;
     const ffmpeg = ffmpegStatus.value ?? (await refreshFfmpegStatus());
     if (!ffmpeg.available) {
       throw new Error(ffmpeg.message || 'FFmpeg unavailable');
@@ -104,7 +111,32 @@ export function useRecordingSession() {
     startedAt.value = null;
     clearTicker();
     await stopRecording();
-    status.value = 'exporting';
+    trimStartMs.value = 0;
+    trimEndMs.value = Math.max(1, Math.round(elapsedMs.value));
+
+    if (settings.value.format === 'mp4') {
+      status.value = 'exporting';
+      try {
+        result.value = await exportRecording(settings.value);
+        status.value = 'completed';
+      } catch (error) {
+        status.value = 'ready';
+        result.value = null;
+        throw error;
+      }
+      return;
+    }
+
+    status.value = 'editing';
+    clipPreviewLoading.value = true;
+    try {
+      clipPreview.value = await getRecordingClipPreview(trimEndMs.value);
+    } catch (error) {
+      clipPreview.value = null;
+      errorMessage.value = String(error);
+    } finally {
+      clipPreviewLoading.value = false;
+    }
   };
 
   const exportFile = async () => {
@@ -112,12 +144,14 @@ export function useRecordingSession() {
     try {
       result.value = await exportRecording(
         settings.value,
-        Math.round(elapsedMs.value)
+        Math.round(elapsedMs.value),
+        Math.round(trimStartMs.value),
+        Math.round(trimEndMs.value)
       );
       status.value = 'completed';
       return result.value;
     } catch (error) {
-      status.value = 'ready';
+      status.value = 'editing';
       result.value = null;
       throw error;
     }
@@ -127,6 +161,9 @@ export function useRecordingSession() {
     await cancelExportRecording();
     status.value = 'ready';
     result.value = null;
+    clipPreview.value = null;
+    trimStartMs.value = 0;
+    trimEndMs.value = 0;
   };
 
   const cancel = async () => {
@@ -137,6 +174,10 @@ export function useRecordingSession() {
     accumulatedMs.value = 0;
     elapsedMs.value = 0;
     result.value = null;
+    clipPreview.value = null;
+    clipPreviewLoading.value = false;
+    trimStartMs.value = 0;
+    trimEndMs.value = 0;
   };
 
   const reset = () => {
@@ -145,6 +186,10 @@ export function useRecordingSession() {
     accumulatedMs.value = 0;
     elapsedMs.value = 0;
     result.value = null;
+    clipPreview.value = null;
+    clipPreviewLoading.value = false;
+    trimStartMs.value = 0;
+    trimEndMs.value = 0;
     errorMessage.value = '';
     settings.value = defaultSettings();
   };
@@ -158,6 +203,10 @@ export function useRecordingSession() {
     settings,
     ffmpegStatus,
     result,
+    clipPreview,
+    clipPreviewLoading,
+    trimStartMs,
+    trimEndMs,
     errorMessage,
     elapsedMs,
     refreshFfmpegStatus,

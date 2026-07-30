@@ -5,6 +5,7 @@
       :class="{
         recording: status === 'recording',
         paused: status === 'paused',
+        editing: status === 'editing',
         'snap-aligned': isSnapAligned,
         'snap-fullscreen': isSnapFullscreen
       }"
@@ -27,7 +28,7 @@
           {{ $t('screenRecorder.title') }}
         </span>
         <div
-          v-if="showTopControlStrip"
+          v-if="showTopControlStrip && status !== 'editing'"
           class="top-control-strip"
           @mouseenter="focusRecorderWindow"
           @mousedown.stop
@@ -42,7 +43,11 @@
             {{ exportProgressPercent }}%
           </span>
           <span v-else-if="status === 'completed'" class="save-status">
-            {{ result?.hasAudio ? $t('screenRecorder.savedWithAudio') : $t('screenRecorder.savedWithoutAudio') }}
+            {{
+              result?.hasAudio
+                ? $t('screenRecorder.savedWithAudio')
+                : $t('screenRecorder.savedWithoutAudio')
+            }}
           </span>
           <span v-else class="save-status">
             {{ captureSize.width }}×{{ captureSize.height }}
@@ -79,7 +84,9 @@
               :title="$t('screenRecorder.cancelExport')"
               @click="handleCancelExport"
             >
-              <span class="button-label">{{ $t('screenRecorder.cancel') }}</span>
+              <span class="button-label">
+                {{ $t('screenRecorder.cancel') }}
+              </span>
             </button>
           </template>
 
@@ -162,9 +169,13 @@
       <footer
         ref="controlStripRef"
         class="control-strip"
+        :class="{ editing: status === 'editing' }"
         @mouseenter="focusRecorderWindow"
       >
-        <div class="control-group control-group--tools">
+        <div
+          v-if="status !== 'editing'"
+          class="control-group control-group--tools"
+        >
           <div class="tool-pill">
             <button
               v-if="status === 'ready' || status === 'completed'"
@@ -293,6 +304,44 @@
             </button>
           </template>
 
+          <template v-else-if="status === 'editing'">
+            <button
+              class="control-button"
+              type="button"
+              @click="handleDiscardClip"
+            >
+              <span class="button-label">
+                {{ $t('screenRecorder.discardClip') }}
+              </span>
+            </button>
+            <span
+              class="clip-current-time"
+              :title="$t('screenRecorder.previewCurrentTime')"
+            >
+              {{ clipCurrentTimeText }}
+            </span>
+            <div class="clip-output-actions">
+              <button
+                class="control-button clip-copy-button"
+                type="button"
+                @click="handleCopyClip"
+              >
+                <span class="button-label">
+                  {{ $t('screenRecorder.copyClip') }}
+                </span>
+              </button>
+              <button
+                class="record-button clip-export-button"
+                type="button"
+                @click="handleExportClip"
+              >
+                <span class="record-label">
+                  {{ $t('screenRecorder.exportClip') }}
+                </span>
+              </button>
+            </div>
+          </template>
+
           <template v-else-if="status === 'exporting'">
             <div class="export-progress" :title="exportProgressTitle">
               <div class="export-progress__meta">
@@ -308,13 +357,19 @@
               :title="$t('screenRecorder.cancelExport')"
               @click="handleCancelExport"
             >
-              <span class="button-label">{{ $t('screenRecorder.cancel') }}</span>
+              <span class="button-label">
+                {{ $t('screenRecorder.cancel') }}
+              </span>
             </button>
           </template>
 
           <template v-else-if="status === 'completed' && result">
             <span class="save-status optional-save-status" :title="result.path">
-              {{ result.hasAudio ? $t('screenRecorder.savedWithAudio') : $t('screenRecorder.savedWithoutAudio') }}
+              {{
+                result.hasAudio
+                  ? $t('screenRecorder.savedWithAudio')
+                  : $t('screenRecorder.savedWithoutAudio')
+              }}
             </span>
             <button
               class="control-button"
@@ -328,7 +383,9 @@
               :title="$t('screenRecorder.openFolder')"
               @click="handleRevealFile"
             >
-              <span class="button-label">{{ $t('screenRecorder.folder') }}</span>
+              <span class="button-label">
+                {{ $t('screenRecorder.folder') }}
+              </span>
             </button>
             <button
               class="control-button"
@@ -355,6 +412,18 @@
           </button>
         </div>
       </footer>
+
+      <RecordingClipEditor
+        v-if="status === 'editing'"
+        :preview="clipPreview"
+        :loading="clipPreviewLoading"
+        :duration-ms="elapsedMs"
+        :start-ms="trimStartMs"
+        :end-ms="trimEndMs"
+        @update:start-ms="trimStartMs = $event"
+        @update:end-ms="trimEndMs = $event"
+        @preview-time-change="previewTimeMs = $event"
+      />
     </div>
 
     <p v-if="ffmpegStatus && !ffmpegStatus.available" class="warning">
@@ -380,13 +449,16 @@ import modal from '@/utils/modal';
 import { logger } from '@/utils/logger';
 import {
   closeRecorderWindow,
+  copyRecordingFileToClipboard,
   pickTargetWindow,
   setRecorderCaptureExcluded,
   setRecorderOverlayWindowRegion,
   setRecorderPassthroughRegion
 } from './core/recordingApi';
 import { useRecordingSession } from './core/useRecordingSession';
+import RecordingClipEditor from './components/RecordingClipEditor.vue';
 import type {
+  RecordingClipPreview,
   RecordingExportProgress,
   RecordingRegion,
   RecorderSnapRegion
@@ -422,6 +494,7 @@ const captureSize = ref({ width: 0, height: 0 });
 const isSnapAligned = ref(false);
 const isSnapFullscreen = ref(false);
 const isBottomEdgeSnapped = ref(false);
+const fullscreenCaptureRegion = ref<RecordingRegion | null>(null);
 const audioLevel = ref(0);
 const audioMeterUnavailable = ref(false);
 const exportProgress = ref<ExportProgressEvent | null>(null);
@@ -435,12 +508,23 @@ let windowEdgeRefreshFrame: number | null = null;
 let metricsRefreshInFlight: Promise<void> | null = null;
 let pendingPassthroughRegion: PassthroughFrame | null = null;
 let lastPassthroughRegion: PassthroughFrame | null = null;
+let fullscreenRestoreFrame: PhysicalFrame | null = null;
+let fullscreenRestoreInFlight: Promise<void> | null = null;
+let clipEditorRestoreFrame: PhysicalFrame | null = null;
+let clipEditorResizeInFlight: Promise<void> | null = null;
 
 const MIN_CAPTURE_SIZE = 80;
 const MIN_WINDOW_WIDTH = 400;
 const MIN_WINDOW_HEIGHT = 240;
+const MIN_EDITOR_WINDOW_HEIGHT = 360;
+const EDITOR_WINDOW_WIDTH = 720;
+const EDITOR_WINDOW_MAX_HEIGHT = 480;
+const EDITOR_WINDOW_MARGIN = 24;
 const MIN_SNAPPED_WINDOW_WIDTH = 260;
 const MIN_SNAPPED_WINDOW_HEIGHT = 140;
+const FULLSCREEN_CONTROL_WIDTH = 720;
+const FULLSCREEN_CONTROL_HEIGHT = 56;
+const FULLSCREEN_CONTROL_MARGIN = 12;
 const SNAP_MAX_CORRECTION_PASSES = 3;
 const SNAP_RESIDUAL_TOLERANCE = 2;
 const SNAP_EDGE_RESIDUAL_TOLERANCE = 0;
@@ -466,6 +550,10 @@ const {
   settings,
   ffmpegStatus,
   result,
+  clipPreview,
+  clipPreviewLoading,
+  trimStartMs,
+  trimEndMs,
   elapsedMs,
   refreshFfmpegStatus,
   begin,
@@ -479,11 +567,13 @@ const {
 } = useRecordingSession();
 
 const isClosing = ref(false);
+const previewTimeMs = ref(0);
 
 const isBusy = computed(
   () =>
     status.value === 'recording' ||
     status.value === 'paused' ||
+    status.value === 'editing' ||
     status.value === 'exporting'
 );
 const audioEnabled = computed(
@@ -514,7 +604,9 @@ const audioTitle = computed(() => {
     return t('screenRecorder.audioMeterUnavailable');
   }
   if (result.value?.audioDevice) {
-    return t('screenRecorder.audioRecorded', { device: result.value.audioDevice });
+    return t('screenRecorder.audioRecorded', {
+      device: result.value.audioDevice
+    });
   }
   if (result.value && !result.value.hasAudio) {
     return t('screenRecorder.audioDeviceMissing');
@@ -523,7 +615,8 @@ const audioTitle = computed(() => {
     ffmpegStatus.value?.available &&
     !ffmpegStatus.value.systemAudioAvailable
   ) {
-    const devices = ffmpegStatus.value.audioDevices?.join(', ') || t('screenRecorder.none');
+    const devices =
+      ffmpegStatus.value.audioDevices?.join(', ') || t('screenRecorder.none');
     return settings.value.audio
       ? t('screenRecorder.systemAudioUnavailable', { devices })
       : t('screenRecorder.audioDisabled');
@@ -550,7 +643,9 @@ const shortcutResumeTitle = computed(
 const shortcutStopTitle = computed(
   () => `${t('screenRecorder.stop')} (${CONTROL_SHORTCUTS.stop})`
 );
-const showTopControlStrip = computed(() => isBottomEdgeSnapped.value);
+const showTopControlStrip = computed(
+  () => isBottomEdgeSnapped.value && !isSnapFullscreen.value
+);
 
 const exportProgressPercent = computed(() => {
   const progress = exportProgress.value?.progress ?? 0.03;
@@ -583,6 +678,14 @@ const timeText = computed(() => {
     .padStart(2, '0');
   const seconds = (totalSeconds % 60).toString().padStart(2, '0');
   return `${minutes}:${seconds}`;
+});
+
+const clipCurrentTimeText = computed(() => {
+  const totalTenths = Math.max(0, Math.round(previewTimeMs.value / 100));
+  const minutes = Math.floor(totalTenths / 600);
+  const seconds = Math.floor((totalTenths % 600) / 10);
+  const tenths = totalTenths % 10;
+  return `${minutes}:${String(seconds).padStart(2, '0')}.${tenths}`;
 });
 
 const getErrorMessage = (error: unknown): string =>
@@ -694,6 +797,10 @@ const setPassthroughRegionIfChanged = async (
 };
 
 const getCaptureRegion = async (): Promise<RecordingRegion> => {
+  if (isSnapFullscreen.value && fullscreenCaptureRegion.value) {
+    return { ...fullscreenCaptureRegion.value };
+  }
+
   const hole = captureHoleRef.value;
   if (!hole) {
     throw new Error(t('screenRecorder.viewportNotReady'));
@@ -746,21 +853,12 @@ const refreshCaptureMetricsNow = async () => {
         height: region.physicalHeight
       };
     }
+    if (status.value === 'editing') {
+      await setPassthroughRegionIfChanged(null);
+      return;
+    }
     if (isSnapFullscreen.value) {
-      const titleHeight =
-        titleBarRef.value?.getBoundingClientRect().height ?? 0;
-      const controlsHeight =
-        controlStripRef.value?.getBoundingClientRect().height ?? 0;
-      await setPassthroughRegionIfChanged({
-        x: Math.round(region.x * region.scale),
-        y: Math.round((region.y + titleHeight) * region.scale),
-        width: region.physicalWidth,
-        height: Math.max(
-          1,
-          region.physicalHeight -
-            Math.round((titleHeight + controlsHeight) * region.scale)
-        )
-      });
+      await setPassthroughRegionIfChanged(null);
       return;
     }
     await setPassthroughRegionIfChanged({
@@ -820,6 +918,7 @@ const resetSnapAlignment = () => {
   isSnapAligned.value = false;
   isSnapFullscreen.value = false;
   isBottomEdgeSnapped.value = false;
+  fullscreenCaptureRegion.value = null;
 };
 
 const scheduleMetricsRefresh = () => {
@@ -926,22 +1025,7 @@ const scheduleWindowResizeRefreshForWindowEvent = () => {
 };
 
 const refreshOverlayWindowRegion = async () => {
-  if (!isSnapFullscreen.value) {
-    await setRecorderOverlayWindowRegion(null).catch(() => undefined);
-    return;
-  }
-
-  const frame = await getOuterFrame();
-  const scale = await appWindow.scaleFactor();
-  const titleHeight = titleBarRef.value?.getBoundingClientRect().height ?? 0;
-  const controlsHeight =
-    controlStripRef.value?.getBoundingClientRect().height ?? 0;
-  await setRecorderOverlayWindowRegion({
-    width: frame.width,
-    height: frame.height,
-    topHeight: Math.round(titleHeight * scale),
-    bottomHeight: Math.round(controlsHeight * scale)
-  }).catch(() => undefined);
+  await setRecorderOverlayWindowRegion(null).catch(() => undefined);
 };
 
 const clampFrameToMonitor = (
@@ -976,6 +1060,35 @@ const isTargetCoveringMonitor = (
     target.screenY <= monitorFrame.y + tolerance &&
     targetRight >= monitorRight - tolerance &&
     targetBottom >= monitorBottom - tolerance
+  );
+};
+
+const isTargetFullscreenLike = (
+  target: RecorderSnapRegion,
+  monitorFrame: PhysicalFrame | null,
+  scale: number
+): boolean => {
+  if (!monitorFrame) return false;
+  if (isTargetCoveringMonitor(target, monitorFrame, scale)) return true;
+
+  const tolerance = Math.max(8, Math.round(12 * scale));
+  const targetRight = target.screenX + target.physicalWidth;
+  const targetBottom = target.screenY + target.physicalHeight;
+  const monitorRight = monitorFrame.x + monitorFrame.width;
+  const monitorBottom = monitorFrame.y + monitorFrame.height;
+  const touchesLeft = target.screenX <= monitorFrame.x + tolerance;
+  const touchesTop = target.screenY <= monitorFrame.y + tolerance;
+  const touchesRight = targetRight >= monitorRight - tolerance;
+  const touchesBottom = targetBottom >= monitorBottom - tolerance;
+  const widthCoverage = target.physicalWidth / monitorFrame.width;
+  const heightCoverage = target.physicalHeight / monitorFrame.height;
+
+  return (
+    touchesLeft &&
+    touchesTop &&
+    touchesRight &&
+    (touchesBottom || heightCoverage >= 0.88) &&
+    widthCoverage >= 0.94
   );
 };
 
@@ -1034,6 +1147,211 @@ const setOuterFrame = async (frame: PhysicalFrame) => {
     new PhysicalPosition(Math.round(frame.x), Math.round(frame.y))
   );
   await waitForWindowLayout();
+};
+
+const fitClipEditorWindow = async (preview: RecordingClipPreview) => {
+  if (clipEditorResizeInFlight) {
+    await clipEditorResizeInFlight;
+    return;
+  }
+
+  clipEditorResizeInFlight = (async () => {
+    if (fullscreenRestoreInFlight) {
+      await fullscreenRestoreInFlight;
+    } else if (isSnapFullscreen.value || fullscreenCaptureRegion.value) {
+      await restoreFullscreenCaptureLayout();
+    }
+    if (status.value !== 'editing') return;
+
+    const currentFrame = await getOuterFrame();
+    if (!clipEditorRestoreFrame) {
+      clipEditorRestoreFrame = currentFrame;
+    }
+    const centerX = currentFrame.x + Math.round(currentFrame.width / 2);
+    const centerY = currentFrame.y + Math.round(currentFrame.height / 2);
+    const monitor =
+      (await monitorFromPoint(centerX, centerY)) ||
+      (await monitorFromPoint(currentFrame.x, currentFrame.y));
+    const scale = monitor?.scaleFactor || (await appWindow.scaleFactor());
+    const monitorFrame = monitorToFrame(monitor);
+    if (!monitorFrame) return;
+
+    const margin = Math.round(EDITOR_WINDOW_MARGIN * scale);
+    const availableLogicalWidth = Math.max(
+      MIN_WINDOW_WIDTH,
+      (monitorFrame.width - margin * 2) / scale
+    );
+    const availableLogicalHeight = Math.max(
+      MIN_EDITOR_WINDOW_HEIGHT,
+      (monitorFrame.height - margin * 2) / scale
+    );
+    const logicalWidth = Math.min(EDITOR_WINDOW_WIDTH, availableLogicalWidth);
+    const aspectRatio = Math.max(
+      0.5,
+      Math.min(3.2, preview.width / Math.max(1, preview.height))
+    );
+    const desiredPreviewHeight = logicalWidth / aspectRatio;
+    const logicalHeight = Math.min(
+      availableLogicalHeight,
+      Math.max(
+        MIN_EDITOR_WINDOW_HEIGHT,
+        Math.min(EDITOR_WINDOW_MAX_HEIGHT, desiredPreviewHeight + 74)
+      )
+    );
+    const width = Math.round(logicalWidth * scale);
+    const height = Math.round(logicalHeight * scale);
+
+    await appWindow
+      .setMinSize(new LogicalSize(MIN_WINDOW_WIDTH, MIN_EDITOR_WINDOW_HEIGHT))
+      .catch(() => undefined);
+    await setOuterFrame({
+      x: monitorFrame.x + Math.round((monitorFrame.width - width) / 2),
+      y: monitorFrame.y + Math.round((monitorFrame.height - height) / 2),
+      width,
+      height
+    });
+    await raiseRecorderWindow();
+    await forceTransparentRepaint();
+    await refreshCaptureMetrics();
+    await appWindow.setFocus().catch(() => undefined);
+  })().finally(() => {
+    clipEditorResizeInFlight = null;
+  });
+
+  await clipEditorResizeInFlight;
+};
+
+const restoreClipEditorWindow = async () => {
+  if (clipEditorResizeInFlight) {
+    await clipEditorResizeInFlight;
+  }
+  const restoreFrame = clipEditorRestoreFrame;
+  clipEditorRestoreFrame = null;
+  await appWindow
+    .setMinSize(new LogicalSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT))
+    .catch(() => undefined);
+  if (restoreFrame) {
+    await setOuterFrame(restoreFrame);
+  }
+  await forceTransparentRepaint();
+  await refreshCaptureMetrics();
+};
+
+const createFullscreenRecordingRegion = (
+  target: RecorderSnapRegion,
+  monitorFrame: PhysicalFrame,
+  scale: number
+): RecordingRegion => {
+  const screenX = Math.max(target.screenX, monitorFrame.x);
+  const screenY = Math.max(target.screenY, monitorFrame.y);
+  const right = Math.min(
+    target.screenX + target.physicalWidth,
+    monitorFrame.x + monitorFrame.width
+  );
+  const bottom = Math.min(
+    target.screenY + target.physicalHeight,
+    monitorFrame.y + monitorFrame.height
+  );
+  const physicalWidth = toEvenPhysicalSize(right - screenX);
+  const physicalHeight = toEvenPhysicalSize(bottom - screenY);
+
+  return {
+    x: screenX / scale,
+    y: screenY / scale,
+    width: physicalWidth / scale,
+    height: physicalHeight / scale,
+    screenX,
+    screenY,
+    physicalWidth,
+    physicalHeight,
+    scale
+  };
+};
+
+const enterFullscreenCaptureLayout = async (
+  target: RecorderSnapRegion,
+  monitorFrame: PhysicalFrame,
+  scale: number
+) => {
+  if (!fullscreenRestoreFrame) {
+    fullscreenRestoreFrame = await getOuterFrame();
+  }
+
+  fullscreenCaptureRegion.value = createFullscreenRecordingRegion(
+    target,
+    monitorFrame,
+    scale
+  );
+  isSnapAligned.value = true;
+  isSnapFullscreen.value = true;
+  isBottomEdgeSnapped.value = false;
+  resetPassthroughCache();
+
+  await setRecorderOverlayWindowRegion(null).catch(() => undefined);
+  await setRecorderPassthroughRegion(null).catch(() => undefined);
+  await appWindow
+    .setMinSize(
+      new LogicalSize(MIN_SNAPPED_WINDOW_WIDTH, FULLSCREEN_CONTROL_HEIGHT)
+    )
+    .catch(() => undefined);
+  await nextTick();
+  await waitForWindowLayout();
+
+  const margin = Math.round(FULLSCREEN_CONTROL_MARGIN * scale);
+  const width = Math.min(
+    Math.max(
+      Math.round(MIN_SNAPPED_WINDOW_WIDTH * scale),
+      Math.round(FULLSCREEN_CONTROL_WIDTH * scale)
+    ),
+    Math.max(1, monitorFrame.width - margin * 2)
+  );
+  const height = Math.min(
+    Math.round(FULLSCREEN_CONTROL_HEIGHT * scale),
+    monitorFrame.height
+  );
+  await setOuterFrame({
+    x: monitorFrame.x + Math.round((monitorFrame.width - width) / 2),
+    y: monitorFrame.y + monitorFrame.height - height - margin,
+    width,
+    height
+  });
+  await raiseRecorderWindow();
+  await forceTransparentRepaint();
+  await refreshCaptureMetrics();
+  await appWindow.setFocus().catch(() => undefined);
+};
+
+const restoreFullscreenCaptureLayout = async () => {
+  if (!isSnapFullscreen.value && !fullscreenCaptureRegion.value) return;
+  if (fullscreenRestoreInFlight) {
+    await fullscreenRestoreInFlight;
+    return;
+  }
+
+  fullscreenRestoreInFlight = (async () => {
+    const restoreFrame = fullscreenRestoreFrame;
+    fullscreenRestoreFrame = null;
+    resetSnapAlignment();
+    await setRecorderCaptureExcluded(false).catch(() => undefined);
+    await setRecorderOverlayWindowRegion(null).catch(() => undefined);
+    await setRecorderPassthroughRegion(null).catch(() => undefined);
+    await appWindow
+      .setMinSize(new LogicalSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT))
+      .catch(() => undefined);
+    await nextTick();
+    await waitForWindowLayout();
+    if (restoreFrame) {
+      await setOuterFrame(restoreFrame);
+    }
+    await raiseRecorderWindow();
+    await forceTransparentRepaint();
+    await refreshCaptureMetrics();
+    await appWindow.setFocus().catch(() => undefined);
+  })().finally(() => {
+    fullscreenRestoreInFlight = null;
+  });
+
+  await fullscreenRestoreInFlight;
 };
 
 const raiseRecorderWindow = async () => {
@@ -1157,6 +1475,24 @@ const handleResume = () =>
 
 const handleStop = () =>
   runAction(async () => {
+    exportProgress.value =
+      settings.value.format === 'mp4'
+        ? {
+            stage: 'encode',
+            message: t('screenRecorder.preparingMp4'),
+            progress: 0.01,
+            currentFrame: 0
+          }
+        : null;
+    await stop();
+    audioLevel.value = 0;
+    await setRecorderCaptureExcluded(false).catch(() => undefined);
+    await clearPassthrough();
+    await refreshCaptureMetrics();
+  });
+
+const handleExportClip = () =>
+  runAction(async () => {
     exportProgress.value = {
       stage: 'encode',
       message:
@@ -1166,11 +1502,37 @@ const handleStop = () =>
       progress: 0.01,
       currentFrame: 0
     };
-    await stop();
-    audioLevel.value = 0;
-    await setRecorderCaptureExcluded(false).catch(() => undefined);
     await exportFile();
     await refreshCaptureMetrics();
+  });
+
+const handleCopyClip = () =>
+  runAction(async () => {
+    exportProgress.value = {
+      stage: 'encode',
+      message: t('screenRecorder.preparingGif'),
+      progress: 0.01,
+      currentFrame: 0
+    };
+    const exported = await exportFile();
+    await copyRecordingFileToClipboard(exported.path);
+    modal.msg(t('screenRecorder.copiedClip'), 'success');
+    await refreshCaptureMetrics();
+  });
+
+const handleDiscardClip = () =>
+  runAction(async () => {
+    const previousSettings = { ...settings.value };
+    await cancel();
+    settings.value = previousSettings;
+    status.value = 'ready';
+    exportProgress.value = null;
+    await appWindow
+      .setMinSize(new LogicalSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT))
+      .catch(() => undefined);
+    await restoreClipEditorWindow();
+    await refreshCaptureMetrics();
+    await startAudioMeter();
   });
 
 const handleCancelExport = () =>
@@ -1178,21 +1540,25 @@ const handleCancelExport = () =>
     await cancelExport();
     exportProgress.value = null;
     await setRecorderCaptureExcluded(false).catch(() => undefined);
+    await restoreClipEditorWindow();
     await refreshCaptureMetrics();
   });
 
-const handleRecordAgain = () => {
-  const previousSettings = { ...settings.value };
-  void clearPassthrough();
-  reset();
-  settings.value = previousSettings;
-  status.value = 'ready';
-  result.value = null;
-  exportProgress.value = null;
-  void setRecorderCaptureExcluded(false).catch(() => undefined);
-  void nextTick(refreshCaptureMetrics);
-  void startAudioMeter();
-};
+const handleRecordAgain = () =>
+  runAction(async () => {
+    const previousSettings = { ...settings.value };
+    await clearPassthrough();
+    reset();
+    settings.value = previousSettings;
+    status.value = 'ready';
+    result.value = null;
+    exportProgress.value = null;
+    await setRecorderCaptureExcluded(false).catch(() => undefined);
+    await restoreClipEditorWindow();
+    await nextTick();
+    await refreshCaptureMetrics();
+    await startAudioMeter();
+  });
 
 const handleRecorderShortcut = (action: RecorderShortcutAction) => {
   if (status.value === 'exporting') return;
@@ -1239,18 +1605,29 @@ const fitRecorderToWindow = async (target: RecorderSnapRegion) => {
     monitorRect,
     scale
   );
+  const isFullscreenTarget = isTargetFullscreenLike(target, monitorRect, scale);
   const isMonitorEdgeTarget = isTargetTouchingMonitorEdge(
     target,
     monitorRect,
     scale
   );
+
+  if (isFullscreenTarget && monitorRect) {
+    await enterFullscreenCaptureLayout(target, monitorRect, scale);
+    return;
+  }
+
+  if (isSnapFullscreen.value || fullscreenCaptureRegion.value) {
+    await restoreFullscreenCaptureLayout();
+  }
+
   isBottomEdgeSnapped.value = isTargetTouchingMonitorBottom(
     target,
     monitorRect,
     scale
   );
   isSnapAligned.value = true;
-  isSnapFullscreen.value = isMonitorEdgeTarget;
+  isSnapFullscreen.value = false;
   await nextTick();
   await waitForWindowLayout();
 
@@ -1495,6 +1872,23 @@ watch(status, (nextStatus) => {
   if (nextStatus !== 'exporting') {
     exportProgress.value = null;
   }
+  if (nextStatus === 'editing') {
+    void clearPassthrough();
+  }
+  if (
+    isSnapFullscreen.value &&
+    (nextStatus === 'editing' ||
+      nextStatus === 'exporting' ||
+      nextStatus === 'completed')
+  ) {
+    void restoreFullscreenCaptureLayout();
+  }
+});
+
+watch(clipPreview, (preview) => {
+  if (preview && status.value === 'editing') {
+    void fitClipEditorWindow(preview);
+  }
 });
 
 watch(showTopControlStrip, async () => {
@@ -1542,12 +1936,44 @@ onUnmounted(() => {
 
 .recorder-shell {
   @apply relative grid w-screen h-screen border border-recorder box-border;
-  grid-template-rows: 34px minmax(110px, 1fr) minmax(46px, auto);
+
+  --recorder-title-height: 34px;
+  --recorder-footer-height: 46px;
+
+  grid-template-rows:
+    var(--recorder-title-height) minmax(110px, 1fr)
+    minmax(var(--recorder-footer-height), auto);
   box-shadow: var(--dialog-shadow);
 }
 
+.recorder-shell.editing {
+  --recorder-title-height: clamp(34px, 8vh, 40px);
+  --recorder-footer-height: clamp(42px, 9vh, 48px);
+
+  grid-template-rows:
+    var(--recorder-title-height) minmax(110px, 1fr)
+    var(--recorder-footer-height);
+  background: transparent;
+
+  .window-title {
+    font-size: clamp(13px, 2.5vh, 15px);
+  }
+
+  .title-button {
+    width: clamp(30px, 6.5vh, 36px);
+    height: clamp(28px, 6vh, 32px);
+  }
+
+  .title-icon {
+    width: clamp(18px, 4vh, 22px);
+    height: clamp(18px, 4vh, 22px);
+  }
+}
+
 .title-bar {
-  @apply flex items-center justify-between h-[34px] py-0 pl-3 pr-1.5 bg-recorder-bg border-b border-recorder rounded-t-md cursor-move;
+  @apply flex items-center justify-between py-0 pl-3 pr-1.5 bg-recorder-bg border-b border-recorder rounded-t-md cursor-move;
+
+  height: var(--recorder-title-height);
 }
 
 .window-title {
@@ -1560,17 +1986,20 @@ onUnmounted(() => {
 
 .title-button {
   @apply w-[30px] h-7 text-recorder-muted bg-transparent border-0 rounded cursor-pointer inline-flex items-center justify-center leading-none;
+
   transition:
     background-color 0.16s ease,
     color 0.16s ease;
 
   &:hover {
     @apply text-recorder-accent;
+
     background: color-mix(in srgb, var(--recorder-accent) 12%, transparent);
   }
 
   &--close:hover {
     @apply text-red-500;
+
     background: rgb(239 68 68 / 10%);
   }
 }
@@ -1585,12 +2014,13 @@ onUnmounted(() => {
 
 .viewport-mask {
   @apply absolute z-[1] pointer-events-auto;
+
   background: color-mix(in srgb, var(--panel-bg) 78%, transparent);
 
   &.top,
   &.bottom {
-    left: 0;
     right: 0;
+    left: 0;
     height: 6px;
   }
 
@@ -1631,8 +2061,8 @@ onUnmounted(() => {
 
   &.top,
   &.bottom {
-    left: 0;
     right: 0;
+    left: 0;
     height: 1px;
   }
 
@@ -1662,11 +2092,60 @@ onUnmounted(() => {
 
 .control-strip {
   @apply flex items-center justify-between gap-2 min-w-0 min-h-[46px] overflow-hidden py-1.5 px-2 bg-recorder-bg border-t border-recorder box-border;
+
   container-type: inline-size;
+}
+
+.control-strip.editing {
+  @apply overflow-visible px-2 py-1;
+
+  height: var(--recorder-footer-height);
+  min-height: var(--recorder-footer-height);
+
+  .control-group--actions {
+    display: grid;
+    grid-template-columns: minmax(104px, 1fr) auto minmax(210px, 1fr);
+    gap: clamp(8px, 2vw, 16px);
+    width: 100%;
+  }
+
+  .control-button,
+  .record-button {
+    max-width: none;
+    height: clamp(30px, 6.5vh, 34px);
+    padding: 0 clamp(10px, 1.8vw, 14px);
+    font-size: clamp(11px, 2.2vh, 13px);
+  }
+
+  .clip-export-button {
+    min-width: clamp(84px, 12vw, 104px);
+  }
+
+  > .control-group--actions > .control-button:first-child {
+    justify-self: start;
+    min-width: clamp(96px, 14vw, 124px);
+  }
+
+  .clip-output-actions {
+    @apply flex items-center justify-end gap-2;
+
+    justify-self: end;
+  }
+
+  .clip-copy-button {
+    min-width: clamp(104px, 16vw, 136px);
+  }
+
+  .clip-current-time {
+    @apply justify-self-center font-semibold leading-none tabular-nums text-recorder;
+
+    font-size: clamp(11px, 2.2vh, 13px);
+  }
 }
 
 .top-control-strip {
   @apply flex flex-initial items-center justify-end gap-1.5 min-w-0 h-full ml-2 overflow-hidden;
+
   max-width: min(58vw, 360px);
 
   .save-status {
@@ -1695,9 +2174,9 @@ onUnmounted(() => {
   }
 
   .control-strip {
+    gap: 6px;
     height: 42px;
     min-height: 42px;
-    gap: 6px;
     padding: 5px 7px;
   }
 
@@ -1745,39 +2224,44 @@ onUnmounted(() => {
   }
 }
 
+.recorder-shell.editing.snap-aligned {
+  grid-template-rows:
+    var(--recorder-title-height) minmax(80px, 1fr)
+    var(--recorder-footer-height);
+
+  .control-strip {
+    height: var(--recorder-footer-height);
+    min-height: var(--recorder-footer-height);
+    padding: 4px 8px;
+  }
+
+  .control-group--actions {
+    justify-content: stretch;
+  }
+}
+
 .recorder-shell.snap-fullscreen {
   display: block;
+  border: 0;
+  box-shadow: none;
 
-  .title-bar {
-    position: absolute;
-    inset: 0 0 auto;
-    z-index: 6;
-    border-radius: 0;
-  }
-
-  .capture-viewport {
-    position: absolute;
-    inset: 0;
-  }
-
-  .capture-frame,
-  .capture-hole {
-    inset: 0;
-  }
-
-  .viewport-mask,
-  .viewport-border {
+  .title-bar,
+  .capture-viewport,
+  .resize-zone {
     display: none;
   }
 
   .control-strip {
     position: absolute;
-    inset: auto 0 0;
+    inset: 0;
     z-index: 6;
-    height: 56px;
+    width: 100%;
+    height: 100%;
     min-height: 56px;
     padding: 10px 12px;
-    box-shadow: 0 -2px 12px color-mix(in srgb, #000 14%, transparent);
+    border: 1px solid var(--recorder-border);
+    border-radius: 12px;
+    box-shadow: var(--dialog-shadow);
   }
 }
 
@@ -1796,9 +2280,9 @@ onUnmounted(() => {
 
 .control-group {
   display: flex;
+  gap: clamp(5px, 1.1cqw, 8px);
   align-items: center;
   min-width: 0;
-  gap: clamp(5px, 1.1cqw, 8px);
 }
 
 .control-group--tools {
@@ -1823,6 +2307,7 @@ select,
 input,
 button {
   @apply h-7 box-border;
+
   font: inherit;
 }
 
@@ -1865,6 +2350,7 @@ select {
 
 .time {
   @apply min-w-[44px] font-semibold text-center;
+
   font-variant-numeric: tabular-nums;
 }
 
@@ -1875,9 +2361,9 @@ select {
 .export-progress {
   display: grid;
   flex: 0 1 180px;
+  gap: 5px;
   width: min(34cqw, 220px);
   min-width: 126px;
-  gap: 5px;
 }
 
 .export-progress__meta {
@@ -1889,6 +2375,7 @@ select {
 
   strong {
     @apply flex-none text-recorder-red text-xs font-bold;
+
     font-variant-numeric: tabular-nums;
   }
 }
@@ -1898,6 +2385,7 @@ select {
 
   span {
     @apply absolute top-0 right-auto bottom-0 left-0 min-w-[5px] rounded-[inherit];
+
     background: linear-gradient(90deg, #ef4444, var(--recorder-red));
     transition: width 160ms ease;
   }
@@ -1911,6 +2399,7 @@ select {
 
   &:hover {
     @apply bg-panel-hover-bg;
+
     border-color: color-mix(
       in srgb,
       var(--recorder-accent) 38%,
@@ -1941,6 +2430,7 @@ select {
   &.audio-on,
   &.active {
     @apply text-recorder-green;
+
     background: color-mix(in srgb, var(--recorder-green) 14%, transparent);
   }
 
@@ -1958,14 +2448,15 @@ select {
 
   &.active {
     @apply text-recorder-accent;
+
     background: color-mix(in srgb, var(--recorder-accent) 13%, transparent);
   }
 }
 
 .audio-bars {
   display: inline-flex;
-  align-items: end;
   gap: 2px;
+  align-items: end;
   height: 14px;
 
   i {
@@ -1974,9 +2465,9 @@ select {
     height: 14px;
     background: currentcolor;
     border-radius: 999px;
+    transition: transform 80ms linear;
     transform: scaleY(var(--bar-1, 0.25));
     transform-origin: bottom;
-    transition: transform 80ms linear;
   }
 
   i:nth-child(2) {
@@ -1994,6 +2485,7 @@ select {
 
 .record-button {
   @apply flex-none min-w-[96px] max-w-[150px] h-8 px-3 text-white bg-recorder-red;
+
   border-color: color-mix(in srgb, var(--recorder-red) 85%, transparent);
 
   &:hover {
@@ -2013,6 +2505,7 @@ select {
 
 .record-dot {
   @apply flex-none w-[9px] h-[9px] rounded-full;
+
   background: currentcolor;
 }
 
@@ -2134,6 +2627,7 @@ select {
 
 .warning {
   @apply fixed left-3 right-3 bottom-[54px] m-0 py-2 px-2.5 rounded text-xs;
+
   color: #b45309;
   background: color-mix(in srgb, #f59e0b 13%, var(--panel-bg));
   border: 1px solid color-mix(in srgb, #f59e0b 38%, var(--panel-border));
@@ -2145,8 +2639,8 @@ select {
 
 .resize-zone.n,
 .resize-zone.s {
-  left: 8px;
   right: 8px;
+  left: 8px;
   height: 8px;
   cursor: ns-resize;
 }
@@ -2209,7 +2703,7 @@ select {
 }
 
 .resize-zone.sw {
-  left: 0;
   bottom: 0;
+  left: 0;
 }
 </style>
