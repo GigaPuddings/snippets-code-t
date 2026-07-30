@@ -4,6 +4,7 @@ import {
   getLocalAiStatus,
   scanLocalAiModels
 } from '@/api/localAi';
+import { ocrDiagnosticLogger } from '@/utils/logger';
 
 export type AiOcrSectionKind =
   | 'title'
@@ -34,6 +35,11 @@ export interface AiOcrResult {
   text: string;
   sections: AiOcrSection[];
   modelName: string;
+  locationStatus?: 'pending' | 'complete' | 'partial' | 'unavailable';
+}
+
+export interface AiOcrRecognitionOptions {
+  onTextRecognized?: (result: AiOcrResult) => void;
 }
 
 const AI_OCR_SYSTEM_PROMPT = `你正在执行图片原文转写。像在 AI 聊天中直接阅读图片一样，按视觉阅读顺序从上到下完整读取所有可见文字。
@@ -161,13 +167,27 @@ const splitPlainTextIntoSections = (text: string): AiOcrSection[] => {
 
 const extractJsonCandidate = (response: string): string | null => {
   const fenced = response.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1]?.trim();
-  if (fenced?.startsWith('{') && fenced.endsWith('}')) {
+  if (
+    (fenced?.startsWith('{') && fenced.endsWith('}')) ||
+    (fenced?.startsWith('[') && fenced.endsWith(']'))
+  ) {
     return fenced;
   }
 
-  const start = response.indexOf('{');
-  const end = response.lastIndexOf('}');
-  return start >= 0 && end > start ? response.slice(start, end + 1) : null;
+  const objectStart = response.indexOf('{');
+  const objectEnd = response.lastIndexOf('}');
+  const arrayStart = response.indexOf('[');
+  const arrayEnd = response.lastIndexOf(']');
+  if (
+    arrayStart >= 0 &&
+    arrayEnd > arrayStart &&
+    (objectStart < 0 || arrayStart < objectStart)
+  ) {
+    return response.slice(arrayStart, arrayEnd + 1);
+  }
+  return objectStart >= 0 && objectEnd > objectStart
+    ? response.slice(objectStart, objectEnd + 1)
+    : null;
 };
 
 const finiteNumber = (value: unknown): number | null => {
@@ -184,8 +204,23 @@ const normalizeAiBoundingBox = (value: unknown): AiOcrBoundingBox | null => {
   let right: number | null = null;
   let bottom: number | null = null;
 
-  if (Array.isArray(value) && value.length >= 4) {
+  if (
+    Array.isArray(value) &&
+    value.length >= 2 &&
+    Array.isArray(value[0]) &&
+    Array.isArray(value[1])
+  ) {
+    left = finiteNumber(value[0][0]);
+    top = finiteNumber(value[0][1]);
+    right = finiteNumber(value[1][0]);
+    bottom = finiteNumber(value[1][1]);
+  } else if (Array.isArray(value) && value.length >= 4) {
     [left, top, right, bottom] = value.slice(0, 4).map(finiteNumber);
+  } else if (typeof value === 'string') {
+    const coordinates = value.match(/-?\d+(?:\.\d+)?/g)?.map(Number) || [];
+    if (coordinates.length >= 4) {
+      [left, top, right, bottom] = coordinates;
+    }
   } else if (value && typeof value === 'object') {
     const box = value as Record<string, unknown>;
     left = finiteNumber(box.left ?? box.x);
@@ -239,35 +274,102 @@ export const parseAiOcrLocationResponse = (
     return sections.map((section) => ({ ...section, lines: [] }));
   }
 
-  let payload: Record<string, unknown>;
+  let payload: unknown;
   try {
-    payload = JSON.parse(jsonCandidate) as Record<string, unknown>;
+    payload = JSON.parse(jsonCandidate);
   } catch {
     return sections.map((section) => ({ ...section, lines: [] }));
   }
 
-  const locatedSections = Array.isArray(payload.sections)
-    ? payload.sections
-    : [];
+  const locatedSections = Array.isArray(payload)
+    ? payload
+    : payload &&
+        typeof payload === 'object' &&
+        Array.isArray((payload as Record<string, unknown>).sections)
+      ? ((payload as Record<string, unknown>).sections as unknown[])
+      : [];
+  const requestedIndexes = locatedSections
+    .map((rawSection) => {
+      if (!rawSection || typeof rawSection !== 'object') return null;
+      const candidate = rawSection as Record<string, unknown>;
+      return finiteNumber(
+        candidate.index ??
+          candidate.sectionIndex ??
+          candidate.section_index ??
+          candidate.id
+      );
+    })
+    .filter((index): index is number => index !== null);
+  const usesOneBasedIndexes =
+    requestedIndexes.length > 0 &&
+    !requestedIndexes.includes(0) &&
+    requestedIndexes.every((index) => index >= 1 && index <= sections.length);
   const linesBySection = new Map<number, AiOcrLine[]>();
   locatedSections.forEach((rawSection, responseIndex) => {
     if (!rawSection || typeof rawSection !== 'object') return;
     const candidate = rawSection as Record<string, unknown>;
-    const requestedIndex = finiteNumber(candidate.index);
+    const requestedIndex = finiteNumber(
+      candidate.index ??
+        candidate.sectionIndex ??
+        candidate.section_index ??
+        candidate.id
+    );
+    const normalizedRequestedIndex =
+      requestedIndex !== null && usesOneBasedIndexes
+        ? requestedIndex - 1
+        : requestedIndex;
     const sectionIndex =
-      requestedIndex !== null &&
-      requestedIndex >= 0 &&
-      requestedIndex < sections.length
-        ? Math.floor(requestedIndex)
+      normalizedRequestedIndex !== null &&
+      normalizedRequestedIndex >= 0 &&
+      normalizedRequestedIndex < sections.length
+        ? Math.floor(normalizedRequestedIndex)
         : responseIndex;
     if (sectionIndex < 0 || sectionIndex >= sections.length) return;
-    const rawLines = Array.isArray(candidate.lines) ? candidate.lines : [];
+    const rawLines = Array.isArray(candidate.lines)
+      ? candidate.lines
+      : Array.isArray(candidate.boxes)
+        ? candidate.boxes
+        : Array.isArray(candidate.items)
+          ? candidate.items
+          : candidate.bbox ||
+              candidate.box ||
+              candidate.bbox_2d ||
+              candidate.bounding_box
+            ? [candidate]
+            : [];
     const lines = rawLines
       .map<AiOcrLine | null>((rawLine) => {
+        if (
+          Array.isArray(rawLine) &&
+          rawLine.length >= 2 &&
+          typeof rawLine[0] === 'string'
+        ) {
+          const bbox = normalizeAiBoundingBox(rawLine[1]);
+          return bbox ? { text: rawLine[0].trim(), bbox } : null;
+        }
         if (!rawLine || typeof rawLine !== 'object') return null;
         const line = rawLine as Record<string, unknown>;
-        const text = typeof line.text === 'string' ? line.text.trim() : '';
-        const bbox = normalizeAiBoundingBox(line.bbox ?? line.box);
+        const rawText =
+          line.text ??
+          line.content ??
+          line.lineText ??
+          line.line_text ??
+          line.label;
+        const text =
+          typeof rawText === 'string'
+            ? rawText.trim()
+            : rawLines.length === 1
+              ? sections[sectionIndex].text
+              : '';
+        const bbox = normalizeAiBoundingBox(
+          line.bbox ??
+            line.box ??
+            line.bbox_2d ??
+            line.bounding_box ??
+            line.coordinates ??
+            line.rect ??
+            line.position
+        );
         return text && bbox ? { text, bbox } : null;
       })
       .filter((line): line is AiOcrLine => Boolean(line));
@@ -352,6 +454,25 @@ const hasCompleteAiLocations = (sections: AiOcrSection[]): boolean =>
     return sectionLength === 0 || locatedLength / sectionLength >= 0.72;
   });
 
+const aiLocationCoverage = (sections: AiOcrSection[]): number =>
+  sections.reduce((coverage, section) => {
+    const sectionLength = countMeaningfulCharacters(section.text);
+    if (sectionLength === 0) return coverage + 1;
+    const locatedLength = countMeaningfulCharacters(
+      (section.lines || []).map((line) => line.text).join(' ')
+    );
+    return coverage + Math.min(1, locatedLength / sectionLength);
+  }, 0);
+
+const aiLocationStatus = (
+  sections: AiOcrSection[]
+): NonNullable<AiOcrResult['locationStatus']> => {
+  if (hasCompleteAiLocations(sections)) return 'complete';
+  return sections.some((section) => (section.lines?.length || 0) > 0)
+    ? 'partial'
+    : 'unavailable';
+};
+
 const fileNameFromPath = (path: string | null | undefined): string => {
   if (!path) return '';
   return path.split(/[\\/]/).filter(Boolean).pop() || '';
@@ -359,7 +480,8 @@ const fileNameFromPath = (path: string | null | undefined): string => {
 
 export const recognizeImageWithLocalAi = async (
   imageData: string,
-  language: string
+  language: string,
+  options: AiOcrRecognitionOptions = {}
 ): Promise<AiOcrResult> => {
   const config = await getLocalAiConfig();
   const modelScan = await scanLocalAiModels(config);
@@ -402,6 +524,17 @@ export const recognizeImageWithLocalAi = async (
       countMeaningfulCharacters(initialResult.text)
       ? retryResult
       : initialResult;
+  const serviceStatus = await getLocalAiStatus().catch(() => null);
+  const modelName =
+    fileNameFromPath(serviceStatus?.modelPath) ||
+    fileNameFromPath(modelScan.selectedModelPath) ||
+    'Local Vision';
+  options.onTextRecognized?.({
+    text: parsed.text,
+    sections: parsed.sections,
+    modelName,
+    locationStatus: 'pending'
+  });
   const sectionPayload = parsed.sections.map((section, index) => ({
     index,
     type: section.type,
@@ -432,23 +565,58 @@ export const recognizeImageWithLocalAi = async (
       ],
       enableThinking: false
     });
+    ocrDiagnosticLogger.log('[Pin AI OCR] AI location response', {
+      retry,
+      responseLength: response.content.length,
+      responsePreview: response.content.slice(0, 1200)
+    });
     return parseAiOcrLocationResponse(response.content, parsed.sections);
   };
-  const initialLocatedSections = await locate(false);
-  const locatedSections = hasCompleteAiLocations(initialLocatedSections)
-    ? initialLocatedSections
-    : await locate(true);
-  if (!hasCompleteAiLocations(locatedSections)) {
-    throw new Error('AI_OCR_LOCATION_EMPTY_RESPONSE');
+
+  let initialLocatedSections: AiOcrSection[] = parsed.sections.map(
+    (section) => ({
+      ...section,
+      lines: []
+    })
+  );
+  let retryLocatedSections: AiOcrSection[] = parsed.sections.map((section) => ({
+    ...section,
+    lines: []
+  }));
+  try {
+    initialLocatedSections = await locate(false);
+    if (!hasCompleteAiLocations(initialLocatedSections)) {
+      retryLocatedSections = await locate(true);
+    }
+  } catch (error) {
+    ocrDiagnosticLogger.log('[Pin AI OCR] AI location unavailable', {
+      error: String(error)
+    });
   }
-  const serviceStatus = await getLocalAiStatus().catch(() => null);
+  const locatedSections =
+    aiLocationCoverage(retryLocatedSections) >
+    aiLocationCoverage(initialLocatedSections)
+      ? retryLocatedSections
+      : initialLocatedSections;
+  const locationStatus = aiLocationStatus(locatedSections);
+  if (locationStatus !== 'complete') {
+    ocrDiagnosticLogger.log('[Pin AI OCR] AI location incomplete', {
+      status: locationStatus,
+      sectionCount: parsed.sections.length,
+      locatedSections: locatedSections.filter(
+        (section) => (section.lines?.length || 0) > 0
+      ).length,
+      locatedLines: locatedSections.reduce(
+        (count, section) => count + (section.lines?.length || 0),
+        0
+      )
+    });
+  }
 
   return {
     text: parsed.text,
     sections: locatedSections,
-    modelName:
-      fileNameFromPath(serviceStatus?.modelPath) ||
-      fileNameFromPath(modelScan.selectedModelPath) ||
-      'Local Vision'
+    modelName,
+    locationStatus
   };
 };

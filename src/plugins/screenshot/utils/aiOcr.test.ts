@@ -110,4 +110,29 @@ describe('AI OCR response parsing', () => {
       'Second line'
     ]);
   });
+
+  it('accepts one-based AI boxes and common bbox_2d coordinate shapes', () => {
+    const sections = [
+      { type: 'title' as const, text: 'Document title' },
+      { type: 'paragraph' as const, text: 'Body copy' }
+    ];
+    const result = parseAiOcrLocationResponse(
+      `\`\`\`json
+[
+  {"section_index":1,"boxes":[{"content":"Document title","bbox_2d":[[50,40],[450,120]]}]},
+  {"section_index":2,"bbox_2d":"(80, 180), (700, 260)","content":"Body copy"}
+]
+\`\`\``,
+      sections
+    );
+
+    expect(result[0].lines?.[0]).toEqual({
+      text: 'Document title',
+      bbox: { x: 50, y: 40, width: 400, height: 80 }
+    });
+    expect(result[1].lines?.[0]).toEqual({
+      text: 'Body copy',
+      bbox: { x: 80, y: 180, width: 620, height: 80 }
+    });
+  });
 });

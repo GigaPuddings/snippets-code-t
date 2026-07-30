@@ -1237,6 +1237,22 @@ const applyPinWindowData = (payload: PinWindowDataPayload): boolean => {
   return true;
 };
 
+const applyAiRecognitionResult = (result: AiOcrResult): void => {
+  const aiRecords = createOcrRecordsFromAiResult(result);
+  if (aiRecords.length === 0 && !result.text.trim()) {
+    return;
+  }
+  ocrRecords.value =
+    aiRecords.length > 0 ? aiRecords : createRecordsFromPlainText(result.text);
+  ocrGeometryRecords.value = aiRecords.filter(
+    (record) => record.blocks.length > 0
+  );
+  syncOcrTextFromRecords();
+  recognitionEngine.value = 'ai';
+  recognitionModelName.value = result.modelName;
+  ocrOverlayMetricsCache.clear();
+};
+
 const recognizeCurrentImage = async () => {
   if (!imageData.value) return;
 
@@ -1261,31 +1277,33 @@ const recognizeCurrentImage = async () => {
   try {
     const aiResult = await recognizeImageWithLocalAi(
       imageData.value,
-      currentOcrLanguage.value
+      currentOcrLanguage.value,
+      {
+        onTextRecognized: (textResult) => {
+          if (requestId !== ocrRequestId) return;
+          applyAiRecognitionResult(textResult);
+          ocrDiagnosticLogger.log('[Pin AI OCR] AI text ready', {
+            requestId,
+            durationMs: Date.now() - startedAt,
+            sections: textResult.sections.length,
+            textLength: textResult.text.length
+          });
+        }
+      }
     );
 
     if (requestId !== ocrRequestId) return;
 
     await ensureOcrSourceImageSize();
-    const aiRecords = createOcrRecordsFromAiResult(aiResult);
-    if (aiRecords.length === 0 && !aiResult.text.trim()) {
+    if (!aiResult.text.trim()) {
       throw new Error('AI_OCR_EMPTY_RESPONSE');
     }
-    ocrRecords.value =
-      aiRecords.length > 0
-        ? aiRecords
-        : createRecordsFromPlainText(aiResult.text);
-    ocrGeometryRecords.value = aiRecords.filter(
-      (record) => record.blocks.length > 0
-    );
-    syncOcrTextFromRecords();
-    recognitionEngine.value = 'ai';
-    recognitionModelName.value = aiResult.modelName;
-    ocrOverlayMetricsCache.clear();
+    applyAiRecognitionResult(aiResult);
     ocrDiagnosticLogger.log('[Pin AI OCR] recognize success', {
       requestId,
       durationMs: Date.now() - startedAt,
       engine: recognitionEngine.value,
+      locationStatus: aiResult.locationStatus,
       geometryBlocks: ocrSelectableBlocks.value.length,
       textLength: ocrText.value.length,
       textPreview: ocrText.value.slice(0, 300)
@@ -1298,6 +1316,11 @@ const recognizeCurrentImage = async () => {
       durationMs: Date.now() - startedAt,
       error: formatErrorForLog(error)
     });
+    if (ocrText.value.trim()) {
+      ocrError.value = '';
+      ocrGeometryRecords.value = [];
+      return;
+    }
     ocrError.value = t('pin.recognizeFailed');
     ocrText.value = '';
     ocrRecords.value = [];
