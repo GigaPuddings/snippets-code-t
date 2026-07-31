@@ -119,35 +119,10 @@
             <section class="ocr-preview-pane">
               <header class="ocr-pane-header">
                 <div class="ocr-pane-heading">
-                  <strong>{{ previewPaneTitle }}</strong>
+                  <strong>{{ $t('pin.sourceImage') }}</strong>
                   <span>{{ imageSelectionHint }}</span>
                 </div>
                 <div class="ocr-pane-header-actions">
-                  <div
-                    v-if="ocrText.trim()"
-                    class="ocr-preview-switch"
-                    role="tablist"
-                    :aria-label="$t('pin.previewMode')"
-                  >
-                    <button
-                      type="button"
-                      role="tab"
-                      :aria-selected="ocrPreviewMode === 'image'"
-                      :class="{ active: ocrPreviewMode === 'image' }"
-                      @click.stop="ocrPreviewMode = 'image'"
-                    >
-                      {{ $t('pin.imageView') }}
-                    </button>
-                    <button
-                      type="button"
-                      role="tab"
-                      :aria-selected="ocrPreviewMode === 'text'"
-                      :class="{ active: ocrPreviewMode === 'text' }"
-                      @click.stop="ocrPreviewMode = 'text'"
-                    >
-                      {{ $t('pin.selectableTextView') }}
-                    </button>
-                  </div>
                   <button
                     v-if="isResultPaneCollapsed"
                     type="button"
@@ -161,36 +136,32 @@
                 </div>
               </header>
 
-              <div
-                class="ocr-preview-canvas"
-                :class="{ 'is-text-view': ocrPreviewMode === 'text' }"
-              >
+              <div class="ocr-preview-canvas">
                 <div
-                  v-if="ocrPreviewMode === 'image' || !ocrText.trim()"
                   class="ocr-preview-stage"
+                  :class="{ 'has-text-overlay': ocrText.trim() }"
                 >
                   <img
                     :src="imageBlobUrl || imageData"
                     :alt="$t('pin.ocrSourceAlt')"
                     @load="handleImageLoad"
                   />
-                </div>
-                <div
-                  v-else
-                  class="ocr-native-text-preview"
-                  tabindex="0"
-                  :aria-label="$t('pin.selectableTextView')"
-                >
-                  <div class="ocr-native-document">
-                    <component
-                      :is="getSelectableTextTag(record.kind)"
-                      v-for="record in ocrRecords"
-                      :key="`native-${record.id}`"
-                      class="ocr-native-block"
-                      :class="`is-${record.kind}`"
-                    >
-                      {{ record.text }}
-                    </component>
+                  <div
+                    v-if="ocrText.trim()"
+                    class="ocr-text-overlay-layer"
+                    :aria-label="$t('pin.selectableTextView')"
+                  >
+                    <div class="ocr-overlay-document">
+                      <component
+                        :is="getSelectableTextTag(record.kind)"
+                        v-for="record in ocrRecords"
+                        :key="`overlay-${record.id}`"
+                        class="ocr-overlay-block"
+                        :class="`is-${record.kind}`"
+                      >
+                        {{ record.text }}
+                      </component>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -613,7 +584,6 @@ const recognitionModelName = ref('');
 const ocrFileName = ref('');
 const imageWidth = ref(0);
 const imageHeight = ref(0);
-const ocrPreviewMode = ref<'image' | 'text'>('image');
 const initialWindowSize = ref({ width: 0, height: 0 });
 
 const ocrSelectionTranslation = ref<{
@@ -793,19 +763,14 @@ const selectedOcrRecords = computed(() =>
   ocrRecords.value.filter((record) => record.selected)
 );
 
-const previewPaneTitle = computed(() =>
-  ocrPreviewMode.value === 'text'
-    ? t('pin.selectableTextView')
-    : t('pin.sourceImage')
-);
-
 const imageSelectionHint = computed(() => {
   if (ocrLoading.value && !ocrText.value.trim()) {
     return t('pin.selectableTextPreparing');
   }
-  return ocrPreviewMode.value === 'text'
-    ? t('pin.nativeTextSelectionHint')
-    : t('pin.switchToSelectableTextHint');
+  if (ocrText.value.trim()) {
+    return t('pin.nativeTextSelectionHint');
+  }
+  return '';
 });
 
 const getSelectableTextTag = (kind: AiOcrSectionKind): string => {
@@ -866,7 +831,6 @@ const updateImageData = (base64Data: string) => {
   imageData.value = base64Data;
   imageWidth.value = 0;
   imageHeight.value = 0;
-  ocrPreviewMode.value = 'image';
   initialWindowSize.value = { width: 0, height: 0 };
   if (mode.value === 'ocr') {
     ocrFileName.value = formatOcrFileName();
@@ -946,7 +910,6 @@ const applyAiRecognitionResult = (result: AiOcrResult): void => {
   ocrRecords.value =
     aiRecords.length > 0 ? aiRecords : createRecordsFromPlainText(result.text);
   syncOcrTextFromRecords();
-  ocrPreviewMode.value = 'text';
   recognitionEngine.value = 'ai';
   recognitionModelName.value = result.modelName;
 };
@@ -2025,37 +1988,6 @@ onUnmounted(() => {
         gap: 5px;
       }
 
-      .ocr-preview-switch {
-        @apply flex items-center rounded-md;
-
-        gap: 1px;
-        height: 27px;
-        padding: 2px;
-        background: color-mix(in srgb, var(--ocr-border) 42%, transparent);
-
-        button {
-          @apply flex items-center justify-center rounded-sm transition-colors duration-150;
-
-          height: 100%;
-          padding: 0 9px;
-          font-size: 10px;
-          font-weight: 600;
-          color: var(--ocr-text-muted);
-          background: transparent;
-          border: 0;
-
-          &:hover {
-            color: var(--ocr-text);
-          }
-
-          &.active {
-            color: var(--primary-color);
-            background: var(--ocr-panel-bg);
-            box-shadow: 0 1px 3px rgb(0 0 0 / 10%);
-          }
-        }
-      }
-
       .ocr-panel-toggle {
         @apply flex flex-shrink-0 items-center justify-center rounded-md text-ocr-secondary;
 
@@ -2122,12 +2054,6 @@ onUnmounted(() => {
               transparent 25%
             )
             0 0 / 16px 16px;
-
-        &.is-text-view {
-          align-items: stretch;
-          justify-content: stretch;
-          padding: 0;
-        }
       }
 
       .ocr-preview-stage {
@@ -2145,41 +2071,54 @@ onUnmounted(() => {
           box-shadow: 0 8px 24px
             color-mix(in srgb, var(--ocr-text) 12%, transparent);
         }
+
+        &.has-text-overlay img {
+          pointer-events: none;
+        }
       }
 
-      .ocr-native-text-preview {
-        @apply flex min-h-0 flex-1 flex-col overflow-y-auto;
-
-        padding: 16px 18px;
-        outline: none;
+      .ocr-text-overlay-layer {
+        position: absolute;
+        inset: 0;
+        overflow-y: auto;
+        overflow-x: hidden;
+        cursor: text;
+        user-select: text;
         scrollbar-width: thin;
 
         &::-webkit-scrollbar {
-          width: 6px;
+          width: 5px;
         }
 
         &::-webkit-scrollbar-thumb {
-          background: color-mix(in srgb, var(--ocr-border) 72%, transparent);
+          background: color-mix(in srgb, var(--ocr-border) 60%, transparent);
           border-radius: 3px;
+        }
+
+        &::-webkit-scrollbar-track {
+          background: transparent;
+        }
+
+        ::selection {
+          background: color-mix(in srgb, var(--primary-color) 32%, transparent);
         }
       }
 
-      .ocr-native-document {
-        @apply mx-auto w-full max-w-3xl;
-
+      .ocr-overlay-document {
+        padding: 14px 16px;
         display: flex;
         flex-direction: column;
-        gap: 12px;
+        gap: 10px;
         user-select: text;
       }
 
-      .ocr-native-block {
+      .ocr-overlay-block {
         margin: 0;
         font-family: 'Microsoft YaHei', 'PingFang SC', 'Segoe UI', Arial,
           sans-serif;
         font-size: 14px;
         line-height: 1.75;
-        color: var(--ocr-text);
+        color: transparent;
         word-break: break-word;
         white-space: pre-wrap;
         user-select: text;
@@ -2188,7 +2127,6 @@ onUnmounted(() => {
           font-size: 18px;
           font-weight: 700;
           line-height: 1.5;
-          color: var(--ocr-text);
         }
 
         &.is-list {
@@ -2202,8 +2140,6 @@ onUnmounted(() => {
           font-family: var(--font-mono, 'Cascadia Code', Consolas, monospace);
           font-size: 12px;
           line-height: 1.65;
-          background: color-mix(in srgb, var(--ocr-shell-bg) 70%, transparent);
-          border-radius: 6px;
         }
       }
 
