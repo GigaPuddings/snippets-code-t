@@ -1198,11 +1198,13 @@ export default {
     translationResult: 'Translation',
     viewResult: 'View Result',
     sourceImage: 'Source image',
-    imageTextSelectable: 'Text selectable',
-    dragToSelectText: 'Click a text line, or drag to select part of it',
-    imageSelectionPreparing: 'Preparing the image text selection layer',
-    imageSelectionUnavailable:
-      'Image selection is unavailable; copy the complete result on the right',
+    previewMode: 'Preview mode',
+    imageView: 'Image',
+    selectableTextView: 'Selectable text',
+    selectableTextPreparing: 'Preparing the selectable text layer',
+    nativeTextSelectionHint:
+      'Drag to select and copy text using native text selection',
+    switchToSelectableTextHint: 'Switch to selectable text view',
     showAiPanel: 'Show AI result',
     hideAiPanel: 'Hide AI result',
     aiRecognizedText: 'AI-recognized text',

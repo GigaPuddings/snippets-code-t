@@ -119,16 +119,35 @@
             <section class="ocr-preview-pane">
               <header class="ocr-pane-header">
                 <div class="ocr-pane-heading">
-                  <strong>{{ $t('pin.sourceImage') }}</strong>
+                  <strong>{{ previewPaneTitle }}</strong>
                   <span>{{ imageSelectionHint }}</span>
                 </div>
                 <div class="ocr-pane-header-actions">
-                  <span
-                    v-if="ocrSelectableBlocks.length > 0"
-                    class="ocr-ready-badge"
+                  <div
+                    v-if="ocrText.trim()"
+                    class="ocr-preview-switch"
+                    role="tablist"
+                    :aria-label="$t('pin.previewMode')"
                   >
-                    {{ $t('pin.imageTextSelectable') }}
-                  </span>
+                    <button
+                      type="button"
+                      role="tab"
+                      :aria-selected="ocrPreviewMode === 'image'"
+                      :class="{ active: ocrPreviewMode === 'image' }"
+                      @click.stop="ocrPreviewMode = 'image'"
+                    >
+                      {{ $t('pin.imageView') }}
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      :aria-selected="ocrPreviewMode === 'text'"
+                      :class="{ active: ocrPreviewMode === 'text' }"
+                      @click.stop="ocrPreviewMode = 'text'"
+                    >
+                      {{ $t('pin.selectableTextView') }}
+                    </button>
+                  </div>
                   <button
                     v-if="isResultPaneCollapsed"
                     type="button"
@@ -142,47 +161,36 @@
                 </div>
               </header>
 
-              <div class="ocr-preview-canvas">
-                <div class="ocr-preview-stage">
+              <div
+                class="ocr-preview-canvas"
+                :class="{ 'is-text-view': ocrPreviewMode === 'text' }"
+              >
+                <div
+                  v-if="ocrPreviewMode === 'image' || !ocrText.trim()"
+                  class="ocr-preview-stage"
+                >
                   <img
-                    ref="ocrPreviewImageRef"
                     :src="imageBlobUrl || imageData"
                     :alt="$t('pin.ocrSourceAlt')"
                     @load="handleImageLoad"
                   />
-                  <div
-                    v-if="ocrSelectionHighlights.length > 0"
-                    class="ocr-selection-highlight-layer"
-                    aria-hidden="true"
-                  >
-                    <span
-                      v-for="highlight in ocrSelectionHighlights"
-                      :key="highlight.id"
-                      class="ocr-selection-highlight"
-                      :style="getOcrSelectionHighlightStyle(highlight)"
-                    ></span>
-                  </div>
-                  <div
-                    v-if="ocrSelectableBlocks.length > 0"
-                    class="ocr-text-overlay"
-                    @pointerdown="handleOcrOverlayPointerDown"
-                    @pointermove="handleOcrOverlayPointerMove"
-                    @pointerup="handleOcrOverlayPointerUp"
-                    @pointercancel="handleOcrOverlayPointerCancel"
-                    @pointerleave="handleOcrOverlayPointerLeave"
-                  >
-                    <span
-                      v-for="(block, index) in ocrSelectableBlocks"
-                      :key="block.id"
-                      class="ocr-overlay-block"
-                      :class="{
-                        hovered: hoveredOcrBlockIndex === index,
-                        selected: selectedOcrBlockIndexes.has(index)
-                      }"
-                      :data-selection-index="index"
-                      :style="getOcrOverlayStyle(block)"
-                      v-text="block.text.trim()"
-                    ></span>
+                </div>
+                <div
+                  v-else
+                  class="ocr-native-text-preview"
+                  tabindex="0"
+                  :aria-label="$t('pin.selectableTextView')"
+                >
+                  <div class="ocr-native-document">
+                    <component
+                      :is="getSelectableTextTag(record.kind)"
+                      v-for="record in ocrRecords"
+                      :key="`native-${record.id}`"
+                      class="ocr-native-block"
+                      :class="`is-${record.kind}`"
+                    >
+                      {{ record.text }}
+                    </component>
                   </div>
                 </div>
               </div>
@@ -244,7 +252,7 @@
                 {{ $t('pin.noTextRecognized') }}
               </div>
 
-              <div v-else ref="ocrResultScrollRef" class="ocr-result-scroll">
+              <div v-else class="ocr-result-scroll">
                 <section
                   v-if="ocrSelectionTranslation"
                   class="ocr-selection-translation"
@@ -297,22 +305,7 @@
                     </span>
                   </header>
 
-                  <div class="ocr-record-text">
-                    <template
-                      v-for="(
-                        segment, segmentIndex
-                      ) in getSynchronizedTextSegments(record)"
-                      :key="`${record.id}-sync-${segmentIndex}`"
-                    >
-                      <mark
-                        v-if="segment.highlighted"
-                        class="ocr-sync-highlight"
-                      >
-                        {{ segment.text }}
-                      </mark>
-                      <span v-else>{{ segment.text }}</span>
-                    </template>
-                  </div>
+                  <div class="ocr-record-text" v-text="record.text"></div>
 
                   <div
                     v-if="record.translatedText"
@@ -560,7 +553,6 @@ import {
   onUnmounted,
   computed,
   nextTick,
-  watch,
   type CSSProperties
 } from 'vue';
 import { Window, LogicalSize } from '@tauri-apps/api/window';
@@ -599,17 +591,6 @@ import {
   detectTranslationLanguage
 } from '@/utils/text';
 import {
-  buildSelectedOcrText,
-  findNearestOcrCharacterOffset,
-  findNearestOcrSelectionHit,
-  getOcrTextSelectionSegments,
-  type OcrTextSelectionRange
-} from '@/plugins/screenshot/pages/screenshot/core/OcrTextSelection';
-import type {
-  OcrTextBlock as LayoutOcrTextBlock,
-  Rect
-} from '@/plugins/screenshot/pages/screenshot/core/types';
-import {
   recognizeImageWithLocalAi,
   type AiOcrResult,
   type AiOcrSectionKind
@@ -618,8 +599,6 @@ import {
 const { t } = useI18n();
 
 const containerRef = ref<HTMLDivElement>();
-const ocrPreviewImageRef = ref<HTMLImageElement>();
-const ocrResultScrollRef = ref<HTMLElement>();
 const appWindow = ref<Window | null>(null);
 
 const imageData = ref<string>('');
@@ -627,7 +606,6 @@ const imageBlobUrl = ref<string>('');
 const mode = ref<'pin' | 'ocr'>('pin');
 const ocrText = ref('');
 const ocrRecords = ref<OcrRecord[]>([]);
-const ocrGeometryRecords = ref<OcrRecord[]>([]);
 const ocrLoading = ref(false);
 const ocrError = ref('');
 const recognitionEngine = ref<'pending' | 'ai'>('pending');
@@ -635,20 +613,14 @@ const recognitionModelName = ref('');
 const ocrFileName = ref('');
 const imageWidth = ref(0);
 const imageHeight = ref(0);
-const ocrPreviewImageSize = ref({ width: 0, height: 0 });
+const ocrPreviewMode = ref<'image' | 'text'>('image');
 const initialWindowSize = ref({ width: 0, height: 0 });
 
 const ocrSelectionTranslation = ref<{
   sourceText: string;
   translatedText: string;
 } | null>(null);
-// Umi-OCR-style selection: track block and character endpoints instead of DOM Selection.
-const ocrOverlaySelection = ref<OcrTextSelectionRange | null>(null);
-const isSelectingOcrOverlay = ref(false);
-const hoveredOcrBlockIndex = ref<number | null>(null);
 const isResultPaneCollapsed = ref(false);
-let ocrOverlayPointerId: number | null = null;
-let ocrOverlayPointerStart: { x: number; y: number } | null = null;
 
 const isTranslating = ref(false);
 const showTranslateMenu = ref(false);
@@ -662,42 +634,14 @@ const ocrLanguageMenuStyle = ref<CSSProperties>({});
 type OcrLanguageValue = 'auto' | 'zh' | 'zh-tw' | 'en' | 'ja' | 'ko';
 const currentOcrLanguage = ref<OcrLanguageValue>('auto');
 
-type PinOcrTextBlock = LayoutOcrTextBlock & {
-  confidence?: number;
-};
-
 interface OcrRecord {
   id: string;
   kind: AiOcrSectionKind;
   text: string;
   sourceText: string;
   translatedText: string;
-  bbox: Rect;
-  blocks: PinOcrTextBlock[];
   confidence: number;
   selected: boolean;
-}
-
-type OcrSelectableBlock = PinOcrTextBlock & {
-  id: string;
-  recordId: string;
-  separator: string;
-};
-
-interface OcrSelectionHighlight {
-  id: string;
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-}
-
-interface OcrOverlayMetrics {
-  fontSize: number;
-  lineHeight: number;
-  letterSpacing: number;
-  boundaries: number[];
-  renderedWidth: number;
 }
 
 const translateEngines = computed(() => [
@@ -791,7 +735,6 @@ const scale = ref(1);
 const showZoomInfo = ref(false);
 const isResizing = ref(false);
 let zoomInfoTimer: ReturnType<typeof setTimeout> | null = null;
-let ocrPreviewResizeObserver: ResizeObserver | null = null;
 
 const showContextMenu = ref(false);
 const contextMenuPosition = ref({ x: 0, y: 0 });
@@ -850,103 +793,28 @@ const selectedOcrRecords = computed(() =>
   ocrRecords.value.filter((record) => record.selected)
 );
 
-const ocrSelectableBlocks = computed<OcrSelectableBlock[]>(() =>
-  ocrGeometryRecords.value.flatMap((record) =>
-    record.blocks.filter(hasBlockGeometry).map((block, index) => ({
-      ...block,
-      id: `${record.id}-block-${index}`,
-      recordId: record.id,
-      separator: getOcrBlockSeparator(block, record.blocks[index + 1])
-    }))
-  )
+const previewPaneTitle = computed(() =>
+  ocrPreviewMode.value === 'text'
+    ? t('pin.selectableTextView')
+    : t('pin.sourceImage')
 );
 
-const imageSelectionHint = computed(() =>
-  ocrSelectableBlocks.value.length > 0
-    ? t('pin.dragToSelectText')
-    : ocrLoading.value
-      ? t('pin.imageSelectionPreparing')
-      : t('pin.imageSelectionUnavailable')
-);
-
-const ocrSelectionSegments = computed(() =>
-  getOcrTextSelectionSegments(
-    ocrSelectableBlocks.value,
-    ocrOverlaySelection.value
-  )
-);
-
-const selectedOcrBlockIndexes = computed(
-  () => new Set(ocrSelectionSegments.value.map((segment) => segment.blockIndex))
-);
-
-const selectedOcrFragmentsByRecord = computed(() => {
-  const fragments = new Map<string, string[]>();
-  for (const segment of ocrSelectionSegments.value) {
-    const block = ocrSelectableBlocks.value[segment.blockIndex];
-    const selectedText = block?.text.slice(segment.start, segment.end).trim();
-    if (!block || !selectedText) {
-      continue;
-    }
-    const recordFragments = fragments.get(block.recordId) || [];
-    recordFragments.push(selectedText);
-    fragments.set(block.recordId, recordFragments);
+const imageSelectionHint = computed(() => {
+  if (ocrLoading.value && !ocrText.value.trim()) {
+    return t('pin.selectableTextPreparing');
   }
-  return fragments;
+  return ocrPreviewMode.value === 'text'
+    ? t('pin.nativeTextSelectionHint')
+    : t('pin.switchToSelectableTextHint');
 });
 
-const selectedOcrFragments = computed(() =>
-  [...selectedOcrFragmentsByRecord.value.values()].flat()
-);
-
-const selectedOcrOverlayText = computed(() =>
-  buildSelectedOcrText(ocrSelectableBlocks.value, ocrOverlaySelection.value)
-);
-
-const ocrSelectionHighlights = computed<OcrSelectionHighlight[]>(() =>
-  ocrSelectionSegments.value.map((segment) => {
-    const block = ocrSelectableBlocks.value[segment.blockIndex];
-    const metrics = getOcrOverlayMetrics(block);
-    const start = metrics.boundaries[segment.start] || 0;
-    const end = metrics.boundaries[segment.end] || metrics.renderedWidth;
-    const startRatio = start / metrics.renderedWidth;
-    const endRatio = end / metrics.renderedWidth;
-    return {
-      id: `${block.id}-${segment.start}-${segment.end}`,
-      left: block.x + block.width * startRatio,
-      top: block.y,
-      width: block.width * Math.max(0, endRatio - startRatio),
-      height: block.height
-    };
-  })
-);
+const getSelectableTextTag = (kind: AiOcrSectionKind): string => {
+  if (kind === 'title') return 'h2';
+  if (kind === 'code') return 'pre';
+  return 'p';
+};
 
 const selectedOcrRecordCount = computed(() => selectedOcrRecords.value.length);
-
-const getSynchronizedTextSegments = (record: OcrRecord) => {
-  const recordFragments = selectedOcrFragmentsByRecord.value.get(record.id);
-  const fragments = [...new Set(recordFragments || selectedOcrFragments.value)]
-    .map((fragment) => fragment.trim())
-    .filter((fragment) => fragment.length >= 2)
-    .sort((left, right) => right.length - left.length);
-  if (fragments.length === 0) {
-    return [{ text: record.text, highlighted: false }];
-  }
-
-  const pattern = fragments
-    .map((fragment) => fragment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-    .join('|');
-  const regex = new RegExp(`(${pattern})`, 'giu');
-  return record.text
-    .split(regex)
-    .filter(Boolean)
-    .map((text) => ({
-      text,
-      highlighted: fragments.some(
-        (fragment) => fragment.toLocaleLowerCase() === text.toLocaleLowerCase()
-      )
-    }));
-};
 
 const getOcrSectionLabel = (kind: AiOcrSectionKind): string =>
   t(`pin.sectionKinds.${kind}`);
@@ -961,170 +829,6 @@ const buildDisplayTextFromRecords = (records: OcrRecord[]): string => {
 
 const syncOcrTextFromRecords = () => {
   ocrText.value = buildDisplayTextFromRecords(ocrRecords.value);
-};
-
-const hasBlockGeometry = (block: PinOcrTextBlock): boolean => {
-  return (
-    imageWidth.value > 0 &&
-    imageHeight.value > 0 &&
-    block.width > 0 &&
-    block.height > 0
-  );
-};
-
-const getOcrBlockSeparator = (
-  block: PinOcrTextBlock,
-  nextBlock?: PinOcrTextBlock
-): string => {
-  if (!nextBlock) {
-    return '\n\n';
-  }
-
-  const last = block.text.trim().slice(-1);
-  const next = nextBlock.text.trim().slice(0, 1);
-  const cjk = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af]/;
-  return cjk.test(last) || cjk.test(next) ? '' : ' ';
-};
-
-const getOcrOverlayStyle = (block: OcrSelectableBlock): CSSProperties => {
-  if (!hasBlockGeometry(block)) {
-    return {};
-  }
-
-  const left = clampPercent((block.x / imageWidth.value) * 100);
-  const top = clampPercent((block.y / imageHeight.value) * 100);
-  const width = clampPercent((block.width / imageWidth.value) * 100, 1);
-  const height = clampPercent((block.height / imageHeight.value) * 100, 1);
-  const metrics = getOcrOverlayMetrics(block);
-
-  return {
-    left: `${left}%`,
-    top: `${top}%`,
-    width: `${width}%`,
-    height: `${height}%`,
-    fontSize: `${metrics.fontSize}px`,
-    lineHeight: `${metrics.lineHeight}px`,
-    letterSpacing: `${metrics.letterSpacing}px`
-  };
-};
-
-const getOcrSelectionHighlightStyle = (
-  highlight: OcrSelectionHighlight
-): CSSProperties => {
-  if (imageWidth.value <= 0 || imageHeight.value <= 0) {
-    return {};
-  }
-
-  return {
-    left: `${clampPercent((highlight.left / imageWidth.value) * 100)}%`,
-    top: `${clampPercent((highlight.top / imageHeight.value) * 100)}%`,
-    width: `${clampPercent((highlight.width / imageWidth.value) * 100)}%`,
-    height: `${clampPercent((highlight.height / imageHeight.value) * 100)}%`
-  };
-};
-
-const ocrOverlayMetricsCache = new Map<string, OcrOverlayMetrics>();
-let ocrOverlayMeasureCanvas: HTMLCanvasElement | null = null;
-const OCR_OVERLAY_FONT_FAMILY =
-  '"Microsoft YaHei", "PingFang SC", "Segoe UI", Arial, sans-serif';
-
-const getOcrOverlayMetrics = (block: OcrSelectableBlock): OcrOverlayMetrics => {
-  const scale = getOcrPreviewImageScale();
-  const text = block.text.trim();
-  const cacheKey = `${block.id}:${text}:${scale.toFixed(4)}`;
-  const cached = ocrOverlayMetricsCache.get(cacheKey);
-  if (cached) {
-    return cached;
-  }
-
-  const targetWidth = Math.max(block.width * scale, 1);
-  const targetHeight = Math.max(block.height * scale, 1);
-  let fontSize = clampNumber(
-    Math.min(
-      (block.fontSize || block.height * 0.8) * scale,
-      targetHeight * 0.86
-    ),
-    5,
-    28
-  );
-  const context = getOcrOverlayMeasureContext();
-  context.font = `${fontSize}px ${OCR_OVERLAY_FONT_FAMILY}`;
-  let measuredWidth = Math.max(context.measureText(text).width, 1);
-  if (measuredWidth > targetWidth) {
-    fontSize = Math.max(5, fontSize * (targetWidth / measuredWidth));
-    context.font = `${fontSize}px ${OCR_OVERLAY_FONT_FAMILY}`;
-    measuredWidth = Math.max(context.measureText(text).width, 1);
-  }
-
-  const letterSpacing =
-    text.length > 0
-      ? Math.max(0, (targetWidth - measuredWidth) / text.length)
-      : 0;
-  const boundaries = Array.from({ length: text.length + 1 }, (_, offset) => {
-    if (offset === 0) return 0;
-    context.font = `${fontSize}px ${OCR_OVERLAY_FONT_FAMILY}`;
-    return (
-      context.measureText(text.slice(0, offset)).width + letterSpacing * offset
-    );
-  });
-  const renderedWidth = Math.max(boundaries[text.length] || measuredWidth, 1);
-  const metrics = {
-    fontSize,
-    lineHeight: targetHeight,
-    letterSpacing,
-    boundaries,
-    renderedWidth
-  };
-  ocrOverlayMetricsCache.set(cacheKey, metrics);
-  return metrics;
-};
-
-const getOcrOverlayMeasureContext = (): CanvasRenderingContext2D => {
-  ocrOverlayMeasureCanvas ||= document.createElement('canvas');
-  const context = ocrOverlayMeasureCanvas.getContext('2d');
-  if (!context) {
-    throw new Error(t('pin.ocrMeasureFailed'));
-  }
-  return context;
-};
-
-const getOcrPreviewImageScale = (): number => {
-  if (
-    imageWidth.value <= 0 ||
-    imageHeight.value <= 0 ||
-    ocrPreviewImageSize.value.width <= 0 ||
-    ocrPreviewImageSize.value.height <= 0
-  ) {
-    return 1;
-  }
-  return Math.min(
-    ocrPreviewImageSize.value.width / imageWidth.value,
-    ocrPreviewImageSize.value.height / imageHeight.value
-  );
-};
-
-const updateOcrPreviewImageMetrics = () => {
-  const imageElement = ocrPreviewImageRef.value;
-  ocrOverlayMetricsCache.clear();
-  if (!imageElement) {
-    ocrPreviewImageSize.value = { width: 0, height: 0 };
-    return;
-  }
-
-  ocrPreviewImageSize.value = {
-    width: imageElement.clientWidth,
-    height: imageElement.clientHeight
-  };
-};
-
-const clampPercent = (value: number, min = 0): number => {
-  if (!Number.isFinite(value)) return min;
-  return Math.min(100, Math.max(min, value));
-};
-
-const clampNumber = (value: number, min: number, max: number): number => {
-  if (!Number.isFinite(value)) return min;
-  return Math.min(max, Math.max(min, value));
 };
 
 const formatOcrFileName = () => {
@@ -1162,9 +866,7 @@ const updateImageData = (base64Data: string) => {
   imageData.value = base64Data;
   imageWidth.value = 0;
   imageHeight.value = 0;
-  ocrPreviewImageSize.value = { width: 0, height: 0 };
-  clearOcrOverlaySelection();
-  ocrOverlayMetricsCache.clear();
+  ocrPreviewMode.value = 'image';
   initialWindowSize.value = { width: 0, height: 0 };
   if (mode.value === 'ocr') {
     ocrFileName.value = formatOcrFileName();
@@ -1231,7 +933,6 @@ const applyPinWindowData = (payload: PinWindowDataPayload): boolean => {
     ocrError.value = '';
     ocrText.value = '';
     ocrRecords.value = [];
-    ocrGeometryRecords.value = [];
   }
 
   return true;
@@ -1244,22 +945,17 @@ const applyAiRecognitionResult = (result: AiOcrResult): void => {
   }
   ocrRecords.value =
     aiRecords.length > 0 ? aiRecords : createRecordsFromPlainText(result.text);
-  ocrGeometryRecords.value = aiRecords.filter(
-    (record) => record.blocks.length > 0
-  );
   syncOcrTextFromRecords();
+  ocrPreviewMode.value = 'text';
   recognitionEngine.value = 'ai';
   recognitionModelName.value = result.modelName;
-  ocrOverlayMetricsCache.clear();
 };
 
 const recognizeCurrentImage = async () => {
   if (!imageData.value) return;
 
   const requestId = ++ocrRequestId;
-  clearOcrOverlaySelection();
   ocrSelectionTranslation.value = null;
-  ocrOverlayMetricsCache.clear();
   ocrLoading.value = true;
   ocrError.value = '';
   recognitionEngine.value = 'pending';
@@ -1277,24 +973,11 @@ const recognizeCurrentImage = async () => {
   try {
     const aiResult = await recognizeImageWithLocalAi(
       imageData.value,
-      currentOcrLanguage.value,
-      {
-        onTextRecognized: (textResult) => {
-          if (requestId !== ocrRequestId) return;
-          applyAiRecognitionResult(textResult);
-          ocrDiagnosticLogger.log('[Pin AI OCR] AI text ready', {
-            requestId,
-            durationMs: Date.now() - startedAt,
-            sections: textResult.sections.length,
-            textLength: textResult.text.length
-          });
-        }
-      }
+      currentOcrLanguage.value
     );
 
     if (requestId !== ocrRequestId) return;
 
-    await ensureOcrSourceImageSize();
     if (!aiResult.text.trim()) {
       throw new Error('AI_OCR_EMPTY_RESPONSE');
     }
@@ -1303,8 +986,6 @@ const recognizeCurrentImage = async () => {
       requestId,
       durationMs: Date.now() - startedAt,
       engine: recognitionEngine.value,
-      locationStatus: aiResult.locationStatus,
-      geometryBlocks: ocrSelectableBlocks.value.length,
       textLength: ocrText.value.length,
       textPreview: ocrText.value.slice(0, 300)
     });
@@ -1318,13 +999,11 @@ const recognizeCurrentImage = async () => {
     });
     if (ocrText.value.trim()) {
       ocrError.value = '';
-      ocrGeometryRecords.value = [];
       return;
     }
     ocrError.value = t('pin.recognizeFailed');
     ocrText.value = '';
     ocrRecords.value = [];
-    ocrGeometryRecords.value = [];
     modal.error(t('pin.recognizeFailed'));
   } finally {
     if (requestId === ocrRequestId) {
@@ -1361,108 +1040,23 @@ const createFallbackOcrRecord = (text: string, index: number): OcrRecord => ({
   text: text.trim(),
   sourceText: text.trim(),
   translatedText: '',
-  bbox: { x: 0, y: 0, width: 0, height: 0 },
-  blocks: [],
   confidence: 0,
   selected: false
 });
 
-const aiCoordinateScale = 1000;
-
-const ensureOcrSourceImageSize = async (): Promise<void> => {
-  await nextTick();
-  const image = ocrPreviewImageRef.value;
-  if (!image || imageWidth.value > 0 || image.naturalWidth > 0) {
-    if (image?.naturalWidth && image?.naturalHeight) {
-      imageWidth.value = image.naturalWidth;
-      imageHeight.value = image.naturalHeight;
-    }
-    return;
-  }
-
-  await new Promise<void>((resolve) => {
-    const finish = () => {
-      window.clearTimeout(timeout);
-      image.removeEventListener('load', finish);
-      image.removeEventListener('error', finish);
-      if (image.naturalWidth > 0 && image.naturalHeight > 0) {
-        imageWidth.value = image.naturalWidth;
-        imageHeight.value = image.naturalHeight;
-      }
-      resolve();
-    };
-    const timeout = window.setTimeout(finish, 1500);
-    image.addEventListener('load', finish, { once: true });
-    image.addEventListener('error', finish, { once: true });
-  });
-};
-
-const resolveOcrSourceSize = () => {
-  const naturalWidth = ocrPreviewImageRef.value?.naturalWidth || 0;
-  const naturalHeight = ocrPreviewImageRef.value?.naturalHeight || 0;
-  if (imageWidth.value <= 0 && naturalWidth > 0) {
-    imageWidth.value = naturalWidth;
-  }
-  if (imageHeight.value <= 0 && naturalHeight > 0) {
-    imageHeight.value = naturalHeight;
-  }
-  return {
-    width: imageWidth.value || naturalWidth || aiCoordinateScale,
-    height: imageHeight.value || naturalHeight || aiCoordinateScale
-  };
-};
-
-const mergeBlockBounds = (blocks: PinOcrTextBlock[]): Rect => {
-  if (blocks.length === 0) {
-    return { x: 0, y: 0, width: 0, height: 0 };
-  }
-  const left = Math.min(...blocks.map((block) => block.x));
-  const top = Math.min(...blocks.map((block) => block.y));
-  const right = Math.max(...blocks.map((block) => block.x + block.width));
-  const bottom = Math.max(...blocks.map((block) => block.y + block.height));
-  return {
-    x: left,
-    y: top,
-    width: Math.max(0, right - left),
-    height: Math.max(0, bottom - top)
-  };
-};
-
 const createOcrRecordsFromAiResult = (result: AiOcrResult): OcrRecord[] => {
-  const sourceSize = resolveOcrSourceSize();
-  const xScale = sourceSize.width / aiCoordinateScale;
-  const yScale = sourceSize.height / aiCoordinateScale;
   const batchId = Date.now();
 
   return result.sections
-    .map<OcrRecord>((section, index) => {
-      const blocks = (section.lines || []).map<PinOcrTextBlock>((line) => {
-        const height = line.bbox.height * yScale;
-        return {
-          text: line.text.trim(),
-          x: line.bbox.x * xScale,
-          y: line.bbox.y * yScale,
-          width: line.bbox.width * xScale,
-          height,
-          fontSize: Math.max(1, height * 0.72),
-          lineHeight: Math.max(1, height),
-          angle: 0,
-          isCodeBlock: section.type === 'code',
-          confidence: 0
-        };
-      });
-      return {
-        id: `ai-${batchId}-${index}`,
-        kind: section.type,
-        text: section.text.trim(),
-        sourceText: section.text.trim(),
-        translatedText: '',
-        bbox: mergeBlockBounds(blocks),
-        blocks,
-        confidence: 0,
-        selected: false
-      };
-    })
+    .map<OcrRecord>((section, index) => ({
+      id: `ai-${batchId}-${index}`,
+      kind: section.type,
+      text: section.text.trim(),
+      sourceText: section.text.trim(),
+      translatedText: '',
+      confidence: 0,
+      selected: false
+    }))
     .filter((record) => record.text);
 };
 
@@ -1514,10 +1108,6 @@ const getCopyCandidateText = (): string => {
   const selectedText = getSelectedTextInsideOcrSurface();
   if (selectedText) {
     return selectedText;
-  }
-
-  if (selectedOcrOverlayText.value) {
-    return selectedOcrOverlayText.value;
   }
 
   const selectedRecordsText = buildDisplayTextFromRecords(
@@ -1610,7 +1200,7 @@ const handleTranslateOcr = async () => {
 
   if (!ocrText.value.trim() || isTranslating.value) return;
 
-  const selectedSourceText = selectedOcrOverlayText.value.trim();
+  const selectedSourceText = getSelectedTextInsideOcrSurface();
   const recordsToTranslate = selectedSourceText
     ? []
     : selectedOcrRecords.value.length > 0
@@ -1753,9 +1343,6 @@ const handleImageLoad = async (event: Event) => {
   const img = event.target as HTMLImageElement;
   imageWidth.value = img.naturalWidth;
   imageHeight.value = img.naturalHeight;
-  if (img === ocrPreviewImageRef.value) {
-    updateOcrPreviewImageMetrics();
-  }
 
   if (appWindow.value && initialWindowSize.value.width === 0) {
     try {
@@ -2067,199 +1654,6 @@ const handleClickOutside = (event: MouseEvent) => {
   }
 };
 
-const scrollSynchronizedResultIntoView = async () => {
-  await nextTick();
-  ocrResultScrollRef.value
-    ?.querySelector<HTMLElement>('.ocr-sync-highlight')
-    ?.scrollIntoView({ block: 'nearest' });
-};
-
-const handleOcrOverlayPointerDown = (event: PointerEvent) => {
-  if (event.button !== 0) {
-    return;
-  }
-
-  const overlay = event.currentTarget as HTMLElement;
-  const point = getOcrSelectionPointAtPosition(
-    overlay,
-    event.clientX,
-    event.clientY,
-    false
-  );
-  window.getSelection()?.removeAllRanges();
-  if (!point) {
-    clearOcrOverlaySelection();
-    return;
-  }
-
-  event.preventDefault();
-  overlay.setPointerCapture(event.pointerId);
-  ocrOverlayPointerId = event.pointerId;
-  ocrOverlayPointerStart = { x: event.clientX, y: event.clientY };
-  isSelectingOcrOverlay.value = true;
-  hoveredOcrBlockIndex.value = point.blockIndex;
-  ocrOverlaySelection.value = {
-    anchor: point,
-    focus: point
-  };
-};
-
-const handleOcrOverlayPointerMove = (event: PointerEvent) => {
-  const overlay = event.currentTarget as HTMLElement;
-  const point = getOcrSelectionPointAtPosition(
-    overlay,
-    event.clientX,
-    event.clientY,
-    isSelectingOcrOverlay.value
-  );
-  hoveredOcrBlockIndex.value = point?.blockIndex ?? null;
-
-  if (!isSelectingOcrOverlay.value || event.pointerId !== ocrOverlayPointerId) {
-    return;
-  }
-
-  if (!point || !ocrOverlaySelection.value) {
-    return;
-  }
-
-  event.preventDefault();
-  ocrOverlaySelection.value = {
-    anchor: ocrOverlaySelection.value.anchor,
-    focus: point
-  };
-};
-
-const handleOcrOverlayPointerUp = (event: PointerEvent) => {
-  if (event.pointerId !== ocrOverlayPointerId) {
-    return;
-  }
-
-  handleOcrOverlayPointerMove(event);
-  const overlay = event.currentTarget as HTMLElement;
-  if (overlay.hasPointerCapture(event.pointerId)) {
-    overlay.releasePointerCapture(event.pointerId);
-  }
-
-  const pointerStart = ocrOverlayPointerStart;
-  const point = getOcrSelectionPointAtPosition(
-    overlay,
-    event.clientX,
-    event.clientY,
-    true
-  );
-  if (
-    pointerStart &&
-    point &&
-    Math.hypot(event.clientX - pointerStart.x, event.clientY - pointerStart.y) <
-      4
-  ) {
-    const block = ocrSelectableBlocks.value[point.blockIndex];
-    if (block) {
-      ocrOverlaySelection.value = {
-        anchor: { blockIndex: point.blockIndex, offset: 0 },
-        focus: { blockIndex: point.blockIndex, offset: block.text.length }
-      };
-    }
-  }
-
-  isSelectingOcrOverlay.value = false;
-  ocrOverlayPointerId = null;
-  ocrOverlayPointerStart = null;
-  void scrollSynchronizedResultIntoView();
-};
-
-const handleOcrOverlayPointerCancel = (event: PointerEvent) => {
-  if (event.pointerId !== ocrOverlayPointerId) {
-    return;
-  }
-  isSelectingOcrOverlay.value = false;
-  ocrOverlayPointerId = null;
-  ocrOverlayPointerStart = null;
-};
-
-const handleOcrOverlayPointerLeave = () => {
-  if (!isSelectingOcrOverlay.value) {
-    hoveredOcrBlockIndex.value = null;
-  }
-};
-
-const clearOcrOverlaySelection = () => {
-  ocrOverlaySelection.value = null;
-  isSelectingOcrOverlay.value = false;
-  hoveredOcrBlockIndex.value = null;
-  ocrOverlayPointerId = null;
-  ocrOverlayPointerStart = null;
-};
-
-const selectAllOcrOverlayText = () => {
-  const lastBlockIndex = ocrSelectableBlocks.value.length - 1;
-  if (lastBlockIndex < 0) {
-    return;
-  }
-
-  window.getSelection()?.removeAllRanges();
-  ocrOverlaySelection.value = {
-    anchor: { blockIndex: 0, offset: 0 },
-    focus: {
-      blockIndex: lastBlockIndex,
-      offset: ocrSelectableBlocks.value[lastBlockIndex].text.length
-    }
-  };
-};
-
-const getOcrSelectionPointAtPosition = (
-  overlay: HTMLElement,
-  clientX: number,
-  clientY: number,
-  allowNearest: boolean
-) => {
-  const elements = Array.from(
-    overlay.querySelectorAll<HTMLElement>(
-      '.ocr-overlay-block[data-selection-index]'
-    )
-  );
-  const boxes = elements.map((element) => {
-    const rect = element.getBoundingClientRect();
-    return {
-      blockIndex: Number(element.dataset.selectionIndex),
-      left: rect.left,
-      top: rect.top,
-      right: rect.right,
-      bottom: rect.bottom
-    };
-  });
-  const hit = findNearestOcrSelectionHit(
-    boxes,
-    clientX,
-    clientY,
-    allowNearest ? Number.POSITIVE_INFINITY : 14
-  );
-  if (!hit) {
-    return null;
-  }
-
-  const element = elements.find(
-    (candidate) => Number(candidate.dataset.selectionIndex) === hit.blockIndex
-  );
-  const block = ocrSelectableBlocks.value[hit.blockIndex];
-  if (!element || !block) {
-    return null;
-  }
-
-  const rect = element.getBoundingClientRect();
-  const metrics = getOcrOverlayMetrics(block);
-  const xRatio = clampNumber(
-    (clientX - rect.left) / Math.max(rect.width, 1),
-    0,
-    1
-  );
-  const targetWidth = xRatio * metrics.renderedWidth;
-  return {
-    blockIndex: hit.blockIndex,
-    offset: findNearestOcrCharacterOffset(metrics.boundaries, targetWidth)
-  };
-};
-
 const handleKeydown = (event: KeyboardEvent): void => {
   if (event.altKey && event.code === 'Space') {
     event.preventDefault();
@@ -2274,29 +1668,7 @@ const handleKeydown = (event: KeyboardEvent): void => {
       handleClose();
     }
   } else if (event.ctrlKey || event.metaKey) {
-    const target = event.target as HTMLElement | null;
-    const isEditingText = Boolean(
-      target?.closest(
-        'input, textarea, [contenteditable="true"], [contenteditable="plaintext-only"]'
-      )
-    );
-    if (
-      event.key.toLowerCase() === 'c' &&
-      mode.value === 'ocr' &&
-      selectedOcrOverlayText.value &&
-      !isEditingText
-    ) {
-      event.preventDefault();
-      void handleCopyOcrText();
-    } else if (
-      event.key.toLowerCase() === 'a' &&
-      mode.value === 'ocr' &&
-      ocrSelectableBlocks.value.length > 0 &&
-      !isEditingText
-    ) {
-      event.preventDefault();
-      selectAllOcrOverlayText();
-    } else if (event.key === '0') {
+    if (event.key === '0') {
       // Ctrl/Cmd + 0 重置缩放到原始尺寸
       event.preventDefault();
       handleResetZoom();
@@ -2330,24 +1702,6 @@ const hydratePinWindowData = async () => {
     logger.error('[PIN窗口] 主动获取窗口数据失败', error);
   }
 };
-
-watch(
-  ocrPreviewImageRef,
-  (imageElement) => {
-    ocrPreviewResizeObserver?.disconnect();
-    ocrPreviewResizeObserver = null;
-
-    if (!imageElement) {
-      ocrPreviewImageSize.value = { width: 0, height: 0 };
-      return;
-    }
-
-    updateOcrPreviewImageMetrics();
-    ocrPreviewResizeObserver = new ResizeObserver(updateOcrPreviewImageMetrics);
-    ocrPreviewResizeObserver.observe(imageElement);
-  },
-  { flush: 'post' }
-);
 
 onMounted(async () => {
   if (!containerRef.value) {
@@ -2431,8 +1785,6 @@ onUnmounted(() => {
   window.removeEventListener('resize', updateFloatingMenuStyles);
   window.removeEventListener('scroll', updateFloatingMenuStyles, true);
   window.removeEventListener('blur', closeContextMenu);
-  ocrPreviewResizeObserver?.disconnect();
-  ocrPreviewResizeObserver = null;
 
   if (document.body) {
     document.body.oncontextmenu = null;
@@ -2673,6 +2025,37 @@ onUnmounted(() => {
         gap: 5px;
       }
 
+      .ocr-preview-switch {
+        @apply flex items-center rounded-md;
+
+        gap: 1px;
+        height: 27px;
+        padding: 2px;
+        background: color-mix(in srgb, var(--ocr-border) 42%, transparent);
+
+        button {
+          @apply flex items-center justify-center rounded-sm transition-colors duration-150;
+
+          height: 100%;
+          padding: 0 9px;
+          font-size: 10px;
+          font-weight: 600;
+          color: var(--ocr-text-muted);
+          background: transparent;
+          border: 0;
+
+          &:hover {
+            color: var(--ocr-text);
+          }
+
+          &.active {
+            color: var(--primary-color);
+            background: var(--ocr-panel-bg);
+            box-shadow: 0 1px 3px rgb(0 0 0 / 10%);
+          }
+        }
+      }
+
       .ocr-panel-toggle {
         @apply flex flex-shrink-0 items-center justify-center rounded-md text-ocr-secondary;
 
@@ -2739,6 +2122,12 @@ onUnmounted(() => {
               transparent 25%
             )
             0 0 / 16px 16px;
+
+        &.is-text-view {
+          align-items: stretch;
+          justify-content: stretch;
+          padding: 0;
+        }
       }
 
       .ocr-preview-stage {
@@ -2758,74 +2147,63 @@ onUnmounted(() => {
         }
       }
 
-      .ocr-text-overlay,
-      .ocr-selection-highlight-layer {
-        position: absolute;
-        inset: 0;
-      }
+      .ocr-native-text-preview {
+        @apply flex min-h-0 flex-1 flex-col overflow-y-auto;
 
-      .ocr-text-overlay {
-        touch-action: none;
-        cursor: text;
-        user-select: none;
-      }
+        padding: 16px 18px;
+        outline: none;
+        scrollbar-width: thin;
 
-      .ocr-selection-highlight-layer {
-        pointer-events: none;
-      }
-
-      .ocr-selection-highlight {
-        position: absolute;
-        box-sizing: border-box;
-        display: block;
-        background: color-mix(in srgb, var(--primary-color) 34%, transparent);
-        border: 1px solid
-          color-mix(in srgb, var(--primary-color) 92%, transparent);
-        border-radius: 2px;
-        box-shadow:
-          0 0 0 1px rgb(255 255 255 / 72%),
-          0 0 0 2px color-mix(in srgb, var(--primary-color) 68%, transparent);
-      }
-
-      .ocr-overlay-block {
-        position: absolute;
-        box-sizing: border-box;
-        display: block;
-        padding: 0;
-        overflow: visible;
-        font-family: 'Microsoft YaHei', 'PingFang SC', 'Segoe UI', Arial,
-          sans-serif;
-        color: transparent;
-        white-space: nowrap;
-        pointer-events: none;
-        cursor: text;
-        user-select: none;
-        background: transparent;
-        border: 1px solid transparent;
-        border-radius: 2px;
-        transition:
-          background-color 0.12s ease,
-          border-color 0.12s ease,
-          box-shadow 0.12s ease;
-
-        &.hovered {
-          background: color-mix(in srgb, var(--primary-color) 10%, transparent);
-          border-color: color-mix(
-            in srgb,
-            var(--primary-color) 68%,
-            transparent
-          );
-          box-shadow: 0 0 0 1px
-            color-mix(in srgb, var(--primary-color) 15%, transparent);
+        &::-webkit-scrollbar {
+          width: 6px;
         }
 
-        &.selected {
-          background: color-mix(in srgb, var(--primary-color) 12%, transparent);
-          border-color: color-mix(
-            in srgb,
-            var(--primary-color) 84%,
-            transparent
-          );
+        &::-webkit-scrollbar-thumb {
+          background: color-mix(in srgb, var(--ocr-border) 72%, transparent);
+          border-radius: 3px;
+        }
+      }
+
+      .ocr-native-document {
+        @apply mx-auto w-full max-w-3xl;
+
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        user-select: text;
+      }
+
+      .ocr-native-block {
+        margin: 0;
+        font-family: 'Microsoft YaHei', 'PingFang SC', 'Segoe UI', Arial,
+          sans-serif;
+        font-size: 14px;
+        line-height: 1.75;
+        color: var(--ocr-text);
+        word-break: break-word;
+        white-space: pre-wrap;
+        user-select: text;
+
+        &.is-title {
+          font-size: 18px;
+          font-weight: 700;
+          line-height: 1.5;
+          color: var(--ocr-text);
+        }
+
+        &.is-list {
+          padding-left: 6px;
+        }
+
+        &.is-code,
+        &.is-table {
+          padding: 10px 12px;
+          overflow-x: auto;
+          font-family: var(--font-mono, 'Cascadia Code', Consolas, monospace);
+          font-size: 12px;
+          line-height: 1.65;
+          background: color-mix(in srgb, var(--ocr-shell-bg) 70%, transparent);
+          border-radius: 6px;
         }
       }
 
@@ -3050,16 +2428,6 @@ onUnmounted(() => {
         word-break: break-word;
         white-space: pre-wrap;
         user-select: text;
-
-        .ocr-sync-highlight {
-          padding: 1px 2px;
-          margin: 0 -1px;
-          color: color-mix(in srgb, var(--primary-color) 76%, var(--ocr-text));
-          background: color-mix(in srgb, var(--primary-color) 21%, transparent);
-          border: 1px solid
-            color-mix(in srgb, var(--primary-color) 42%, transparent);
-          border-radius: 3px;
-        }
 
         &.translated {
           color: var(--ocr-text-secondary);
