@@ -27,6 +27,7 @@ struct TrayTranslations {
     screenshot: &'static str,
     screen_recorder: &'static str,
     wallpaper_switcher: &'static str,
+    wallpaper_switch_next: &'static str,
     dark_mode: &'static str,
     // 主题子菜单
     theme_menu: &'static str,
@@ -61,6 +62,7 @@ fn known_plugin_action_label<'a>(trans: &'a TrayTranslations, item_id: &str) -> 
         "screenshot" => Some(trans.screenshot),
         "screen_recorder" => Some(trans.screen_recorder),
         "wallpaper_switcher" => Some(trans.wallpaper_switcher),
+        "wallpaper_switch_next" => Some(trans.wallpaper_switch_next),
         "dark_mode" => Some(trans.dark_mode),
         _ => None,
     }
@@ -88,6 +90,23 @@ fn handle_plugin_tray_menu_click(app: &AppHandle, menu_id: &str) -> bool {
     };
 
     if !app_config::is_plugin_enabled(app, plugin_id) {
+        return true;
+    }
+
+    if plugin_id == "wallpaper-switcher" && item_id == "wallpaper_switch_next" {
+        debug!("[托盘菜单] 直接切换下一张壁纸");
+        let app_handle = app.clone();
+        tauri::async_runtime::spawn(async move {
+            if let Err(error) =
+                crate::plugins::wallpaper_switcher::wallpaper_switch_now(app_handle.clone()).await
+            {
+                log::warn!("[托盘菜单] 壁纸快捷切换失败: {}", error);
+                let _ = app_handle.emit(
+                    "wallpaper-switcher-error",
+                    serde_json::json!({ "message": error }),
+                );
+            }
+        });
         return true;
     }
 
@@ -121,6 +140,7 @@ fn get_translations(lang: &str) -> TrayTranslations {
             screenshot: "Screenshot",
             screen_recorder: "Screen Recorder",
             wallpaper_switcher: "Wallpaper Switcher",
+            wallpaper_switch_next: "Switch to Next Wallpaper",
             dark_mode: "System Theme",
             theme_menu: "Theme Mode",
             theme_system: "Follow System",
@@ -144,6 +164,7 @@ fn get_translations(lang: &str) -> TrayTranslations {
             screenshot: "快速截图",
             screen_recorder: "区域录制",
             wallpaper_switcher: "壁纸切换",
+            wallpaper_switch_next: "切换下一张壁纸",
             dark_mode: "系统主题",
             theme_menu: "主题模式",
             theme_system: "跟随系统",

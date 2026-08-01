@@ -8,5 +8,5 @@ export const wallpaperSwitcherPlugin: BuiltinPlugin = {
   enabledByDefault: true,
   routeNames: ['WallpaperSwitcher'],
   hotkeys: ['wallpaper_switcher'],
-  trayItems: ['wallpaper_switcher']
+  trayItems: ['wallpaper_switch_next', 'wallpaper_switcher']
 };

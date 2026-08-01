@@ -8,6 +8,8 @@ defineProps<{
   activeView: 'switcher' | 'wallhaven';
   wallhavenSource: WallhavenSource;
   wallhavenLoading: boolean;
+  scheduleEnabled: boolean;
+  schedulerRunning: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -23,8 +25,22 @@ const { t } = useI18n();
 <template>
   <header class="titlebar" data-tauri-drag-region>
     <div v-if="activeView === 'switcher'" class="title">
-      <Picture :size="18" />
-      <span>{{ t('wallpaperSwitcher.title') }}</span>
+      <span class="title-icon"><Picture :size="18" /></span>
+      <span class="title-copy">
+        <strong>{{ t('wallpaperSwitcher.title') }}</strong>
+        <small>{{ t('wallpaperSwitcher.titleSubtitle') }}</small>
+      </span>
+      <span
+        class="title-status"
+        :class="{ active: scheduleEnabled && schedulerRunning }"
+      >
+        <span></span>
+        {{
+          scheduleEnabled && schedulerRunning
+            ? t('wallpaperSwitcher.scheduleRunning')
+            : t('wallpaperSwitcher.schedulePaused')
+        }}
+      </span>
     </div>
     <div v-else class="title">
       <button
@@ -40,11 +56,12 @@ const { t } = useI18n();
     <div v-if="activeView === 'switcher'" class="window-actions">
       <button
         type="button"
-        class="icon-btn online-entry-btn"
+        class="online-entry-btn"
         :title="t('wallpaperSwitcher.openWallhaven')"
         @click="emit('openWallhaven')"
       >
         <PictureAlbum :size="18" />
+        <span>{{ t('wallpaperSwitcher.browseOnline') }}</span>
       </button>
       <button
         type="button"

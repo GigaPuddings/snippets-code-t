@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {
+  CheckSmall,
   Computer,
   Delete,
   FolderOpen,
@@ -13,8 +14,10 @@ import {
 } from '@icon-park/vue-next';
 import { useI18n } from 'vue-i18n';
 import type {
+  FolderSort,
   WallpaperConfig,
   WallpaperMode,
+  WallpaperOrder,
   WallhavenSource
 } from '../../../api';
 import WallhavenSourceTabs from './WallhavenSourceTabs.vue';
@@ -29,6 +32,7 @@ const props = defineProps<{
   nextSwitchLabel: string;
   folderCountLabel: string;
   cacheSizeLabel: string;
+  schedulerRunning: boolean;
   switching: boolean;
   clearingCache: boolean;
   openingCache: boolean;
@@ -50,192 +54,313 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 
-const patchConfig = (patch: Partial<WallpaperConfig>) => {
+const modeOptions: Array<{
+  value: WallpaperMode;
+  labelKey: string;
+  captionKey: string;
+}> = [
+  {
+    value: 'folder',
+    labelKey: 'wallpaperSwitcher.localFolder',
+    captionKey: 'wallpaperSwitcher.localFolderCaption'
+  },
+  {
+    value: 'wallhaven',
+    labelKey: 'wallpaperSwitcher.wallhavenOnline',
+    captionKey: 'wallpaperSwitcher.wallhavenCaption'
+  },
+  {
+    value: 'fixed',
+    labelKey: 'wallpaperSwitcher.fixedImage',
+    captionKey: 'wallpaperSwitcher.fixedImageCaption'
+  }
+];
+
+const folderSortOptions: Array<{ value: FolderSort; labelKey: string }> = [
+  {
+    value: 'createdAscending',
+    labelKey: 'wallpaperSwitcher.folderSort.createdAscending'
+  },
+  {
+    value: 'fileNameAscending',
+    labelKey: 'wallpaperSwitcher.folderSort.fileNameAscending'
+  },
+  {
+    value: 'modifiedDescending',
+    labelKey: 'wallpaperSwitcher.folderSort.modifiedDescending'
+  }
+];
+
+const patchConfig = (patch: Partial<WallpaperConfig>): void => {
   emit('updateConfig', { ...props.config, ...patch });
 };
 
-const setMode = (mode: WallpaperMode) => patchConfig({ mode });
-const setSource = (wallhavenSource: WallhavenSource) =>
+const setMode = (mode: WallpaperMode): void => patchConfig({ mode });
+const setSource = (wallhavenSource: WallhavenSource): void =>
   patchConfig({ wallhavenSource });
-const updateFixedPath = (event: Event) =>
-  patchConfig({ fixedImagePath: (event.target as HTMLInputElement).value });
-const updateFolderPath = (event: Event) =>
-  patchConfig({ folderPath: (event.target as HTMLInputElement).value });
-const updateScheduleEnabled = (event: Event) =>
-  patchConfig({ scheduleEnabled: (event.target as HTMLInputElement).checked });
-const updateInterval = (event: Event) =>
+const setOrder = (order: WallpaperOrder): void => patchConfig({ order });
+const updateFolderSort = (event: Event): void =>
   patchConfig({
-    intervalMinutes: Number((event.target as HTMLInputElement).value)
+    folderSort: (event.target as HTMLSelectElement).value as FolderSort
   });
-const updateAutoRestore = (event: Event) =>
+const updateScheduleEnabled = (event: Event): void =>
+  patchConfig({ scheduleEnabled: (event.target as HTMLInputElement).checked });
+const updateInterval = (event: Event): void =>
+  patchConfig({
+    intervalMinutes: Math.min(
+      1440,
+      Math.max(1, Number((event.target as HTMLInputElement).value) || 1)
+    )
+  });
+const updateAutoRestore = (event: Event): void =>
   patchConfig({ autoRestore: (event.target as HTMLInputElement).checked });
 </script>
 
 <template>
-  <div class="content" :class="{ dimmed: loading }">
-    <section class="top-panel">
-      <div class="preview">
-        <img
-          v-if="previewSrc"
-          :src="previewSrc"
-          :alt="t('wallpaperSwitcher.currentPreviewAlt')"
-        />
-        <div v-else class="preview-empty">
-          <Picture :size="42" />
-          <span>{{ t('wallpaperSwitcher.noCurrentWallpaper') }}</span>
+  <div class="switcher-home" :class="{ 'is-loading': loading }">
+    <section class="workspace-grid">
+      <article class="wallpaper-stage">
+        <div class="stage-media">
+          <img
+            v-if="previewSrc"
+            :src="previewSrc"
+            :alt="t('wallpaperSwitcher.currentPreviewAlt')"
+          />
+          <div v-else class="stage-empty">
+            <Picture :size="40" />
+            <span>{{ t('wallpaperSwitcher.noCurrentWallpaper') }}</span>
+          </div>
+        </div>
+
+        <div class="stage-overlay"></div>
+        <div class="stage-topline">
+          <span class="eyebrow-pill">
+            <span class="live-dot"></span>
+            {{ t('wallpaperSwitcher.currentDesktop') }}
+          </span>
+          <span class="source-pill">{{ sourceLabel }}</span>
+        </div>
+
+        <div class="stage-content">
+          <div class="stage-copy">
+            <p>{{ t('wallpaperSwitcher.currentWallpaper') }}</p>
+            <h1 :title="currentWallpaperName">{{ currentWallpaperName }}</h1>
+            <div class="stage-meta">
+              <span>
+                <Computer :size="15" />
+                {{ resolutionLabel }}
+              </span>
+              <span>
+                <Time :size="15" />
+                {{ nextSwitchLabel }}
+              </span>
+            </div>
+          </div>
+
+          <div class="stage-actions">
+            <button
+              type="button"
+              class="stage-btn stage-btn-primary"
+              :disabled="switching"
+              @click="emit('switchNow')"
+            >
+              <Refresh v-if="switching" :size="16" class="spinning" />
+              <Lightning v-else :size="16" />
+              {{
+                switching
+                  ? t('wallpaperSwitcher.switching')
+                  : t('wallpaperSwitcher.switchNow')
+              }}
+            </button>
+            <button
+              type="button"
+              class="stage-btn stage-btn-ghost"
+              @click="emit('setCurrentAsFixed')"
+            >
+              <Pin :size="16" />
+              {{ t('wallpaperSwitcher.setFixed') }}
+            </button>
+          </div>
+        </div>
+      </article>
+
+      <aside class="source-workspace">
+        <header class="section-heading">
+          <div>
+            <span class="section-kicker">
+              {{ t('wallpaperSwitcher.stepOne') }}
+            </span>
+            <h2>{{ t('wallpaperSwitcher.chooseSource') }}</h2>
+          </div>
+          <span class="ready-state">
+            <CheckSmall :size="14" />
+            {{ t('wallpaperSwitcher.ready') }}
+          </span>
+        </header>
+
+        <div class="mode-picker" role="tablist">
+          <button
+            v-for="option in modeOptions"
+            :key="option.value"
+            type="button"
+            :class="{ active: config.mode === option.value }"
+            role="tab"
+            :aria-selected="config.mode === option.value"
+            @click="setMode(option.value)"
+          >
+            <FolderOpen v-if="option.value === 'folder'" :size="18" />
+            <Search v-else-if="option.value === 'wallhaven'" :size="18" />
+            <Picture v-else :size="18" />
+            <span>
+              <strong>{{ t(option.labelKey) }}</strong>
+              <small>{{ t(option.captionKey) }}</small>
+            </span>
+          </button>
+        </div>
+
+        <div class="source-detail">
+          <template v-if="config.mode === 'folder'">
+            <div class="detail-title">
+              <div>
+                <span>{{ t('wallpaperSwitcher.localLibrary') }}</span>
+                <strong>{{ folderCountLabel }}</strong>
+              </div>
+              <button
+                type="button"
+                class="text-action"
+                @click="emit('scanFolder')"
+              >
+                <Refresh :size="14" />
+                {{ t('wallpaperSwitcher.scan') }}
+              </button>
+            </div>
+            <label
+              v-if="config.order === 'sequential'"
+              class="folder-sort-picker"
+            >
+              <span>{{ t('wallpaperSwitcher.folderSortLabel') }}</span>
+              <select :value="config.folderSort" @change="updateFolderSort">
+                <option
+                  v-for="option in folderSortOptions"
+                  :key="option.value"
+                  :value="option.value"
+                >
+                  {{ t(option.labelKey) }}
+                </option>
+              </select>
+            </label>
+            <button
+              type="button"
+              class="path-picker"
+              :title="config.folderPath || ''"
+              @click="emit('chooseFolder')"
+            >
+              <span class="path-icon"><FolderOpen :size="18" /></span>
+              <span class="path-copy">
+                <small>{{ t('wallpaperSwitcher.folderPath') }}</small>
+                <strong>
+                  {{
+                    config.folderPath ||
+                    t('wallpaperSwitcher.placeholders.selectFolder')
+                  }}
+                </strong>
+              </span>
+              <span class="path-cta">{{ t('wallpaperSwitcher.change') }}</span>
+            </button>
+          </template>
+
+          <template v-else-if="config.mode === 'wallhaven'">
+            <div class="detail-title">
+              <div>
+                <span>Wallhaven</span>
+                <strong>{{ t('wallpaperSwitcher.onlineSourceHint') }}</strong>
+              </div>
+            </div>
+            <div class="online-source-tabs" role="tablist">
+              <WallhavenSourceTabs
+                tab-class="button"
+                :model-value="config.wallhavenSource"
+                @update:model-value="setSource"
+              />
+            </div>
+            <button
+              type="button"
+              class="browse-online-btn"
+              @click="emit('openWallhavenGrid')"
+            >
+              <Picture :size="18" />
+              <span>
+                <strong>{{ t('wallpaperSwitcher.browseOnline') }}</strong>
+                <small>{{ t('wallpaperSwitcher.browseOnlineHint') }}</small>
+              </span>
+              <span aria-hidden="true">→</span>
+            </button>
+          </template>
+
+          <template v-else>
+            <div class="detail-title">
+              <div>
+                <span>{{ t('wallpaperSwitcher.fixedImage') }}</span>
+                <strong>{{ t('wallpaperSwitcher.fixedModeHint') }}</strong>
+              </div>
+            </div>
+            <button
+              type="button"
+              class="path-picker"
+              :title="config.fixedImagePath || ''"
+              @click="emit('chooseImage')"
+            >
+              <span class="path-icon"><Picture :size="18" /></span>
+              <span class="path-copy">
+                <small>{{ t('wallpaperSwitcher.imagePath') }}</small>
+                <strong>
+                  {{
+                    config.fixedImagePath ||
+                    t('wallpaperSwitcher.placeholders.selectImage')
+                  }}
+                </strong>
+              </span>
+              <span class="path-cta">{{ t('wallpaperSwitcher.change') }}</span>
+            </button>
+          </template>
+        </div>
+      </aside>
+    </section>
+
+    <section class="automation-card">
+      <div class="automation-intro">
+        <span class="automation-icon"><Time :size="20" /></span>
+        <div>
+          <span class="section-kicker">
+            {{ t('wallpaperSwitcher.stepTwo') }}
+          </span>
+          <h2>{{ t('wallpaperSwitcher.automationTitle') }}</h2>
+          <p>{{ t('wallpaperSwitcher.automationHint') }}</p>
         </div>
       </div>
-      <div class="status-panel">
-        <div class="status-copy">
-          <div class="wallpaper-name">
-            <span>{{ t('wallpaperSwitcher.currentWallpaper') }}</span>
-            <strong>{{ currentWallpaperName }}</strong>
-          </div>
-          <div class="status-list">
-            <div class="status-row">
-              <FolderOpen :size="16" />
-              <span>{{ t('wallpaperSwitcher.source') }}</span>
-              <strong>{{ sourceLabel }}</strong>
-            </div>
-            <div class="status-row">
-              <Computer :size="16" />
-              <span>{{ t('wallpaperSwitcher.resolution') }}</span>
-              <strong>{{ resolutionLabel }}</strong>
-            </div>
-            <div class="status-row">
-              <Time :size="16" />
-              <span>{{ t('wallpaperSwitcher.nextSwitch') }}</span>
-              <strong>{{ nextSwitchLabel }}</strong>
-            </div>
-          </div>
-        </div>
-        <div class="status-actions">
-          <button
-            type="button"
-            class="primary-btn"
-            :disabled="switching"
-            @click="emit('switchNow')"
-          >
-            <Lightning theme="outline" :size="14" />
+
+      <label class="schedule-toggle">
+        <span>
+          <strong>{{ t('wallpaperSwitcher.enableSchedule') }}</strong>
+          <small>
             {{
-              switching
-                ? t('wallpaperSwitcher.switching')
-                : t('wallpaperSwitcher.switchNow')
+              schedulerRunning
+                ? t('wallpaperSwitcher.scheduleRunning')
+                : t('wallpaperSwitcher.schedulePaused')
             }}
-          </button>
-          <button
-            type="button"
-            class="secondary-btn"
-            @click="emit('setCurrentAsFixed')"
-          >
-            <Pin theme="outline" :size="14" />
-            {{ t('wallpaperSwitcher.setFixed') }}
-          </button>
-        </div>
-      </div>
-    </section>
-
-    <section class="card settings-card">
-      <div class="form-row mode-row">
-        <span class="row-label">{{ t('wallpaperSwitcher.mode') }}</span>
-        <div class="segmented three">
-          <button
-            type="button"
-            :class="{ active: config.mode === 'fixed' }"
-            @click="setMode('fixed')"
-          >
-            {{ t('wallpaperSwitcher.fixedImage') }}
-          </button>
-          <button
-            type="button"
-            :class="{ active: config.mode === 'folder' }"
-            @click="setMode('folder')"
-          >
-            {{ t('wallpaperSwitcher.localFolder') }}
-          </button>
-          <button
-            type="button"
-            :class="{ active: config.mode === 'wallhaven' }"
-            @click="setMode('wallhaven')"
-          >
-            {{ t('wallpaperSwitcher.wallhavenOnline') }}
-          </button>
-        </div>
-      </div>
-
-      <div class="form-row fixed-row">
-        <span class="row-label">{{ t('wallpaperSwitcher.fixedImage') }}</span>
+          </small>
+        </span>
         <input
-          :value="config.fixedImagePath"
-          class="path-input"
-          :placeholder="t('wallpaperSwitcher.placeholders.fixedImage')"
-          spellcheck="false"
-          @input="updateFixedPath"
+          :checked="config.scheduleEnabled"
+          type="checkbox"
+          @change="updateScheduleEnabled"
         />
-        <button type="button" class="tool-btn" @click="emit('chooseImage')">
-          <Picture :size="16" />
-          {{ t('wallpaperSwitcher.selectImage') }}
-        </button>
-      </div>
+        <span class="switch-control" aria-hidden="true"></span>
+      </label>
 
-      <div class="form-row folder-row">
-        <span class="row-label">{{ t('wallpaperSwitcher.localFolder') }}</span>
-        <input
-          :value="config.folderPath"
-          class="path-input"
-          :placeholder="t('wallpaperSwitcher.placeholders.folder')"
-          spellcheck="false"
-          @input="updateFolderPath"
-        />
-        <button type="button" class="tool-btn" @click="emit('chooseFolder')">
-          <FolderOpen :size="16" />
-          {{ t('wallpaperSwitcher.select') }}
-        </button>
-        <button type="button" class="tool-btn" @click="emit('scanFolder')">
-          <Refresh :size="16" />
-          {{ t('wallpaperSwitcher.scan') }}
-        </button>
-      </div>
-      <div class="hint-row folder-hint-row">
-        <span>{{ folderCountLabel }}</span>
-        <span>{{ t('wallpaperSwitcher.folderCreateTimeHint') }}</span>
-      </div>
-
-      <div class="form-row wallhaven-row">
-        <span class="row-label">Wallhaven</span>
-        <span class="sub-label">{{ t('wallpaperSwitcher.sourceShort') }}</span>
-        <div class="segmented source">
-          <WallhavenSourceTabs
-            tab-class="button"
-            :model-value="config.wallhavenSource"
-            @update:model-value="setSource"
-          />
-        </div>
-        <button
-          type="button"
-          class="tool-btn grid-open"
-          @click="emit('openWallhavenGrid')"
-        >
-          <Search :size="16" />
-          {{ t('wallpaperSwitcher.openOnlineGrid') }}
-        </button>
-      </div>
-    </section>
-
-    <section class="card rules-card">
-      <div class="rules-line">
-        <span class="row-label">{{ t('wallpaperSwitcher.switchRules') }}</span>
-        <label class="switch-label">
-          {{ t('wallpaperSwitcher.enableSchedule') }}
-          <input
-            :checked="config.scheduleEnabled"
-            type="checkbox"
-            @change="updateScheduleEnabled"
-          />
-          <span class="switch-control"></span>
-        </label>
-        <label class="number-label">
-          {{ t('wallpaperSwitcher.every') }}
+      <label class="compact-control">
+        <span>{{ t('wallpaperSwitcher.interval') }}</span>
+        <span class="number-input">
           <input
             :value="config.intervalMinutes"
             type="number"
@@ -243,55 +368,79 @@ const updateAutoRestore = (event: Event) =>
             max="1440"
             @input="updateInterval"
           />
-          {{ t('wallpaperSwitcher.minutes') }}
-        </label>
-        <label class="checkbox-label">
-          <input
-            :checked="config.autoRestore"
-            type="checkbox"
-            @change="updateAutoRestore"
-          />
-          {{ t('wallpaperSwitcher.autoRestore') }}
-        </label>
+          <small>{{ t('wallpaperSwitcher.minutes') }}</small>
+        </span>
+      </label>
+
+      <div class="compact-control order-control">
+        <span>{{ t('wallpaperSwitcher.rotationOrder') }}</span>
+        <div class="mini-segmented">
+          <button
+            type="button"
+            :class="{ active: config.order === 'sequential' }"
+            @click="setOrder('sequential')"
+          >
+            {{ t('wallpaperSwitcher.sequential') }}
+          </button>
+          <button
+            type="button"
+            :class="{ active: config.order === 'random' }"
+            @click="setOrder('random')"
+          >
+            {{ t('wallpaperSwitcher.random') }}
+          </button>
+        </div>
       </div>
+
+      <label class="restore-check">
+        <input
+          :checked="config.autoRestore"
+          type="checkbox"
+          @change="updateAutoRestore"
+        />
+        <span>
+          <strong>{{ t('wallpaperSwitcher.autoRestoreShort') }}</strong>
+          <small>{{ t('wallpaperSwitcher.autoRestoreHint') }}</small>
+        </span>
+      </label>
     </section>
 
-    <footer class="footer-card">
-      <div class="cache-info">
-        <strong>{{ t('wallpaperSwitcher.cache') }}</strong>
-        <span>{{ t('wallpaperSwitcher.wallhavenCache') }}</span>
-        <span>{{ cacheSizeLabel }}</span>
+    <footer class="utility-bar">
+      <div class="tray-callout">
+        <Lightning :size="17" />
+        <span>
+          <strong>{{ t('wallpaperSwitcher.trayQuickSwitch') }}</strong>
+          <small>{{ t('wallpaperSwitcher.trayQuickSwitchHint') }}</small>
+        </span>
       </div>
-      <div class="footer-actions">
+
+      <div class="cache-summary">
+        <span>{{ t('wallpaperSwitcher.cache') }}</span>
+        <strong>{{ cacheSizeLabel }}</strong>
+      </div>
+
+      <div class="utility-actions">
         <button
           type="button"
-          class="secondary-btn"
+          class="utility-btn"
           :disabled="clearingCache"
+          :title="t('wallpaperSwitcher.clearCache')"
           @click="emit('clearCache')"
         >
           <Delete :size="16" />
-          {{
-            clearingCache
-              ? t('wallpaperSwitcher.clearing')
-              : t('wallpaperSwitcher.clearCache')
-          }}
         </button>
         <button
           type="button"
-          class="secondary-btn"
+          class="utility-btn"
           :disabled="openingCache"
+          :title="t('wallpaperSwitcher.openCache')"
           @click="emit('openCacheDir')"
         >
           <FolderOpen :size="16" />
-          {{
-            openingCache
-              ? t('wallpaperSwitcher.opening')
-              : t('wallpaperSwitcher.openCache')
-          }}
         </button>
         <button
           type="button"
-          class="primary-btn"
+          class="save-btn"
           :disabled="saving"
           @click="emit('persistConfig')"
         >

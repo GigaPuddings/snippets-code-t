@@ -304,11 +304,13 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <main class="wallpaper-window">
+  <main class="wallpaper-window wallpaper-window--redesigned">
     <SwitcherTitlebar
       :active-view="activeView"
       :wallhaven-source="wallhavenSource"
       :wallhaven-loading="wallhavenLoading"
+      :schedule-enabled="config.scheduleEnabled"
+      :scheduler-running="Boolean(status?.schedulerRunning)"
       @back="backToSwitcher"
       @close="closeWindow"
       @open-wallhaven="openWallhavenGrid"
@@ -330,6 +332,7 @@ onUnmounted(() => {
       :next-switch-label="nextSwitchLabel"
       :folder-count-label="folderCountLabel"
       :cache-size-label="cacheSizeLabel"
+      :scheduler-running="Boolean(status?.schedulerRunning)"
       :switching="switching"
       :clearing-cache="clearingCache"
       :opening-cache="openingCache"
