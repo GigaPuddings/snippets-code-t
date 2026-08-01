@@ -23,6 +23,52 @@ export interface OcrResult {
   engine: string
 }
 
+interface OcrTextBlockRow {
+  centerY: number
+  blocks: OcrTextBlock[]
+}
+
+/**
+ * Sort OCR blocks into the same visual reading order as the image.
+ * OCR engines may return portions of one line out of order, which makes
+ * browser text ranges skip content when the overlay is dragged across them.
+ */
+export function sortOcrTextBlocksByReadingOrder(
+  blocks: OcrTextBlock[]
+): OcrTextBlock[] {
+  if (blocks.length <= 1) return [...blocks]
+
+  const heights = blocks
+    .map((block) => Math.max(block.height, block.lineHeight, block.fontSize, 1))
+    .sort((left, right) => left - right)
+  const medianHeight = heights[Math.floor(heights.length / 2)]
+  const rowTolerance = Math.max(4, medianHeight * 0.6)
+  const rows: OcrTextBlockRow[] = []
+
+  const blocksByVerticalCenter = [...blocks].sort((left, right) => {
+    const leftCenter = left.y + Math.max(left.height, 1) / 2
+    const rightCenter = right.y + Math.max(right.height, 1) / 2
+    return leftCenter - rightCenter || left.x - right.x
+  })
+
+  for (const block of blocksByVerticalCenter) {
+    const centerY = block.y + Math.max(block.height, 1) / 2
+    const row = rows[rows.length - 1]
+    if (row && Math.abs(row.centerY - centerY) <= rowTolerance) {
+      const count = row.blocks.length
+      row.blocks.push(block)
+      row.centerY = (row.centerY * count + centerY) / (count + 1)
+      continue
+    }
+
+    rows.push({ centerY, blocks: [block] })
+  }
+
+  return rows.flatMap((row) =>
+    row.blocks.sort((left, right) => left.x - right.x || left.y - right.y)
+  )
+}
+
 async function canvasToDataUrl(canvas: HTMLCanvasElement): Promise<string> {
   return canvas.toDataURL('image/png')
 }

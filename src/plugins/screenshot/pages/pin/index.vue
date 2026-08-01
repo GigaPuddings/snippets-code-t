@@ -577,7 +577,8 @@ import {
 } from '@/plugins/screenshot/utils/aiOcr';
 import {
   type OcrTextBlock,
-  recognizeFromImageData
+  recognizeFromImageData,
+  sortOcrTextBlocksByReadingOrder
 } from '@/plugins/screenshot/utils/ocr';
 
 const { t } = useI18n();
@@ -1099,7 +1100,9 @@ const recognizeTextBlocksFromImage = async (
       currentOcrLanguage.value === 'auto' ? 'auto' : currentOcrLanguage.value
     );
     if (requestId !== ocrRequestId) return;
-    ocrTextBlocks.value = result.blocks.filter((block) => block.text.trim());
+    ocrTextBlocks.value = sortOcrTextBlocksByReadingOrder(
+      result.blocks.filter((block) => block.text.trim())
+    );
     ocrDiagnosticLogger.log('[Pin RapidOCR] text blocks ready', {
       requestId,
       blocks: ocrTextBlocks.value.length,
