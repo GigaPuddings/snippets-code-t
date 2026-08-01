@@ -32,7 +32,6 @@ const props = defineProps<{
   nextSwitchLabel: string;
   folderCountLabel: string;
   cacheSizeLabel: string;
-  schedulerRunning: boolean;
   switching: boolean;
   clearingCache: boolean;
   openingCache: boolean;
@@ -342,13 +341,6 @@ const updateAutoRestore = (event: Event): void =>
       <label class="schedule-toggle">
         <span>
           <strong>{{ t('wallpaperSwitcher.enableSchedule') }}</strong>
-          <small>
-            {{
-              schedulerRunning
-                ? t('wallpaperSwitcher.scheduleRunning')
-                : t('wallpaperSwitcher.schedulePaused')
-            }}
-          </small>
         </span>
         <input
           :checked="config.scheduleEnabled"

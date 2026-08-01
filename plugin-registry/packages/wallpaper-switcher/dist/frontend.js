@@ -4284,7 +4284,6 @@ const Oi = M("back", !0, function(e) {
     nextSwitchLabel: {},
     folderCountLabel: {},
     cacheSizeLabel: {},
-    schedulerRunning: { type: Boolean },
     switching: { type: Boolean },
     clearingCache: { type: Boolean },
     openingCache: { type: Boolean },
@@ -4774,13 +4773,6 @@ const Oi = M("back", !0, function(e) {
                 "strong",
                 null,
                 g(o(a)("wallpaperSwitcher.enableSchedule")),
-                1
-                /* TEXT */
-              ),
-              i(
-                "small",
-                null,
-                g(d.schedulerRunning ? o(a)("wallpaperSwitcher.scheduleRunning") : o(a)("wallpaperSwitcher.schedulePaused")),
                 1
                 /* TEXT */
               )
@@ -5675,7 +5667,6 @@ const Oi = M("back", !0, function(e) {
         "next-switch-label": o(X),
         "folder-count-label": o(Mt),
         "cache-size-label": o(el),
-        "scheduler-running": !!o(a)?.schedulerRunning,
         switching: o(p),
         "clearing-cache": o(v),
         "opening-cache": o(w),
@@ -5690,7 +5681,7 @@ const Oi = M("back", !0, function(e) {
         onClearCache: il,
         onOpenCacheDir: sl,
         onPersistConfig: tl
-      }, null, 8, ["config", "loading", "preview-src", "current-wallpaper-name", "source-label", "resolution-label", "next-switch-label", "folder-count-label", "cache-size-label", "scheduler-running", "switching", "clearing-cache", "opening-cache", "saving", "onOpenWallhavenGrid"])) : (m(), j(Pr, {
+      }, null, 8, ["config", "loading", "preview-src", "current-wallpaper-name", "source-label", "resolution-label", "next-switch-label", "folder-count-label", "cache-size-label", "switching", "clearing-cache", "opening-cache", "saving", "onOpenWallhavenGrid"])) : (m(), j(Pr, {
         key: 2,
         keyword: o(x),
         "onUpdate:keyword": K[0] || (K[0] = (ul) => wn(x) ? x.value = ul : null),

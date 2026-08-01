@@ -727,7 +727,7 @@
   }
 
   .grid-wrap {
-    @apply min-h-0 p-3 overflow-hidden;
+    @apply min-h-0 py-2 px-3 overflow-y-auto;
   }
 
   .wallpaper-grid {
@@ -1059,7 +1059,7 @@
   }
 
   .switcher-home {
-    @apply grid grid-rows-[minmax(0,1fr)_102px_58px] gap-3 min-h-0 p-3.5 overflow-hidden;
+    @apply grid grid-rows-[minmax(0,1fr)_88px_52px] gap-3 min-h-0 p-3.5 overflow-hidden;
 
     height: calc(100vh - 48px);
     background: radial-gradient(
@@ -1210,7 +1210,7 @@
   }
 
   .source-workspace {
-    @apply grid grid-rows-[auto_auto_minmax(0,1fr)] gap-3 min-w-0 min-h-0 p-4 rounded-2xl border overflow-hidden;
+    @apply grid grid-rows-[auto_auto_auto] content-start gap-3 min-w-0 min-h-0 p-4 rounded-2xl border overflow-hidden;
 
     background: var(--wallpaper-panel);
     border-color: var(--wallpaper-border);
@@ -1289,7 +1289,7 @@
   }
 
   .source-detail {
-    @apply flex flex-col min-h-0 p-3 rounded-xl;
+    @apply flex flex-col p-3 rounded-xl;
 
     background: var(--wallpaper-soft);
     border: 1px solid var(--wallpaper-border);
@@ -1321,7 +1321,7 @@
   }
 
   .path-picker {
-    @apply flex items-center gap-2.5 w-full min-w-0 mt-auto p-2.5 text-left rounded-lg border cursor-pointer;
+    @apply flex items-center gap-2.5 w-full min-w-0 mt-0 p-2.5 text-left rounded-lg border cursor-pointer;
 
     color: var(--wallpaper-text);
     background: var(--wallpaper-panel);
@@ -1334,7 +1334,7 @@
   }
 
   .folder-sort-picker {
-    @apply flex items-center justify-between gap-2 w-full min-w-0 mt-auto mb-2 text-[9px] font-semibold;
+    @apply flex items-center justify-between gap-2 w-full min-w-0 mt-0 mb-2 text-[9px] font-semibold;
 
     color: var(--wallpaper-muted);
 
@@ -1403,7 +1403,7 @@
   }
 
   .browse-online-btn {
-    @apply flex items-center gap-2.5 w-full min-w-0 mt-auto py-2 px-2.5 text-left rounded-lg border cursor-pointer;
+    @apply flex items-center gap-2.5 w-full min-w-0 mt-0 py-2 px-2.5 text-left rounded-lg border cursor-pointer;
 
     color: var(--wallpaper-primary);
     background: var(--wallpaper-active);
@@ -1437,7 +1437,7 @@
   }
 
   .automation-card {
-    @apply grid grid-cols-[minmax(190px,1.25fr)_minmax(145px,0.95fr)_90px_140px_minmax(142px,1fr)] items-center gap-3 min-w-0 min-h-0 py-3 px-4 rounded-2xl border;
+    @apply grid grid-cols-[minmax(190px,1.25fr)_minmax(145px,0.95fr)_90px_140px_minmax(142px,1fr)] items-center gap-3 min-w-0 min-h-0 py-2.5 px-4 rounded-2xl border;
 
     background: var(--wallpaper-panel);
     border-color: var(--wallpaper-border);
@@ -1469,16 +1469,10 @@
     @apply flex items-center justify-between gap-2 min-w-0 cursor-pointer;
 
     > span:first-child {
-      @apply flex flex-col min-w-0;
+      @apply min-w-0;
 
       strong {
         @apply text-[10px] font-bold;
-      }
-
-      small {
-        @apply mt-1 text-[9px] font-medium;
-
-        color: var(--wallpaper-muted);
       }
     }
 

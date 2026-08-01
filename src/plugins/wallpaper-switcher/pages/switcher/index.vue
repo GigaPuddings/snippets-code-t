@@ -332,7 +332,6 @@ onUnmounted(() => {
       :next-switch-label="nextSwitchLabel"
       :folder-count-label="folderCountLabel"
       :cache-size-label="cacheSizeLabel"
-      :scheduler-running="Boolean(status?.schedulerRunning)"
       :switching="switching"
       :clearing-cache="clearingCache"
       :opening-cache="openingCache"
