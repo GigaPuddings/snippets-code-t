@@ -1,40 +1,40 @@
-import { getCurrentInstance as de, inject as te, ref as L, computed as C, unref as o, readonly as dl, getCurrentScope as hl, onScopeDispose as pl, onMounted as $e, nextTick as pn, watch as Ye, isRef as wn, warn as wl, provide as gl, defineComponent as N, createElementBlock as _, openBlock as m, mergeProps as fl, renderSlot as he, createElementVNode as i, normalizeClass as z, createVNode as u, Transition as zt, withCtx as ne, withDirectives as Re, normalizeStyle as De, createTextVNode as H, toDisplayString as g, vShow as He, shallowReactive as vl, createBlock as j, createCommentVNode as R, resolveDynamicComponent as gn, Fragment as Z, withModifiers as Oe, isVNode as Le, render as Ve, onUnmounted as fn, renderList as We, withKeys as vn } from "vue";
+import { getCurrentInstance as he, inject as ne, ref as W, computed as C, unref as o, readonly as hl, getCurrentScope as pl, onScopeDispose as wl, onMounted as je, nextTick as gn, watch as Ye, isRef as fn, warn as gl, provide as fl, defineComponent as x, createElementBlock as _, openBlock as y, mergeProps as vl, renderSlot as pe, createElementVNode as s, normalizeClass as O, createVNode as u, Transition as Ot, withCtx as le, withDirectives as De, normalizeStyle as He, createTextVNode as H, toDisplayString as g, vShow as Ve, shallowReactive as ml, createBlock as j, createCommentVNode as M, resolveDynamicComponent as vn, Fragment as q, withModifiers as xe, isVNode as ze, render as Be, onUnmounted as mn, renderList as Oe, withKeys as yn } from "vue";
 import { useI18n as ie } from "vue-i18n";
-const Hr = (e) => {
+const Qr = (e) => {
   e.registerRoute({
     target: "window",
     path: "/wallpaper-switcher",
     name: "WallpaperSwitcher",
-    component: () => Promise.resolve().then(() => Ar)
+    component: () => Promise.resolve().then(() => Zr)
   }), e.registerWindowShortcut({
     label: "wallpaper_switcher"
   });
 };
-function ml(e, t, n, l) {
+function yl(e, t, n, l) {
   if (typeof t == "function" ? e !== t || !0 : !t.has(e)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
   return n === "m" ? l : n === "a" ? l.call(e) : l ? l.value : t.get(e);
 }
-function yl(e, t, n, l, a) {
+function bl(e, t, n, l, a) {
   if (typeof t == "function" ? e !== t || !0 : !t.has(e)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
   return t.set(e, n), n;
 }
-var Fe;
+var Ee;
 const G = "__TAURI_TO_IPC_KEY__";
-function bl(e, t = !1) {
+function kl(e, t = !1) {
   return window.__TAURI_INTERNALS__.transformCallback(e, t);
 }
 async function h(e, t = {}, n) {
   return window.__TAURI_INTERNALS__.invoke(e, t, n);
 }
-function kl(e, t = "asset") {
+function _l(e, t = "asset") {
   return window.__TAURI_INTERNALS__.convertFileSrc(e, t);
 }
-class _l {
+class Cl {
   get rid() {
-    return ml(this, Fe, "f");
+    return yl(this, Ee, "f");
   }
   constructor(t) {
-    Fe.set(this, void 0), yl(this, Fe, t);
+    Ee.set(this, void 0), bl(this, Ee, t);
   }
   /**
    * Destroys and cleans up this resource from memory.
@@ -46,8 +46,8 @@ class _l {
     });
   }
 }
-Fe = /* @__PURE__ */ new WeakMap();
-class mn {
+Ee = /* @__PURE__ */ new WeakMap();
+class bn {
   constructor(...t) {
     this.type = "Logical", t.length === 1 ? "Logical" in t[0] ? (this.width = t[0].Logical.width, this.height = t[0].Logical.height) : (this.width = t[0].width, this.height = t[0].height) : (this.width = t[0], this.height = t[1]);
   }
@@ -67,7 +67,7 @@ class mn {
    * @since 2.0.0
    */
   toPhysical(t) {
-    return new Ce(this.width * t, this.height * t);
+    return new We(this.width * t, this.height * t);
   }
   [G]() {
     return {
@@ -79,7 +79,7 @@ class mn {
     return this[G]();
   }
 }
-class Ce {
+class We {
   constructor(...t) {
     this.type = "Physical", t.length === 1 ? "Physical" in t[0] ? (this.width = t[0].Physical.width, this.height = t[0].Physical.height) : (this.width = t[0].width, this.height = t[0].height) : (this.width = t[0], this.height = t[1]);
   }
@@ -95,7 +95,7 @@ class Ce {
    * ```
    */
   toLogical(t) {
-    return new mn(this.width / t, this.height / t);
+    return new bn(this.width / t, this.height / t);
   }
   [G]() {
     return {
@@ -107,15 +107,15 @@ class Ce {
     return this[G]();
   }
 }
-class ue {
+class de {
   constructor(t) {
     this.size = t;
   }
   toLogical(t) {
-    return this.size instanceof mn ? this.size : this.size.toLogical(t);
+    return this.size instanceof bn ? this.size : this.size.toLogical(t);
   }
   toPhysical(t) {
-    return this.size instanceof Ce ? this.size : this.size.toPhysical(t);
+    return this.size instanceof We ? this.size : this.size.toPhysical(t);
   }
   [G]() {
     return {
@@ -129,7 +129,7 @@ class ue {
     return this[G]();
   }
 }
-class yn {
+class kn {
   constructor(...t) {
     this.type = "Logical", t.length === 1 ? "Logical" in t[0] ? (this.x = t[0].Logical.x, this.y = t[0].Logical.y) : (this.x = t[0].x, this.y = t[0].y) : (this.x = t[0], this.y = t[1]);
   }
@@ -149,7 +149,7 @@ class yn {
    * @since 2.0.0
    */
   toPhysical(t) {
-    return new Y(this.x * t, this.y * t);
+    return new X(this.x * t, this.y * t);
   }
   [G]() {
     return {
@@ -161,7 +161,7 @@ class yn {
     return this[G]();
   }
 }
-class Y {
+class X {
   constructor(...t) {
     this.type = "Physical", t.length === 1 ? "Physical" in t[0] ? (this.x = t[0].Physical.x, this.y = t[0].Physical.y) : (this.x = t[0].x, this.y = t[0].y) : (this.x = t[0], this.y = t[1]);
   }
@@ -181,7 +181,7 @@ class Y {
    * @since 2.0.0
    */
   toLogical(t) {
-    return new yn(this.x / t, this.y / t);
+    return new kn(this.x / t, this.y / t);
   }
   [G]() {
     return {
@@ -193,15 +193,15 @@ class Y {
     return this[G]();
   }
 }
-class Me {
+class Fe {
   constructor(t) {
     this.position = t;
   }
   toLogical(t) {
-    return this.position instanceof yn ? this.position : this.position.toLogical(t);
+    return this.position instanceof kn ? this.position : this.position.toLogical(t);
   }
   toPhysical(t) {
-    return this.position instanceof Y ? this.position : this.position.toPhysical(t);
+    return this.position instanceof X ? this.position : this.position.toPhysical(t);
   }
   [G]() {
     return {
@@ -219,40 +219,40 @@ var D;
 (function(e) {
   e.WINDOW_RESIZED = "tauri://resize", e.WINDOW_MOVED = "tauri://move", e.WINDOW_CLOSE_REQUESTED = "tauri://close-requested", e.WINDOW_DESTROYED = "tauri://destroyed", e.WINDOW_FOCUS = "tauri://focus", e.WINDOW_BLUR = "tauri://blur", e.WINDOW_SCALE_FACTOR_CHANGED = "tauri://scale-change", e.WINDOW_THEME_CHANGED = "tauri://theme-changed", e.WINDOW_CREATED = "tauri://window-created", e.WEBVIEW_CREATED = "tauri://webview-created", e.DRAG_ENTER = "tauri://drag-enter", e.DRAG_OVER = "tauri://drag-over", e.DRAG_DROP = "tauri://drag-drop", e.DRAG_LEAVE = "tauri://drag-leave";
 })(D || (D = {}));
-async function bn(e, t) {
+async function _n(e, t) {
   await h("plugin:event|unlisten", {
     event: e,
     eventId: t
   });
 }
-async function Be(e, t, n) {
+async function Pe(e, t, n) {
   var l;
   const a = typeof n?.target == "string" ? { kind: "AnyLabel", label: n.target } : (l = n?.target) !== null && l !== void 0 ? l : { kind: "Any" };
   return h("plugin:event|listen", {
     event: e,
     target: a,
-    handler: bl(t)
-  }).then((r) => async () => bn(e, r));
+    handler: kl(t)
+  }).then((i) => async () => _n(e, i));
 }
-async function Cl(e, t, n) {
-  return Be(e, (l) => {
-    bn(e, l.id), t(l);
+async function Sl(e, t, n) {
+  return Pe(e, (l) => {
+    _n(e, l.id), t(l);
   }, n);
 }
-async function Sl(e, t) {
+async function Ll(e, t) {
   await h("plugin:event|emit", {
     event: e,
     payload: t
   });
 }
-async function Ll(e, t, n) {
+async function Wl(e, t, n) {
   await h("plugin:event|emit_to", {
     target: typeof e == "string" ? { kind: "AnyLabel", label: e } : e,
     event: t,
     payload: n
   });
 }
-class Se extends _l {
+class $e extends Cl {
   /**
    * Creates an Image from a resource ID. For internal use only.
    *
@@ -267,7 +267,7 @@ class Se extends _l {
       rgba: Ke(t),
       width: n,
       height: l
-    }).then((a) => new Se(a));
+    }).then((a) => new $e(a));
   }
   /**
    * Creates a new image using the provided bytes by inferring the file format.
@@ -285,7 +285,7 @@ class Se extends _l {
   static async fromBytes(t) {
     return h("plugin:image|from_bytes", {
       bytes: Ke(t)
-    }).then((n) => new Se(n));
+    }).then((n) => new $e(n));
   }
   /**
    * Creates a new image using the provided path.
@@ -300,7 +300,7 @@ class Se extends _l {
    * ```
    */
   static async fromPath(t) {
-    return h("plugin:image|from_path", { path: t }).then((n) => new Se(n));
+    return h("plugin:image|from_path", { path: t }).then((n) => new $e(n));
   }
   /** Returns the RGBA data for this image, in row-major order from top to bottom.  */
   async rgba() {
@@ -314,13 +314,13 @@ class Se extends _l {
   }
 }
 function Ke(e) {
-  return e == null ? null : typeof e == "string" ? e : e instanceof Se ? e.rid : e;
+  return e == null ? null : typeof e == "string" ? e : e instanceof $e ? e.rid : e;
 }
-var kt;
+var Ct;
 (function(e) {
   e[e.Critical = 1] = "Critical", e[e.Informational = 2] = "Informational";
-})(kt || (kt = {}));
-class Wl {
+})(Ct || (Ct = {}));
+class Pl {
   constructor(t) {
     this._preventDefault = !1, this.event = t.event, this.id = t.id;
   }
@@ -331,24 +331,24 @@ class Wl {
     return this._preventDefault;
   }
 }
-var Et;
+var Rt;
 (function(e) {
   e.None = "none", e.Normal = "normal", e.Indeterminate = "indeterminate", e.Paused = "paused", e.Error = "error";
-})(Et || (Et = {}));
-function kn() {
-  return new _n(window.__TAURI_INTERNALS__.metadata.currentWindow.label, {
+})(Rt || (Rt = {}));
+function Cn() {
+  return new Sn(window.__TAURI_INTERNALS__.metadata.currentWindow.label, {
     // @ts-expect-error `skip` is not defined in the public API but it is handled by the constructor
     skip: !0
   });
 }
-async function vt() {
-  return h("plugin:window|get_all_windows").then((e) => e.map((t) => new _n(t, {
+async function yt() {
+  return h("plugin:window|get_all_windows").then((e) => e.map((t) => new Sn(t, {
     // @ts-expect-error `skip` is not defined in the public API but it is handled by the constructor
     skip: !0
   })));
 }
-const mt = ["tauri://created", "tauri://error"];
-class _n {
+const bt = ["tauri://created", "tauri://error"];
+class Sn {
   /**
    * Creates a new Window.
    * @example
@@ -389,19 +389,19 @@ class _n {
    */
   static async getByLabel(t) {
     var n;
-    return (n = (await vt()).find((l) => l.label === t)) !== null && n !== void 0 ? n : null;
+    return (n = (await yt()).find((l) => l.label === t)) !== null && n !== void 0 ? n : null;
   }
   /**
    * Get an instance of `Window` for the current window.
    */
   static getCurrent() {
-    return kn();
+    return Cn();
   }
   /**
    * Gets a list of instances of `Window` for all available windows.
    */
   static async getAll() {
-    return vt();
+    return yt();
   }
   /**
    *  Gets the focused window.
@@ -414,7 +414,7 @@ class _n {
    * @returns The Window instance or `undefined` if there is not any focused window.
    */
   static async getFocusedWindow() {
-    for (const t of await vt())
+    for (const t of await yt())
       if (await t.isFocused())
         return t;
     return null;
@@ -442,7 +442,7 @@ class _n {
     return this._handleTauriEvent(t, n) ? () => {
       const l = this.listeners[t];
       l.splice(l.indexOf(n), 1);
-    } : Be(t, n, {
+    } : Pe(t, n, {
       target: { kind: "Window", label: this.label }
     });
   }
@@ -469,7 +469,7 @@ class _n {
     return this._handleTauriEvent(t, n) ? () => {
       const l = this.listeners[t];
       l.splice(l.indexOf(n), 1);
-    } : Cl(t, n, {
+    } : Sl(t, n, {
       target: { kind: "Window", label: this.label }
     });
   }
@@ -485,7 +485,7 @@ class _n {
    * @param payload Event payload.
    */
   async emit(t, n) {
-    if (mt.includes(t)) {
+    if (bt.includes(t)) {
       for (const l of this.listeners[t] || [])
         l({
           event: t,
@@ -494,7 +494,7 @@ class _n {
         });
       return;
     }
-    return Sl(t, n);
+    return Ll(t, n);
   }
   /**
    * Emits an event to all {@link EventTarget|targets} matching the given target.
@@ -509,7 +509,7 @@ class _n {
    * @param payload Event payload.
    */
   async emitTo(t, n, l) {
-    if (mt.includes(n)) {
+    if (bt.includes(n)) {
       for (const a of this.listeners[n] || [])
         a({
           event: n,
@@ -518,11 +518,11 @@ class _n {
         });
       return;
     }
-    return Ll(t, n, l);
+    return Wl(t, n, l);
   }
   /** @ignore */
   _handleTauriEvent(t, n) {
-    return mt.includes(t) ? (t in this.listeners ? this.listeners[t].push(n) : this.listeners[t] = [n], !0) : !1;
+    return bt.includes(t) ? (t in this.listeners ? this.listeners[t].push(n) : this.listeners[t] = [n], !0) : !1;
   }
   // Getters
   /**
@@ -553,7 +553,7 @@ class _n {
   async innerPosition() {
     return h("plugin:window|inner_position", {
       label: this.label
-    }).then((t) => new Y(t));
+    }).then((t) => new X(t));
   }
   /**
    * The position of the top-left hand corner of the window relative to the top-left hand corner of the desktop.
@@ -568,7 +568,7 @@ class _n {
   async outerPosition() {
     return h("plugin:window|outer_position", {
       label: this.label
-    }).then((t) => new Y(t));
+    }).then((t) => new X(t));
   }
   /**
    * The physical size of the window's client area.
@@ -584,7 +584,7 @@ class _n {
   async innerSize() {
     return h("plugin:window|inner_size", {
       label: this.label
-    }).then((t) => new Ce(t));
+    }).then((t) => new We(t));
   }
   /**
    * The physical size of the entire window.
@@ -600,7 +600,7 @@ class _n {
   async outerSize() {
     return h("plugin:window|outer_size", {
       label: this.label
-    }).then((t) => new Ce(t));
+    }).then((t) => new We(t));
   }
   /**
    * Gets the window's current fullscreen state.
@@ -851,7 +851,7 @@ class _n {
    */
   async requestUserAttention(t) {
     let n = null;
-    return t && (t === kt.Critical ? n = { type: "Critical" } : n = { type: "Informational" }), h("plugin:window|request_user_attention", {
+    return t && (t === Ct.Critical ? n = { type: "Critical" } : n = { type: "Informational" }), h("plugin:window|request_user_attention", {
       label: this.label,
       value: n
     });
@@ -1251,7 +1251,7 @@ class _n {
   async setSize(t) {
     return h("plugin:window|set_size", {
       label: this.label,
-      value: t instanceof ue ? t : new ue(t)
+      value: t instanceof de ? t : new de(t)
     });
   }
   /**
@@ -1268,7 +1268,7 @@ class _n {
   async setMinSize(t) {
     return h("plugin:window|set_min_size", {
       label: this.label,
-      value: t instanceof ue ? t : t ? new ue(t) : null
+      value: t instanceof de ? t : t ? new de(t) : null
     });
   }
   /**
@@ -1285,7 +1285,7 @@ class _n {
   async setMaxSize(t) {
     return h("plugin:window|set_max_size", {
       label: this.label,
-      value: t instanceof ue ? t : t ? new ue(t) : null
+      value: t instanceof de ? t : t ? new de(t) : null
     });
   }
   /**
@@ -1327,7 +1327,7 @@ class _n {
   async setPosition(t) {
     return h("plugin:window|set_position", {
       label: this.label,
-      value: t instanceof Me ? t : new Me(t)
+      value: t instanceof Fe ? t : new Fe(t)
     });
   }
   /**
@@ -1501,7 +1501,7 @@ class _n {
   async setCursorPosition(t) {
     return h("plugin:window|set_cursor_position", {
       label: this.label,
-      value: t instanceof Me ? t : new Me(t)
+      value: t instanceof Fe ? t : new Fe(t)
     });
   }
   /**
@@ -1708,7 +1708,7 @@ class _n {
    */
   async onResized(t) {
     return this.listen(D.WINDOW_RESIZED, (n) => {
-      n.payload = new Ce(n.payload), t(n);
+      n.payload = new We(n.payload), t(n);
     });
   }
   /**
@@ -1730,7 +1730,7 @@ class _n {
    */
   async onMoved(t) {
     return this.listen(D.WINDOW_MOVED, (n) => {
-      n.payload = new Y(n.payload), t(n);
+      n.payload = new X(n.payload), t(n);
     });
   }
   /**
@@ -1757,7 +1757,7 @@ class _n {
    */
   async onCloseRequested(t) {
     return this.listen(D.WINDOW_CLOSE_REQUESTED, async (n) => {
-      const l = new Wl(n);
+      const l = new Pl(n);
       await t(l), l.isPreventDefault() || await this.destroy();
     });
   }
@@ -1787,37 +1787,37 @@ class _n {
    * Note that removing the listener is required if your listener goes out of scope e.g. the component is unmounted.
    */
   async onDragDropEvent(t) {
-    const n = await this.listen(D.DRAG_ENTER, (s) => {
+    const n = await this.listen(D.DRAG_ENTER, (r) => {
       t({
-        ...s,
+        ...r,
         payload: {
           type: "enter",
-          paths: s.payload.paths,
-          position: new Y(s.payload.position)
+          paths: r.payload.paths,
+          position: new X(r.payload.position)
         }
       });
-    }), l = await this.listen(D.DRAG_OVER, (s) => {
+    }), l = await this.listen(D.DRAG_OVER, (r) => {
       t({
-        ...s,
+        ...r,
         payload: {
           type: "over",
-          position: new Y(s.payload.position)
+          position: new X(r.payload.position)
         }
       });
-    }), a = await this.listen(D.DRAG_DROP, (s) => {
+    }), a = await this.listen(D.DRAG_DROP, (r) => {
       t({
-        ...s,
+        ...r,
         payload: {
           type: "drop",
-          paths: s.payload.paths,
-          position: new Y(s.payload.position)
+          paths: r.payload.paths,
+          position: new X(r.payload.position)
         }
       });
-    }), r = await this.listen(D.DRAG_LEAVE, (s) => {
-      t({ ...s, payload: { type: "leave" } });
+    }), i = await this.listen(D.DRAG_LEAVE, (r) => {
+      t({ ...r, payload: { type: "leave" } });
     });
     return () => {
-      n(), a(), l(), r();
+      n(), a(), l(), i();
     };
   }
   /**
@@ -1892,54 +1892,54 @@ class _n {
     return this.listen(D.WINDOW_THEME_CHANGED, t);
   }
 }
-var At;
-(function(e) {
-  e.Disabled = "disabled", e.Throttle = "throttle", e.Suspend = "suspend";
-})(At || (At = {}));
-var Rt;
-(function(e) {
-  e.AppearanceBased = "appearanceBased", e.Light = "light", e.Dark = "dark", e.MediumLight = "mediumLight", e.UltraDark = "ultraDark", e.Titlebar = "titlebar", e.Selection = "selection", e.Menu = "menu", e.Popover = "popover", e.Sidebar = "sidebar", e.HeaderView = "headerView", e.Sheet = "sheet", e.WindowBackground = "windowBackground", e.HudWindow = "hudWindow", e.FullScreenUI = "fullScreenUI", e.Tooltip = "tooltip", e.ContentBackground = "contentBackground", e.UnderWindowBackground = "underWindowBackground", e.UnderPageBackground = "underPageBackground", e.Mica = "mica", e.Blur = "blur", e.Acrylic = "acrylic", e.Tabbed = "tabbed", e.TabbedDark = "tabbedDark", e.TabbedLight = "tabbedLight";
-})(Rt || (Rt = {}));
 var Dt;
 (function(e) {
-  e.FollowsWindowActiveState = "followsWindowActiveState", e.Active = "active", e.Inactive = "inactive";
+  e.Disabled = "disabled", e.Throttle = "throttle", e.Suspend = "suspend";
 })(Dt || (Dt = {}));
-async function Ht(e = {}) {
+var Ht;
+(function(e) {
+  e.AppearanceBased = "appearanceBased", e.Light = "light", e.Dark = "dark", e.MediumLight = "mediumLight", e.UltraDark = "ultraDark", e.Titlebar = "titlebar", e.Selection = "selection", e.Menu = "menu", e.Popover = "popover", e.Sidebar = "sidebar", e.HeaderView = "headerView", e.Sheet = "sheet", e.WindowBackground = "windowBackground", e.HudWindow = "hudWindow", e.FullScreenUI = "fullScreenUI", e.Tooltip = "tooltip", e.ContentBackground = "contentBackground", e.UnderWindowBackground = "underWindowBackground", e.UnderPageBackground = "underPageBackground", e.Mica = "mica", e.Blur = "blur", e.Acrylic = "acrylic", e.Tabbed = "tabbed", e.TabbedDark = "tabbedDark", e.TabbedLight = "tabbedLight";
+})(Ht || (Ht = {}));
+var Vt;
+(function(e) {
+  e.FollowsWindowActiveState = "followsWindowActiveState", e.Active = "active", e.Inactive = "inactive";
+})(Vt || (Vt = {}));
+async function Bt(e = {}) {
   return typeof e == "object" && Object.freeze(e), await h("plugin:dialog|open", { options: e });
 }
-const Cn = Symbol(), Ee = "el", Pl = "is-", ee = (e, t, n, l, a) => {
-  let r = `${e}-${t}`;
-  return n && (r += `-${n}`), l && (r += `__${l}`), a && (r += `--${a}`), r;
-}, Sn = Symbol("namespaceContextKey"), zl = (e) => {
-  const t = e || (de() ? te(Sn, L(Ee)) : L(Ee));
-  return C(() => o(t) || Ee);
-}, $t = (e, t) => {
+const Ln = Symbol(), Ae = "el", $l = "is-", te = (e, t, n, l, a) => {
+  let i = `${e}-${t}`;
+  return n && (i += `-${n}`), l && (i += `__${l}`), a && (i += `--${a}`), i;
+}, Wn = Symbol("namespaceContextKey"), zl = (e) => {
+  const t = e || (he() ? ne(Wn, W(Ae)) : W(Ae));
+  return C(() => o(t) || Ae);
+}, Tt = (e, t) => {
   const n = zl(t);
   return {
     namespace: n,
-    b: (d = "") => ee(n.value, e, d, "", ""),
-    e: (d) => d ? ee(n.value, e, "", d, "") : "",
-    m: (d) => d ? ee(n.value, e, "", "", d) : "",
-    be: (d, f) => d && f ? ee(n.value, e, d, f, "") : "",
-    em: (d, f) => d && f ? ee(n.value, e, "", d, f) : "",
-    bm: (d, f) => d && f ? ee(n.value, e, d, "", f) : "",
-    bem: (d, f, b) => d && f && b ? ee(n.value, e, d, f, b) : "",
-    is: (d, ...f) => {
-      const b = f.length >= 1 ? f[0] : !0;
-      return d && b ? `${Pl}${d}` : "";
+    b: (d = "") => te(n.value, e, d, "", ""),
+    e: (d) => d ? te(n.value, e, "", d, "") : "",
+    m: (d) => d ? te(n.value, e, "", "", d) : "",
+    be: (d, m) => d && m ? te(n.value, e, d, m, "") : "",
+    em: (d, m) => d && m ? te(n.value, e, "", d, m) : "",
+    bm: (d, m) => d && m ? te(n.value, e, d, "", m) : "",
+    bem: (d, m, b) => d && m && b ? te(n.value, e, d, m, b) : "",
+    is: (d, ...m) => {
+      const b = m.length >= 1 ? m[0] : !0;
+      return d && b ? `${$l}${d}` : "";
     },
     cssVar: (d) => {
-      const f = {};
+      const m = {};
       for (const b in d)
-        d[b] && (f[`--${n.value}-${b}`] = d[b]);
-      return f;
+        d[b] && (m[`--${n.value}-${b}`] = d[b]);
+      return m;
     },
     cssVarName: (d) => `--${n.value}-${d}`,
     cssVarBlock: (d) => {
-      const f = {};
+      const m = {};
       for (const b in d)
-        d[b] && (f[`--${n.value}-${e}-${b}`] = d[b]);
-      return f;
+        d[b] && (m[`--${n.value}-${e}-${b}`] = d[b]);
+      return m;
     },
     cssVarBlockName: (d) => `--${n.value}-${e}-${d}`
   };
@@ -1949,72 +1949,72 @@ const Cn = Symbol(), Ee = "el", Pl = "is-", ee = (e, t, n, l, a) => {
 * (c) 2018-present Yuxi (Evan) You and Vue contributors
 * @license MIT
 **/
-const $l = Object.prototype.hasOwnProperty, Vt = (e, t) => $l.call(e, t), Pe = (e) => typeof e == "function", le = (e) => typeof e == "string", Ln = (e) => e !== null && typeof e == "object";
-var Ol = typeof global == "object" && global && global.Object === Object && global, Tl = typeof self == "object" && self && self.Object === Object && self, Ot = Ol || Tl || Function("return this")(), pe = Ot.Symbol, Wn = Object.prototype, Il = Wn.hasOwnProperty, jl = Wn.toString, ke = pe ? pe.toStringTag : void 0;
+const Ol = Object.prototype.hasOwnProperty, Kt = (e, t) => Ol.call(e, t), Te = (e) => typeof e == "function", ae = (e) => typeof e == "string", Pn = (e) => e !== null && typeof e == "object";
+var Tl = typeof global == "object" && global && global.Object === Object && global, Il = typeof self == "object" && self && self.Object === Object && self, It = Tl || Il || Function("return this")(), we = It.Symbol, $n = Object.prototype, jl = $n.hasOwnProperty, xl = $n.toString, Se = we ? we.toStringTag : void 0;
 function Nl(e) {
-  var t = Il.call(e, ke), n = e[ke];
+  var t = jl.call(e, Se), n = e[Se];
   try {
-    e[ke] = void 0;
+    e[Se] = void 0;
     var l = !0;
   } catch {
   }
-  var a = jl.call(e);
-  return l && (t ? e[ke] = n : delete e[ke]), a;
+  var a = xl.call(e);
+  return l && (t ? e[Se] = n : delete e[Se]), a;
 }
-var xl = Object.prototype, Ml = xl.toString;
-function Fl(e) {
-  return Ml.call(e);
+var Ml = Object.prototype, Fl = Ml.toString;
+function El(e) {
+  return Fl.call(e);
 }
-var El = "[object Null]", Al = "[object Undefined]", Bt = pe ? pe.toStringTag : void 0;
-function Pn(e) {
-  return e == null ? e === void 0 ? Al : El : Bt && Bt in Object(e) ? Nl(e) : Fl(e);
+var Al = "[object Null]", Rl = "[object Undefined]", Gt = we ? we.toStringTag : void 0;
+function zn(e) {
+  return e == null ? e === void 0 ? Rl : Al : Gt && Gt in Object(e) ? Nl(e) : El(e);
 }
-function Rl(e) {
+function Dl(e) {
   return e != null && typeof e == "object";
 }
-var Dl = "[object Symbol]";
-function Tt(e) {
-  return typeof e == "symbol" || Rl(e) && Pn(e) == Dl;
+var Hl = "[object Symbol]";
+function jt(e) {
+  return typeof e == "symbol" || Dl(e) && zn(e) == Hl;
 }
-function Hl(e, t) {
+function Vl(e, t) {
   for (var n = -1, l = e == null ? 0 : e.length, a = Array(l); ++n < l; )
     a[n] = t(e[n], n, e);
   return a;
 }
-var It = Array.isArray, Kt = pe ? pe.prototype : void 0, Gt = Kt ? Kt.toString : void 0;
-function zn(e) {
+var xt = Array.isArray, Ut = we ? we.prototype : void 0, Zt = Ut ? Ut.toString : void 0;
+function On(e) {
   if (typeof e == "string")
     return e;
-  if (It(e))
-    return Hl(e, zn) + "";
-  if (Tt(e))
-    return Gt ? Gt.call(e) : "";
+  if (xt(e))
+    return Vl(e, On) + "";
+  if (jt(e))
+    return Zt ? Zt.call(e) : "";
   var t = e + "";
   return t == "0" && 1 / e == -1 / 0 ? "-0" : t;
 }
-function $n(e) {
+function Tn(e) {
   var t = typeof e;
   return e != null && (t == "object" || t == "function");
 }
-var Vl = "[object AsyncFunction]", Bl = "[object Function]", Kl = "[object GeneratorFunction]", Gl = "[object Proxy]";
-function Ul(e) {
-  if (!$n(e))
+var Bl = "[object AsyncFunction]", Kl = "[object Function]", Gl = "[object GeneratorFunction]", Ul = "[object Proxy]";
+function Zl(e) {
+  if (!Tn(e))
     return !1;
-  var t = Pn(e);
-  return t == Bl || t == Kl || t == Vl || t == Gl;
+  var t = zn(e);
+  return t == Kl || t == Gl || t == Bl || t == Ul;
 }
-var yt = Ot["__core-js_shared__"], Ut = function() {
-  var e = /[^.]+$/.exec(yt && yt.keys && yt.keys.IE_PROTO || "");
+var kt = It["__core-js_shared__"], qt = function() {
+  var e = /[^.]+$/.exec(kt && kt.keys && kt.keys.IE_PROTO || "");
   return e ? "Symbol(src)_1." + e : "";
 }();
-function Zl(e) {
-  return !!Ut && Ut in e;
+function ql(e) {
+  return !!qt && qt in e;
 }
-var ql = Function.prototype, Jl = ql.toString;
-function Ql(e) {
+var Jl = Function.prototype, Ql = Jl.toString;
+function Yl(e) {
   if (e != null) {
     try {
-      return Jl.call(e);
+      return Ql.call(e);
     } catch {
     }
     try {
@@ -2024,311 +2024,311 @@ function Ql(e) {
   }
   return "";
 }
-var Yl = /[\\^$.*+?()[\]{}|]/g, Xl = /^\[object .+?Constructor\]$/, ea = Function.prototype, ta = Object.prototype, na = ea.toString, la = ta.hasOwnProperty, aa = RegExp(
-  "^" + na.call(la).replace(Yl, "\\$&").replace(/hasOwnProperty|(function).*?(?=\\\()| for .+?(?=\\\])/g, "$1.*?") + "$"
+var Xl = /[\\^$.*+?()[\]{}|]/g, ea = /^\[object .+?Constructor\]$/, ta = Function.prototype, na = Object.prototype, la = ta.toString, aa = na.hasOwnProperty, oa = RegExp(
+  "^" + la.call(aa).replace(Xl, "\\$&").replace(/hasOwnProperty|(function).*?(?=\\\()| for .+?(?=\\\])/g, "$1.*?") + "$"
 );
-function oa(e) {
-  if (!$n(e) || Zl(e))
+function sa(e) {
+  if (!Tn(e) || ql(e))
     return !1;
-  var t = Ul(e) ? aa : Xl;
-  return t.test(Ql(e));
+  var t = Zl(e) ? oa : ea;
+  return t.test(Yl(e));
 }
 function ia(e, t) {
   return e?.[t];
 }
-function On(e, t) {
+function In(e, t) {
   var n = ia(e, t);
-  return oa(n) ? n : void 0;
+  return sa(n) ? n : void 0;
 }
-function sa(e, t) {
+function ra(e, t) {
   return e === t || e !== e && t !== t;
 }
-var ra = /\.|\[(?:[^[\]]*|(["'])(?:(?!\1)[^\\]|\\.)*?\1)\]/, ca = /^\w*$/;
-function ua(e, t) {
-  if (It(e))
+var ca = /\.|\[(?:[^[\]]*|(["'])(?:(?!\1)[^\\]|\\.)*?\1)\]/, ua = /^\w*$/;
+function da(e, t) {
+  if (xt(e))
     return !1;
   var n = typeof e;
-  return n == "number" || n == "symbol" || n == "boolean" || e == null || Tt(e) ? !0 : ca.test(e) || !ra.test(e) || t != null && e in Object(t);
+  return n == "number" || n == "symbol" || n == "boolean" || e == null || jt(e) ? !0 : ua.test(e) || !ca.test(e) || t != null && e in Object(t);
 }
-var ze = On(Object, "create");
-function da() {
-  this.__data__ = ze ? ze(null) : {}, this.size = 0;
+var Ie = In(Object, "create");
+function ha() {
+  this.__data__ = Ie ? Ie(null) : {}, this.size = 0;
 }
-function ha(e) {
+function pa(e) {
   var t = this.has(e) && delete this.__data__[e];
   return this.size -= t ? 1 : 0, t;
 }
-var pa = "__lodash_hash_undefined__", wa = Object.prototype, ga = wa.hasOwnProperty;
-function fa(e) {
+var wa = "__lodash_hash_undefined__", ga = Object.prototype, fa = ga.hasOwnProperty;
+function va(e) {
   var t = this.__data__;
-  if (ze) {
+  if (Ie) {
     var n = t[e];
-    return n === pa ? void 0 : n;
+    return n === wa ? void 0 : n;
   }
-  return ga.call(t, e) ? t[e] : void 0;
+  return fa.call(t, e) ? t[e] : void 0;
 }
-var va = Object.prototype, ma = va.hasOwnProperty;
-function ya(e) {
+var ma = Object.prototype, ya = ma.hasOwnProperty;
+function ba(e) {
   var t = this.__data__;
-  return ze ? t[e] !== void 0 : ma.call(t, e);
+  return Ie ? t[e] !== void 0 : ya.call(t, e);
 }
-var ba = "__lodash_hash_undefined__";
-function ka(e, t) {
+var ka = "__lodash_hash_undefined__";
+function _a(e, t) {
   var n = this.__data__;
-  return this.size += this.has(e) ? 0 : 1, n[e] = ze && t === void 0 ? ba : t, this;
+  return this.size += this.has(e) ? 0 : 1, n[e] = Ie && t === void 0 ? ka : t, this;
 }
-function ae(e) {
+function oe(e) {
   var t = -1, n = e == null ? 0 : e.length;
   for (this.clear(); ++t < n; ) {
     var l = e[t];
     this.set(l[0], l[1]);
   }
 }
-ae.prototype.clear = da;
-ae.prototype.delete = ha;
-ae.prototype.get = fa;
-ae.prototype.has = ya;
-ae.prototype.set = ka;
-function _a() {
+oe.prototype.clear = ha;
+oe.prototype.delete = pa;
+oe.prototype.get = va;
+oe.prototype.has = ba;
+oe.prototype.set = _a;
+function Ca() {
   this.__data__ = [], this.size = 0;
 }
 function Xe(e, t) {
   for (var n = e.length; n--; )
-    if (sa(e[n][0], t))
+    if (ra(e[n][0], t))
       return n;
   return -1;
 }
-var Ca = Array.prototype, Sa = Ca.splice;
-function La(e) {
+var Sa = Array.prototype, La = Sa.splice;
+function Wa(e) {
   var t = this.__data__, n = Xe(t, e);
   if (n < 0)
     return !1;
   var l = t.length - 1;
-  return n == l ? t.pop() : Sa.call(t, n, 1), --this.size, !0;
+  return n == l ? t.pop() : La.call(t, n, 1), --this.size, !0;
 }
-function Wa(e) {
+function Pa(e) {
   var t = this.__data__, n = Xe(t, e);
   return n < 0 ? void 0 : t[n][1];
 }
-function Pa(e) {
+function $a(e) {
   return Xe(this.__data__, e) > -1;
 }
 function za(e, t) {
   var n = this.__data__, l = Xe(n, e);
   return l < 0 ? (++this.size, n.push([e, t])) : n[l][1] = t, this;
 }
-function fe(e) {
+function ve(e) {
   var t = -1, n = e == null ? 0 : e.length;
   for (this.clear(); ++t < n; ) {
     var l = e[t];
     this.set(l[0], l[1]);
   }
 }
-fe.prototype.clear = _a;
-fe.prototype.delete = La;
-fe.prototype.get = Wa;
-fe.prototype.has = Pa;
-fe.prototype.set = za;
-var $a = On(Ot, "Map");
-function Oa() {
+ve.prototype.clear = Ca;
+ve.prototype.delete = Wa;
+ve.prototype.get = Pa;
+ve.prototype.has = $a;
+ve.prototype.set = za;
+var Oa = In(It, "Map");
+function Ta() {
   this.size = 0, this.__data__ = {
-    hash: new ae(),
-    map: new ($a || fe)(),
-    string: new ae()
+    hash: new oe(),
+    map: new (Oa || ve)(),
+    string: new oe()
   };
 }
-function Ta(e) {
+function Ia(e) {
   var t = typeof e;
   return t == "string" || t == "number" || t == "symbol" || t == "boolean" ? e !== "__proto__" : e === null;
 }
 function et(e, t) {
   var n = e.__data__;
-  return Ta(t) ? n[typeof t == "string" ? "string" : "hash"] : n.map;
+  return Ia(t) ? n[typeof t == "string" ? "string" : "hash"] : n.map;
 }
-function Ia(e) {
+function ja(e) {
   var t = et(this, e).delete(e);
   return this.size -= t ? 1 : 0, t;
 }
-function ja(e) {
+function xa(e) {
   return et(this, e).get(e);
 }
 function Na(e) {
   return et(this, e).has(e);
 }
-function xa(e, t) {
+function Ma(e, t) {
   var n = et(this, e), l = n.size;
   return n.set(e, t), this.size += n.size == l ? 0 : 1, this;
 }
-function se(e) {
+function re(e) {
   var t = -1, n = e == null ? 0 : e.length;
   for (this.clear(); ++t < n; ) {
     var l = e[t];
     this.set(l[0], l[1]);
   }
 }
-se.prototype.clear = Oa;
-se.prototype.delete = Ia;
-se.prototype.get = ja;
-se.prototype.has = Na;
-se.prototype.set = xa;
-var Ma = "Expected a function";
-function jt(e, t) {
+re.prototype.clear = Ta;
+re.prototype.delete = ja;
+re.prototype.get = xa;
+re.prototype.has = Na;
+re.prototype.set = Ma;
+var Fa = "Expected a function";
+function Nt(e, t) {
   if (typeof e != "function" || t != null && typeof t != "function")
-    throw new TypeError(Ma);
+    throw new TypeError(Fa);
   var n = function() {
-    var l = arguments, a = t ? t.apply(this, l) : l[0], r = n.cache;
-    if (r.has(a))
-      return r.get(a);
-    var s = e.apply(this, l);
-    return n.cache = r.set(a, s) || r, s;
+    var l = arguments, a = t ? t.apply(this, l) : l[0], i = n.cache;
+    if (i.has(a))
+      return i.get(a);
+    var r = e.apply(this, l);
+    return n.cache = i.set(a, r) || i, r;
   };
-  return n.cache = new (jt.Cache || se)(), n;
+  return n.cache = new (Nt.Cache || re)(), n;
 }
-jt.Cache = se;
-var Fa = 500;
-function Ea(e) {
-  var t = jt(e, function(l) {
-    return n.size === Fa && n.clear(), l;
+Nt.Cache = re;
+var Ea = 500;
+function Aa(e) {
+  var t = Nt(e, function(l) {
+    return n.size === Ea && n.clear(), l;
   }), n = t.cache;
   return t;
 }
-var Aa = /[^.[\]]+|\[(?:(-?\d+(?:\.\d+)?)|(["'])((?:(?!\2)[^\\]|\\.)*?)\2)\]|(?=(?:\.|\[\])(?:\.|\[\]|$))/g, Ra = /\\(\\)?/g, Da = Ea(function(e) {
+var Ra = /[^.[\]]+|\[(?:(-?\d+(?:\.\d+)?)|(["'])((?:(?!\2)[^\\]|\\.)*?)\2)\]|(?=(?:\.|\[\])(?:\.|\[\]|$))/g, Da = /\\(\\)?/g, Ha = Aa(function(e) {
   var t = [];
-  return e.charCodeAt(0) === 46 && t.push(""), e.replace(Aa, function(n, l, a, r) {
-    t.push(a ? r.replace(Ra, "$1") : l || n);
+  return e.charCodeAt(0) === 46 && t.push(""), e.replace(Ra, function(n, l, a, i) {
+    t.push(a ? i.replace(Da, "$1") : l || n);
   }), t;
 });
-function Ha(e) {
-  return e == null ? "" : zn(e);
+function Va(e) {
+  return e == null ? "" : On(e);
 }
-function Va(e, t) {
-  return It(e) ? e : ua(e, t) ? [e] : Da(Ha(e));
+function Ba(e, t) {
+  return xt(e) ? e : da(e, t) ? [e] : Ha(Va(e));
 }
-function Ba(e) {
-  if (typeof e == "string" || Tt(e))
+function Ka(e) {
+  if (typeof e == "string" || jt(e))
     return e;
   var t = e + "";
   return t == "0" && 1 / e == -1 / 0 ? "-0" : t;
 }
-function Ka(e, t) {
-  t = Va(t, e);
+function Ga(e, t) {
+  t = Ba(t, e);
   for (var n = 0, l = t.length; e != null && n < l; )
-    e = e[Ba(t[n++])];
+    e = e[Ka(t[n++])];
   return n && n == l ? e : void 0;
 }
-function Ga(e, t, n) {
-  var l = e == null ? void 0 : Ka(e, t);
+function Ua(e, t, n) {
+  var l = e == null ? void 0 : Ga(e, t);
   return l === void 0 ? n : l;
 }
-function Ua(e) {
+function Za(e) {
   for (var t = -1, n = e == null ? 0 : e.length, l = {}; ++t < n; ) {
     var a = e[t];
     l[a[0]] = a[1];
   }
   return l;
 }
-const Tn = (e) => e === void 0, Zt = (e) => typeof e == "boolean", oe = (e) => typeof e == "number", _t = (e) => typeof Element > "u" ? !1 : e instanceof Element, Za = (e) => le(e) ? !Number.isNaN(Number(e)) : !1;
-var qt;
-const re = typeof window < "u", qa = (e) => typeof e == "string", Ja = () => {
+const jn = (e) => e === void 0, Jt = (e) => typeof e == "boolean", se = (e) => typeof e == "number", St = (e) => typeof Element > "u" ? !1 : e instanceof Element, qa = (e) => ae(e) ? !Number.isNaN(Number(e)) : !1;
+var Qt;
+const ce = typeof window < "u", Ja = (e) => typeof e == "string", Qa = () => {
 };
-re && ((qt = window?.navigator) != null && qt.userAgent) && /iP(ad|hone|od)/.test(window.navigator.userAgent);
-function Nt(e) {
+ce && ((Qt = window?.navigator) != null && Qt.userAgent) && /iP(ad|hone|od)/.test(window.navigator.userAgent);
+function Mt(e) {
   return typeof e == "function" ? e() : o(e);
 }
-function Qa(e) {
+function Ya(e) {
   return e;
 }
-function xt(e) {
-  return hl() ? (pl(e), !0) : !1;
+function Ft(e) {
+  return pl() ? (wl(e), !0) : !1;
 }
-function Ya(e, t = !0) {
-  de() ? $e(e) : t ? e() : pn(e);
+function Xa(e, t = !0) {
+  he() ? je(e) : t ? e() : gn(e);
 }
-function In(e, t, n = {}) {
+function xn(e, t, n = {}) {
   const {
     immediate: l = !0
-  } = n, a = L(!1);
-  let r = null;
-  function s() {
-    r && (clearTimeout(r), r = null);
+  } = n, a = W(!1);
+  let i = null;
+  function r() {
+    i && (clearTimeout(i), i = null);
   }
   function c() {
-    a.value = !1, s();
+    a.value = !1, r();
   }
-  function p(...v) {
-    s(), a.value = !0, r = setTimeout(() => {
-      a.value = !1, r = null, e(...v);
-    }, Nt(t));
+  function p(...w) {
+    r(), a.value = !0, i = setTimeout(() => {
+      a.value = !1, i = null, e(...w);
+    }, Mt(t));
   }
-  return l && (a.value = !0, re && p()), xt(c), {
-    isPending: dl(a),
+  return l && (a.value = !0, ce && p()), Ft(c), {
+    isPending: hl(a),
     start: p,
     stop: c
   };
 }
-function jn(e) {
+function Nn(e) {
   var t;
-  const n = Nt(e);
+  const n = Mt(e);
   return (t = n?.$el) != null ? t : n;
 }
-const Nn = re ? window : void 0;
-function xn(...e) {
+const Mn = ce ? window : void 0;
+function Fn(...e) {
   let t, n, l, a;
-  if (qa(e[0]) || Array.isArray(e[0]) ? ([n, l, a] = e, t = Nn) : [t, n, l, a] = e, !t)
-    return Ja;
+  if (Ja(e[0]) || Array.isArray(e[0]) ? ([n, l, a] = e, t = Mn) : [t, n, l, a] = e, !t)
+    return Qa;
   Array.isArray(n) || (n = [n]), Array.isArray(l) || (l = [l]);
-  const r = [], s = () => {
-    r.forEach((w) => w()), r.length = 0;
-  }, c = (w, y, I, T) => (w.addEventListener(y, I, T), () => w.removeEventListener(y, I, T)), p = Ye(() => [jn(t), Nt(a)], ([w, y]) => {
-    s(), w && r.push(...n.flatMap((I) => l.map((T) => c(w, I, T, y))));
-  }, { immediate: !0, flush: "post" }), v = () => {
-    p(), s();
+  const i = [], r = () => {
+    i.forEach((v) => v()), i.length = 0;
+  }, c = (v, f, $, I) => (v.addEventListener(f, $, I), () => v.removeEventListener(f, $, I)), p = Ye(() => [Nn(t), Mt(a)], ([v, f]) => {
+    r(), v && i.push(...n.flatMap(($) => l.map((I) => c(v, $, I, f))));
+  }, { immediate: !0, flush: "post" }), w = () => {
+    p(), r();
   };
-  return xt(v), v;
+  return Ft(w), w;
 }
-function Xa(e, t = !1) {
-  const n = L(), l = () => n.value = !!e();
-  return l(), Ya(l, t), n;
+function eo(e, t = !1) {
+  const n = W(), l = () => n.value = !!e();
+  return l(), Xa(l, t), n;
 }
-const Jt = typeof globalThis < "u" ? globalThis : typeof window < "u" ? window : typeof global < "u" ? global : typeof self < "u" ? self : {}, Qt = "__vueuse_ssr_handlers__";
-Jt[Qt] = Jt[Qt] || {};
-var Yt = Object.getOwnPropertySymbols, eo = Object.prototype.hasOwnProperty, to = Object.prototype.propertyIsEnumerable, no = (e, t) => {
+const Yt = typeof globalThis < "u" ? globalThis : typeof window < "u" ? window : typeof global < "u" ? global : typeof self < "u" ? self : {}, Xt = "__vueuse_ssr_handlers__";
+Yt[Xt] = Yt[Xt] || {};
+var en = Object.getOwnPropertySymbols, to = Object.prototype.hasOwnProperty, no = Object.prototype.propertyIsEnumerable, lo = (e, t) => {
   var n = {};
   for (var l in e)
-    eo.call(e, l) && t.indexOf(l) < 0 && (n[l] = e[l]);
-  if (e != null && Yt)
-    for (var l of Yt(e))
-      t.indexOf(l) < 0 && to.call(e, l) && (n[l] = e[l]);
+    to.call(e, l) && t.indexOf(l) < 0 && (n[l] = e[l]);
+  if (e != null && en)
+    for (var l of en(e))
+      t.indexOf(l) < 0 && no.call(e, l) && (n[l] = e[l]);
   return n;
 };
-function lo(e, t, n = {}) {
-  const l = n, { window: a = Nn } = l, r = no(l, ["window"]);
-  let s;
-  const c = Xa(() => a && "ResizeObserver" in a), p = () => {
-    s && (s.disconnect(), s = void 0);
-  }, v = Ye(() => jn(e), (y) => {
-    p(), c.value && a && y && (s = new ResizeObserver(t), s.observe(y, r));
-  }, { immediate: !0, flush: "post" }), w = () => {
-    p(), v();
+function ao(e, t, n = {}) {
+  const l = n, { window: a = Mn } = l, i = lo(l, ["window"]);
+  let r;
+  const c = eo(() => a && "ResizeObserver" in a), p = () => {
+    r && (r.disconnect(), r = void 0);
+  }, w = Ye(() => Nn(e), (f) => {
+    p(), c.value && a && f && (r = new ResizeObserver(t), r.observe(f, i));
+  }, { immediate: !0, flush: "post" }), v = () => {
+    p(), w();
   };
-  return xt(w), {
+  return Ft(v), {
     isSupported: c,
-    stop: w
+    stop: v
   };
 }
-var Xt;
+var tn;
 (function(e) {
   e.UP = "UP", e.RIGHT = "RIGHT", e.DOWN = "DOWN", e.LEFT = "LEFT", e.NONE = "NONE";
-})(Xt || (Xt = {}));
-var ao = Object.defineProperty, en = Object.getOwnPropertySymbols, oo = Object.prototype.hasOwnProperty, io = Object.prototype.propertyIsEnumerable, tn = (e, t, n) => t in e ? ao(e, t, { enumerable: !0, configurable: !0, writable: !0, value: n }) : e[t] = n, so = (e, t) => {
+})(tn || (tn = {}));
+var oo = Object.defineProperty, nn = Object.getOwnPropertySymbols, so = Object.prototype.hasOwnProperty, io = Object.prototype.propertyIsEnumerable, ln = (e, t, n) => t in e ? oo(e, t, { enumerable: !0, configurable: !0, writable: !0, value: n }) : e[t] = n, ro = (e, t) => {
   for (var n in t || (t = {}))
-    oo.call(t, n) && tn(e, n, t[n]);
-  if (en)
-    for (var n of en(t))
-      io.call(t, n) && tn(e, n, t[n]);
+    so.call(t, n) && ln(e, n, t[n]);
+  if (nn)
+    for (var n of nn(t))
+      io.call(t, n) && ln(e, n, t[n]);
   return e;
 };
-const ro = {
+const co = {
   easeInSine: [0.12, 0, 0.39, 0],
   easeOutSine: [0.61, 1, 0.88, 1],
   easeInOutSine: [0.37, 0, 0.63, 1],
@@ -2354,23 +2354,23 @@ const ro = {
   easeOutBack: [0.34, 1.56, 0.64, 1],
   easeInOutBack: [0.68, -0.6, 0.32, 1.6]
 };
-so({
-  linear: Qa
-}, ro);
-const nn = {
+ro({
+  linear: Ya
+}, co);
+const an = {
   current: 0
-}, ln = L(0), Mn = 2e3, an = Symbol("elZIndexContextKey"), Fn = Symbol("zIndexContextKey"), co = (e) => {
-  const t = de() ? te(an, nn) : nn, n = e || (de() ? te(Fn, void 0) : void 0), l = C(() => {
-    const s = o(n);
-    return oe(s) ? s : Mn;
-  }), a = C(() => l.value + ln.value), r = () => (t.current++, ln.value = t.current, a.value);
-  return !re && te(an), {
+}, on = W(0), En = 2e3, sn = Symbol("elZIndexContextKey"), An = Symbol("zIndexContextKey"), uo = (e) => {
+  const t = he() ? ne(sn, an) : an, n = e || (he() ? ne(An, void 0) : void 0), l = C(() => {
+    const r = o(n);
+    return se(r) ? r : En;
+  }), a = C(() => l.value + on.value), i = () => (t.current++, on.value = t.current, a.value);
+  return !ce && ne(sn), {
     initialZIndex: l,
     currentZIndex: a,
-    nextZIndex: r
+    nextZIndex: i
   };
 };
-var uo = {
+var ho = {
   name: "en",
   el: {
     breadcrumb: {
@@ -2549,92 +2549,92 @@ var uo = {
     }
   }
 };
-const ho = (e) => (t, n) => po(t, n, o(e)), po = (e, t, n) => Ga(n, e, e).replace(/\{(\w+)\}/g, (l, a) => {
-  var r;
-  return `${(r = t?.[a]) != null ? r : `{${a}}`}`;
-}), wo = (e) => {
-  const t = C(() => o(e).name), n = wn(e) ? e : L(e);
+const po = (e) => (t, n) => wo(t, n, o(e)), wo = (e, t, n) => Ua(n, e, e).replace(/\{(\w+)\}/g, (l, a) => {
+  var i;
+  return `${(i = t?.[a]) != null ? i : `{${a}}`}`;
+}), go = (e) => {
+  const t = C(() => o(e).name), n = fn(e) ? e : W(e);
   return {
     lang: t,
     locale: n,
-    t: ho(e)
+    t: po(e)
   };
-}, En = Symbol("localeContextKey"), go = (e) => {
-  const t = e || te(En, L());
-  return wo(C(() => t.value || uo));
-}, An = "__epPropKey", V = (e) => e, fo = (e) => Ln(e) && !!e[An], Rn = (e, t) => {
-  if (!Ln(e) || fo(e))
+}, Rn = Symbol("localeContextKey"), fo = (e) => {
+  const t = e || ne(Rn, W());
+  return go(C(() => t.value || ho));
+}, Dn = "__epPropKey", V = (e) => e, vo = (e) => Pn(e) && !!e[Dn], Hn = (e, t) => {
+  if (!Pn(e) || vo(e))
     return e;
-  const { values: n, required: l, default: a, type: r, validator: s } = e, p = {
-    type: r,
+  const { values: n, required: l, default: a, type: i, validator: r } = e, p = {
+    type: i,
     required: !!l,
-    validator: n || s ? (v) => {
-      let w = !1, y = [];
-      if (n && (y = Array.from(n), Vt(e, "default") && y.push(a), w || (w = y.includes(v))), s && (w || (w = s(v))), !w && y.length > 0) {
-        const I = [...new Set(y)].map((T) => JSON.stringify(T)).join(", ");
-        wl(`Invalid prop: validation failed${t ? ` for prop "${t}"` : ""}. Expected one of [${I}], got value ${JSON.stringify(v)}.`);
+    validator: n || r ? (w) => {
+      let v = !1, f = [];
+      if (n && (f = Array.from(n), Kt(e, "default") && f.push(a), v || (v = f.includes(w))), r && (v || (v = r(w))), !v && f.length > 0) {
+        const $ = [...new Set(f)].map((I) => JSON.stringify(I)).join(", ");
+        gl(`Invalid prop: validation failed${t ? ` for prop "${t}"` : ""}. Expected one of [${$}], got value ${JSON.stringify(w)}.`);
       }
-      return w;
+      return v;
     } : void 0,
-    [An]: !0
+    [Dn]: !0
   };
-  return Vt(e, "default") && (p.default = a), p;
-}, ve = (e) => Ua(Object.entries(e).map(([t, n]) => [
+  return Kt(e, "default") && (p.default = a), p;
+}, me = (e) => Za(Object.entries(e).map(([t, n]) => [
   t,
-  Rn(n, t)
-])), vo = ["", "default", "small", "large"], mo = Rn({
+  Hn(n, t)
+])), mo = ["", "default", "small", "large"], yo = Hn({
   type: String,
-  values: vo,
+  values: mo,
   required: !1
-}), yo = Symbol("size"), bo = Symbol("emptyValuesContextKey"), ko = ve({
+}), bo = Symbol("size"), ko = Symbol("emptyValuesContextKey"), _o = me({
   emptyValues: Array,
   valueOnClear: {
     type: [String, Number, Boolean, Function],
     default: void 0,
-    validator: (e) => Pe(e) ? !e() : !e
+    validator: (e) => Te(e) ? !e() : !e
   }
-}), on = (e) => Object.keys(e), Ge = L();
-function Dn(e, t = void 0) {
-  return de() ? te(Cn, Ge) : Ge;
+}), rn = (e) => Object.keys(e), Ge = W();
+function Vn(e, t = void 0) {
+  return he() ? ne(Ln, Ge) : Ge;
 }
-function Hn(e, t) {
-  const n = Dn(), l = $t(e, C(() => {
+function Bn(e, t) {
+  const n = Vn(), l = Tt(e, C(() => {
     var c;
-    return ((c = n.value) == null ? void 0 : c.namespace) || Ee;
-  })), a = go(C(() => {
+    return ((c = n.value) == null ? void 0 : c.namespace) || Ae;
+  })), a = fo(C(() => {
     var c;
     return (c = n.value) == null ? void 0 : c.locale;
-  })), r = co(C(() => {
+  })), i = uo(C(() => {
     var c;
-    return ((c = n.value) == null ? void 0 : c.zIndex) || Mn;
-  })), s = C(() => {
+    return ((c = n.value) == null ? void 0 : c.zIndex) || En;
+  })), r = C(() => {
     var c;
     return o(t) || ((c = n.value) == null ? void 0 : c.size) || "";
   });
-  return Vn(C(() => o(n) || {})), {
+  return Kn(C(() => o(n) || {})), {
     ns: l,
     locale: a,
-    zIndex: r,
-    size: s
+    zIndex: i,
+    size: r
   };
 }
-const Vn = (e, t, n = !1) => {
+const Kn = (e, t, n = !1) => {
   var l;
-  const a = !!de(), r = a ? Dn() : void 0, s = (l = void 0) != null ? l : a ? gl : void 0;
-  if (!s)
+  const a = !!he(), i = a ? Vn() : void 0, r = (l = void 0) != null ? l : a ? fl : void 0;
+  if (!r)
     return;
   const c = C(() => {
     const p = o(e);
-    return r?.value ? _o(r.value, p) : p;
+    return i?.value ? Co(i.value, p) : p;
   });
-  return s(Cn, c), s(En, C(() => c.value.locale)), s(Sn, C(() => c.value.namespace)), s(Fn, C(() => c.value.zIndex)), s(yo, {
+  return r(Ln, c), r(Rn, C(() => c.value.locale)), r(Wn, C(() => c.value.namespace)), r(An, C(() => c.value.zIndex)), r(bo, {
     size: C(() => c.value.size || "")
-  }), s(bo, C(() => ({
+  }), r(ko, C(() => ({
     emptyValues: c.value.emptyValues,
     valueOnClear: c.value.valueOnClear
   }))), (n || !Ge.value) && (Ge.value = c.value), c;
-}, _o = (e, t) => {
-  const n = [.../* @__PURE__ */ new Set([...on(e), ...on(t)])], l = {};
+}, Co = (e, t) => {
+  const n = [.../* @__PURE__ */ new Set([...rn(e), ...rn(t)])], l = {};
   for (const a of n)
     l[a] = t[a] !== void 0 ? t[a] : e[a];
   return l;
@@ -2645,140 +2645,140 @@ var tt = (e, t) => {
     n[l] = a;
   return n;
 };
-function Ct(e, t = "px") {
+function Lt(e, t = "px") {
   if (!e)
     return "";
-  if (oe(e) || Za(e))
+  if (se(e) || qa(e))
     return `${e}${t}`;
-  if (le(e))
+  if (ae(e))
     return e;
 }
-const Bn = (e, t) => (e.install = (n) => {
+const Gn = (e, t) => (e.install = (n) => {
   for (const l of [e, ...Object.values({})])
     n.component(l.name, l);
-}, e), Kn = (e, t) => (e.install = (n) => {
+}, e), Un = (e, t) => (e.install = (n) => {
   e._context = n._context, n.config.globalProperties[t] = e;
-}, e), Co = ve({
+}, e), So = me({
   size: {
     type: V([Number, String])
   },
   color: {
     type: String
   }
-}), So = N({
+}), Lo = x({
   name: "ElIcon",
   inheritAttrs: !1
-}), Lo = /* @__PURE__ */ N({
-  ...So,
-  props: Co,
+}), Wo = /* @__PURE__ */ x({
+  ...Lo,
+  props: So,
   setup(e) {
-    const t = e, n = $t("icon"), l = C(() => {
-      const { size: a, color: r } = t;
-      return !a && !r ? {} : {
-        fontSize: Tn(a) ? void 0 : Ct(a),
-        "--color": r
+    const t = e, n = Tt("icon"), l = C(() => {
+      const { size: a, color: i } = t;
+      return !a && !i ? {} : {
+        fontSize: jn(a) ? void 0 : Lt(a),
+        "--color": i
       };
     });
-    return (a, r) => (m(), _("i", fl({
+    return (a, i) => (y(), _("i", vl({
       class: o(n).b(),
       style: o(l)
     }, a.$attrs), [
-      he(a.$slots, "default")
+      pe(a.$slots, "default")
     ], 16));
   }
 });
-var Wo = /* @__PURE__ */ tt(Lo, [["__file", "icon.vue"]]);
-const Ue = Bn(Wo);
+var Po = /* @__PURE__ */ tt(Wo, [["__file", "icon.vue"]]);
+const Ue = Gn(Po);
 /*! Element Plus Icons Vue v2.3.1 */
-var Po = /* @__PURE__ */ N({
+var $o = /* @__PURE__ */ x({
   name: "CircleCloseFilled",
   __name: "circle-close-filled",
   setup(e) {
-    return (t, n) => (m(), _("svg", {
+    return (t, n) => (y(), _("svg", {
       xmlns: "http://www.w3.org/2000/svg",
       viewBox: "0 0 1024 1024"
     }, [
-      i("path", {
+      s("path", {
         fill: "currentColor",
         d: "M512 64a448 448 0 1 1 0 896 448 448 0 0 1 0-896m0 393.664L407.936 353.6a38.4 38.4 0 1 0-54.336 54.336L457.664 512 353.6 616.064a38.4 38.4 0 1 0 54.336 54.336L512 566.336 616.064 670.4a38.4 38.4 0 1 0 54.336-54.336L566.336 512 670.4 407.936a38.4 38.4 0 1 0-54.336-54.336z"
       })
     ]));
   }
-}), zo = Po, $o = /* @__PURE__ */ N({
+}), zo = $o, Oo = /* @__PURE__ */ x({
   name: "Close",
   __name: "close",
   setup(e) {
-    return (t, n) => (m(), _("svg", {
+    return (t, n) => (y(), _("svg", {
       xmlns: "http://www.w3.org/2000/svg",
       viewBox: "0 0 1024 1024"
     }, [
-      i("path", {
+      s("path", {
         fill: "currentColor",
         d: "M764.288 214.592 512 466.88 259.712 214.592a31.936 31.936 0 0 0-45.12 45.12L466.752 512 214.528 764.224a31.936 31.936 0 1 0 45.12 45.184L512 557.184l252.288 252.288a31.936 31.936 0 0 0 45.12-45.12L557.12 512.064l252.288-252.352a31.936 31.936 0 1 0-45.12-45.184z"
       })
     ]));
   }
-}), Gn = $o, Oo = /* @__PURE__ */ N({
+}), Zn = Oo, To = /* @__PURE__ */ x({
   name: "InfoFilled",
   __name: "info-filled",
   setup(e) {
-    return (t, n) => (m(), _("svg", {
+    return (t, n) => (y(), _("svg", {
       xmlns: "http://www.w3.org/2000/svg",
       viewBox: "0 0 1024 1024"
     }, [
-      i("path", {
+      s("path", {
         fill: "currentColor",
         d: "M512 64a448 448 0 1 1 0 896.064A448 448 0 0 1 512 64m67.2 275.072c33.28 0 60.288-23.104 60.288-57.344s-27.072-57.344-60.288-57.344c-33.28 0-60.16 23.104-60.16 57.344s26.88 57.344 60.16 57.344M590.912 699.2c0-6.848 2.368-24.64 1.024-34.752l-52.608 60.544c-10.88 11.456-24.512 19.392-30.912 17.28a12.992 12.992 0 0 1-8.256-14.72l87.68-276.992c7.168-35.136-12.544-67.2-54.336-71.296-44.096 0-108.992 44.736-148.48 101.504 0 6.784-1.28 23.68.064 33.792l52.544-60.608c10.88-11.328 23.552-19.328 29.952-17.152a12.8 12.8 0 0 1 7.808 16.128L388.48 728.576c-10.048 32.256 8.96 63.872 55.04 71.04 67.84 0 107.904-43.648 147.456-100.416z"
       })
     ]));
   }
-}), To = Oo, Io = /* @__PURE__ */ N({
+}), Io = To, jo = /* @__PURE__ */ x({
   name: "SuccessFilled",
   __name: "success-filled",
   setup(e) {
-    return (t, n) => (m(), _("svg", {
+    return (t, n) => (y(), _("svg", {
       xmlns: "http://www.w3.org/2000/svg",
       viewBox: "0 0 1024 1024"
     }, [
-      i("path", {
+      s("path", {
         fill: "currentColor",
         d: "M512 64a448 448 0 1 1 0 896 448 448 0 0 1 0-896m-55.808 536.384-99.52-99.584a38.4 38.4 0 1 0-54.336 54.336l126.72 126.72a38.272 38.272 0 0 0 54.336 0l262.4-262.464a38.4 38.4 0 1 0-54.272-54.336z"
       })
     ]));
   }
-}), jo = Io, No = /* @__PURE__ */ N({
+}), xo = jo, No = /* @__PURE__ */ x({
   name: "WarningFilled",
   __name: "warning-filled",
   setup(e) {
-    return (t, n) => (m(), _("svg", {
+    return (t, n) => (y(), _("svg", {
       xmlns: "http://www.w3.org/2000/svg",
       viewBox: "0 0 1024 1024"
     }, [
-      i("path", {
+      s("path", {
         fill: "currentColor",
         d: "M512 64a448 448 0 1 1 0 896 448 448 0 0 1 0-896m0 192a58.432 58.432 0 0 0-58.24 63.744l23.36 256.384a35.072 35.072 0 0 0 69.76 0l23.296-256.384A58.432 58.432 0 0 0 512 256m0 512a51.2 51.2 0 1 0 0-102.4 51.2 51.2 0 0 0 0 102.4"
       })
     ]));
   }
-}), xo = No;
-const Un = V([
+}), Mo = No;
+const qn = V([
   String,
   Object,
   Function
-]), Mo = {
-  Close: Gn
-}, Fo = {
-  Close: Gn
+]), Fo = {
+  Close: Zn
+}, Eo = {
+  Close: Zn
 }, Ze = {
-  success: jo,
-  warning: xo,
+  success: xo,
+  warning: Mo,
   error: zo,
-  info: To
-}, Eo = (e) => e, Ae = {
+  info: Io
+}, Ao = (e) => e, Re = {
   esc: "Escape",
   delete: "Delete",
   backspace: "Backspace"
-}, Ao = ve({
+}, Ro = me({
   value: {
     type: [String, Number],
     default: ""
@@ -2809,50 +2809,50 @@ const Un = V([
   badgeClass: {
     type: String
   }
-}), Ro = N({
+}), Do = x({
   name: "ElBadge"
-}), Do = /* @__PURE__ */ N({
-  ...Ro,
-  props: Ao,
+}), Ho = /* @__PURE__ */ x({
+  ...Do,
+  props: Ro,
   setup(e, { expose: t }) {
-    const n = e, l = $t("badge"), a = C(() => n.isDot ? "" : oe(n.value) && oe(n.max) ? n.max < n.value ? `${n.max}+` : `${n.value}` : `${n.value}`), r = C(() => {
-      var s, c, p, v, w;
+    const n = e, l = Tt("badge"), a = C(() => n.isDot ? "" : se(n.value) && se(n.max) ? n.max < n.value ? `${n.max}+` : `${n.value}` : `${n.value}`), i = C(() => {
+      var r, c, p, w, v;
       return [
         {
           backgroundColor: n.color,
-          marginRight: Ct(-((c = (s = n.offset) == null ? void 0 : s[0]) != null ? c : 0)),
-          marginTop: Ct((v = (p = n.offset) == null ? void 0 : p[1]) != null ? v : 0)
+          marginRight: Lt(-((c = (r = n.offset) == null ? void 0 : r[0]) != null ? c : 0)),
+          marginTop: Lt((w = (p = n.offset) == null ? void 0 : p[1]) != null ? w : 0)
         },
-        (w = n.badgeStyle) != null ? w : {}
+        (v = n.badgeStyle) != null ? v : {}
       ];
     });
     return t({
       content: a
-    }), (s, c) => (m(), _("div", {
-      class: z(o(l).b())
+    }), (r, c) => (y(), _("div", {
+      class: O(o(l).b())
     }, [
-      he(s.$slots, "default"),
-      u(zt, {
+      pe(r.$slots, "default"),
+      u(Ot, {
         name: `${o(l).namespace.value}-zoom-in-center`,
         persisted: ""
       }, {
-        default: ne(() => [
-          Re(i("sup", {
-            class: z([
+        default: le(() => [
+          De(s("sup", {
+            class: O([
               o(l).e("content"),
-              o(l).em("content", s.type),
-              o(l).is("fixed", !!s.$slots.default),
-              o(l).is("dot", s.isDot),
-              o(l).is("hide-zero", !s.showZero && n.value === 0),
-              s.badgeClass
+              o(l).em("content", r.type),
+              o(l).is("fixed", !!r.$slots.default),
+              o(l).is("dot", r.isDot),
+              o(l).is("hide-zero", !r.showZero && n.value === 0),
+              r.badgeClass
             ]),
-            style: De(o(r))
+            style: He(o(i))
           }, [
-            he(s.$slots, "content", { value: o(a) }, () => [
+            pe(r.$slots, "content", { value: o(a) }, () => [
               H(g(o(a)), 1)
             ])
           ], 6), [
-            [He, !s.hidden && (o(a) || s.isDot || s.$slots.content)]
+            [Ve, !r.hidden && (o(a) || r.isDot || r.$slots.content)]
           ])
         ]),
         _: 3
@@ -2860,8 +2860,8 @@ const Un = V([
     ], 2));
   }
 });
-var Ho = /* @__PURE__ */ tt(Do, [["__file", "badge.vue"]]);
-const Vo = Bn(Ho), Bo = ve({
+var Vo = /* @__PURE__ */ tt(Ho, [["__file", "badge.vue"]]);
+const Bo = Gn(Vo), Ko = me({
   a11y: {
     type: Boolean,
     default: !0
@@ -2869,7 +2869,7 @@ const Vo = Bn(Ho), Bo = ve({
   locale: {
     type: V(Object)
   },
-  size: mo,
+  size: yo,
   button: {
     type: V(Object)
   },
@@ -2888,20 +2888,20 @@ const Vo = Bn(Ho), Bo = ve({
     type: String,
     default: "el"
   },
-  ...ko
-}), U = {};
-N({
+  ..._o
+}), Z = {};
+x({
   name: "ElConfigProvider",
-  props: Bo,
+  props: Ko,
   setup(e, { slots: t }) {
     Ye(() => e.message, (l) => {
-      Object.assign(U, l ?? {});
+      Object.assign(Z, l ?? {});
     }, { immediate: !0, deep: !0 });
-    const n = Vn(e);
-    return () => he(t, "default", { config: n?.value });
+    const n = Kn(e);
+    return () => pe(t, "default", { config: n?.value });
   }
 });
-const Zn = ["success", "info", "warning", "error"], A = Eo({
+const Jn = ["success", "info", "warning", "error"], A = Ao({
   customClass: "",
   center: !1,
   dangerouslyUseHTMLString: !1,
@@ -2917,8 +2917,8 @@ const Zn = ["success", "info", "warning", "error"], A = Eo({
   zIndex: 0,
   grouping: !1,
   repeatNum: 1,
-  appendTo: re ? document.body : void 0
-}), Ko = ve({
+  appendTo: ce ? document.body : void 0
+}), Go = me({
   customClass: {
     type: String,
     default: A.customClass
@@ -2936,7 +2936,7 @@ const Zn = ["success", "info", "warning", "error"], A = Eo({
     default: A.duration
   },
   icon: {
-    type: Un,
+    type: qn,
     default: A.icon
   },
   id: {
@@ -2961,7 +2961,7 @@ const Zn = ["success", "info", "warning", "error"], A = Eo({
   },
   type: {
     type: String,
-    values: Zn,
+    values: Jn,
     default: A.type
   },
   plain: {
@@ -2984,160 +2984,160 @@ const Zn = ["success", "info", "warning", "error"], A = Eo({
     type: Number,
     default: A.repeatNum
   }
-}), Go = {
+}), Uo = {
   destroy: () => !0
-}, q = vl([]), Uo = (e) => {
-  const t = q.findIndex((a) => a.id === e), n = q[t];
+}, J = ml([]), Zo = (e) => {
+  const t = J.findIndex((a) => a.id === e), n = J[t];
   let l;
-  return t > 0 && (l = q[t - 1]), { current: n, prev: l };
-}, Zo = (e) => {
-  const { prev: t } = Uo(e);
+  return t > 0 && (l = J[t - 1]), { current: n, prev: l };
+}, qo = (e) => {
+  const { prev: t } = Zo(e);
   return t ? t.vm.exposed.bottom.value : 0;
-}, qo = (e, t) => q.findIndex((l) => l.id === e) > 0 ? 16 : t, Jo = N({
+}, Jo = (e, t) => J.findIndex((l) => l.id === e) > 0 ? 16 : t, Qo = x({
   name: "ElMessage"
-}), Qo = /* @__PURE__ */ N({
-  ...Jo,
-  props: Ko,
-  emits: Go,
+}), Yo = /* @__PURE__ */ x({
+  ...Qo,
+  props: Go,
+  emits: Uo,
   setup(e, { expose: t }) {
-    const n = e, { Close: l } = Fo, { ns: a, zIndex: r } = Hn("message"), { currentZIndex: s, nextZIndex: c } = r, p = L(), v = L(!1), w = L(0);
-    let y;
-    const I = C(() => n.type ? n.type === "error" ? "danger" : n.type : "info"), T = C(() => {
-      const $ = n.type;
-      return { [a.bm("icon", $)]: $ && Ze[$] };
-    }), F = C(() => n.icon || Ze[n.type] || ""), d = C(() => Zo(n.id)), f = C(() => qo(n.id, n.offset) + d.value), b = C(() => w.value + f.value), x = C(() => ({
-      top: `${f.value}px`,
-      zIndex: s.value
+    const n = e, { Close: l } = Eo, { ns: a, zIndex: i } = Bn("message"), { currentZIndex: r, nextZIndex: c } = i, p = W(), w = W(!1), v = W(0);
+    let f;
+    const $ = C(() => n.type ? n.type === "error" ? "danger" : n.type : "info"), I = C(() => {
+      const z = n.type;
+      return { [a.bm("icon", z)]: z && Ze[z] };
+    }), E = C(() => n.icon || Ze[n.type] || ""), d = C(() => qo(n.id)), m = C(() => Jo(n.id, n.offset) + d.value), b = C(() => v.value + m.value), R = C(() => ({
+      top: `${m.value}px`,
+      zIndex: r.value
     }));
-    function W() {
-      n.duration !== 0 && ({ stop: y } = In(() => {
-        B();
+    function L() {
+      n.duration !== 0 && ({ stop: f } = xn(() => {
+        U();
       }, n.duration));
     }
-    function J() {
-      y?.();
+    function Q() {
+      f?.();
     }
-    function B() {
-      v.value = !1;
+    function U() {
+      w.value = !1;
     }
-    function me({ code: $ }) {
-      $ === Ae.esc && B();
+    function ue({ code: z }) {
+      z === Re.esc && U();
     }
-    return $e(() => {
-      W(), c(), v.value = !0;
+    return je(() => {
+      L(), c(), w.value = !0;
     }), Ye(() => n.repeatNum, () => {
-      J(), W();
-    }), xn(document, "keydown", me), lo(p, () => {
-      w.value = p.value.getBoundingClientRect().height;
+      Q(), L();
+    }), Fn(document, "keydown", ue), ao(p, () => {
+      v.value = p.value.getBoundingClientRect().height;
     }), t({
-      visible: v,
+      visible: w,
       bottom: b,
-      close: B
-    }), ($, ye) => (m(), j(zt, {
+      close: U
+    }), (z, ye) => (y(), j(Ot, {
       name: o(a).b("fade"),
-      onBeforeLeave: $.onClose,
-      onAfterLeave: (Te) => $.$emit("destroy"),
+      onBeforeLeave: z.onClose,
+      onAfterLeave: (be) => z.$emit("destroy"),
       persisted: ""
     }, {
-      default: ne(() => [
-        Re(i("div", {
-          id: $.id,
+      default: le(() => [
+        De(s("div", {
+          id: z.id,
           ref_key: "messageRef",
           ref: p,
-          class: z([
+          class: O([
             o(a).b(),
-            { [o(a).m($.type)]: $.type },
-            o(a).is("center", $.center),
-            o(a).is("closable", $.showClose),
-            o(a).is("plain", $.plain),
-            $.customClass
+            { [o(a).m(z.type)]: z.type },
+            o(a).is("center", z.center),
+            o(a).is("closable", z.showClose),
+            o(a).is("plain", z.plain),
+            z.customClass
           ]),
-          style: De(o(x)),
+          style: He(o(R)),
           role: "alert",
-          onMouseenter: J,
-          onMouseleave: W
+          onMouseenter: Q,
+          onMouseleave: L
         }, [
-          $.repeatNum > 1 ? (m(), j(o(Vo), {
+          z.repeatNum > 1 ? (y(), j(o(Bo), {
             key: 0,
-            value: $.repeatNum,
-            type: o(I),
-            class: z(o(a).e("badge"))
-          }, null, 8, ["value", "type", "class"])) : R("v-if", !0),
-          o(F) ? (m(), j(o(Ue), {
+            value: z.repeatNum,
+            type: o($),
+            class: O(o(a).e("badge"))
+          }, null, 8, ["value", "type", "class"])) : M("v-if", !0),
+          o(E) ? (y(), j(o(Ue), {
             key: 1,
-            class: z([o(a).e("icon"), o(T)])
+            class: O([o(a).e("icon"), o(I)])
           }, {
-            default: ne(() => [
-              (m(), j(gn(o(F))))
+            default: le(() => [
+              (y(), j(vn(o(E))))
             ]),
             _: 1
-          }, 8, ["class"])) : R("v-if", !0),
-          he($.$slots, "default", {}, () => [
-            $.dangerouslyUseHTMLString ? (m(), _(Z, { key: 1 }, [
-              R(" Caution here, message could've been compromised, never use user's input as message "),
-              i("p", {
-                class: z(o(a).e("content")),
-                innerHTML: $.message
+          }, 8, ["class"])) : M("v-if", !0),
+          pe(z.$slots, "default", {}, () => [
+            z.dangerouslyUseHTMLString ? (y(), _(q, { key: 1 }, [
+              M(" Caution here, message could've been compromised, never use user's input as message "),
+              s("p", {
+                class: O(o(a).e("content")),
+                innerHTML: z.message
               }, null, 10, ["innerHTML"])
-            ], 2112)) : (m(), _("p", {
+            ], 2112)) : (y(), _("p", {
               key: 0,
-              class: z(o(a).e("content"))
-            }, g($.message), 3))
+              class: O(o(a).e("content"))
+            }, g(z.message), 3))
           ]),
-          $.showClose ? (m(), j(o(Ue), {
+          z.showClose ? (y(), j(o(Ue), {
             key: 2,
-            class: z(o(a).e("closeBtn")),
-            onClick: Oe(B, ["stop"])
+            class: O(o(a).e("closeBtn")),
+            onClick: xe(U, ["stop"])
           }, {
-            default: ne(() => [
+            default: le(() => [
               u(o(l))
             ]),
             _: 1
-          }, 8, ["class", "onClick"])) : R("v-if", !0)
+          }, 8, ["class", "onClick"])) : M("v-if", !0)
         ], 46, ["id"]), [
-          [He, v.value]
+          [Ve, w.value]
         ])
       ]),
       _: 3
     }, 8, ["name", "onBeforeLeave", "onAfterLeave"]));
   }
 });
-var Yo = /* @__PURE__ */ tt(Qo, [["__file", "message.vue"]]);
-let Xo = 1;
-const qn = (e) => {
-  const t = !e || le(e) || Le(e) || Pe(e) ? { message: e } : e, n = {
+var Xo = /* @__PURE__ */ tt(Yo, [["__file", "message.vue"]]);
+let es = 1;
+const Qn = (e) => {
+  const t = !e || ae(e) || ze(e) || Te(e) ? { message: e } : e, n = {
     ...A,
     ...t
   };
   if (!n.appendTo)
     n.appendTo = document.body;
-  else if (le(n.appendTo)) {
+  else if (ae(n.appendTo)) {
     let l = document.querySelector(n.appendTo);
-    _t(l) || (l = document.body), n.appendTo = l;
+    St(l) || (l = document.body), n.appendTo = l;
   }
-  return Zt(U.grouping) && !n.grouping && (n.grouping = U.grouping), oe(U.duration) && n.duration === 3e3 && (n.duration = U.duration), oe(U.offset) && n.offset === 16 && (n.offset = U.offset), Zt(U.showClose) && !n.showClose && (n.showClose = U.showClose), n;
-}, ei = (e) => {
-  const t = q.indexOf(e);
+  return Jt(Z.grouping) && !n.grouping && (n.grouping = Z.grouping), se(Z.duration) && n.duration === 3e3 && (n.duration = Z.duration), se(Z.offset) && n.offset === 16 && (n.offset = Z.offset), Jt(Z.showClose) && !n.showClose && (n.showClose = Z.showClose), n;
+}, ts = (e) => {
+  const t = J.indexOf(e);
   if (t === -1)
     return;
-  q.splice(t, 1);
+  J.splice(t, 1);
   const { handler: n } = e;
   n.close();
-}, ti = ({ appendTo: e, ...t }, n) => {
-  const l = `message_${Xo++}`, a = t.onClose, r = document.createElement("div"), s = {
+}, ns = ({ appendTo: e, ...t }, n) => {
+  const l = `message_${es++}`, a = t.onClose, i = document.createElement("div"), r = {
     ...t,
     id: l,
     onClose: () => {
-      a?.(), ei(w);
+      a?.(), ts(v);
     },
     onDestroy: () => {
-      Ve(null, r);
+      Be(null, i);
     }
-  }, c = u(Yo, s, Pe(s.message) || Le(s.message) ? {
-    default: Pe(s.message) ? s.message : () => s.message
+  }, c = u(Xo, r, Te(r.message) || ze(r.message) ? {
+    default: Te(r.message) ? r.message : () => r.message
   } : null);
-  c.appContext = n || we._context, Ve(c, r), e.appendChild(r.firstElementChild);
-  const p = c.component, w = {
+  c.appContext = n || ge._context, Be(c, i), e.appendChild(i.firstElementChild);
+  const p = c.component, v = {
     id: l,
     vnode: c,
     vm: p,
@@ -3148,44 +3148,44 @@ const qn = (e) => {
     },
     props: c.component.props
   };
-  return w;
-}, we = (e = {}, t) => {
-  if (!re)
+  return v;
+}, ge = (e = {}, t) => {
+  if (!ce)
     return { close: () => {
     } };
-  const n = qn(e);
-  if (n.grouping && q.length) {
-    const a = q.find(({ vnode: r }) => {
-      var s;
-      return ((s = r.props) == null ? void 0 : s.message) === n.message;
+  const n = Qn(e);
+  if (n.grouping && J.length) {
+    const a = J.find(({ vnode: i }) => {
+      var r;
+      return ((r = i.props) == null ? void 0 : r.message) === n.message;
     });
     if (a)
       return a.props.repeatNum += 1, a.props.type = n.type, a.handler;
   }
-  if (oe(U.max) && q.length >= U.max)
+  if (se(Z.max) && J.length >= Z.max)
     return { close: () => {
     } };
-  const l = ti(n, t);
-  return q.push(l), l.handler;
+  const l = ns(n, t);
+  return J.push(l), l.handler;
 };
-Zn.forEach((e) => {
-  we[e] = (t = {}, n) => {
-    const l = qn(t);
-    return we({ ...l, type: e }, n);
+Jn.forEach((e) => {
+  ge[e] = (t = {}, n) => {
+    const l = Qn(t);
+    return ge({ ...l, type: e }, n);
   };
 });
-function ni(e) {
-  for (const t of q)
+function ls(e) {
+  for (const t of J)
     (!e || e === t.props.type) && t.handler.close();
 }
-we.closeAll = ni;
-we._context = null;
-const li = Kn(we, "$message"), Jn = [
+ge.closeAll = ls;
+ge._context = null;
+const as = Un(ge, "$message"), Yn = [
   "success",
   "info",
   "warning",
   "error"
-], ai = ve({
+], os = me({
   customClass: {
     type: String,
     default: ""
@@ -3196,7 +3196,7 @@ const li = Kn(we, "$message"), Jn = [
     default: 4500
   },
   icon: {
-    type: Un
+    type: qn
   },
   id: {
     type: String,
@@ -3238,186 +3238,186 @@ const li = Kn(we, "$message"), Jn = [
   },
   type: {
     type: String,
-    values: [...Jn, ""],
+    values: [...Yn, ""],
     default: ""
   },
   zIndex: Number
-}), oi = {
+}), ss = {
   destroy: () => !0
-}, ii = N({
+}, is = x({
   name: "ElNotification"
-}), si = /* @__PURE__ */ N({
-  ...ii,
-  props: ai,
-  emits: oi,
+}), rs = /* @__PURE__ */ x({
+  ...is,
+  props: os,
+  emits: ss,
   setup(e, { expose: t }) {
-    const n = e, { ns: l, zIndex: a } = Hn("notification"), { nextZIndex: r, currentZIndex: s } = a, { Close: c } = Mo, p = L(!1);
-    let v;
-    const w = C(() => {
-      const W = n.type;
-      return W && Ze[n.type] ? l.m(W) : "";
-    }), y = C(() => n.type && Ze[n.type] || n.icon), I = C(() => n.position.endsWith("right") ? "right" : "left"), T = C(() => n.position.startsWith("top") ? "top" : "bottom"), F = C(() => {
-      var W;
+    const n = e, { ns: l, zIndex: a } = Bn("notification"), { nextZIndex: i, currentZIndex: r } = a, { Close: c } = Fo, p = W(!1);
+    let w;
+    const v = C(() => {
+      const L = n.type;
+      return L && Ze[n.type] ? l.m(L) : "";
+    }), f = C(() => n.type && Ze[n.type] || n.icon), $ = C(() => n.position.endsWith("right") ? "right" : "left"), I = C(() => n.position.startsWith("top") ? "top" : "bottom"), E = C(() => {
+      var L;
       return {
-        [T.value]: `${n.offset}px`,
-        zIndex: (W = n.zIndex) != null ? W : s.value
+        [I.value]: `${n.offset}px`,
+        zIndex: (L = n.zIndex) != null ? L : r.value
       };
     });
     function d() {
-      n.duration > 0 && ({ stop: v } = In(() => {
+      n.duration > 0 && ({ stop: w } = xn(() => {
         p.value && b();
       }, n.duration));
     }
-    function f() {
-      v?.();
+    function m() {
+      w?.();
     }
     function b() {
       p.value = !1;
     }
-    function x({ code: W }) {
-      W === Ae.delete || W === Ae.backspace ? f() : W === Ae.esc ? p.value && b() : d();
+    function R({ code: L }) {
+      L === Re.delete || L === Re.backspace ? m() : L === Re.esc ? p.value && b() : d();
     }
-    return $e(() => {
-      d(), r(), p.value = !0;
-    }), xn(document, "keydown", x), t({
+    return je(() => {
+      d(), i(), p.value = !0;
+    }), Fn(document, "keydown", R), t({
       visible: p,
       close: b
-    }), (W, J) => (m(), j(zt, {
+    }), (L, Q) => (y(), j(Ot, {
       name: o(l).b("fade"),
-      onBeforeLeave: W.onClose,
-      onAfterLeave: (B) => W.$emit("destroy"),
+      onBeforeLeave: L.onClose,
+      onAfterLeave: (U) => L.$emit("destroy"),
       persisted: ""
     }, {
-      default: ne(() => [
-        Re(i("div", {
-          id: W.id,
-          class: z([o(l).b(), W.customClass, o(I)]),
-          style: De(o(F)),
+      default: le(() => [
+        De(s("div", {
+          id: L.id,
+          class: O([o(l).b(), L.customClass, o($)]),
+          style: He(o(E)),
           role: "alert",
-          onMouseenter: f,
+          onMouseenter: m,
           onMouseleave: d,
-          onClick: W.onClick
+          onClick: L.onClick
         }, [
-          o(y) ? (m(), j(o(Ue), {
+          o(f) ? (y(), j(o(Ue), {
             key: 0,
-            class: z([o(l).e("icon"), o(w)])
+            class: O([o(l).e("icon"), o(v)])
           }, {
-            default: ne(() => [
-              (m(), j(gn(o(y))))
+            default: le(() => [
+              (y(), j(vn(o(f))))
             ]),
             _: 1
-          }, 8, ["class"])) : R("v-if", !0),
-          i("div", {
-            class: z(o(l).e("group"))
+          }, 8, ["class"])) : M("v-if", !0),
+          s("div", {
+            class: O(o(l).e("group"))
           }, [
-            i("h2", {
-              class: z(o(l).e("title")),
-              textContent: g(W.title)
+            s("h2", {
+              class: O(o(l).e("title")),
+              textContent: g(L.title)
             }, null, 10, ["textContent"]),
-            Re(i("div", {
-              class: z(o(l).e("content")),
-              style: De(W.title ? void 0 : { margin: 0 })
+            De(s("div", {
+              class: O(o(l).e("content")),
+              style: He(L.title ? void 0 : { margin: 0 })
             }, [
-              he(W.$slots, "default", {}, () => [
-                W.dangerouslyUseHTMLString ? (m(), _(Z, { key: 1 }, [
-                  R(" Caution here, message could've been compromised, never use user's input as message "),
-                  i("p", { innerHTML: W.message }, null, 8, ["innerHTML"])
-                ], 2112)) : (m(), _("p", { key: 0 }, g(W.message), 1))
+              pe(L.$slots, "default", {}, () => [
+                L.dangerouslyUseHTMLString ? (y(), _(q, { key: 1 }, [
+                  M(" Caution here, message could've been compromised, never use user's input as message "),
+                  s("p", { innerHTML: L.message }, null, 8, ["innerHTML"])
+                ], 2112)) : (y(), _("p", { key: 0 }, g(L.message), 1))
               ])
             ], 6), [
-              [He, W.message]
+              [Ve, L.message]
             ]),
-            W.showClose ? (m(), j(o(Ue), {
+            L.showClose ? (y(), j(o(Ue), {
               key: 0,
-              class: z(o(l).e("closeBtn")),
-              onClick: Oe(b, ["stop"])
+              class: O(o(l).e("closeBtn")),
+              onClick: xe(b, ["stop"])
             }, {
-              default: ne(() => [
+              default: le(() => [
                 u(o(c))
               ]),
               _: 1
-            }, 8, ["class", "onClick"])) : R("v-if", !0)
+            }, 8, ["class", "onClick"])) : M("v-if", !0)
           ], 2)
         ], 46, ["id", "onClick"]), [
-          [He, p.value]
+          [Ve, p.value]
         ])
       ]),
       _: 3
     }, 8, ["name", "onBeforeLeave", "onAfterLeave"]));
   }
 });
-var ri = /* @__PURE__ */ tt(si, [["__file", "notification.vue"]]);
+var cs = /* @__PURE__ */ tt(rs, [["__file", "notification.vue"]]);
 const qe = {
   "top-left": [],
   "top-right": [],
   "bottom-left": [],
   "bottom-right": []
-}, St = 16;
-let ci = 1;
-const ge = function(e = {}, t) {
-  if (!re)
+}, Wt = 16;
+let us = 1;
+const fe = function(e = {}, t) {
+  if (!ce)
     return { close: () => {
     } };
-  (le(e) || Le(e)) && (e = { message: e });
+  (ae(e) || ze(e)) && (e = { message: e });
   const n = e.position || "top-right";
   let l = e.offset || 0;
-  qe[n].forEach(({ vm: w }) => {
-    var y;
-    l += (((y = w.el) == null ? void 0 : y.offsetHeight) || 0) + St;
-  }), l += St;
-  const a = `notification_${ci++}`, r = e.onClose, s = {
+  qe[n].forEach(({ vm: v }) => {
+    var f;
+    l += (((f = v.el) == null ? void 0 : f.offsetHeight) || 0) + Wt;
+  }), l += Wt;
+  const a = `notification_${us++}`, i = e.onClose, r = {
     ...e,
     offset: l,
     id: a,
     onClose: () => {
-      ui(a, n, r);
+      ds(a, n, i);
     }
   };
   let c = document.body;
-  _t(e.appendTo) ? c = e.appendTo : le(e.appendTo) && (c = document.querySelector(e.appendTo)), _t(c) || (c = document.body);
-  const p = document.createElement("div"), v = u(ri, s, Pe(s.message) ? s.message : Le(s.message) ? () => s.message : null);
-  return v.appContext = Tn(t) ? ge._context : t, v.props.onDestroy = () => {
-    Ve(null, p);
-  }, Ve(v, p), qe[n].push({ vm: v }), c.appendChild(p.firstElementChild), {
+  St(e.appendTo) ? c = e.appendTo : ae(e.appendTo) && (c = document.querySelector(e.appendTo)), St(c) || (c = document.body);
+  const p = document.createElement("div"), w = u(cs, r, Te(r.message) ? r.message : ze(r.message) ? () => r.message : null);
+  return w.appContext = jn(t) ? fe._context : t, w.props.onDestroy = () => {
+    Be(null, p);
+  }, Be(w, p), qe[n].push({ vm: w }), c.appendChild(p.firstElementChild), {
     close: () => {
-      v.component.exposed.visible.value = !1;
+      w.component.exposed.visible.value = !1;
     }
   };
 };
-Jn.forEach((e) => {
-  ge[e] = (t = {}, n) => ((le(t) || Le(t)) && (t = {
+Yn.forEach((e) => {
+  fe[e] = (t = {}, n) => ((ae(t) || ze(t)) && (t = {
     message: t
-  }), ge({ ...t, type: e }, n));
+  }), fe({ ...t, type: e }, n));
 });
-function ui(e, t, n) {
-  const l = qe[t], a = l.findIndex(({ vm: v }) => {
-    var w;
-    return ((w = v.component) == null ? void 0 : w.props.id) === e;
+function ds(e, t, n) {
+  const l = qe[t], a = l.findIndex(({ vm: w }) => {
+    var v;
+    return ((v = w.component) == null ? void 0 : v.props.id) === e;
   });
   if (a === -1)
     return;
-  const { vm: r } = l[a];
-  if (!r)
+  const { vm: i } = l[a];
+  if (!i)
     return;
-  n?.(r);
-  const s = r.el.offsetHeight, c = t.split("-")[0];
+  n?.(i);
+  const r = i.el.offsetHeight, c = t.split("-")[0];
   l.splice(a, 1);
   const p = l.length;
   if (!(p < 1))
-    for (let v = a; v < p; v++) {
-      const { el: w, component: y } = l[v].vm, I = Number.parseInt(w.style[c], 10) - s - St;
-      y.props.offset = I;
+    for (let w = a; w < p; w++) {
+      const { el: v, component: f } = l[w].vm, $ = Number.parseInt(v.style[c], 10) - r - Wt;
+      f.props.offset = $;
     }
 }
-function di() {
+function hs() {
   for (const e of Object.values(qe))
     e.forEach(({ vm: t }) => {
       t.component.exposed.visible.value = !1;
     });
 }
-ge.closeAll = di;
-ge._context = null;
-const hi = Kn(ge, "$notify"), O = {
+fe.closeAll = hs;
+fe._context = null;
+const ps = Un(fe, "$notify"), T = {
   /**
    * 显示消息提示（简化版）
    * @param message 消息内容
@@ -3443,16 +3443,16 @@ const hi = Kn(ge, "$notify"), O = {
       type: n = "success",
       position: l = "center",
       duration: a = 3e3,
-      showClose: r = !1
+      showClose: i = !1
     } = e;
-    l === "center" ? li({
+    l === "center" ? as({
       message: t,
       type: n,
       duration: a,
-      showClose: r,
+      showClose: i,
       grouping: !0,
       customClass: `app-toast app-toast--${n}`
-    }) : hi({
+    }) : ps({
       message: t,
       type: n,
       position: l,
@@ -3503,25 +3503,25 @@ const hi = Kn(ge, "$notify"), O = {
     this.msg(e, "error", t, n);
   }
 };
-var Lt;
+var Pt;
 (function(e) {
   e[e.Audio = 1] = "Audio", e[e.Cache = 2] = "Cache", e[e.Config = 3] = "Config", e[e.Data = 4] = "Data", e[e.LocalData = 5] = "LocalData", e[e.Document = 6] = "Document", e[e.Download = 7] = "Download", e[e.Picture = 8] = "Picture", e[e.Public = 9] = "Public", e[e.Video = 10] = "Video", e[e.Resource = 11] = "Resource", e[e.Temp = 12] = "Temp", e[e.AppConfig = 13] = "AppConfig", e[e.AppData = 14] = "AppData", e[e.AppLocalData = 15] = "AppLocalData", e[e.AppCache = 16] = "AppCache", e[e.AppLog = 17] = "AppLog", e[e.Desktop = 18] = "Desktop", e[e.Executable = 19] = "Executable", e[e.Font = 20] = "Font", e[e.Home = 21] = "Home", e[e.Runtime = 22] = "Runtime", e[e.Template = 23] = "Template";
-})(Lt || (Lt = {}));
-async function pi() {
+})(Pt || (Pt = {}));
+async function ws() {
   return h("plugin:path|resolve_directory", {
-    directory: Lt.AppCache
+    directory: Pt.AppCache
   });
 }
-async function wi(...e) {
+async function gs(...e) {
   return h("plugin:path|join", { paths: e });
 }
-async function sn(e, t) {
+async function cn(e, t) {
   await h("plugin:opener|open_path", {
     path: e,
     with: t
   });
 }
-const gi = () => ({
+const fs = () => ({
   mode: "folder",
   fixedImagePath: null,
   folderPath: null,
@@ -3538,175 +3538,185 @@ const gi = () => ({
   wallhavenHistoryScope: null,
   lastFolderIndex: 0,
   lastAppliedPath: null
-}), fi = (e) => e ? /^https?:\/\//i.test(e) ? e : kl(e) : "", vi = () => h("wallpaper_get_config"), Wt = (e) => h("wallpaper_save_config", { config: e }), rn = () => h("wallpaper_get_status"), cn = (e) => h("wallpaper_scan_folder", { path: e }), un = (e) => h("wallpaper_set_fixed_image", { path: e }), mi = () => h("wallpaper_switch_now"), yi = (e) => h("wallpaper_fetch_wallhaven", { params: e }), bi = (e) => h("wallpaper_set_wallhaven_image", { wallpaper: e }), ki = (e) => h("wallpaper_download_wallhaven_image", { wallpaper: e }), _i = () => h("wallpaper_clear_cache"), Ci = (e, t) => new RegExp(`Command\\s+${t}\\s+not\\s+found`, "i").test(String(e)), Si = async () => {
+}), vs = (e) => e ? /^https?:\/\//i.test(e) ? e : _l(e) : "", ms = () => h("wallpaper_get_config"), $t = (e) => h("wallpaper_save_config", { config: e }), un = () => h("wallpaper_get_status"), dn = (e) => h("wallpaper_scan_folder", { path: e }), hn = (e) => h("wallpaper_set_fixed_image", { path: e }), ys = () => h("wallpaper_switch_now"), bs = (e) => h("wallpaper_fetch_wallhaven", { params: e }), ks = (e) => h("wallpaper_set_wallhaven_image", { wallpaper: e }), _s = (e) => h("wallpaper_download_wallhaven_image", { wallpaper: e }), Cs = () => h("wallpaper_clear_cache"), Ss = (e, t) => new RegExp(`Command\\s+${t}\\s+not\\s+found`, "i").test(String(e)), Ls = async () => {
   try {
     await h("wallpaper_open_cache_dir");
     return;
   } catch (n) {
-    if (!Ci(n, "wallpaper_open_cache_dir"))
+    if (!Ss(n, "wallpaper_open_cache_dir"))
       throw n;
   }
-  const e = await pi(), t = await wi(e, "wallpaper-switcher");
+  const e = await ws(), t = await gs(e, "wallpaper-switcher");
   try {
-    await sn(t);
+    await cn(t);
   } catch {
-    await sn(e);
+    await cn(e);
   }
 };
-function Li({ config: e, refreshStatus: t }) {
-  const { t: n } = ie(), l = L("switcher"), a = L([]), r = L(1), s = L(1), c = L(!1), p = L(""), v = L(""), w = L("general"), y = L("hot"), I = L(null), T = L(!1), F = L(!1), d = L(/* @__PURE__ */ new Map()), f = L(/* @__PURE__ */ new Set()), b = /* @__PURE__ */ new Map();
-  let x = null, W = null, J = null, B = 0;
-  const me = C(() => y.value === "hot" ? "Hot" : y.value === "favorites" ? "Favorites" : "Toplist"), $ = C(() => a.value.slice(0, 6)), ye = C(() => {
-    const S = v.value.trim();
-    return w.value === "nature" ? S ? `${S} nature` : "nature" : S || null;
-  }), Te = C(() => w.value), be = (S) => {
+function Ws({ config: e, refreshStatus: t }) {
+  const { t: n } = ie(), l = W("switcher"), a = W([]), i = W(1), r = W(1), c = W(!1), p = W(""), w = W(""), v = W("general"), f = W("hot"), $ = W(null), I = W(!1), E = W(!1), d = W(/* @__PURE__ */ new Map()), m = W(/* @__PURE__ */ new Map()), b = W(/* @__PURE__ */ new Set()), R = /* @__PURE__ */ new Map();
+  let L = null, Q = null, U = null, ue = null, z = 0;
+  const ye = C(() => f.value === "hot" ? "Hot" : f.value === "favorites" ? "Favorites" : "Toplist"), be = C(() => a.value.slice(0, 6)), nt = C(() => {
+    const S = w.value.trim();
+    return v.value === "nature" ? S ? `${S} nature` : "nature" : S || null;
+  }), lt = C(() => v.value), ke = (S) => {
     const P = String(S).replace(/^Error:\s*/, "");
     return /unexpected EOF|handshake|timed out|error sending request|client error|Connect/i.test(
       P
     ) ? n("wallpaperSwitcher.messages.wallhavenNetworkError") : P.length > 120 ? `${P.slice(0, 120)}...` : P;
-  }, ce = (S, P) => {
-    const E = new Map(d.value);
-    P ? E.set(S, P) : E.delete(S), d.value = E;
-  }, Ie = (S) => {
-    const P = new Set(f.value);
-    P.add(S), f.value = P;
-  }, nt = (S, P) => {
+  }, ee = (S, P) => {
+    const N = new Map(d.value);
+    if (P ? N.set(S, P) : N.delete(S), d.value = N, !P) {
+      const B = new Map(m.value);
+      B.delete(S), m.value = B;
+    }
+  }, at = (S) => {
+    const P = new Set(b.value);
+    P.add(S), b.value = P;
+  }, ot = (S, P) => {
     if (!(P instanceof HTMLImageElement)) {
-      b.delete(S.id);
+      R.delete(S.id);
       return;
     }
-    if (b.set(S.id, P), !x) {
+    if (R.set(S.id, P), !L) {
       P.src = S.thumbs.large;
       return;
     }
-    P.dataset.src = S.thumbs.large, x.observe(P);
-  }, lt = () => {
-    f.value = /* @__PURE__ */ new Set(), b.clear();
-  }, at = async () => {
-    e.value.wallhavenQuery = v.value.trim() || null, e.value.wallhavenCategory = w.value, e.value.wallhavenSource = y.value, e.value.mode = "wallhaven", await Wt(e.value);
-  }, Q = async (S = r.value) => {
-    const P = ++B;
-    c.value = !0, p.value = "", a.value = [], lt();
+    P.dataset.src = S.thumbs.large, L.observe(P);
+  }, st = () => {
+    b.value = /* @__PURE__ */ new Set(), R.clear();
+  }, it = async () => {
+    e.value.wallhavenQuery = w.value.trim() || null, e.value.wallhavenCategory = v.value, e.value.wallhavenSource = f.value, e.value.mode = "wallhaven", await $t(e.value);
+  }, Y = async (S = i.value) => {
+    const P = ++z;
+    c.value = !0, p.value = "", a.value = [], st();
     try {
-      await at();
-      const E = await yi({
-        source: y.value,
+      await it();
+      const N = await bs({
+        source: f.value,
         page: S,
-        query: ye.value,
-        category: Te.value
+        query: nt.value,
+        category: lt.value
       });
-      if (P !== B) return;
-      a.value = E.data, r.value = E.page, s.value = Math.max(1, E.lastPage), await pn();
-      for (const X of b.values())
-        x && x.observe(X);
-    } catch (E) {
-      if (P !== B) return;
-      a.value = [], p.value = be(E), O.msg(p.value, "error");
+      if (P !== z) return;
+      a.value = N.data, i.value = N.page, r.value = Math.max(1, N.lastPage), await gn();
+      for (const B of R.values())
+        L && L.observe(B);
+    } catch (N) {
+      if (P !== z) return;
+      a.value = [], p.value = ke(N), T.msg(p.value, "error");
     } finally {
-      P === B && (c.value = !1);
+      P === z && (c.value = !1);
     }
-  }, ot = () => Q(1), it = async (S) => {
-    y.value = S, await Q(1);
-  }, st = async (S) => {
-    w.value = S, await Q(1);
-  }, rt = async () => {
-    v.value = "", w.value = e.value.wallhavenCategory || "general", y.value = e.value.wallhavenSource, r.value = 1, p.value = "", a.value = [], l.value = "wallhaven", await Q(1);
-  }, ct = (S) => {
-    I.value = S, T.value = !0, F.value = !1;
-  }, je = () => {
-    I.value = null, T.value = !1, F.value = !1;
+  }, rt = () => Y(1), ct = async (S) => {
+    f.value = S, await Y(1);
+  }, ut = async (S) => {
+    v.value = S, await Y(1);
+  }, dt = async () => {
+    w.value = "", v.value = e.value.wallhavenCategory || "general", f.value = e.value.wallhavenSource, i.value = 1, p.value = "", a.value = [], l.value = "wallhaven", await Y(1);
+  }, ht = (S) => {
+    $.value = S, I.value = !0, E.value = !1;
+  }, _e = () => {
+    $.value = null, I.value = !1, E.value = !1;
   }, Ne = async () => {
-    l.value = "switcher", je(), await t();
-  }, xe = () => {
-    T.value = !1;
-  }, ut = () => {
-    T.value = !1, F.value = !0;
-  }, dt = async (S) => {
+    l.value = "switcher", _e(), await t();
+  }, pt = () => {
+    I.value = !1;
+  }, wt = () => {
+    I.value = !1, E.value = !0;
+  }, gt = async (S) => {
     if (!d.value.has(S.id)) {
-      ce(S.id, "setting");
+      ee(S.id, "setting");
       try {
-        O.msg(n("wallpaperSwitcher.messages.settingWallpaper"), "info"), await bi(S), await t(), O.msg(n("wallpaperSwitcher.messages.wallpaperSet"), "success");
+        T.msg(n("wallpaperSwitcher.messages.settingWallpaper"), "info"), await ks(S), await t(), T.msg(n("wallpaperSwitcher.messages.wallpaperSet"), "success");
       } catch (P) {
-        O.msg(be(P), "error");
+        T.msg(ke(P), "error");
       } finally {
-        ce(S.id, null);
+        ee(S.id, null);
       }
     }
-  }, ht = async (S) => {
+  }, ft = async (S) => {
     if (!d.value.has(S.id)) {
-      ce(S.id, "downloading");
+      ee(S.id, "downloading");
       try {
-        O.msg(n("wallpaperSwitcher.messages.downloadingWallpaper"), "info"), await ki(S), await t(), O.msg(n("wallpaperSwitcher.messages.wallpaperDownloaded"), "success");
+        T.msg(n("wallpaperSwitcher.messages.downloadingWallpaper"), "info"), await _s(S), await t(), T.msg(n("wallpaperSwitcher.messages.wallpaperDownloaded"), "success");
       } catch (P) {
-        O.msg(be(P), "error");
+        T.msg(ke(P), "error");
       } finally {
-        ce(S.id, null);
+        ee(S.id, null);
       }
     }
-  }, pt = async () => {
-    r.value > 1 && await Q(r.value - 1);
-  }, wt = async () => {
-    r.value < s.value && await Q(r.value + 1);
+  }, vt = async () => {
+    i.value > 1 && await Y(i.value - 1);
+  }, Me = async () => {
+    i.value < r.value && await Y(i.value + 1);
   };
-  return $e(() => {
-    x = new IntersectionObserver(
+  return je(() => {
+    L = new IntersectionObserver(
       (S) => {
         for (const P of S) {
           if (!P.isIntersecting) continue;
-          const E = P.target, X = E.dataset.src;
-          X && E.src !== X && (E.src = X), x?.unobserve(E);
+          const N = P.target, B = N.dataset.src;
+          B && N.src !== B && (N.src = B), L?.unobserve(N);
         }
       },
       { root: null, rootMargin: "120px" }
-    ), W = null, J = null;
-  }), fn(() => {
-    x?.disconnect(), x = null, W?.(), J?.();
+    ), Q = null, U = null;
+  }), mn(() => {
+    L?.disconnect(), L = null, Q?.(), U?.(), ue?.();
   }), {
     activeView: l,
     wallpapers: a,
-    wallhavenPage: r,
-    wallhavenLastPage: s,
+    wallhavenPage: i,
+    wallhavenLastPage: r,
     wallhavenLoading: c,
     wallhavenError: p,
-    wallhavenKeyword: v,
-    wallhavenCategory: w,
-    wallhavenSource: y,
-    previewWallpaper: I,
-    previewLoading: T,
-    previewLoadFailed: F,
+    wallhavenKeyword: w,
+    wallhavenCategory: v,
+    wallhavenSource: f,
+    previewWallpaper: $,
+    previewLoading: I,
+    previewLoadFailed: E,
     workingActions: d,
-    loadedThumbIds: f,
-    wallhavenSourceLabel: me,
-    visibleWallpapers: $,
-    openWallhavenGrid: rt,
+    downloadProgress: m,
+    loadedThumbIds: b,
+    wallhavenSourceLabel: ye,
+    visibleWallpapers: be,
+    openWallhavenGrid: dt,
     backToSwitcher: Ne,
-    openPreview: ct,
-    closePreview: je,
-    markPreviewLoaded: xe,
-    markPreviewFailed: ut,
-    markThumbLoaded: Ie,
-    setThumbRef: nt,
-    refreshWallhaven: ot,
-    setWallhavenSource: it,
-    setWallhavenCategory: st,
-    setWallpaperFromWallhaven: dt,
-    downloadWallpaperFromWallhaven: ht,
-    prevWallhavenPage: pt,
-    nextWallhavenPage: wt,
+    openPreview: ht,
+    closePreview: _e,
+    markPreviewLoaded: pt,
+    markPreviewFailed: wt,
+    markThumbLoaded: at,
+    setThumbRef: ot,
+    refreshWallhaven: rt,
+    setWallhavenSource: ct,
+    setWallhavenCategory: ut,
+    setWallpaperFromWallhaven: gt,
+    downloadWallpaperFromWallhaven: ft,
+    prevWallhavenPage: vt,
+    nextWallhavenPage: Me,
     setupListeners: async () => {
-      W = await Be("wallpaper-switcher-changed", t), J = await Be(
+      Q = await Pe("wallpaper-switcher-changed", t), U = await Pe(
         "wallpaper-switcher-error",
         (S) => {
-          O.msg(
+          T.msg(
             S.payload?.message || n("wallpaperSwitcher.messages.scheduleSwitchFailed"),
             "error"
           );
+        }
+      ), ue = await Pe(
+        "wallpaper-download-progress",
+        (S) => {
+          const { id: P, downloaded: N, total: B } = S.payload, Ce = new Map(m.value);
+          Ce.set(P, { downloaded: N, total: B ?? null }), m.value = Ce;
         }
       );
     }
   };
 }
-var Wi = {
+var Ps = {
   size: "1em",
   strokeWidth: 4,
   strokeLinecap: "round",
@@ -3735,12 +3745,12 @@ var Wi = {
   },
   prefix: "i"
 };
-function Pi() {
+function $s() {
   return "icon-" + ((1 + Math.random()) * 4294967296 | 0).toString(16).substring(1);
 }
-function zi(e, t, n) {
-  var l = typeof t.fill == "string" ? [t.fill] : t.fill || [], a = [], r = t.theme || n.theme;
-  switch (r) {
+function zs(e, t, n) {
+  var l = typeof t.fill == "string" ? [t.fill] : t.fill || [], a = [], i = t.theme || n.theme;
+  switch (i) {
     case "outline":
       a.push(typeof l[0] == "string" ? l[0] : "currentColor"), a.push("none"), a.push(typeof l[0] == "string" ? l[0] : "currentColor"), a.push("none");
       break;
@@ -3763,31 +3773,31 @@ function zi(e, t, n) {
     id: e
   };
 }
-var $i = Symbol("icon-context");
-function M(e, t, n) {
+var Os = Symbol("icon-context");
+function F(e, t, n) {
   var l = {
     name: "icon-" + e,
     props: ["size", "strokeWidth", "strokeLinecap", "strokeLinejoin", "theme", "fill", "spin"],
-    setup: function(r) {
-      var s = Pi(), c = te($i, Wi);
+    setup: function(i) {
+      var r = $s(), c = ne(Os, Ps);
       return function() {
-        var p = r.size, v = r.strokeWidth, w = r.strokeLinecap, y = r.strokeLinejoin, I = r.theme, T = r.fill, F = r.spin, d = zi(s, {
+        var p = i.size, w = i.strokeWidth, v = i.strokeLinecap, f = i.strokeLinejoin, $ = i.theme, I = i.fill, E = i.spin, d = zs(r, {
           size: p,
-          strokeWidth: v,
-          strokeLinecap: w,
-          strokeLinejoin: y,
-          theme: I,
-          fill: T
-        }, c), f = [c.prefix + "-icon"];
-        return f.push(c.prefix + "-icon-" + e), t && c.rtl && f.push(c.prefix + "-icon-rtl"), F && f.push(c.prefix + "-icon-spin"), u("span", {
-          class: f.join(" ")
+          strokeWidth: w,
+          strokeLinecap: v,
+          strokeLinejoin: f,
+          theme: $,
+          fill: I
+        }, c), m = [c.prefix + "-icon"];
+        return m.push(c.prefix + "-icon-" + e), t && c.rtl && m.push(c.prefix + "-icon-rtl"), E && m.push(c.prefix + "-icon-spin"), u("span", {
+          class: m.join(" ")
         }, [n(d)]);
       };
     }
   };
   return l;
 }
-const Oi = M("back", !0, function(e) {
+const Ts = F("back", !0, function(e) {
   return u("svg", {
     width: e.size,
     height: e.size,
@@ -3802,7 +3812,7 @@ const Oi = M("back", !0, function(e) {
     "stroke-width": e.strokeWidth,
     "stroke-linejoin": e.strokeLinejoin
   }, null)]);
-}), Ti = M("check-small", !0, function(e) {
+}), Is = F("check-small", !0, function(e) {
   return u("svg", {
     width: e.size,
     height: e.size,
@@ -3815,7 +3825,7 @@ const Oi = M("back", !0, function(e) {
     "stroke-linecap": e.strokeLinecap,
     "stroke-linejoin": e.strokeLinejoin
   }, null)]);
-}), Je = M("close-small", !1, function(e) {
+}), Je = F("close-small", !1, function(e) {
   return u("svg", {
     width: e.size,
     height: e.size,
@@ -3834,7 +3844,7 @@ const Oi = M("back", !0, function(e) {
     "stroke-linecap": e.strokeLinecap,
     "stroke-linejoin": e.strokeLinejoin
   }, null)]);
-}), Qn = M("computer", !1, function(e) {
+}), Xn = F("computer", !1, function(e) {
   return u("svg", {
     width: e.size,
     height: e.size,
@@ -3871,7 +3881,7 @@ const Oi = M("back", !0, function(e) {
     "stroke-linecap": e.strokeLinecap,
     "stroke-linejoin": e.strokeLinejoin
   }, null)]);
-}), Ii = M("delete", !1, function(e) {
+}), js = F("delete", !1, function(e) {
   return u("svg", {
     width: e.size,
     height: e.size,
@@ -3908,7 +3918,7 @@ const Oi = M("back", !0, function(e) {
     "stroke-width": e.strokeWidth,
     "stroke-linejoin": e.strokeLinejoin
   }, null)]);
-}), ji = M("download", !1, function(e) {
+}), xs = F("download", !1, function(e) {
   return u("svg", {
     width: e.size,
     height: e.size,
@@ -3933,7 +3943,7 @@ const Oi = M("back", !0, function(e) {
     "stroke-linecap": e.strokeLinecap,
     "stroke-linejoin": e.strokeLinejoin
   }, null)]);
-}), bt = M("folder-open", !0, function(e) {
+}), _t = F("folder-open", !0, function(e) {
   return u("svg", {
     width: e.size,
     height: e.size,
@@ -3953,7 +3963,7 @@ const Oi = M("back", !0, function(e) {
     "stroke-linecap": e.strokeLinecap,
     "stroke-linejoin": e.strokeLinejoin
   }, null)]);
-}), dn = M("lightning", !0, function(e) {
+}), pn = F("lightning", !0, function(e) {
   return u("svg", {
     width: e.size,
     height: e.size,
@@ -3966,7 +3976,7 @@ const Oi = M("back", !0, function(e) {
     "stroke-width": e.strokeWidth,
     "stroke-linejoin": e.strokeLinejoin
   }, null)]);
-}), Qe = M("loading", !0, function(e) {
+}), Qe = F("loading", !0, function(e) {
   return u("svg", {
     width: e.size,
     height: e.size,
@@ -3985,7 +3995,7 @@ const Oi = M("back", !0, function(e) {
     "stroke-linecap": e.strokeLinecap,
     "stroke-linejoin": e.strokeLinejoin
   }, null)]);
-}), _e = M("picture", !0, function(e) {
+}), Le = F("picture", !0, function(e) {
   return u("svg", {
     width: e.size,
     height: e.size,
@@ -4011,7 +4021,7 @@ const Oi = M("back", !0, function(e) {
     "stroke-linecap": e.strokeLinecap,
     "stroke-linejoin": e.strokeLinejoin
   }, null)]);
-}), Ni = M("picture-album", !0, function(e) {
+}), Ns = F("picture-album", !0, function(e) {
   return u("svg", {
     width: e.size,
     height: e.size,
@@ -4058,7 +4068,7 @@ const Oi = M("back", !0, function(e) {
     "stroke-linecap": e.strokeLinecap,
     "stroke-linejoin": e.strokeLinejoin
   }, null)]);
-}), xi = M("pin", !0, function(e) {
+}), Ms = F("pin", !0, function(e) {
   return u("svg", {
     width: e.size,
     height: e.size,
@@ -4079,7 +4089,7 @@ const Oi = M("back", !0, function(e) {
     height: "48",
     fill: e.colors[2]
   }, null)])])]);
-}), Mi = M("preview-open", !1, function(e) {
+}), Fs = F("preview-open", !1, function(e) {
   return u("svg", {
     width: e.size,
     height: e.size,
@@ -4098,7 +4108,7 @@ const Oi = M("back", !0, function(e) {
     "stroke-width": e.strokeWidth,
     "stroke-linejoin": e.strokeLinejoin
   }, null)]);
-}), Pt = M("refresh", !0, function(e) {
+}), zt = F("refresh", !0, function(e) {
   return u("svg", {
     width: e.size,
     height: e.size,
@@ -4123,7 +4133,7 @@ const Oi = M("back", !0, function(e) {
     "stroke-linecap": e.strokeLinecap,
     "stroke-linejoin": e.strokeLinejoin
   }, null)]);
-}), Fi = M("save", !0, function(e) {
+}), Es = F("save", !0, function(e) {
   return u("svg", {
     width: e.size,
     height: e.size,
@@ -4164,7 +4174,7 @@ const Oi = M("back", !0, function(e) {
     "stroke-linecap": e.strokeLinecap,
     "stroke-linejoin": e.strokeLinejoin
   }, null)]);
-}), Yn = M("search", !0, function(e) {
+}), el = F("search", !0, function(e) {
   return u("svg", {
     width: e.size,
     height: e.size,
@@ -4189,7 +4199,7 @@ const Oi = M("back", !0, function(e) {
     "stroke-linecap": e.strokeLinecap,
     "stroke-linejoin": e.strokeLinejoin
   }, null)]);
-}), hn = M("time", !0, function(e) {
+}), wn = F("time", !0, function(e) {
   return u("svg", {
     width: e.size,
     height: e.size,
@@ -4208,7 +4218,7 @@ const Oi = M("back", !0, function(e) {
     "stroke-linecap": e.strokeLinecap,
     "stroke-linejoin": e.strokeLinejoin
   }, null)]);
-}), Ei = ["disabled", "onClick"], Ai = ["onClick", "onKeydown"], Xn = /* @__PURE__ */ N({
+}), As = ["disabled", "onClick"], Rs = ["onClick", "onKeydown"], tl = /* @__PURE__ */ x({
   __name: "WallhavenSourceTabs",
   props: {
     modelValue: {},
@@ -4223,35 +4233,35 @@ const Oi = M("back", !0, function(e) {
       { value: "hot", labelKey: "wallpaperSwitcher.hot" },
       { value: "toplist", labelKey: "wallpaperSwitcher.toplist" },
       { value: "favorites", labelKey: "wallpaperSwitcher.favorites" }
-    ], r = (s, c) => {
-      c || n("update:modelValue", s);
+    ], i = (r, c) => {
+      c || n("update:modelValue", r);
     };
-    return (s, c) => (m(), _(
-      Z,
+    return (r, c) => (y(), _(
+      q,
       null,
-      We(a, (p) => (m(), _(
-        Z,
+      Oe(a, (p) => (y(), _(
+        q,
         {
           key: p.value
         },
         [
-          s.tabClass === "button" ? (m(), _("button", {
+          r.tabClass === "button" ? (y(), _("button", {
             key: 0,
             type: "button",
-            class: z({ [s.activeClass || "active"]: s.modelValue === p.value }),
-            disabled: s.disabled,
-            onClick: (v) => r(p.value, s.disabled)
-          }, g(o(l)(p.labelKey)), 11, Ei)) : (m(), _("div", {
+            class: O({ [r.activeClass || "active"]: r.modelValue === p.value }),
+            disabled: r.disabled,
+            onClick: (w) => i(p.value, r.disabled)
+          }, g(o(l)(p.labelKey)), 11, As)) : (y(), _("div", {
             key: 1,
-            class: z(["seg-tab", {
-              [s.activeClass || "active"]: s.modelValue === p.value,
-              [s.disabledClass || "disabled"]: s.disabled
+            class: O(["seg-tab", {
+              [r.activeClass || "active"]: r.modelValue === p.value,
+              [r.disabledClass || "disabled"]: r.disabled
             }]),
             role: "tab",
             tabindex: "0",
-            onClick: (v) => r(p.value, s.disabled),
-            onKeydown: vn(Oe((v) => r(p.value, s.disabled), ["prevent"]), ["enter"])
-          }, g(o(l)(p.labelKey)), 43, Ai))
+            onClick: (w) => i(p.value, r.disabled),
+            onKeydown: yn(xe((w) => i(p.value, r.disabled), ["prevent"]), ["enter"])
+          }, g(o(l)(p.labelKey)), 43, Rs))
         ],
         64
         /* STABLE_FRAGMENT */
@@ -4260,19 +4270,19 @@ const Oi = M("back", !0, function(e) {
       /* STABLE_FRAGMENT */
     ));
   }
-}), Ri = { class: "workspace-grid" }, Di = { class: "wallpaper-stage" }, Hi = { class: "stage-media" }, Vi = ["src", "alt"], Bi = {
+}), Ds = { class: "workspace-grid" }, Hs = { class: "wallpaper-stage" }, Vs = { class: "stage-media" }, Bs = ["src", "alt"], Ks = {
   key: 1,
   class: "stage-empty"
-}, Ki = { class: "stage-topline" }, Gi = { class: "eyebrow-pill" }, Ui = { class: "source-pill" }, Zi = { class: "stage-content" }, qi = { class: "stage-copy" }, Ji = ["title"], Qi = { class: "stage-meta" }, Yi = { class: "stage-actions" }, Xi = ["disabled"], es = { class: "source-workspace" }, ts = { class: "section-heading" }, ns = { class: "section-kicker" }, ls = { class: "ready-state" }, as = {
+}, Gs = { class: "stage-topline" }, Us = { class: "eyebrow-pill" }, Zs = { class: "source-pill" }, qs = { class: "stage-content" }, Js = { class: "stage-copy" }, Qs = ["title"], Ys = { class: "stage-meta" }, Xs = { class: "stage-actions" }, ei = ["disabled"], ti = { class: "source-workspace" }, ni = { class: "section-heading" }, li = { class: "section-kicker" }, ai = { class: "ready-state" }, oi = {
   class: "mode-picker",
   role: "tablist"
-}, os = ["aria-selected", "onClick"], is = { class: "source-detail" }, ss = { class: "detail-title" }, rs = {
+}, si = ["aria-selected", "onClick"], ii = { class: "source-detail" }, ri = { class: "detail-title" }, ci = {
   key: 0,
   class: "folder-sort-picker"
-}, cs = ["value"], us = ["value"], ds = ["title"], hs = { class: "path-icon" }, ps = { class: "path-copy" }, ws = { class: "path-cta" }, gs = { class: "detail-title" }, fs = {
+}, ui = ["value"], di = ["value"], hi = ["title"], pi = { class: "path-icon" }, wi = { class: "path-copy" }, gi = { class: "path-cta" }, fi = { class: "detail-title" }, vi = {
   class: "online-source-tabs",
   role: "tablist"
-}, vs = { class: "detail-title" }, ms = ["title"], ys = { class: "path-icon" }, bs = { class: "path-copy" }, ks = { class: "path-cta" }, _s = { class: "automation-card" }, Cs = { class: "automation-intro" }, Ss = { class: "automation-icon" }, Ls = { class: "section-kicker" }, Ws = { class: "schedule-toggle" }, Ps = ["checked"], zs = { class: "compact-control" }, $s = { class: "number-input" }, Os = ["value"], Ts = { class: "compact-control order-control" }, Is = { class: "mini-segmented" }, js = { class: "restore-check" }, Ns = ["checked"], xs = { class: "utility-bar" }, Ms = { class: "tray-callout" }, Fs = { class: "cache-summary" }, Es = { class: "utility-actions" }, As = ["disabled", "title"], Rs = ["disabled", "title"], Ds = ["disabled"], Hs = /* @__PURE__ */ N({
+}, mi = { class: "detail-title" }, yi = ["title"], bi = { class: "path-icon" }, ki = { class: "path-copy" }, _i = { class: "path-cta" }, Ci = { class: "automation-card" }, Si = { class: "automation-intro" }, Li = { class: "automation-icon" }, Wi = { class: "section-kicker" }, Pi = { class: "schedule-toggle" }, $i = ["checked"], zi = { class: "compact-control" }, Oi = { class: "number-input" }, Ti = ["value"], Ii = { class: "compact-control order-control" }, ji = { class: "mini-segmented" }, xi = { class: "restore-check" }, Ni = ["checked"], Mi = { class: "utility-bar" }, Fi = { class: "tray-callout" }, Ei = { class: "cache-summary" }, Ai = { class: "utility-actions" }, Ri = ["disabled", "title"], Di = ["disabled", "title"], Hi = ["disabled"], Vi = /* @__PURE__ */ x({
   __name: "SwitcherHome",
   props: {
     config: {},
@@ -4291,7 +4301,7 @@ const Oi = M("back", !0, function(e) {
   },
   emits: ["updateConfig", "chooseImage", "chooseFolder", "scanFolder", "openWallhavenGrid", "switchNow", "setCurrentAsFixed", "clearCache", "openCacheDir", "persistConfig"],
   setup(e, { emit: t }) {
-    const n = e, l = t, { t: a } = ie(), r = [
+    const n = e, l = t, { t: a } = ie(), i = [
       {
         value: "folder",
         labelKey: "wallpaperSwitcher.localFolder",
@@ -4307,7 +4317,7 @@ const Oi = M("back", !0, function(e) {
         labelKey: "wallpaperSwitcher.fixedImage",
         captionKey: "wallpaperSwitcher.fixedImageCaption"
       }
-    ], s = [
+    ], r = [
       {
         value: "createdAscending",
         labelKey: "wallpaperSwitcher.folderSort.createdAscending"
@@ -4322,30 +4332,30 @@ const Oi = M("back", !0, function(e) {
       }
     ], c = (d) => {
       l("updateConfig", { ...n.config, ...d });
-    }, p = (d) => c({ mode: d }), v = (d) => c({ wallhavenSource: d }), w = (d) => c({ order: d }), y = (d) => c({
+    }, p = (d) => c({ mode: d }), w = (d) => c({ wallhavenSource: d }), v = (d) => c({ order: d }), f = (d) => c({
       folderSort: d.target.value
-    }), I = (d) => c({ scheduleEnabled: d.target.checked }), T = (d) => c({
+    }), $ = (d) => c({ scheduleEnabled: d.target.checked }), I = (d) => c({
       intervalMinutes: Math.min(
         1440,
         Math.max(1, Number(d.target.value) || 1)
       )
-    }), F = (d) => c({ autoRestore: d.target.checked });
-    return (d, f) => (m(), _(
+    }), E = (d) => c({ autoRestore: d.target.checked });
+    return (d, m) => (y(), _(
       "div",
       {
-        class: z(["switcher-home", { "is-loading": d.loading }])
+        class: O(["switcher-home", { "is-loading": d.loading }])
       },
       [
-        i("section", Ri, [
-          i("article", Di, [
-            i("div", Hi, [
-              d.previewSrc ? (m(), _("img", {
+        s("section", Ds, [
+          s("article", Hs, [
+            s("div", Vs, [
+              d.previewSrc ? (y(), _("img", {
                 key: 0,
                 src: d.previewSrc,
                 alt: o(a)("wallpaperSwitcher.currentPreviewAlt")
-              }, null, 8, Vi)) : (m(), _("div", Bi, [
-                u(o(_e), { size: 40 }),
-                i(
+              }, null, 8, Bs)) : (y(), _("div", Ks, [
+                u(o(Le), { size: 40 }),
+                s(
                   "span",
                   null,
                   g(o(a)("wallpaperSwitcher.noCurrentWallpaper")),
@@ -4354,16 +4364,16 @@ const Oi = M("back", !0, function(e) {
                 )
               ]))
             ]),
-            f[12] || (f[12] = i(
+            m[12] || (m[12] = s(
               "div",
               { class: "stage-overlay" },
               null,
               -1
               /* HOISTED */
             )),
-            i("div", Ki, [
-              i("span", Gi, [
-                f[11] || (f[11] = i(
+            s("div", Gs, [
+              s("span", Us, [
+                m[11] || (m[11] = s(
                   "span",
                   { class: "live-dot" },
                   null,
@@ -4376,35 +4386,35 @@ const Oi = M("back", !0, function(e) {
                   /* TEXT */
                 )
               ]),
-              i(
+              s(
                 "span",
-                Ui,
+                Zs,
                 g(d.sourceLabel),
                 1
                 /* TEXT */
               )
             ]),
-            i("div", Zi, [
-              i("div", qi, [
-                i(
+            s("div", qs, [
+              s("div", Js, [
+                s(
                   "p",
                   null,
                   g(o(a)("wallpaperSwitcher.currentWallpaper")),
                   1
                   /* TEXT */
                 ),
-                i("h1", { title: d.currentWallpaperName }, g(d.currentWallpaperName), 9, Ji),
-                i("div", Qi, [
-                  i("span", null, [
-                    u(o(Qn), { size: 15 }),
+                s("h1", { title: d.currentWallpaperName }, g(d.currentWallpaperName), 9, Qs),
+                s("div", Ys, [
+                  s("span", null, [
+                    u(o(Xn), { size: 15 }),
                     H(
                       " " + g(d.resolutionLabel),
                       1
                       /* TEXT */
                     )
                   ]),
-                  i("span", null, [
-                    u(o(hn), { size: 15 }),
+                  s("span", null, [
+                    u(o(wn), { size: 15 }),
                     H(
                       " " + g(d.nextSwitchLabel),
                       1
@@ -4413,18 +4423,18 @@ const Oi = M("back", !0, function(e) {
                   ])
                 ])
               ]),
-              i("div", Yi, [
-                i("button", {
+              s("div", Xs, [
+                s("button", {
                   type: "button",
                   class: "stage-btn stage-btn-primary",
                   disabled: d.switching,
-                  onClick: f[0] || (f[0] = (b) => l("switchNow"))
+                  onClick: m[0] || (m[0] = (b) => l("switchNow"))
                 }, [
-                  d.switching ? (m(), j(o(Pt), {
+                  d.switching ? (y(), j(o(zt), {
                     key: 0,
                     size: 16,
                     class: "spinning"
-                  })) : (m(), j(o(dn), {
+                  })) : (y(), j(o(pn), {
                     key: 1,
                     size: 16
                   })),
@@ -4433,13 +4443,13 @@ const Oi = M("back", !0, function(e) {
                     1
                     /* TEXT */
                   )
-                ], 8, Xi),
-                i("button", {
+                ], 8, ei),
+                s("button", {
                   type: "button",
                   class: "stage-btn stage-btn-ghost",
-                  onClick: f[1] || (f[1] = (b) => l("setCurrentAsFixed"))
+                  onClick: m[1] || (m[1] = (b) => l("setCurrentAsFixed"))
                 }, [
-                  u(o(xi), { size: 16 }),
+                  u(o(Ms), { size: 16 }),
                   H(
                     " " + g(o(a)("wallpaperSwitcher.setFixed")),
                     1
@@ -4449,17 +4459,17 @@ const Oi = M("back", !0, function(e) {
               ])
             ])
           ]),
-          i("aside", es, [
-            i("header", ts, [
-              i("div", null, [
-                i(
+          s("aside", ti, [
+            s("header", ni, [
+              s("div", null, [
+                s(
                   "span",
-                  ns,
+                  li,
                   g(o(a)("wallpaperSwitcher.stepOne")),
                   1
                   /* TEXT */
                 ),
-                i(
+                s(
                   "h2",
                   null,
                   g(o(a)("wallpaperSwitcher.chooseSource")),
@@ -4467,8 +4477,8 @@ const Oi = M("back", !0, function(e) {
                   /* TEXT */
                 )
               ]),
-              i("span", ls, [
-                u(o(Ti), { size: 14 }),
+              s("span", ai, [
+                u(o(Is), { size: 14 }),
                 H(
                   " " + g(o(a)("wallpaperSwitcher.ready")),
                   1
@@ -4476,37 +4486,37 @@ const Oi = M("back", !0, function(e) {
                 )
               ])
             ]),
-            i("div", as, [
-              (m(), _(
-                Z,
+            s("div", oi, [
+              (y(), _(
+                q,
                 null,
-                We(r, (b) => i("button", {
+                Oe(i, (b) => s("button", {
                   key: b.value,
                   type: "button",
-                  class: z({ active: d.config.mode === b.value }),
+                  class: O({ active: d.config.mode === b.value }),
                   role: "tab",
                   "aria-selected": d.config.mode === b.value,
-                  onClick: (x) => p(b.value)
+                  onClick: (R) => p(b.value)
                 }, [
-                  b.value === "folder" ? (m(), j(o(bt), {
+                  b.value === "folder" ? (y(), j(o(_t), {
                     key: 0,
                     size: 18
-                  })) : b.value === "wallhaven" ? (m(), j(o(Yn), {
+                  })) : b.value === "wallhaven" ? (y(), j(o(el), {
                     key: 1,
                     size: 18
-                  })) : (m(), j(o(_e), {
+                  })) : (y(), j(o(Le), {
                     key: 2,
                     size: 18
                   })),
-                  i("span", null, [
-                    i(
+                  s("span", null, [
+                    s(
                       "strong",
                       null,
                       g(o(a)(b.labelKey)),
                       1
                       /* TEXT */
                     ),
-                    i(
+                    s(
                       "small",
                       null,
                       g(o(a)(b.captionKey)),
@@ -4514,26 +4524,26 @@ const Oi = M("back", !0, function(e) {
                       /* TEXT */
                     )
                   ])
-                ], 10, os)),
+                ], 10, si)),
                 64
                 /* STABLE_FRAGMENT */
               ))
             ]),
-            i("div", is, [
-              d.config.mode === "folder" ? (m(), _(
-                Z,
+            s("div", ii, [
+              d.config.mode === "folder" ? (y(), _(
+                q,
                 { key: 0 },
                 [
-                  i("div", ss, [
-                    i("div", null, [
-                      i(
+                  s("div", ri, [
+                    s("div", null, [
+                      s(
                         "span",
                         null,
                         g(o(a)("wallpaperSwitcher.localLibrary")),
                         1
                         /* TEXT */
                       ),
-                      i(
+                      s(
                         "strong",
                         null,
                         g(d.folderCountLabel),
@@ -4541,12 +4551,12 @@ const Oi = M("back", !0, function(e) {
                         /* TEXT */
                       )
                     ]),
-                    i("button", {
+                    s("button", {
                       type: "button",
                       class: "text-action",
-                      onClick: f[2] || (f[2] = (b) => l("scanFolder"))
+                      onClick: m[2] || (m[2] = (b) => l("scanFolder"))
                     }, [
-                      u(o(Pt), { size: 14 }),
+                      u(o(zt), { size: 14 }),
                       H(
                         " " + g(o(a)("wallpaperSwitcher.scan")),
                         1
@@ -4554,48 +4564,48 @@ const Oi = M("back", !0, function(e) {
                       )
                     ])
                   ]),
-                  d.config.order === "sequential" ? (m(), _("label", rs, [
-                    i(
+                  d.config.order === "sequential" ? (y(), _("label", ci, [
+                    s(
                       "span",
                       null,
                       g(o(a)("wallpaperSwitcher.folderSortLabel")),
                       1
                       /* TEXT */
                     ),
-                    i("select", {
+                    s("select", {
                       value: d.config.folderSort,
-                      onChange: y
+                      onChange: f
                     }, [
-                      (m(), _(
-                        Z,
+                      (y(), _(
+                        q,
                         null,
-                        We(s, (b) => i("option", {
+                        Oe(r, (b) => s("option", {
                           key: b.value,
                           value: b.value
-                        }, g(o(a)(b.labelKey)), 9, us)),
+                        }, g(o(a)(b.labelKey)), 9, di)),
                         64
                         /* STABLE_FRAGMENT */
                       ))
-                    ], 40, cs)
-                  ])) : R("v-if", !0),
-                  i("button", {
+                    ], 40, ui)
+                  ])) : M("v-if", !0),
+                  s("button", {
                     type: "button",
                     class: "path-picker",
                     title: d.config.folderPath || "",
-                    onClick: f[3] || (f[3] = (b) => l("chooseFolder"))
+                    onClick: m[3] || (m[3] = (b) => l("chooseFolder"))
                   }, [
-                    i("span", hs, [
-                      u(o(bt), { size: 18 })
+                    s("span", pi, [
+                      u(o(_t), { size: 18 })
                     ]),
-                    i("span", ps, [
-                      i(
+                    s("span", wi, [
+                      s(
                         "small",
                         null,
                         g(o(a)("wallpaperSwitcher.folderPath")),
                         1
                         /* TEXT */
                       ),
-                      i(
+                      s(
                         "strong",
                         null,
                         g(d.config.folderPath || o(a)("wallpaperSwitcher.placeholders.selectFolder")),
@@ -4603,31 +4613,31 @@ const Oi = M("back", !0, function(e) {
                         /* TEXT */
                       )
                     ]),
-                    i(
+                    s(
                       "span",
-                      ws,
+                      gi,
                       g(o(a)("wallpaperSwitcher.change")),
                       1
                       /* TEXT */
                     )
-                  ], 8, ds)
+                  ], 8, hi)
                 ],
                 64
                 /* STABLE_FRAGMENT */
-              )) : d.config.mode === "wallhaven" ? (m(), _(
-                Z,
+              )) : d.config.mode === "wallhaven" ? (y(), _(
+                q,
                 { key: 1 },
                 [
-                  i("div", gs, [
-                    i("div", null, [
-                      f[13] || (f[13] = i(
+                  s("div", fi, [
+                    s("div", null, [
+                      m[13] || (m[13] = s(
                         "span",
                         null,
                         "Wallhaven",
                         -1
                         /* HOISTED */
                       )),
-                      i(
+                      s(
                         "strong",
                         null,
                         g(o(a)("wallpaperSwitcher.onlineSourceHint")),
@@ -4636,28 +4646,28 @@ const Oi = M("back", !0, function(e) {
                       )
                     ])
                   ]),
-                  i("div", fs, [
-                    u(Xn, {
+                  s("div", vi, [
+                    u(tl, {
                       "tab-class": "button",
                       "model-value": d.config.wallhavenSource,
-                      "onUpdate:modelValue": v
+                      "onUpdate:modelValue": w
                     }, null, 8, ["model-value"])
                   ]),
-                  i("button", {
+                  s("button", {
                     type: "button",
                     class: "browse-online-btn",
-                    onClick: f[4] || (f[4] = (b) => l("openWallhavenGrid"))
+                    onClick: m[4] || (m[4] = (b) => l("openWallhavenGrid"))
                   }, [
-                    u(o(_e), { size: 18 }),
-                    i("span", null, [
-                      i(
+                    u(o(Le), { size: 18 }),
+                    s("span", null, [
+                      s(
                         "strong",
                         null,
                         g(o(a)("wallpaperSwitcher.browseOnline")),
                         1
                         /* TEXT */
                       ),
-                      i(
+                      s(
                         "small",
                         null,
                         g(o(a)("wallpaperSwitcher.browseOnlineHint")),
@@ -4665,7 +4675,7 @@ const Oi = M("back", !0, function(e) {
                         /* TEXT */
                       )
                     ]),
-                    f[14] || (f[14] = i(
+                    m[14] || (m[14] = s(
                       "span",
                       { "aria-hidden": "true" },
                       "→",
@@ -4676,20 +4686,20 @@ const Oi = M("back", !0, function(e) {
                 ],
                 64
                 /* STABLE_FRAGMENT */
-              )) : (m(), _(
-                Z,
+              )) : (y(), _(
+                q,
                 { key: 2 },
                 [
-                  i("div", vs, [
-                    i("div", null, [
-                      i(
+                  s("div", mi, [
+                    s("div", null, [
+                      s(
                         "span",
                         null,
                         g(o(a)("wallpaperSwitcher.fixedImage")),
                         1
                         /* TEXT */
                       ),
-                      i(
+                      s(
                         "strong",
                         null,
                         g(o(a)("wallpaperSwitcher.fixedModeHint")),
@@ -4698,24 +4708,24 @@ const Oi = M("back", !0, function(e) {
                       )
                     ])
                   ]),
-                  i("button", {
+                  s("button", {
                     type: "button",
                     class: "path-picker",
                     title: d.config.fixedImagePath || "",
-                    onClick: f[5] || (f[5] = (b) => l("chooseImage"))
+                    onClick: m[5] || (m[5] = (b) => l("chooseImage"))
                   }, [
-                    i("span", ys, [
-                      u(o(_e), { size: 18 })
+                    s("span", bi, [
+                      u(o(Le), { size: 18 })
                     ]),
-                    i("span", bs, [
-                      i(
+                    s("span", ki, [
+                      s(
                         "small",
                         null,
                         g(o(a)("wallpaperSwitcher.imagePath")),
                         1
                         /* TEXT */
                       ),
-                      i(
+                      s(
                         "strong",
                         null,
                         g(d.config.fixedImagePath || o(a)("wallpaperSwitcher.placeholders.selectImage")),
@@ -4723,14 +4733,14 @@ const Oi = M("back", !0, function(e) {
                         /* TEXT */
                       )
                     ]),
-                    i(
+                    s(
                       "span",
-                      ks,
+                      _i,
                       g(o(a)("wallpaperSwitcher.change")),
                       1
                       /* TEXT */
                     )
-                  ], 8, ms)
+                  ], 8, yi)
                 ],
                 64
                 /* STABLE_FRAGMENT */
@@ -4738,27 +4748,27 @@ const Oi = M("back", !0, function(e) {
             ])
           ])
         ]),
-        i("section", _s, [
-          i("div", Cs, [
-            i("span", Ss, [
-              u(o(hn), { size: 20 })
+        s("section", Ci, [
+          s("div", Si, [
+            s("span", Li, [
+              u(o(wn), { size: 20 })
             ]),
-            i("div", null, [
-              i(
+            s("div", null, [
+              s(
                 "span",
-                Ls,
+                Wi,
                 g(o(a)("wallpaperSwitcher.stepTwo")),
                 1
                 /* TEXT */
               ),
-              i(
+              s(
                 "h2",
                 null,
                 g(o(a)("wallpaperSwitcher.automationTitle")),
                 1
                 /* TEXT */
               ),
-              i(
+              s(
                 "p",
                 null,
                 g(o(a)("wallpaperSwitcher.automationHint")),
@@ -4767,9 +4777,9 @@ const Oi = M("back", !0, function(e) {
               )
             ])
           ]),
-          i("label", Ws, [
-            i("span", null, [
-              i(
+          s("label", Pi, [
+            s("span", null, [
+              s(
                 "strong",
                 null,
                 g(o(a)("wallpaperSwitcher.enableSchedule")),
@@ -4777,12 +4787,12 @@ const Oi = M("back", !0, function(e) {
                 /* TEXT */
               )
             ]),
-            i("input", {
+            s("input", {
               checked: d.config.scheduleEnabled,
               type: "checkbox",
-              onChange: I
-            }, null, 40, Ps),
-            f[15] || (f[15] = i(
+              onChange: $
+            }, null, 40, $i),
+            m[15] || (m[15] = s(
               "span",
               {
                 class: "switch-control",
@@ -4793,23 +4803,23 @@ const Oi = M("back", !0, function(e) {
               /* HOISTED */
             ))
           ]),
-          i("label", zs, [
-            i(
+          s("label", zi, [
+            s(
               "span",
               null,
               g(o(a)("wallpaperSwitcher.interval")),
               1
               /* TEXT */
             ),
-            i("span", $s, [
-              i("input", {
+            s("span", Oi, [
+              s("input", {
                 value: d.config.intervalMinutes,
                 type: "number",
                 min: "1",
                 max: "1440",
-                onInput: T
-              }, null, 40, Os),
-              i(
+                onInput: I
+              }, null, 40, Ti),
+              s(
                 "small",
                 null,
                 g(o(a)("wallpaperSwitcher.minutes")),
@@ -4818,32 +4828,32 @@ const Oi = M("back", !0, function(e) {
               )
             ])
           ]),
-          i("div", Ts, [
-            i(
+          s("div", Ii, [
+            s(
               "span",
               null,
               g(o(a)("wallpaperSwitcher.rotationOrder")),
               1
               /* TEXT */
             ),
-            i("div", Is, [
-              i(
+            s("div", ji, [
+              s(
                 "button",
                 {
                   type: "button",
-                  class: z({ active: d.config.order === "sequential" }),
-                  onClick: f[6] || (f[6] = (b) => w("sequential"))
+                  class: O({ active: d.config.order === "sequential" }),
+                  onClick: m[6] || (m[6] = (b) => v("sequential"))
                 },
                 g(o(a)("wallpaperSwitcher.sequential")),
                 3
                 /* TEXT, CLASS */
               ),
-              i(
+              s(
                 "button",
                 {
                   type: "button",
-                  class: z({ active: d.config.order === "random" }),
-                  onClick: f[7] || (f[7] = (b) => w("random"))
+                  class: O({ active: d.config.order === "random" }),
+                  onClick: m[7] || (m[7] = (b) => v("random"))
                 },
                 g(o(a)("wallpaperSwitcher.random")),
                 3
@@ -4851,21 +4861,21 @@ const Oi = M("back", !0, function(e) {
               )
             ])
           ]),
-          i("label", js, [
-            i("input", {
+          s("label", xi, [
+            s("input", {
               checked: d.config.autoRestore,
               type: "checkbox",
-              onChange: F
-            }, null, 40, Ns),
-            i("span", null, [
-              i(
+              onChange: E
+            }, null, 40, Ni),
+            s("span", null, [
+              s(
                 "strong",
                 null,
                 g(o(a)("wallpaperSwitcher.autoRestoreShort")),
                 1
                 /* TEXT */
               ),
-              i(
+              s(
                 "small",
                 null,
                 g(o(a)("wallpaperSwitcher.autoRestoreHint")),
@@ -4875,18 +4885,18 @@ const Oi = M("back", !0, function(e) {
             ])
           ])
         ]),
-        i("footer", xs, [
-          i("div", Ms, [
-            u(o(dn), { size: 17 }),
-            i("span", null, [
-              i(
+        s("footer", Mi, [
+          s("div", Fi, [
+            u(o(pn), { size: 17 }),
+            s("span", null, [
+              s(
                 "strong",
                 null,
                 g(o(a)("wallpaperSwitcher.trayQuickSwitch")),
                 1
                 /* TEXT */
               ),
-              i(
+              s(
                 "small",
                 null,
                 g(o(a)("wallpaperSwitcher.trayQuickSwitchHint")),
@@ -4895,15 +4905,15 @@ const Oi = M("back", !0, function(e) {
               )
             ])
           ]),
-          i("div", Fs, [
-            i(
+          s("div", Ei, [
+            s(
               "span",
               null,
               g(o(a)("wallpaperSwitcher.cache")),
               1
               /* TEXT */
             ),
-            i(
+            s(
               "strong",
               null,
               g(d.cacheSizeLabel),
@@ -4911,38 +4921,38 @@ const Oi = M("back", !0, function(e) {
               /* TEXT */
             )
           ]),
-          i("div", Es, [
-            i("button", {
+          s("div", Ai, [
+            s("button", {
               type: "button",
               class: "utility-btn",
               disabled: d.clearingCache,
               title: o(a)("wallpaperSwitcher.clearCache"),
-              onClick: f[8] || (f[8] = (b) => l("clearCache"))
+              onClick: m[8] || (m[8] = (b) => l("clearCache"))
             }, [
-              u(o(Ii), { size: 16 })
-            ], 8, As),
-            i("button", {
+              u(o(js), { size: 16 })
+            ], 8, Ri),
+            s("button", {
               type: "button",
               class: "utility-btn",
               disabled: d.openingCache,
               title: o(a)("wallpaperSwitcher.openCache"),
-              onClick: f[9] || (f[9] = (b) => l("openCacheDir"))
+              onClick: m[9] || (m[9] = (b) => l("openCacheDir"))
             }, [
-              u(o(bt), { size: 16 })
-            ], 8, Rs),
-            i("button", {
+              u(o(_t), { size: 16 })
+            ], 8, Di),
+            s("button", {
               type: "button",
               class: "save-btn",
               disabled: d.saving,
-              onClick: f[10] || (f[10] = (b) => l("persistConfig"))
+              onClick: m[10] || (m[10] = (b) => l("persistConfig"))
             }, [
-              u(o(Fi), { size: 17 }),
+              u(o(Es), { size: 17 }),
               H(
                 " " + g(d.saving ? o(a)("wallpaperSwitcher.saving") : o(a)("wallpaperSwitcher.saveSettings")),
                 1
                 /* TEXT */
               )
-            ], 8, Ds)
+            ], 8, Hi)
           ])
         ])
       ],
@@ -4950,22 +4960,22 @@ const Oi = M("back", !0, function(e) {
       /* CLASS */
     ));
   }
-}), Vs = {
+}), Bi = {
   class: "titlebar",
   "data-tauri-drag-region": ""
-}, Bs = {
+}, Ki = {
   key: 0,
   class: "title"
-}, Ks = { class: "title-icon" }, Gs = { class: "title-copy" }, Us = {
+}, Gi = { class: "title-icon" }, Ui = { class: "title-copy" }, Zi = {
   key: 1,
   class: "title"
-}, Zs = ["title"], qs = {
+}, qi = ["title"], Ji = {
   key: 2,
   class: "window-actions"
-}, Js = ["title"], Qs = ["title"], Ys = {
+}, Qi = ["title"], Yi = ["title"], Xi = {
   key: 3,
   class: "window-actions"
-}, Xs = ["aria-label"], er = ["title"], tr = /* @__PURE__ */ N({
+}, er = ["aria-label"], tr = ["title"], nr = /* @__PURE__ */ x({
   __name: "SwitcherTitlebar",
   props: {
     activeView: {},
@@ -4977,20 +4987,20 @@ const Oi = M("back", !0, function(e) {
   emits: ["back", "close", "openWallhaven", "setWallhavenSource"],
   setup(e, { emit: t }) {
     const n = t, { t: l } = ie();
-    return (a, r) => (m(), _("header", Vs, [
-      a.activeView === "switcher" ? (m(), _("div", Bs, [
-        i("span", Ks, [
-          u(o(_e), { size: 18 })
+    return (a, i) => (y(), _("header", Bi, [
+      a.activeView === "switcher" ? (y(), _("div", Ki, [
+        s("span", Gi, [
+          u(o(Le), { size: 18 })
         ]),
-        i("span", Gs, [
-          i(
+        s("span", Ui, [
+          s(
             "strong",
             null,
             g(o(l)("wallpaperSwitcher.title")),
             1
             /* TEXT */
           ),
-          i(
+          s(
             "small",
             null,
             g(o(l)("wallpaperSwitcher.titleSubtitle")),
@@ -4998,13 +5008,13 @@ const Oi = M("back", !0, function(e) {
             /* TEXT */
           )
         ]),
-        i(
+        s(
           "span",
           {
-            class: z(["title-status", { active: a.scheduleEnabled && a.schedulerRunning }])
+            class: O(["title-status", { active: a.scheduleEnabled && a.schedulerRunning }])
           },
           [
-            r[5] || (r[5] = i(
+            i[5] || (i[5] = s(
               "span",
               null,
               null,
@@ -5020,16 +5030,16 @@ const Oi = M("back", !0, function(e) {
           2
           /* CLASS */
         )
-      ])) : (m(), _("div", Us, [
-        i("button", {
+      ])) : (y(), _("div", Zi, [
+        s("button", {
           type: "button",
           class: "flat-icon",
           title: o(l)("wallpaperSwitcher.back"),
-          onClick: r[0] || (r[0] = (s) => n("back"))
+          onClick: i[0] || (i[0] = (r) => n("back"))
         }, [
-          u(o(Oi), { size: 20 })
-        ], 8, Zs),
-        i(
+          u(o(Ts), { size: 20 })
+        ], 8, qi),
+        s(
           "span",
           null,
           g(o(l)("wallpaperSwitcher.wallhavenTitle")),
@@ -5037,69 +5047,75 @@ const Oi = M("back", !0, function(e) {
           /* TEXT */
         )
       ])),
-      a.activeView === "switcher" ? (m(), _("div", qs, [
-        i("button", {
+      a.activeView === "switcher" ? (y(), _("div", Ji, [
+        s("button", {
           type: "button",
           class: "online-entry-btn",
           title: o(l)("wallpaperSwitcher.openWallhaven"),
-          onClick: r[1] || (r[1] = (s) => n("openWallhaven"))
+          onClick: i[1] || (i[1] = (r) => n("openWallhaven"))
         }, [
-          u(o(Ni), { size: 18 }),
-          i(
+          u(o(Ns), { size: 18 }),
+          s(
             "span",
             null,
             g(o(l)("wallpaperSwitcher.browseOnline")),
             1
             /* TEXT */
           )
-        ], 8, Js),
-        i("button", {
+        ], 8, Qi),
+        s("button", {
           type: "button",
           class: "icon-btn",
           title: o(l)("wallpaperSwitcher.close"),
-          onClick: r[2] || (r[2] = (s) => n("close"))
+          onClick: i[2] || (i[2] = (r) => n("close"))
         }, [
           u(o(Je), { size: 20 })
-        ], 8, Qs)
-      ])) : (m(), _("div", Ys, [
-        i("div", {
+        ], 8, Yi)
+      ])) : (y(), _("div", Xi, [
+        s("div", {
           class: "source-toggle",
           role: "tablist",
           "aria-label": o(l)("wallpaperSwitcher.sourceToggle")
         }, [
-          u(Xn, {
+          u(tl, {
             "model-value": a.wallhavenSource,
             disabled: a.wallhavenLoading,
-            "onUpdate:modelValue": r[3] || (r[3] = (s) => n("setWallhavenSource", s))
+            "onUpdate:modelValue": i[3] || (i[3] = (r) => n("setWallhavenSource", r))
           }, null, 8, ["model-value", "disabled"])
-        ], 8, Xs),
-        i("button", {
+        ], 8, er),
+        s("button", {
           type: "button",
           class: "icon-btn",
           title: o(l)("wallpaperSwitcher.close"),
-          onClick: r[4] || (r[4] = (s) => n("close"))
+          onClick: i[4] || (i[4] = (r) => n("close"))
         }, [
           u(o(Je), { size: 20 })
-        ], 8, er)
+        ], 8, tr)
       ]))
     ]));
   }
-}), nr = { class: "wallhaven-view" }, lr = { class: "filters filters--preview-style" }, ar = { class: "search-box wallhaven-search" }, or = ["value", "placeholder"], ir = ["title"], sr = ["aria-label"], rr = ["disabled", "onClick"], cr = { class: "wallhaven-meta" }, ur = ["title"], dr = { class: "grid-wrap" }, hr = {
+}), lr = { class: "wallhaven-view" }, ar = { class: "filters filters--preview-style" }, or = { class: "search-box wallhaven-search" }, sr = ["value", "placeholder"], ir = ["title"], rr = ["aria-label"], cr = ["disabled", "onClick"], ur = { class: "wallhaven-meta" }, dr = ["title"], hr = { class: "grid-wrap" }, pr = {
   key: 0,
   class: "empty-state"
-}, pr = {
+}, wr = {
   key: 1,
   class: "empty-state error-state"
-}, wr = {
+}, gr = {
   key: 2,
   class: "empty-state"
-}, gr = {
+}, fr = {
   key: 3,
   class: "wallpaper-grid"
-}, fr = ["onClick"], vr = {
+}, vr = ["onClick"], mr = {
   key: 0,
   class: "thumb-skeleton"
-}, mr = ["alt", "onLoad"], yr = ["title", "onClick"], br = ["title", "disabled", "aria-busy", "onClick"], kr = ["title", "disabled", "aria-busy", "onClick"], _r = { class: "pager" }, Cr = { class: "source-note" }, Sr = { class: "pager-actions" }, Lr = ["disabled"], Wr = ["disabled"], Pr = /* @__PURE__ */ N({
+}, yr = ["alt", "onLoad"], br = {
+  key: 1,
+  class: "download-ring"
+}, kr = {
+  viewBox: "0 0 48 48",
+  class: "ring-svg"
+}, _r = ["stroke-dashoffset"], Cr = { class: "ring-text" }, Sr = ["title", "onClick"], Lr = ["title", "disabled", "aria-busy", "onClick"], Wr = ["title", "disabled", "aria-busy", "onClick"], Pr = { class: "pager" }, $r = { class: "source-note" }, zr = { class: "pager-actions" }, Or = ["disabled"], Tr = ["disabled"], Ir = /* @__PURE__ */ x({
   __name: "WallhavenView",
   props: {
     keyword: {},
@@ -5109,6 +5125,7 @@ const Oi = M("back", !0, function(e) {
     wallpapers: {},
     loadedThumbIds: {},
     workingActions: {},
+    downloadProgress: {},
     page: {},
     lastPage: {},
     sourceLabel: {},
@@ -5117,205 +5134,245 @@ const Oi = M("back", !0, function(e) {
   },
   emits: ["update:keyword", "refresh", "setCategory", "openPreview", "markThumbLoaded", "setWallpaper", "downloadWallpaper", "prevPage", "nextPage"],
   setup(e, { emit: t }) {
-    const n = e, l = t, { t: a } = ie(), r = [
+    const n = e, l = t, { t: a } = ie(), i = [
       { value: "general", labelKey: "wallpaperSwitcher.categories.general" },
       { value: "anime", labelKey: "wallpaperSwitcher.categories.anime" },
       { value: "people", labelKey: "wallpaperSwitcher.categories.people" },
       { value: "nature", labelKey: "wallpaperSwitcher.categories.nature" }
-    ], s = (p) => l("update:keyword", p.target.value), c = (p) => n.workingActions.get(p);
-    return (p, v) => (m(), _("div", nr, [
-      i("section", lr, [
-        i("div", ar, [
-          i("input", {
-            value: p.keyword,
+    ], r = (w) => l("update:keyword", w.target.value), c = (w) => n.workingActions.get(w), p = (w) => {
+      const v = n.downloadProgress.get(w);
+      return !v || !v.total || v.total <= 0 ? null : Math.min(100, Math.round(v.downloaded / v.total * 100));
+    };
+    return (w, v) => (y(), _("div", lr, [
+      s("section", ar, [
+        s("div", or, [
+          s("input", {
+            value: w.keyword,
             type: "text",
             placeholder: o(a)("wallpaperSwitcher.searchPlaceholder"),
-            onInput: s,
-            onKeydown: v[0] || (v[0] = vn((w) => l("refresh"), ["enter"]))
-          }, null, 40, or),
-          u(o(Yn), {
+            onInput: r,
+            onKeydown: v[0] || (v[0] = yn((f) => l("refresh"), ["enter"]))
+          }, null, 40, sr),
+          u(o(el), {
             size: 16,
             class: "search-icon"
           }),
-          p.keyword ? (m(), _("button", {
+          w.keyword ? (y(), _("button", {
             key: 0,
             type: "button",
             class: "clear-btn",
             title: o(a)("wallpaperSwitcher.clear"),
-            onClick: v[1] || (v[1] = (w) => l("update:keyword", ""))
+            onClick: v[1] || (v[1] = (f) => l("update:keyword", ""))
           }, [
             u(o(Je), { size: 18 })
-          ], 8, ir)) : R("v-if", !0)
+          ], 8, ir)) : M("v-if", !0)
         ]),
-        i("div", {
+        s("div", {
           class: "wallhaven-tabs",
           role: "tablist",
           "aria-label": o(a)("wallpaperSwitcher.categoryToggle")
         }, [
-          (m(), _(
-            Z,
+          (y(), _(
+            q,
             null,
-            We(r, (w) => i("button", {
-              key: w.value,
+            Oe(i, (f) => s("button", {
+              key: f.value,
               type: "button",
-              class: z({ active: p.category === w.value }),
-              disabled: p.loading,
-              onClick: (y) => l("setCategory", w.value)
-            }, g(o(a)(w.labelKey)), 11, rr)),
+              class: O({ active: w.category === f.value }),
+              disabled: w.loading,
+              onClick: ($) => l("setCategory", f.value)
+            }, g(o(a)(f.labelKey)), 11, cr)),
             64
             /* STABLE_FRAGMENT */
           ))
-        ], 8, sr),
-        i("div", cr, [
-          i(
+        ], 8, rr),
+        s("div", ur, [
+          s(
             "span",
             null,
-            g(o(a)("wallpaperSwitcher.autoMatch", { resolution: p.screenLabel })),
+            g(o(a)("wallpaperSwitcher.autoMatch", { resolution: w.screenLabel })),
             1
             /* TEXT */
           ),
-          i("button", {
+          s("button", {
             type: "button",
             class: "refresh-btn wallhaven-refresh",
             title: o(a)("wallpaperSwitcher.refresh"),
-            onClick: v[2] || (v[2] = (w) => l("refresh"))
+            onClick: v[2] || (v[2] = (f) => l("refresh"))
           }, [
-            u(o(Pt), {
+            u(o(zt), {
               size: 14,
-              class: z({ spinning: p.loading })
+              class: O({ spinning: w.loading })
             }, null, 8, ["class"])
-          ], 8, ur)
+          ], 8, dr)
         ])
       ]),
-      i("section", dr, [
-        p.loading && p.wallpapers.length === 0 ? (m(), _(
+      s("section", hr, [
+        w.loading && w.wallpapers.length === 0 ? (y(), _(
           "div",
-          hr,
+          pr,
           g(o(a)("wallpaperSwitcher.loadingWallhaven")),
           1
           /* TEXT */
-        )) : p.error ? (m(), _("div", pr, [
-          i(
+        )) : w.error ? (y(), _("div", wr, [
+          s(
             "span",
             null,
-            g(p.error),
+            g(w.error),
             1
             /* TEXT */
           ),
-          i(
+          s(
             "button",
             {
               type: "button",
-              onClick: v[3] || (v[3] = (w) => l("refresh"))
+              onClick: v[3] || (v[3] = (f) => l("refresh"))
             },
             g(o(a)("wallpaperSwitcher.retry")),
             1
             /* TEXT */
           )
-        ])) : p.wallpapers.length === 0 ? (m(), _(
+        ])) : w.wallpapers.length === 0 ? (y(), _(
           "div",
-          wr,
+          gr,
           g(o(a)("wallpaperSwitcher.noWallpapers")),
           1
           /* TEXT */
-        )) : (m(), _("div", gr, [
-          (m(!0), _(
-            Z,
+        )) : (y(), _("div", fr, [
+          (y(!0), _(
+            q,
             null,
-            We(p.wallpapers, (w) => (m(), _("article", {
-              key: w.id,
+            Oe(w.wallpapers, (f) => (y(), _("article", {
+              key: f.id,
               class: "wallpaper-card"
             }, [
-              i("button", {
+              s("button", {
                 type: "button",
                 class: "thumb",
-                onClick: (y) => l("openPreview", w)
+                onClick: ($) => l("openPreview", f)
               }, [
-                p.loadedThumbIds.has(w.id) ? R("v-if", !0) : (m(), _("div", vr)),
-                i("img", {
+                w.loadedThumbIds.has(f.id) ? M("v-if", !0) : (y(), _("div", mr)),
+                s("img", {
                   ref_for: !0,
-                  ref: (y) => p.setThumbRef(w, y),
-                  alt: w.resolution,
+                  ref: ($) => w.setThumbRef(f, $),
+                  alt: f.resolution,
                   loading: "lazy",
-                  onLoad: (y) => l("markThumbLoaded", w.id)
-                }, null, 40, mr),
-                i(
+                  onLoad: ($) => l("markThumbLoaded", f.id)
+                }, null, 40, yr),
+                s(
                   "span",
                   null,
-                  g(w.resolution),
+                  g(f.resolution),
                   1
                   /* TEXT */
-                )
-              ], 8, fr),
-              i("div", {
+                ),
+                p(f.id) !== null ? (y(), _("div", br, [
+                  (y(), _("svg", kr, [
+                    v[7] || (v[7] = s(
+                      "circle",
+                      {
+                        class: "ring-track",
+                        cx: "24",
+                        cy: "24",
+                        r: "20",
+                        fill: "none",
+                        "stroke-width": "4"
+                      },
+                      null,
+                      -1
+                      /* HOISTED */
+                    )),
+                    s("circle", {
+                      class: "ring-fill",
+                      cx: "24",
+                      cy: "24",
+                      r: "20",
+                      fill: "none",
+                      "stroke-width": "4",
+                      "stroke-linecap": "round",
+                      "stroke-dasharray": 125.66,
+                      "stroke-dashoffset": 125.66 * (1 - (p(f.id) ?? 0) / 100),
+                      transform: "rotate(-90 24 24)"
+                    }, null, 8, _r)
+                  ])),
+                  s(
+                    "span",
+                    Cr,
+                    g(p(f.id)) + "%",
+                    1
+                    /* TEXT */
+                  )
+                ])) : M("v-if", !0)
+              ], 8, vr),
+              s("div", {
                 class: "card-actions",
-                onClick: v[4] || (v[4] = Oe(() => {
+                onClick: v[4] || (v[4] = xe(() => {
                 }, ["stop"]))
               }, [
-                i("button", {
+                s("button", {
                   type: "button",
                   title: o(a)("wallpaperSwitcher.preview"),
-                  onClick: (y) => l("openPreview", w)
+                  onClick: ($) => l("openPreview", f)
                 }, [
-                  u(o(Mi), { size: 16 }),
+                  u(o(Fs), { size: 16 }),
                   H(
                     " " + g(o(a)("wallpaperSwitcher.preview")),
                     1
                     /* TEXT */
                   )
-                ], 8, yr),
-                i("button", {
+                ], 8, Sr),
+                s("button", {
                   type: "button",
                   title: o(a)("wallpaperSwitcher.setWallpaper"),
-                  class: z({
-                    "is-working": c(w.id) === "setting"
+                  class: O({
+                    "is-working": c(f.id) === "setting"
                   }),
-                  disabled: !!c(w.id),
-                  "aria-busy": c(w.id) === "setting",
-                  onClick: (y) => l("setWallpaper", w)
+                  disabled: !!c(f.id),
+                  "aria-busy": c(f.id) === "setting",
+                  onClick: ($) => l("setWallpaper", f)
                 }, [
-                  c(w.id) === "setting" ? (m(), j(o(Qe), {
+                  c(f.id) === "setting" ? (y(), j(o(Qe), {
                     key: 0,
                     size: 16,
                     spin: ""
-                  })) : (m(), j(o(Qn), {
+                  })) : (y(), j(o(Xn), {
                     key: 1,
                     size: 16
                   })),
-                  i(
+                  s(
                     "span",
                     null,
-                    g(c(w.id) === "setting" ? o(a)("wallpaperSwitcher.setting") : o(a)("wallpaperSwitcher.set")),
+                    g(c(f.id) === "setting" ? o(a)("wallpaperSwitcher.setting") : o(a)("wallpaperSwitcher.set")),
                     1
                     /* TEXT */
                   )
-                ], 10, br),
-                i("button", {
+                ], 10, Lr),
+                s("button", {
                   type: "button",
                   title: o(a)("wallpaperSwitcher.download"),
-                  class: z({
-                    "is-working": c(w.id) === "downloading"
+                  class: O({
+                    "is-working": c(f.id) === "downloading"
                   }),
-                  disabled: !!c(w.id),
-                  "aria-busy": c(w.id) === "downloading",
-                  onClick: (y) => l("downloadWallpaper", w)
+                  disabled: !!c(f.id),
+                  "aria-busy": c(f.id) === "downloading",
+                  onClick: ($) => l("downloadWallpaper", f)
                 }, [
-                  c(w.id) === "downloading" ? (m(), j(o(Qe), {
+                  c(f.id) === "downloading" ? (y(), j(o(Qe), {
                     key: 0,
                     size: 16,
                     spin: ""
-                  })) : (m(), j(o(ji), {
+                  })) : (y(), j(o(xs), {
                     key: 1,
                     size: 16
                   })),
-                  i(
+                  s(
                     "span",
                     null,
-                    g(c(w.id) === "downloading" ? o(a)("wallpaperSwitcher.downloading") : o(a)("wallpaperSwitcher.download")),
+                    g(c(f.id) === "downloading" ? o(a)("wallpaperSwitcher.downloading") : o(a)("wallpaperSwitcher.download")),
                     1
                     /* TEXT */
                   )
-                ], 10, kr)
+                ], 10, Wr)
               ])
             ]))),
             128
@@ -5323,205 +5380,253 @@ const Oi = M("back", !0, function(e) {
           ))
         ]))
       ]),
-      i("footer", _r, [
-        i(
+      s("footer", Pr, [
+        s(
           "span",
           null,
-          g(o(a)("wallpaperSwitcher.page", { page: p.page })),
+          g(o(a)("wallpaperSwitcher.page", { page: w.page })),
           1
           /* TEXT */
         ),
-        i(
+        s(
           "span",
-          Cr,
-          g(o(a)("wallpaperSwitcher.sourceNote", { source: p.sourceLabel })),
+          $r,
+          g(o(a)("wallpaperSwitcher.sourceNote", { source: w.sourceLabel })),
           1
           /* TEXT */
         ),
-        i("div", Sr, [
-          i("button", {
+        s("div", zr, [
+          s("button", {
             type: "button",
-            disabled: p.page <= 1 || p.loading,
-            onClick: v[5] || (v[5] = (w) => l("prevPage"))
-          }, g(o(a)("wallpaperSwitcher.prevPage")), 9, Lr),
-          i("button", {
+            disabled: w.page <= 1 || w.loading,
+            onClick: v[5] || (v[5] = (f) => l("prevPage"))
+          }, g(o(a)("wallpaperSwitcher.prevPage")), 9, Or),
+          s("button", {
             type: "button",
-            disabled: p.page >= p.lastPage || p.loading,
-            onClick: v[6] || (v[6] = (w) => l("nextPage"))
-          }, g(o(a)("wallpaperSwitcher.nextPage")), 9, Wr)
+            disabled: w.page >= w.lastPage || w.loading,
+            onClick: v[6] || (v[6] = (f) => l("nextPage"))
+          }, g(o(a)("wallpaperSwitcher.nextPage")), 9, Tr)
         ])
       ])
     ]));
   }
-}), zr = { class: "preview-dialog" }, $r = { class: "preview-image-wrap" }, Or = {
+}), jr = { class: "preview-dialog" }, xr = { class: "preview-image-wrap" }, Nr = {
   key: 0,
   class: "preview-skeleton"
-}, Tr = {
+}, Mr = {
   key: 1,
   class: "preview-error"
-}, Ir = ["src", "alt"], jr = ["disabled", "aria-busy"], Nr = ["disabled", "aria-busy"], xr = /* @__PURE__ */ N({
+}, Fr = ["src", "alt"], Er = {
+  key: 2,
+  class: "download-ring preview-download-ring"
+}, Ar = {
+  viewBox: "0 0 48 48",
+  class: "ring-svg"
+}, Rr = ["stroke-dashoffset"], Dr = { class: "ring-text" }, Hr = ["disabled", "aria-busy"], Vr = ["disabled", "aria-busy"], Br = /* @__PURE__ */ x({
   __name: "WallpaperPreviewModal",
   props: {
     wallpaper: {},
     loading: { type: Boolean },
     loadFailed: { type: Boolean },
-    workingActions: {}
+    workingActions: {},
+    downloadProgress: {}
   },
   emits: ["close", "loaded", "failed", "download", "setWallpaper"],
   setup(e, { emit: t }) {
-    const n = e, l = t, { t: a } = ie(), r = (s) => n.workingActions.get(s);
-    return (s, c) => s.wallpaper ? (m(), _("div", {
+    const n = e, l = t, { t: a } = ie(), i = (c) => n.workingActions.get(c), r = (c) => {
+      const p = n.downloadProgress.get(c);
+      return !p || !p.total || p.total <= 0 ? null : Math.min(100, Math.round(p.downloaded / p.total * 100));
+    };
+    return (c, p) => c.wallpaper ? (y(), _("div", {
       key: 0,
       class: "preview-modal",
-      onClick: c[5] || (c[5] = Oe((p) => l("close"), ["self"]))
+      onClick: p[5] || (p[5] = xe((w) => l("close"), ["self"]))
     }, [
-      i("div", zr, [
-        i("header", null, [
-          i(
+      s("div", jr, [
+        s("header", null, [
+          s(
             "strong",
             null,
-            g(s.wallpaper.resolution),
+            g(c.wallpaper.resolution),
             1
             /* TEXT */
           ),
-          i("button", {
+          s("button", {
             type: "button",
             class: "flat-icon",
-            onClick: c[0] || (c[0] = (p) => l("close"))
+            onClick: p[0] || (p[0] = (w) => l("close"))
           }, [
             u(o(Je), { size: 23 })
           ])
         ]),
-        i("div", $r, [
-          s.loading ? (m(), _("div", Or, [
-            i(
+        s("div", xr, [
+          c.loading ? (y(), _("div", Nr, [
+            s(
               "span",
               null,
               g(o(a)("wallpaperSwitcher.loadingPreview")),
               1
               /* TEXT */
             )
-          ])) : R("v-if", !0),
-          s.loadFailed ? (m(), _(
+          ])) : M("v-if", !0),
+          c.loadFailed ? (y(), _(
             "div",
-            Tr,
+            Mr,
             g(o(a)("wallpaperSwitcher.previewLoadFailed")),
             1
             /* TEXT */
-          )) : R("v-if", !0),
-          i("img", {
-            class: z({ ready: !s.loading && !s.loadFailed }),
-            src: s.wallpaper.path,
+          )) : M("v-if", !0),
+          s("img", {
+            class: O({ ready: !c.loading && !c.loadFailed }),
+            src: c.wallpaper.path,
             alt: o(a)("wallpaperSwitcher.wallpaperPreviewAlt"),
-            onLoad: c[1] || (c[1] = (p) => l("loaded")),
-            onError: c[2] || (c[2] = (p) => l("failed"))
-          }, null, 42, Ir)
+            onLoad: p[1] || (p[1] = (w) => l("loaded")),
+            onError: p[2] || (p[2] = (w) => l("failed"))
+          }, null, 42, Fr),
+          c.wallpaper && r(c.wallpaper.id) !== null ? (y(), _("div", Er, [
+            (y(), _("svg", Ar, [
+              p[6] || (p[6] = s(
+                "circle",
+                {
+                  class: "ring-track",
+                  cx: "24",
+                  cy: "24",
+                  r: "20",
+                  fill: "none",
+                  "stroke-width": "4"
+                },
+                null,
+                -1
+                /* HOISTED */
+              )),
+              s("circle", {
+                class: "ring-fill",
+                cx: "24",
+                cy: "24",
+                r: "20",
+                fill: "none",
+                "stroke-width": "4",
+                "stroke-linecap": "round",
+                "stroke-dasharray": 125.66,
+                "stroke-dashoffset": 125.66 * (1 - (r(c.wallpaper.id) ?? 0) / 100),
+                transform: "rotate(-90 24 24)"
+              }, null, 8, Rr)
+            ])),
+            s(
+              "span",
+              Dr,
+              g(r(c.wallpaper.id)) + "%",
+              1
+              /* TEXT */
+            )
+          ])) : M("v-if", !0)
         ]),
-        i("footer", null, [
-          i("button", {
+        s("footer", null, [
+          s("button", {
             type: "button",
-            class: z(["secondary-btn", {
-              "is-working": r(s.wallpaper.id) === "downloading"
+            class: O(["secondary-btn", {
+              "is-working": i(c.wallpaper.id) === "downloading"
             }]),
-            disabled: !!r(s.wallpaper.id),
-            "aria-busy": r(s.wallpaper.id) === "downloading",
-            onClick: c[3] || (c[3] = (p) => l("download", s.wallpaper))
+            disabled: !!i(c.wallpaper.id),
+            "aria-busy": i(c.wallpaper.id) === "downloading",
+            onClick: p[3] || (p[3] = (w) => l("download", c.wallpaper))
           }, [
-            r(s.wallpaper.id) === "downloading" ? (m(), j(o(Qe), {
+            i(c.wallpaper.id) === "downloading" ? (y(), j(o(Qe), {
               key: 0,
               size: 16,
               spin: ""
-            })) : R("v-if", !0),
+            })) : M("v-if", !0),
             H(
-              " " + g(r(s.wallpaper.id) === "downloading" ? o(a)("wallpaperSwitcher.downloading") : o(a)("wallpaperSwitcher.downloadCache")),
+              " " + g(i(c.wallpaper.id) === "downloading" ? o(a)("wallpaperSwitcher.downloading") : o(a)("wallpaperSwitcher.downloadCache")),
               1
               /* TEXT */
             )
-          ], 10, jr),
-          i("button", {
+          ], 10, Hr),
+          s("button", {
             type: "button",
-            class: z(["primary-btn", {
-              "is-working": r(s.wallpaper.id) === "setting"
+            class: O(["primary-btn", {
+              "is-working": i(c.wallpaper.id) === "setting"
             }]),
-            disabled: !!r(s.wallpaper.id),
-            "aria-busy": r(s.wallpaper.id) === "setting",
-            onClick: c[4] || (c[4] = (p) => l("setWallpaper", s.wallpaper))
+            disabled: !!i(c.wallpaper.id),
+            "aria-busy": i(c.wallpaper.id) === "setting",
+            onClick: p[4] || (p[4] = (w) => l("setWallpaper", c.wallpaper))
           }, [
-            r(s.wallpaper.id) === "setting" ? (m(), j(o(Qe), {
+            i(c.wallpaper.id) === "setting" ? (y(), j(o(Qe), {
               key: 0,
               size: 16,
               spin: ""
-            })) : R("v-if", !0),
+            })) : M("v-if", !0),
             H(
-              " " + g(r(s.wallpaper.id) === "setting" ? o(a)("wallpaperSwitcher.setting") : o(a)("wallpaperSwitcher.setWallpaper")),
+              " " + g(i(c.wallpaper.id) === "setting" ? o(a)("wallpaperSwitcher.setting") : o(a)("wallpaperSwitcher.setWallpaper")),
               1
               /* TEXT */
             )
-          ], 10, Nr)
+          ], 10, Vr)
         ])
       ])
-    ])) : R("v-if", !0);
+    ])) : M("v-if", !0);
   }
-}), Mr = { class: "wallpaper-window wallpaper-window--redesigned" }, Fr = {
+}), Kr = { class: "wallpaper-window wallpaper-window--redesigned" }, Gr = {
   key: 0,
   class: "unsupported"
-}, Er = /* @__PURE__ */ N({
+}, Ur = /* @__PURE__ */ x({
   __name: "index",
   setup(e) {
-    const t = kn(), { t: n } = ie(), l = L(gi()), a = L(null), r = L(null), s = L(!1), c = L(!1), p = L(!1), v = L(!1), w = L(!1), y = async () => {
+    const t = Cn(), { t: n } = ie(), l = W(fs()), a = W(null), i = W(null), r = W(!1), c = W(!1), p = W(!1), w = W(!1), v = W(!1), f = async () => {
       try {
-        a.value = await rn();
+        a.value = await un();
       } catch (k) {
-        O.msg(String(k), "error");
+        T.msg(String(k), "error");
       }
-    }, I = Li({
+    }, $ = Ws({
       config: l,
       refreshStatus: async () => {
-        await y();
+        await f();
       }
     }), {
-      activeView: T,
-      wallhavenPage: F,
+      activeView: I,
+      wallhavenPage: E,
       wallhavenLastPage: d,
-      wallhavenLoading: f,
+      wallhavenLoading: m,
       wallhavenError: b,
-      wallhavenKeyword: x,
-      wallhavenCategory: W,
-      wallhavenSource: J,
-      previewWallpaper: B,
-      previewLoading: me,
-      previewLoadFailed: $,
+      wallhavenKeyword: R,
+      wallhavenCategory: L,
+      wallhavenSource: Q,
+      previewWallpaper: U,
+      previewLoading: ue,
+      previewLoadFailed: z,
       workingActions: ye,
-      loadedThumbIds: Te,
-      wallhavenSourceLabel: be,
-      visibleWallpapers: ce,
-      openWallhavenGrid: Ie,
-      backToSwitcher: nt,
-      openPreview: lt,
-      closePreview: at,
-      markPreviewLoaded: Q,
-      markPreviewFailed: ot,
-      markThumbLoaded: it,
-      setThumbRef: st,
-      refreshWallhaven: rt,
-      setWallhavenSource: ct,
-      setWallhavenCategory: je,
-      setWallpaperFromWallhaven: Ne,
-      downloadWallpaperFromWallhaven: xe,
-      prevWallhavenPage: ut,
-      nextWallhavenPage: dt,
-      setupListeners: ht
-    } = I, pt = C(
-      () => fi(a.value?.currentPath || l.value.lastAppliedPath)
-    ), wt = C(() => {
+      downloadProgress: be,
+      loadedThumbIds: nt,
+      wallhavenSourceLabel: lt,
+      visibleWallpapers: ke,
+      openWallhavenGrid: ee,
+      backToSwitcher: at,
+      openPreview: ot,
+      closePreview: st,
+      markPreviewLoaded: it,
+      markPreviewFailed: Y,
+      markThumbLoaded: rt,
+      setThumbRef: ct,
+      refreshWallhaven: ut,
+      setWallhavenSource: dt,
+      setWallhavenCategory: ht,
+      setWallpaperFromWallhaven: _e,
+      downloadWallpaperFromWallhaven: Ne,
+      prevWallhavenPage: pt,
+      nextWallhavenPage: wt,
+      setupListeners: gt
+    } = $, ft = C(
+      () => vs(a.value?.currentPath || l.value.lastAppliedPath)
+    ), vt = C(() => {
       const k = a.value?.currentPath || l.value.lastAppliedPath;
       return k ? k.split(/[\\/]/).pop() || k : n("wallpaperSwitcher.noCurrentWallpaper");
-    }), gt = C(() => {
+    }), Me = C(() => {
       const k = a.value?.screenWidth || 2560, K = a.value?.screenHeight || 1440;
       return `${k} × ${K}`;
-    }), S = C(
-      () => a.value?.currentResolution || gt.value
-    ), P = (k) => k < 1024 ? `${k} B` : k < 1024 * 1024 ? `${(k / 1024).toFixed(1)} KB` : k < 1024 * 1024 * 1024 ? `${(k / 1024 / 1024).toFixed(1)} MB` : `${(k / 1024 / 1024 / 1024).toFixed(1)} GB`, E = C(() => l.value.mode === "fixed" ? n("wallpaperSwitcher.fixedImage") : l.value.mode === "wallhaven" ? "Wallhaven" : n("wallpaperSwitcher.localFolder")), X = C(() => {
+    }), Et = C(
+      () => a.value?.currentResolution || Me.value
+    ), S = (k) => k < 1024 ? `${k} B` : k < 1024 * 1024 ? `${(k / 1024).toFixed(1)} KB` : k < 1024 * 1024 * 1024 ? `${(k / 1024 / 1024).toFixed(1)} MB` : `${(k / 1024 / 1024 / 1024).toFixed(1)} GB`, P = C(() => l.value.mode === "fixed" ? n("wallpaperSwitcher.fixedImage") : l.value.mode === "wallhaven" ? "Wallhaven" : n("wallpaperSwitcher.localFolder")), N = C(() => {
       if (l.value.mode === "fixed" || !l.value.scheduleEnabled || !a.value?.schedulerRunning)
         return "—";
       const k = a.value?.nextSwitchAt;
@@ -5530,40 +5635,40 @@ const Oi = M("back", !0, function(e) {
       return K < 60 ? n("wallpaperSwitcher.time.secondsLater", { count: K }) : n("wallpaperSwitcher.time.minutesLater", {
         count: Math.ceil(K / 60)
       });
-    }), el = C(() => {
+    }), B = C(() => {
       const k = a.value?.cacheSizeBytes ?? 0;
-      return P(k);
-    }), Mt = C(() => r.value ? n("wallpaperSwitcher.folderStatus.detected", {
-      count: r.value.count
-    }) : l.value.folderPath ? n("wallpaperSwitcher.folderStatus.notScanned") : n("wallpaperSwitcher.folderStatus.selectFirst")), ft = async () => {
-      s.value = !0;
+      return S(k);
+    }), Ce = C(() => i.value ? n("wallpaperSwitcher.folderStatus.detected", {
+      count: i.value.count
+    }) : l.value.folderPath ? n("wallpaperSwitcher.folderStatus.notScanned") : n("wallpaperSwitcher.folderStatus.selectFirst")), mt = async () => {
+      r.value = !0;
       try {
         const [k, K] = await Promise.all([
-          vi(),
-          rn()
+          ms(),
+          un()
         ]);
         if (l.value = k, a.value = K, k.folderPath)
           try {
-            r.value = await cn(k.folderPath);
+            i.value = await dn(k.folderPath);
           } catch {
-            r.value = null;
+            i.value = null;
           }
       } catch (k) {
-        O.msg(String(k), "error");
+        T.msg(String(k), "error");
       } finally {
-        s.value = !1;
+        r.value = !1;
       }
-    }, tl = async () => {
+    }, nl = async () => {
       c.value = !0;
       try {
-        await Wt(l.value), await y(), O.msg(n("wallpaperSwitcher.messages.settingsSaved"), "success");
+        await $t(l.value), await f(), T.msg(n("wallpaperSwitcher.messages.settingsSaved"), "success");
       } catch (k) {
-        O.msg(String(k), "error");
+        T.msg(String(k), "error");
       } finally {
         c.value = !1;
       }
-    }, nl = async () => {
-      const k = await Ht({
+    }, ll = async () => {
+      const k = await Bt({
         multiple: !1,
         directory: !1,
         filters: [
@@ -5573,155 +5678,157 @@ const Oi = M("back", !0, function(e) {
       if (typeof k == "string") {
         l.value.fixedImagePath = k, l.value.mode = "fixed";
         try {
-          await un(k), await ft(), O.msg(n("wallpaperSwitcher.messages.fixedSet"), "success");
+          await hn(k), await mt(), T.msg(n("wallpaperSwitcher.messages.fixedSet"), "success");
         } catch (K) {
-          O.msg(String(K), "error");
+          T.msg(String(K), "error");
         }
       }
-    }, Ft = async () => {
+    }, At = async () => {
       if (!l.value.folderPath) {
-        O.msg(n("wallpaperSwitcher.messages.selectFolderFirst"), "warning");
+        T.msg(n("wallpaperSwitcher.messages.selectFolderFirst"), "warning");
         return;
       }
       try {
-        r.value = await cn(l.value.folderPath), r.value.count === 0 ? O.msg(n("wallpaperSwitcher.messages.noImagesInFolder"), "warning") : O.msg(Mt.value, "success");
+        i.value = await dn(l.value.folderPath), i.value.count === 0 ? T.msg(n("wallpaperSwitcher.messages.noImagesInFolder"), "warning") : T.msg(Ce.value, "success");
       } catch (k) {
-        O.msg(String(k), "error");
+        T.msg(String(k), "error");
       }
-    }, ll = async () => {
-      const k = await Ht({ multiple: !1, directory: !0 });
-      typeof k == "string" && (l.value.folderPath = k, l.value.mode = "folder", await Ft());
     }, al = async () => {
+      const k = await Bt({ multiple: !1, directory: !0 });
+      typeof k == "string" && (l.value.folderPath = k, l.value.mode = "folder", await At());
+    }, ol = async () => {
       p.value = !0;
       try {
-        await Wt(l.value), await mi(), await y(), O.msg(n("wallpaperSwitcher.messages.wallpaperSwitched"), "success");
+        await $t(l.value), await ys(), await f(), T.msg(n("wallpaperSwitcher.messages.wallpaperSwitched"), "success");
       } catch (k) {
-        O.msg(String(k), "error");
+        T.msg(String(k), "error");
       } finally {
         p.value = !1;
       }
-    }, ol = async () => {
+    }, sl = async () => {
       if (!a.value?.currentPath) {
-        O.msg(n("wallpaperSwitcher.messages.noCurrentToFix"), "warning");
+        T.msg(n("wallpaperSwitcher.messages.noCurrentToFix"), "warning");
         return;
       }
       l.value.mode = "fixed", l.value.fixedImagePath = a.value.currentPath, l.value.scheduleEnabled = !1;
       try {
-        await un(a.value.currentPath), await ft(), O.msg(n("wallpaperSwitcher.messages.fixedSet"), "success");
+        await hn(a.value.currentPath), await mt(), T.msg(n("wallpaperSwitcher.messages.fixedSet"), "success");
       } catch (k) {
-        O.msg(String(k), "error");
+        T.msg(String(k), "error");
       }
     }, il = async () => {
-      v.value = !0;
-      try {
-        await _i(), await y(), O.msg(n("wallpaperSwitcher.messages.cacheCleared"), "success");
-      } catch (k) {
-        O.msg(String(k), "error");
-      } finally {
-        v.value = !1;
-      }
-    }, sl = async () => {
       w.value = !0;
       try {
-        await Si();
+        await Cs(), await f(), T.msg(n("wallpaperSwitcher.messages.cacheCleared"), "success");
       } catch (k) {
-        O.msg(String(k), "error");
+        T.msg(String(k), "error");
       } finally {
         w.value = !1;
       }
-    }, rl = (k) => {
+    }, rl = async () => {
+      v.value = !0;
+      try {
+        await Ls();
+      } catch (k) {
+        T.msg(String(k), "error");
+      } finally {
+        v.value = !1;
+      }
+    }, cl = (k) => {
       l.value = k;
-    }, cl = async () => {
+    }, ul = async () => {
       await t.close();
     };
-    return $e(async () => {
-      await ft(), await ht();
-    }), fn(() => {
-    }), (k, K) => (m(), _("main", Mr, [
-      u(tr, {
-        "active-view": o(T),
-        "wallhaven-source": o(J),
-        "wallhaven-loading": o(f),
+    return je(async () => {
+      await mt(), await gt();
+    }), mn(() => {
+    }), (k, K) => (y(), _("main", Kr, [
+      u(nr, {
+        "active-view": o(I),
+        "wallhaven-source": o(Q),
+        "wallhaven-loading": o(m),
         "schedule-enabled": o(l).scheduleEnabled,
         "scheduler-running": !!o(a)?.schedulerRunning,
-        onBack: o(nt),
-        onClose: cl,
-        onOpenWallhaven: o(Ie),
-        onSetWallhavenSource: o(ct)
+        onBack: o(at),
+        onClose: ul,
+        onOpenWallhaven: o(ee),
+        onSetWallhavenSource: o(dt)
       }, null, 8, ["active-view", "wallhaven-source", "wallhaven-loading", "schedule-enabled", "scheduler-running", "onBack", "onOpenWallhaven", "onSetWallhavenSource"]),
-      o(a) && !o(a).supported ? (m(), _(
+      o(a) && !o(a).supported ? (y(), _(
         "section",
-        Fr,
+        Gr,
         g(o(n)("wallpaperSwitcher.unsupported")),
         1
         /* TEXT */
-      )) : R("v-if", !0),
-      o(T) === "switcher" ? (m(), j(Hs, {
+      )) : M("v-if", !0),
+      o(I) === "switcher" ? (y(), j(Vi, {
         key: 1,
         config: o(l),
-        loading: o(s),
-        "preview-src": o(pt),
-        "current-wallpaper-name": o(wt),
-        "source-label": o(E),
-        "resolution-label": o(S),
-        "next-switch-label": o(X),
-        "folder-count-label": o(Mt),
-        "cache-size-label": o(el),
+        loading: o(r),
+        "preview-src": o(ft),
+        "current-wallpaper-name": o(vt),
+        "source-label": o(P),
+        "resolution-label": o(Et),
+        "next-switch-label": o(N),
+        "folder-count-label": o(Ce),
+        "cache-size-label": o(B),
         switching: o(p),
-        "clearing-cache": o(v),
-        "opening-cache": o(w),
+        "clearing-cache": o(w),
+        "opening-cache": o(v),
         saving: o(c),
-        onUpdateConfig: rl,
-        onChooseImage: nl,
-        onChooseFolder: ll,
-        onScanFolder: Ft,
-        onOpenWallhavenGrid: o(Ie),
-        onSwitchNow: al,
-        onSetCurrentAsFixed: ol,
+        onUpdateConfig: cl,
+        onChooseImage: ll,
+        onChooseFolder: al,
+        onScanFolder: At,
+        onOpenWallhavenGrid: o(ee),
+        onSwitchNow: ol,
+        onSetCurrentAsFixed: sl,
         onClearCache: il,
-        onOpenCacheDir: sl,
-        onPersistConfig: tl
-      }, null, 8, ["config", "loading", "preview-src", "current-wallpaper-name", "source-label", "resolution-label", "next-switch-label", "folder-count-label", "cache-size-label", "switching", "clearing-cache", "opening-cache", "saving", "onOpenWallhavenGrid"])) : (m(), j(Pr, {
+        onOpenCacheDir: rl,
+        onPersistConfig: nl
+      }, null, 8, ["config", "loading", "preview-src", "current-wallpaper-name", "source-label", "resolution-label", "next-switch-label", "folder-count-label", "cache-size-label", "switching", "clearing-cache", "opening-cache", "saving", "onOpenWallhavenGrid"])) : (y(), j(Ir, {
         key: 2,
-        keyword: o(x),
-        "onUpdate:keyword": K[0] || (K[0] = (ul) => wn(x) ? x.value = ul : null),
-        category: o(W),
-        loading: o(f),
+        keyword: o(R),
+        "onUpdate:keyword": K[0] || (K[0] = (dl) => fn(R) ? R.value = dl : null),
+        category: o(L),
+        loading: o(m),
         error: o(b),
-        wallpapers: o(ce),
-        "loaded-thumb-ids": o(Te),
+        wallpapers: o(ke),
+        "loaded-thumb-ids": o(nt),
         "working-actions": o(ye),
-        page: o(F),
+        "download-progress": o(be),
+        page: o(E),
         "last-page": o(d),
-        "source-label": o(be),
-        "screen-label": o(gt),
-        "set-thumb-ref": o(st),
-        onRefresh: o(rt),
-        onSetCategory: o(je),
-        onOpenPreview: o(lt),
-        onMarkThumbLoaded: o(it),
-        onSetWallpaper: o(Ne),
-        onDownloadWallpaper: o(xe),
-        onPrevPage: o(ut),
-        onNextPage: o(dt)
-      }, null, 8, ["keyword", "category", "loading", "error", "wallpapers", "loaded-thumb-ids", "working-actions", "page", "last-page", "source-label", "screen-label", "set-thumb-ref", "onRefresh", "onSetCategory", "onOpenPreview", "onMarkThumbLoaded", "onSetWallpaper", "onDownloadWallpaper", "onPrevPage", "onNextPage"])),
-      u(xr, {
-        wallpaper: o(B),
-        loading: o(me),
-        "load-failed": o($),
+        "source-label": o(lt),
+        "screen-label": o(Me),
+        "set-thumb-ref": o(ct),
+        onRefresh: o(ut),
+        onSetCategory: o(ht),
+        onOpenPreview: o(ot),
+        onMarkThumbLoaded: o(rt),
+        onSetWallpaper: o(_e),
+        onDownloadWallpaper: o(Ne),
+        onPrevPage: o(pt),
+        onNextPage: o(wt)
+      }, null, 8, ["keyword", "category", "loading", "error", "wallpapers", "loaded-thumb-ids", "working-actions", "download-progress", "page", "last-page", "source-label", "screen-label", "set-thumb-ref", "onRefresh", "onSetCategory", "onOpenPreview", "onMarkThumbLoaded", "onSetWallpaper", "onDownloadWallpaper", "onPrevPage", "onNextPage"])),
+      u(Br, {
+        wallpaper: o(U),
+        loading: o(ue),
+        "load-failed": o(z),
         "working-actions": o(ye),
-        onClose: o(at),
-        onLoaded: o(Q),
-        onFailed: o(ot),
-        onDownload: o(xe),
-        onSetWallpaper: o(Ne)
-      }, null, 8, ["wallpaper", "loading", "load-failed", "working-actions", "onClose", "onLoaded", "onFailed", "onDownload", "onSetWallpaper"])
+        "download-progress": o(be),
+        onClose: o(st),
+        onLoaded: o(it),
+        onFailed: o(Y),
+        onDownload: o(Ne),
+        onSetWallpaper: o(_e)
+      }, null, 8, ["wallpaper", "loading", "load-failed", "working-actions", "download-progress", "onClose", "onLoaded", "onFailed", "onDownload", "onSetWallpaper"])
     ]));
   }
-}), Ar = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+}), Zr = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  default: Er
+  default: Ur
 }, Symbol.toStringTag, { value: "Module" }));
 export {
-  Hr as activate
+  Qr as activate
 };

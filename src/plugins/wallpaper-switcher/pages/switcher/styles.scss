@@ -778,6 +778,50 @@
     animation: shimmer 1.1s linear infinite;
   }
 
+  .download-ring {
+    @apply absolute inset-0 z-[3] flex items-center justify-center;
+
+    background: rgb(15 23 42 / 42%);
+    backdrop-filter: blur(2px);
+  }
+
+  .ring-svg {
+    @apply block;
+
+    width: 48px;
+    height: 48px;
+    filter: drop-shadow(0 2px 6px rgb(0 0 0 / 36%));
+  }
+
+  .ring-track {
+    stroke: rgb(255 255 255 / 18%);
+  }
+
+  .ring-fill {
+    stroke: var(--wallpaper-primary, #5f74f3);
+    transition: stroke-dashoffset 0.18s ease;
+  }
+
+  .ring-text {
+    @apply absolute text-[11px] font-bold leading-none;
+
+    color: #fff;
+    text-shadow: 0 1px 4px rgb(0 0 0 / 52%);
+  }
+
+  .preview-download-ring {
+    background: rgb(15 23 42 / 38%);
+  }
+
+  .preview-download-ring .ring-svg {
+    width: 56px;
+    height: 56px;
+  }
+
+  .preview-download-ring .ring-text {
+    @apply text-sm;
+  }
+
   .card-actions {
     @apply h-10 border-t;
 

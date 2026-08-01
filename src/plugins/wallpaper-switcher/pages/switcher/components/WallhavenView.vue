@@ -10,6 +10,7 @@ import {
 } from '@icon-park/vue-next';
 import { useI18n } from 'vue-i18n';
 import type { WallhavenWallpaper } from '../../../api';
+import type { DownloadProgress } from '../../../composables/useWallhaven';
 
 type WallhavenWorkingAction = 'setting' | 'downloading';
 
@@ -21,6 +22,7 @@ const props = defineProps<{
   wallpapers: WallhavenWallpaper[];
   loadedThumbIds: Set<string>;
   workingActions: Map<string, WallhavenWorkingAction>;
+  downloadProgress: Map<string, DownloadProgress>;
   page: number;
   lastPage: number;
   sourceLabel: string;
@@ -53,6 +55,12 @@ const updateKeyword = (event: Event) =>
   emit('update:keyword', (event.target as HTMLInputElement).value);
 const workingActionFor = (id: string): WallhavenWorkingAction | undefined =>
   props.workingActions.get(id);
+
+const progressFor = (id: string): number | null => {
+  const p = props.downloadProgress.get(id);
+  if (!p || !p.total || p.total <= 0) return null;
+  return Math.min(100, Math.round((p.downloaded / p.total) * 100));
+};
 </script>
 
 <template>
@@ -147,6 +155,34 @@ const workingActionFor = (id: string): WallhavenWorkingAction | undefined =>
               @load="emit('markThumbLoaded', wallpaper.id)"
             />
             <span>{{ wallpaper.resolution }}</span>
+            <div
+              v-if="progressFor(wallpaper.id) !== null"
+              class="download-ring"
+            >
+              <svg viewBox="0 0 48 48" class="ring-svg">
+                <circle
+                  class="ring-track"
+                  cx="24"
+                  cy="24"
+                  r="20"
+                  fill="none"
+                  stroke-width="4"
+                />
+                <circle
+                  class="ring-fill"
+                  cx="24"
+                  cy="24"
+                  r="20"
+                  fill="none"
+                  stroke-width="4"
+                  stroke-linecap="round"
+                  :stroke-dasharray="125.66"
+                  :stroke-dashoffset="125.66 * (1 - (progressFor(wallpaper.id) ?? 0) / 100)"
+                  transform="rotate(-90 24 24)"
+                />
+              </svg>
+              <span class="ring-text">{{ progressFor(wallpaper.id) }}%</span>
+            </div>
           </button>
           <div class="card-actions" @click.stop>
             <button

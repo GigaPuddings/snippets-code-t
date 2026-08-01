@@ -19,6 +19,11 @@ export interface UseWallhavenOptions {
 
 export type WallhavenWorkingAction = 'setting' | 'downloading';
 
+export interface DownloadProgress {
+  downloaded: number;
+  total: number | null;
+}
+
 export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
   const { t } = useI18n();
   const activeView = ref<'switcher' | 'wallhaven'>('switcher');
@@ -34,12 +39,14 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
   const previewLoading = ref(false);
   const previewLoadFailed = ref(false);
   const workingActions = ref(new Map<string, WallhavenWorkingAction>());
+  const downloadProgress = ref(new Map<string, DownloadProgress>());
   const loadedThumbIds = ref(new Set<string>());
 
   const thumbElements = new Map<string, HTMLImageElement>();
   let thumbObserver: IntersectionObserver | null = null;
   let unlistenChanged: UnlistenFn | null = null;
   let unlistenError: UnlistenFn | null = null;
+  let unlistenProgress: UnlistenFn | null = null;
   let wallhavenFetchSeq = 0;
 
   const wallhavenSourceLabel = computed(() => {
@@ -74,6 +81,13 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
     if (action) next.set(id, action);
     else next.delete(id);
     workingActions.value = next;
+
+    // 操作结束时清除进度
+    if (!action) {
+      const nextProgress = new Map(downloadProgress.value);
+      nextProgress.delete(id);
+      downloadProgress.value = nextProgress;
+    }
   };
 
   const markThumbLoaded = (id: string) => {
@@ -252,6 +266,7 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
     thumbObserver = null;
     unlistenChanged?.();
     unlistenError?.();
+    unlistenProgress?.();
   });
 
   const setupListeners = async () => {
@@ -264,6 +279,15 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
             t('wallpaperSwitcher.messages.scheduleSwitchFailed'),
           'error'
         );
+      }
+    );
+    unlistenProgress = await listen<{ id: string; downloaded: number; total: number | null }>(
+      'wallpaper-download-progress',
+      (event) => {
+        const { id, downloaded, total } = event.payload;
+        const next = new Map(downloadProgress.value);
+        next.set(id, { downloaded, total: total ?? null });
+        downloadProgress.value = next;
       }
     );
   };
@@ -282,6 +306,7 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
     previewLoading,
     previewLoadFailed,
     workingActions,
+    downloadProgress,
     loadedThumbIds,
     wallhavenSourceLabel,
     visibleWallpapers,

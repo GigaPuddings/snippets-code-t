@@ -64,6 +64,7 @@ const {
   previewLoading,
   previewLoadFailed,
   workingActions,
+  downloadProgress,
   loadedThumbIds,
   wallhavenSourceLabel,
   visibleWallpapers,
@@ -357,6 +358,7 @@ onUnmounted(() => {
       :wallpapers="visibleWallpapers"
       :loaded-thumb-ids="loadedThumbIds"
       :working-actions="workingActions"
+      :download-progress="downloadProgress"
       :page="wallhavenPage"
       :last-page="wallhavenLastPage"
       :source-label="wallhavenSourceLabel"
@@ -377,6 +379,7 @@ onUnmounted(() => {
       :loading="previewLoading"
       :load-failed="previewLoadFailed"
       :working-actions="workingActions"
+      :download-progress="downloadProgress"
       @close="closePreview"
       @loaded="markPreviewLoaded"
       @failed="markPreviewFailed"

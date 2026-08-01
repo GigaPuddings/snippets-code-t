@@ -696,8 +696,10 @@ async fn download_wallhaven_image(
     let mut downloaded_bytes = None;
     let mut last_error = String::new();
     for attempt in 1..=3 {
+        let wallpaper_id = resolved_wallpaper.id.clone();
+        let app_handle_for_progress = app_handle.clone();
         let result = async {
-            let response = client
+            let mut response = client
                 .get(&resolved_wallpaper.path)
                 .header(reqwest::header::ACCEPT_ENCODING, "identity")
                 .header(reqwest::header::REFERER, "https://wallhaven.cc/")
@@ -706,14 +708,56 @@ async fn download_wallhaven_image(
                 .map_err(|e| format!("下载壁纸失败: {}", reqwest_error_details(&e)))?
                 .error_for_status()
                 .map_err(|e| format!("下载壁纸失败: {}", reqwest_error_details(&e)))?;
-            let bytes = response
-                .bytes()
-                .await
-                .map_err(|e| format!("读取壁纸数据失败: {}", reqwest_error_details(&e)))?;
-            if bytes.is_empty() {
+
+            let total = response.content_length();
+            let mut buffer: Vec<u8> = Vec::new();
+            let mut downloaded: u64 = 0;
+            let mut last_emit = std::time::Instant::now();
+            loop {
+                let chunk = response
+                    .chunk()
+                    .await
+                    .map_err(|e| format!("读取壁纸数据失败: {}", reqwest_error_details(&e)))?;
+                match chunk {
+                    Some(chunk) => {
+                        let chunk_len = chunk.len() as u64;
+                        downloaded += chunk_len;
+                        buffer.extend_from_slice(&chunk);
+
+                        // 节流：每 80ms 或首个分片或完成时发送进度
+                        let now = std::time::Instant::now();
+                        let is_first = downloaded == chunk_len;
+                        let elapsed = now.duration_since(last_emit).as_millis();
+                        if is_first || elapsed >= 80 {
+                            let _ = app_handle_for_progress.emit(
+                                "wallpaper-download-progress",
+                                serde_json::json!({
+                                    "id": wallpaper_id,
+                                    "downloaded": downloaded,
+                                    "total": total,
+                                }),
+                            );
+                            last_emit = now;
+                        }
+                    }
+                    None => break,
+                }
+            }
+
+            // 发送最终进度
+            let _ = app_handle_for_progress.emit(
+                "wallpaper-download-progress",
+                serde_json::json!({
+                    "id": wallpaper_id,
+                    "downloaded": downloaded,
+                    "total": total.or(Some(downloaded)),
+                }),
+            );
+
+            if buffer.is_empty() {
                 return Err("下载的壁纸数据为空".to_string());
             }
-            Ok(bytes)
+            Ok(buffer)
         }
         .await;
 
