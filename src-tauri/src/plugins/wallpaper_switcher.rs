@@ -603,7 +603,7 @@ fn record_wallhaven_seen(config: &mut WallpaperConfig, wallpaper_id: String) {
     }
 }
 
-fn save_config(app_handle: &AppHandle, config: &WallpaperConfig) -> Result<(), String> {
+pub fn save_config(app_handle: &AppHandle, config: &WallpaperConfig) -> Result<(), String> {
     let mut config = config.clone();
     normalize_wallpaper_config_preferences(&mut config);
     let config_json =
