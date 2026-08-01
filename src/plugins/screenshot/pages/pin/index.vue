@@ -157,7 +157,9 @@
                       v-for="(block, index) in ocrTextBlocks"
                       :key="`ocr-block-${index}`"
                       class="ocr-text-block-item"
+                      :class="{ 'is-linked': activeRecordId && isBlockInRecord(block, activeRecordId) }"
                       :style="getOcrBlockStyle(block)"
+                      @click="handleBlockClick(index)"
                     >{{ block.text }}</span>
                   </div>
                 </div>
@@ -251,7 +253,8 @@
                   v-for="(record, index) in ocrRecords"
                   :key="record.id"
                   class="ocr-record-item"
-                  :class="[`is-${record.kind}`, { selected: record.selected }]"
+                  :class="[`is-${record.kind}`, { selected: record.selected, 'is-linked': activeRecordId === record.id }]"
+                  @click="handleRecordLinkClick(record.id)"
                 >
                   <header class="ocr-record-header">
                     <button
@@ -579,6 +582,7 @@ const mode = ref<'pin' | 'ocr'>('pin');
 const ocrText = ref('');
 const ocrRecords = ref<OcrRecord[]>([]);
 const ocrTextBlocks = ref<OcrTextBlock[]>([]);
+const activeRecordId = ref<string | null>(null);
 const ocrLoading = ref(false);
 const ocrError = ref('');
 const recognitionEngine = ref<'pending' | 'ai'>('pending');
@@ -796,6 +800,61 @@ const getOcrBlockStyle = (block: OcrTextBlock): CSSProperties => {
   };
 };
 
+/**
+ * 文本归一化：去除所有空白并转小写，用于模糊匹配
+ * RapidOCR 返回的是逐行文字块，AI 返回的是语义段落，
+ * 通过子串包含关系建立左右联动。
+ */
+const normalizeTextForMatch = (text: string): string =>
+  text.replace(/\s+/g, '').toLowerCase();
+
+/**
+ * 判断某个 RapidOCR 文字块是否属于指定的 AI 记录（段落）。
+ * 用归一化后的子串包含判断：如果 block 的文字是 record 文字的一部分，
+ * 说明这个 block 属于这个段落。
+ */
+const isBlockInRecord = (
+  block: OcrTextBlock,
+  recordId: string
+): boolean => {
+  const blockText = normalizeTextForMatch(block.text);
+  if (!blockText || blockText.length < 2) return false;
+  const record = ocrRecords.value.find((r) => r.id === recordId);
+  if (!record) return false;
+  const recordText = normalizeTextForMatch(record.text);
+  return recordText.includes(blockText);
+};
+
+/**
+ * 点击左侧图片上的文字块时，找到右侧对应的 AI 记录并高亮。
+ */
+const handleBlockClick = (index: number) => {
+  const block = ocrTextBlocks.value[index];
+  if (!block) return;
+  const blockText = normalizeTextForMatch(block.text);
+  if (!blockText) {
+    activeRecordId.value = null;
+    return;
+  }
+  // 如果当前已经高亮了同一条记录，则取消（toggle）
+  const matchedId = ocrRecords.value.find((r) =>
+    normalizeTextForMatch(r.text).includes(blockText)
+  )?.id;
+  if (matchedId && activeRecordId.value === matchedId) {
+    activeRecordId.value = null;
+  } else {
+    activeRecordId.value = matchedId ?? null;
+  }
+};
+
+/**
+ * 点击右侧 AI 记录时，高亮左侧图片上对应的文字块。
+ */
+const handleRecordLinkClick = (recordId: string) => {
+  activeRecordId.value =
+    activeRecordId.value === recordId ? null : recordId;
+};
+
 const selectedOcrRecordCount = computed(() => selectedOcrRecords.value.length);
 
 const getOcrSectionLabel = (kind: AiOcrSectionKind): string =>
@@ -915,6 +974,7 @@ const applyPinWindowData = (payload: PinWindowDataPayload): boolean => {
     ocrText.value = '';
     ocrRecords.value = [];
     ocrTextBlocks.value = [];
+    activeRecordId.value = null;
   }
 
   return true;
@@ -972,6 +1032,7 @@ const recognizeCurrentImage = async () => {
   recognitionEngine.value = 'pending';
   recognitionModelName.value = '';
   ocrTextBlocks.value = [];
+  activeRecordId.value = null;
   const startedAt = Date.now();
 
   ocrDiagnosticLogger.log('[Pin OCR] recognize start', {
@@ -1020,6 +1081,7 @@ const recognizeCurrentImage = async () => {
     ocrError.value = t('pin.recognizeFailed');
     ocrText.value = '';
     ocrRecords.value = [];
+    activeRecordId.value = null;
     modal.error(t('pin.recognizeFailed'));
   } finally {
     if (requestId === ocrRequestId) {
@@ -1033,6 +1095,7 @@ const setOcrTextFromPlainText = (text: string) => {
   ocrText.value = normalized;
   ocrRecords.value = createRecordsFromPlainText(normalized);
   ocrTextBlocks.value = [];
+  activeRecordId.value = null;
 };
 
 const createRecordsFromPlainText = (text: string): OcrRecord[] =>
@@ -2157,10 +2220,18 @@ onUnmounted(() => {
         overflow: hidden;
         user-select: text;
         pointer-events: auto;
+        cursor: pointer;
+        transition: background-color 0.12s ease;
 
-        // 悬停时显示极淡的背景框，提示此处有可选文字
+        // 悬停时显示半透明背景框，提示此处有可选文字
         &:hover {
-          background: color-mix(in srgb, var(--primary-color) 6%, transparent);
+          background: color-mix(in srgb, var(--primary-color) 18%, transparent);
+        }
+
+        // 与右侧记录联动时，显示明显的主题色背景
+        &.is-linked {
+          background: color-mix(in srgb, var(--primary-color) 24%, transparent);
+          outline: 1px solid color-mix(in srgb, var(--primary-color) 40%, transparent);
         }
       }
 
@@ -2289,6 +2360,7 @@ onUnmounted(() => {
         );
         border: 1px solid color-mix(in srgb, var(--ocr-border) 66%, transparent);
         border-radius: 8px;
+        cursor: pointer;
         transition:
           border-color 0.15s ease,
           background-color 0.15s ease;
@@ -2311,6 +2383,22 @@ onUnmounted(() => {
             var(--primary-color) 22%,
             var(--ocr-border)
           );
+        }
+
+        // 与左侧图片文字块联动时，显示明显的主题色边框和背景
+        &.is-linked {
+          background: color-mix(
+            in srgb,
+            var(--primary-color) 12%,
+            var(--ocr-panel-bg)
+          );
+          border-color: color-mix(
+            in srgb,
+            var(--primary-color) 50%,
+            var(--ocr-border)
+          );
+          box-shadow: 0 0 0 1px
+            color-mix(in srgb, var(--primary-color) 30%, transparent);
         }
 
         &.is-title .ocr-record-text {
