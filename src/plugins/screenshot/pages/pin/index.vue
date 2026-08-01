@@ -138,10 +138,12 @@
 
               <div class="ocr-preview-canvas">
                 <div
+                  ref="ocrPreviewStageRef"
                   class="ocr-preview-stage"
                   :class="{ 'has-text-overlay': ocrTextBlocks.length > 0 }"
                 >
                   <img
+                    ref="ocrPreviewImageRef"
                     :src="imageBlobUrl || imageData"
                     :alt="$t('pin.ocrSourceAlt')"
                     @load="handleImageLoad"
@@ -160,7 +162,14 @@
                       :class="{ 'is-linked': linkedBlockIndices.has(index) }"
                       :style="getOcrBlockStyle(block)"
                       @click="handleBlockClick(index)"
-                    >{{ block.text }}</span>
+                    >
+                      <span
+                        class="ocr-text-block-text"
+                        :style="getOcrBlockTextStyle(block)"
+                      >
+                        {{ block.text }}
+                      </span>
+                    </span>
                   </div>
                 </div>
               </div>
@@ -575,6 +584,8 @@ const { t } = useI18n();
 
 const containerRef = ref<HTMLDivElement>();
 const appWindow = ref<Window | null>(null);
+const ocrPreviewStageRef = ref<HTMLDivElement>();
+const ocrPreviewImageRef = ref<HTMLImageElement>();
 
 const imageData = ref<string>('');
 const imageBlobUrl = ref<string>('');
@@ -591,6 +602,9 @@ const ocrFileName = ref('');
 const imageWidth = ref(0);
 const imageHeight = ref(0);
 const initialWindowSize = ref({ width: 0, height: 0 });
+const ocrPreviewScale = ref(1);
+
+let ocrPreviewResizeObserver: ResizeObserver | null = null;
 
 const ocrSelectionTranslation = ref<{
   sourceText: string;
@@ -782,10 +796,51 @@ const imageSelectionHint = computed(() => {
   return '';
 });
 
+const OCR_TEXT_FONT_SIZE = 14;
+const OCR_TEXT_FONT_FAMILY =
+  '"Microsoft YaHei", "PingFang SC", "Segoe UI", Arial, sans-serif';
+let ocrTextMeasureContext: CanvasRenderingContext2D | null | undefined;
+const ocrTextWidthCache = new Map<string, number>();
+
+const measureOcrTextWidth = (text: string): number => {
+  const cachedWidth = ocrTextWidthCache.get(text);
+  if (cachedWidth !== undefined) return cachedWidth;
+
+  if (ocrTextMeasureContext === undefined) {
+    ocrTextMeasureContext = document.createElement('canvas').getContext('2d');
+  }
+  if (!ocrTextMeasureContext) return 0;
+
+  ocrTextMeasureContext.font = `${OCR_TEXT_FONT_SIZE}px ${OCR_TEXT_FONT_FAMILY}`;
+  const width = ocrTextMeasureContext.measureText(text).width;
+  ocrTextWidthCache.set(text, width);
+  return width;
+};
+
+const syncOcrPreviewScale = (): void => {
+  const image = ocrPreviewImageRef.value;
+  const naturalWidth = image?.naturalWidth || imageWidth.value;
+  const renderedWidth = image?.getBoundingClientRect().width || 0;
+  if (naturalWidth <= 0 || renderedWidth <= 0) return;
+
+  const nextScale = renderedWidth / naturalWidth;
+  if (Math.abs(ocrPreviewScale.value - nextScale) > 0.001) {
+    ocrPreviewScale.value = nextScale;
+  }
+};
+
+const observeOcrPreviewSize = (): void => {
+  ocrPreviewResizeObserver?.disconnect();
+  if (!ocrPreviewStageRef.value) return;
+
+  ocrPreviewResizeObserver = new ResizeObserver(syncOcrPreviewScale);
+  ocrPreviewResizeObserver.observe(ocrPreviewStageRef.value);
+  syncOcrPreviewScale();
+};
+
 /**
  * 计算每个 RapidOCR 文字块在图片上的定位样式。
  * 使用百分比坐标，无论图片如何缩放都能正确定位。
- * 参考 Umi-OCR：文字透明不可见，但可选，覆盖在图片对应位置上。
  */
 const getOcrBlockStyle = (block: OcrTextBlock): CSSProperties => {
   if (imageWidth.value <= 0 || imageHeight.value <= 0) {
@@ -797,6 +852,23 @@ const getOcrBlockStyle = (block: OcrTextBlock): CSSProperties => {
     top: `${(block.y / imageHeight.value) * 100}%`,
     width: `${(block.width / imageWidth.value) * 100}%`,
     height: `${(block.height / imageHeight.value) * 100}%`
+  };
+};
+
+/**
+ * 透明文本本身保持可选择，并沿 X 轴匹配 RapidOCR 的实际文字框。
+ * 不能用固定宽度裁剪文本，否则图片缩放后拖选会在一行文字中途结束。
+ */
+const getOcrBlockTextStyle = (block: OcrTextBlock): CSSProperties => {
+  const textWidth = measureOcrTextWidth(block.text);
+  const renderedBlockWidth = block.width * ocrPreviewScale.value;
+  const scaleX =
+    textWidth > 0 && renderedBlockWidth > 0
+      ? renderedBlockWidth / textWidth
+      : 1;
+
+  return {
+    transform: `scaleX(${scaleX})`
   };
 };
 
@@ -1446,6 +1518,11 @@ const handleImageLoad = async (event: Event) => {
   imageWidth.value = img.naturalWidth;
   imageHeight.value = img.naturalHeight;
 
+  if (mode.value === 'ocr') {
+    await nextTick();
+    observeOcrPreviewSize();
+  }
+
   if (appWindow.value && initialWindowSize.value.width === 0) {
     try {
       const currentSizeRaw = await appWindow.value.innerSize();
@@ -1861,6 +1938,7 @@ onMounted(async () => {
   document.addEventListener('keydown', handleKeydown, true);
   document.addEventListener('contextmenu', globalContextMenuHandler, true);
   window.addEventListener('resize', updateFloatingMenuStyles);
+  window.addEventListener('resize', syncOcrPreviewScale);
   window.addEventListener('scroll', updateFloatingMenuStyles, true);
   window.addEventListener('blur', closeContextMenu);
 
@@ -1885,8 +1963,11 @@ onUnmounted(() => {
   document.removeEventListener('keydown', handleKeydown, true);
   document.removeEventListener('contextmenu', globalContextMenuHandler, true);
   window.removeEventListener('resize', updateFloatingMenuStyles);
+  window.removeEventListener('resize', syncOcrPreviewScale);
   window.removeEventListener('scroll', updateFloatingMenuStyles, true);
   window.removeEventListener('blur', closeContextMenu);
+
+  ocrPreviewResizeObserver?.disconnect();
 
   if (document.body) {
     document.body.oncontextmenu = null;
@@ -2232,18 +2313,24 @@ onUnmounted(() => {
 
       .ocr-text-block-item {
         // 文字透明不可见，但可选——参考 Umi-OCR 的透明文字层实现
-        color: transparent;
+        display: block;
+        overflow: visible;
         font-family: 'Microsoft YaHei', 'PingFang SC', 'Segoe UI', Arial,
           sans-serif;
         font-size: 14px;
         line-height: 1.6;
-        white-space: pre-wrap;
+        color: transparent;
         word-break: break-word;
-        overflow: hidden;
-        user-select: text;
         pointer-events: auto;
         cursor: pointer;
+        user-select: text;
         transition: background-color 0.12s ease;
+
+        .ocr-text-block-text {
+          display: inline-block;
+          white-space: pre;
+          transform-origin: top left;
+        }
 
         // 悬停时显示半透明背景框，提示此处有可选文字
         &:hover {
@@ -2375,6 +2462,7 @@ onUnmounted(() => {
       .ocr-record-item {
         padding: 11px 12px 12px;
         margin-bottom: 9px;
+        cursor: pointer;
         background: color-mix(
           in srgb,
           var(--ocr-panel-hover-bg) 38%,
@@ -2382,7 +2470,6 @@ onUnmounted(() => {
         );
         border: 1px solid color-mix(in srgb, var(--ocr-border) 66%, transparent);
         border-radius: 8px;
-        cursor: pointer;
         transition:
           border-color 0.15s ease,
           background-color 0.15s ease;
