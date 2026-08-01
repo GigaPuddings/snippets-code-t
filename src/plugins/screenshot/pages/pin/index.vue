@@ -231,7 +231,7 @@
                 {{ $t('pin.noTextRecognized') }}
               </div>
 
-              <div v-else class="ocr-result-scroll">
+              <div ref="ocrResultScrollRef" v-else class="ocr-result-scroll">
                 <section
                   v-if="ocrSelectionTranslation"
                   class="ocr-selection-translation"
@@ -259,32 +259,13 @@
                 </section>
 
                 <article
-                  v-for="(record, index) in ocrRecords"
+                  v-for="record in ocrRecords"
                   :key="record.id"
+                  :ref="(element) => setOcrRecordElement(record.id, element)"
                   class="ocr-record-item"
                   :class="[`is-${record.kind}`, { selected: record.selected, 'is-linked': activeRecordId === record.id }]"
                   @click="handleRecordLinkClick(record.id)"
                 >
-                  <header class="ocr-record-header">
-                    <button
-                      type="button"
-                      class="ocr-record-select"
-                      :class="{ selected: record.selected }"
-                      :aria-pressed="record.selected"
-                      :title="$t('pin.selectSection')"
-                      @click.stop="toggleOcrRecordSelection(record.id)"
-                    >
-                      <Check v-if="record.selected" size="11" theme="outline" />
-                      <span v-else>{{ index + 1 }}</span>
-                    </button>
-                    <span class="ocr-record-kind">
-                      {{ getOcrSectionLabel(record.kind) }}
-                    </span>
-                    <span v-if="record.confidence > 0" class="ocr-record-score">
-                      {{ Math.round(record.confidence) }}%
-                    </span>
-                  </header>
-
                   <div class="ocr-record-text" v-text="record.text"></div>
 
                   <div
@@ -587,6 +568,8 @@ const containerRef = ref<HTMLDivElement>();
 const appWindow = ref<Window | null>(null);
 const ocrPreviewStageRef = ref<HTMLDivElement>();
 const ocrPreviewImageRef = ref<HTMLImageElement>();
+const ocrResultScrollRef = ref<HTMLDivElement>();
+const ocrRecordElements = new Map<string, HTMLElement>();
 
 const imageData = ref<string>('');
 const imageBlobUrl = ref<string>('');
@@ -930,6 +913,40 @@ const linkedBlockIndices = computed(() => {
   return set;
 });
 
+const setOcrRecordElement = (recordId: string, element: unknown): void => {
+  if (element instanceof HTMLElement) {
+    ocrRecordElements.set(recordId, element);
+  } else {
+    ocrRecordElements.delete(recordId);
+  }
+};
+
+const revealOcrRecord = (recordId: string): void => {
+  void nextTick(() => {
+    const container = ocrResultScrollRef.value;
+    const record = ocrRecordElements.get(recordId);
+    if (!container || !record) return;
+
+    const containerRect = container.getBoundingClientRect();
+    const recordRect = record.getBoundingClientRect();
+    const padding = 8;
+    const visibleTop = containerRect.top + padding;
+    const visibleBottom = containerRect.bottom - padding;
+
+    if (recordRect.top < visibleTop) {
+      container.scrollBy({
+        top: recordRect.top - visibleTop,
+        behavior: 'smooth'
+      });
+    } else if (recordRect.bottom > visibleBottom) {
+      container.scrollBy({
+        top: recordRect.bottom - visibleBottom,
+        behavior: 'smooth'
+      });
+    }
+  });
+};
+
 /**
  * 点击左侧图片上的文字块时，找到右侧对应的 AI 记录并高亮。
  */
@@ -939,6 +956,9 @@ const handleBlockClick = (index: number) => {
     activeRecordId.value = null;
   } else {
     activeRecordId.value = matchedId ?? null;
+    if (matchedId) {
+      revealOcrRecord(matchedId);
+    }
   }
 };
 
@@ -951,9 +971,6 @@ const handleRecordLinkClick = (recordId: string) => {
 };
 
 const selectedOcrRecordCount = computed(() => selectedOcrRecords.value.length);
-
-const getOcrSectionLabel = (kind: AiOcrSectionKind): string =>
-  t(`pin.sectionKinds.${kind}`);
 
 const getRecordDisplayText = (record: OcrRecord): string => {
   return (record.translatedText || record.text).trim();
@@ -1314,13 +1331,6 @@ const getSelectedTextInsideOcrSurface = (): string => {
   }
 
   return '';
-};
-
-const toggleOcrRecordSelection = (recordId: string) => {
-  const record = ocrRecords.value.find((item) => item.id === recordId);
-  if (record) {
-    record.selected = !record.selected;
-  }
 };
 
 const handleSelectionTranslationInput = (event: Event) => {
@@ -2533,49 +2543,6 @@ onUnmounted(() => {
           background: color-mix(in srgb, var(--ocr-shell-bg) 70%, transparent);
           border-radius: 6px;
         }
-      }
-
-      .ocr-record-header {
-        @apply flex items-center;
-
-        gap: 6px;
-        min-width: 0;
-        padding: 0;
-        margin-bottom: 7px;
-        cursor: default;
-      }
-
-      .ocr-record-select {
-        @apply flex flex-shrink-0 items-center justify-center rounded-full;
-
-        width: 19px;
-        height: 19px;
-        font-size: 9px;
-        font-weight: 700;
-        color: var(--ocr-text-muted);
-        background: color-mix(in srgb, var(--ocr-border) 42%, transparent);
-
-        &:hover,
-        &.selected {
-          color: var(--primary-color);
-          background: color-mix(in srgb, var(--primary-color) 13%, transparent);
-        }
-      }
-
-      .ocr-record-kind {
-        @apply min-w-0 flex-1;
-
-        font-size: 9px;
-        font-weight: 650;
-        color: var(--ocr-text-muted);
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-      }
-
-      .ocr-record-score {
-        padding-top: 0;
-        font-size: 9px;
-        color: var(--ocr-text-muted);
       }
 
       .ocr-record-text {
