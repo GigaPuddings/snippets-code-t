@@ -157,7 +157,7 @@
                       v-for="(block, index) in ocrTextBlocks"
                       :key="`ocr-block-${index}`"
                       class="ocr-text-block-item"
-                      :class="{ 'is-linked': activeRecordId && isBlockInRecord(block, activeRecordId) }"
+                      :class="{ 'is-linked': linkedBlockIndices.has(index) }"
                       :style="getOcrBlockStyle(block)"
                       @click="handleBlockClick(index)"
                     >{{ block.text }}</span>
@@ -801,45 +801,67 @@ const getOcrBlockStyle = (block: OcrTextBlock): CSSProperties => {
 };
 
 /**
- * 文本归一化：去除所有空白并转小写，用于模糊匹配
- * RapidOCR 返回的是逐行文字块，AI 返回的是语义段落，
- * 通过子串包含关系建立左右联动。
+ * 文本归一化：去除所有空白和标点符号并转小写，用于模糊匹配。
+ * RapidOCR 和 AI 返回的文本可能有标点差异，
+ * 去标点后用子串包含关系建立左右联动。
  */
 const normalizeTextForMatch = (text: string): string =>
-  text.replace(/\s+/g, '').toLowerCase();
+  text.replace(/[\s\p{P}\p{S}]/gu, '').toLowerCase();
 
 /**
- * 判断某个 RapidOCR 文字块是否属于指定的 AI 记录（段落）。
- * 用归一化后的子串包含判断：如果 block 的文字是 record 文字的一部分，
- * 说明这个 block 属于这个段落。
+ * 预计算：每个 AI 记录的归一化文本。
+ * 避免 :class 绑定中重复调用 normalizeTextForMatch。
  */
-const isBlockInRecord = (
-  block: OcrTextBlock,
-  recordId: string
-): boolean => {
-  const blockText = normalizeTextForMatch(block.text);
-  if (!blockText || blockText.length < 2) return false;
-  const record = ocrRecords.value.find((r) => r.id === recordId);
-  if (!record) return false;
-  const recordText = normalizeTextForMatch(record.text);
-  return recordText.includes(blockText);
-};
+const normalizedRecordTexts = computed(() =>
+  ocrRecords.value.map((r) => ({
+    id: r.id,
+    normalized: normalizeTextForMatch(r.text)
+  }))
+);
+
+/**
+ * 预计算：每个 RapidOCR 文字块对应的 AI 记录 ID（null 表示无匹配）。
+ * 只在 blocks 或 records 变化时重新计算，不随 activeRecordId 变化。
+ */
+const blockToRecordMap = computed(() => {
+  const map = new Map<number, string | null>();
+  const records = normalizedRecordTexts.value;
+  for (let i = 0; i < ocrTextBlocks.value.length; i++) {
+    const blockText = normalizeTextForMatch(ocrTextBlocks.value[i].text);
+    let matched: string | null = null;
+    if (blockText.length >= 2) {
+      for (const record of records) {
+        if (record.normalized.includes(blockText)) {
+          matched = record.id;
+          break;
+        }
+      }
+    }
+    map.set(i, matched);
+  }
+  return map;
+});
+
+/**
+ * 预计算：当前联动高亮的文字块索引集合。
+ * 只在 activeRecordId 或 blockToRecordMap 变化时重新计算。
+ */
+const linkedBlockIndices = computed(() => {
+  const set = new Set<number>();
+  if (!activeRecordId.value) return set;
+  for (const [index, recordId] of blockToRecordMap.value) {
+    if (recordId === activeRecordId.value) {
+      set.add(index);
+    }
+  }
+  return set;
+});
 
 /**
  * 点击左侧图片上的文字块时，找到右侧对应的 AI 记录并高亮。
  */
 const handleBlockClick = (index: number) => {
-  const block = ocrTextBlocks.value[index];
-  if (!block) return;
-  const blockText = normalizeTextForMatch(block.text);
-  if (!blockText) {
-    activeRecordId.value = null;
-    return;
-  }
-  // 如果当前已经高亮了同一条记录，则取消（toggle）
-  const matchedId = ocrRecords.value.find((r) =>
-    normalizeTextForMatch(r.text).includes(blockText)
-  )?.id;
+  const matchedId = blockToRecordMap.value.get(index);
   if (matchedId && activeRecordId.value === matchedId) {
     activeRecordId.value = null;
   } else {
