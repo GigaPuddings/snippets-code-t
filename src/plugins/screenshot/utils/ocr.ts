@@ -27,6 +27,67 @@ async function canvasToDataUrl(canvas: HTMLCanvasElement): Promise<string> {
   return canvas.toDataURL('image/png')
 }
 
+/**
+ * 直接从 base64 图片数据调用 RapidOCR，返回带 bbox 的文字块。
+ * 用于 Pin 窗口的透明文字选择层（参考 Umi-OCR 的实现方式）。
+ */
+export async function recognizeFromImageData(
+  imageData: string,
+  language: string = 'auto'
+): Promise<OcrResult> {
+  const startedAt = Date.now()
+
+  ocrDiagnosticLogger.log('[RapidOCR] recognizeFromImageData start', {
+    imageDataLength: imageData.length,
+    language
+  })
+
+  try {
+    const rawResult = await invoke<Record<string, unknown>>(
+      'recognize_text_from_image',
+      {
+        imageData,
+        engine: 'rapidocr',
+        language
+      }
+    )
+
+    const blocks = normalizeBlocks(rawResult.blocks)
+    const fullText =
+      (typeof rawResult.full_text === 'string' && rawResult.full_text) ||
+      (typeof rawResult.text === 'string' && rawResult.text) ||
+      blocks.map((block) => block.text).join('\n')
+
+    const result: OcrResult = {
+      blocks,
+      full_text: fullText,
+      text: fullText,
+      language:
+        (typeof rawResult.language === 'string' && rawResult.language) ||
+        detectLanguage(fullText),
+      confidence: Number(rawResult.confidence || 0),
+      engine: typeof rawResult.engine === 'string' ? rawResult.engine : 'rapidocr'
+    }
+
+    ocrDiagnosticLogger.log('[RapidOCR] recognizeFromImageData success', {
+      durationMs: Date.now() - startedAt,
+      confidence: result.confidence,
+      blocks: result.blocks.length,
+      textLength: result.full_text.trim().length,
+      textPreview: result.full_text.trim().slice(0, 300)
+    })
+
+    return result
+  } catch (error) {
+    logger.error('[OCR] RapidOCR recognizeFromImageData failed', error)
+    ocrDiagnosticLogger.log('[RapidOCR] recognizeFromImageData failed', {
+      durationMs: Date.now() - startedAt,
+      error: error instanceof Error ? `${error.name}: ${error.message}` : String(error)
+    })
+    throw error
+  }
+}
+
 function normalizeBlocks(blocks: unknown): OcrTextBlock[] {
   if (!Array.isArray(blocks)) {
     return []

@@ -139,29 +139,26 @@
               <div class="ocr-preview-canvas">
                 <div
                   class="ocr-preview-stage"
-                  :class="{ 'has-text-overlay': ocrText.trim() }"
+                  :class="{ 'has-text-overlay': ocrTextBlocks.length > 0 }"
                 >
                   <img
                     :src="imageBlobUrl || imageData"
                     :alt="$t('pin.ocrSourceAlt')"
                     @load="handleImageLoad"
                   />
+                  <!-- 透明可选文字层：每个 RapidOCR 文字块按真实 bbox 坐标定位在图片上，
+                       文字透明不可见但可选，参考 Umi-OCR 的实现 -->
                   <div
-                    v-if="ocrText.trim()"
-                    class="ocr-text-overlay-layer"
+                    v-if="ocrTextBlocks.length > 0"
+                    class="ocr-text-block-layer"
                     :aria-label="$t('pin.selectableTextView')"
                   >
-                    <div class="ocr-overlay-document">
-                      <component
-                        :is="getSelectableTextTag(record.kind)"
-                        v-for="record in ocrRecords"
-                        :key="`overlay-${record.id}`"
-                        class="ocr-overlay-block"
-                        :class="`is-${record.kind}`"
-                      >
-                        {{ record.text }}
-                      </component>
-                    </div>
+                    <span
+                      v-for="(block, index) in ocrTextBlocks"
+                      :key="`ocr-block-${index}`"
+                      class="ocr-text-block-item"
+                      :style="getOcrBlockStyle(block)"
+                    >{{ block.text }}</span>
                   </div>
                 </div>
               </div>
@@ -566,6 +563,10 @@ import {
   type AiOcrResult,
   type AiOcrSectionKind
 } from '@/plugins/screenshot/utils/aiOcr';
+import {
+  type OcrTextBlock,
+  recognizeFromImageData
+} from '@/plugins/screenshot/utils/ocr';
 
 const { t } = useI18n();
 
@@ -577,6 +578,7 @@ const imageBlobUrl = ref<string>('');
 const mode = ref<'pin' | 'ocr'>('pin');
 const ocrText = ref('');
 const ocrRecords = ref<OcrRecord[]>([]);
+const ocrTextBlocks = ref<OcrTextBlock[]>([]);
 const ocrLoading = ref(false);
 const ocrError = ref('');
 const recognitionEngine = ref<'pending' | 'ai'>('pending');
@@ -764,8 +766,11 @@ const selectedOcrRecords = computed(() =>
 );
 
 const imageSelectionHint = computed(() => {
-  if (ocrLoading.value && !ocrText.value.trim()) {
+  if (ocrLoading.value && !ocrText.value.trim() && ocrTextBlocks.value.length === 0) {
     return t('pin.selectableTextPreparing');
+  }
+  if (ocrTextBlocks.value.length > 0) {
+    return t('pin.nativeTextSelectionHint');
   }
   if (ocrText.value.trim()) {
     return t('pin.nativeTextSelectionHint');
@@ -773,10 +778,22 @@ const imageSelectionHint = computed(() => {
   return '';
 });
 
-const getSelectableTextTag = (kind: AiOcrSectionKind): string => {
-  if (kind === 'title') return 'h2';
-  if (kind === 'code') return 'pre';
-  return 'p';
+/**
+ * 计算每个 RapidOCR 文字块在图片上的定位样式。
+ * 使用百分比坐标，无论图片如何缩放都能正确定位。
+ * 参考 Umi-OCR：文字透明不可见，但可选，覆盖在图片对应位置上。
+ */
+const getOcrBlockStyle = (block: OcrTextBlock): CSSProperties => {
+  if (imageWidth.value <= 0 || imageHeight.value <= 0) {
+    return { display: 'none' };
+  }
+  return {
+    position: 'absolute',
+    left: `${(block.x / imageWidth.value) * 100}%`,
+    top: `${(block.y / imageHeight.value) * 100}%`,
+    width: `${(block.width / imageWidth.value) * 100}%`,
+    height: `${(block.height / imageHeight.value) * 100}%`
+  };
 };
 
 const selectedOcrRecordCount = computed(() => selectedOcrRecords.value.length);
@@ -897,6 +914,7 @@ const applyPinWindowData = (payload: PinWindowDataPayload): boolean => {
     ocrError.value = '';
     ocrText.value = '';
     ocrRecords.value = [];
+    ocrTextBlocks.value = [];
   }
 
   return true;
@@ -914,6 +932,36 @@ const applyAiRecognitionResult = (result: AiOcrResult): void => {
   recognitionModelName.value = result.modelName;
 };
 
+/**
+ * 调用 RapidOCR 获取带 bbox 坐标的文字块，用于在图片上渲染透明可选文字层。
+ * 参考 Umi-OCR 的实现方式：每个文字块按真实坐标定位在图片上。
+ */
+const recognizeTextBlocksFromImage = async (
+  requestId: number
+): Promise<void> => {
+  try {
+    const result = await recognizeFromImageData(
+      imageData.value,
+      currentOcrLanguage.value === 'auto' ? 'auto' : currentOcrLanguage.value
+    );
+    if (requestId !== ocrRequestId) return;
+    ocrTextBlocks.value = result.blocks.filter((block) => block.text.trim());
+    ocrDiagnosticLogger.log('[Pin RapidOCR] text blocks ready', {
+      requestId,
+      blocks: ocrTextBlocks.value.length,
+      confidence: result.confidence
+    });
+  } catch (error) {
+    if (requestId !== ocrRequestId) return;
+    // RapidOCR 可能未安装或不可用，静默降级——右侧 AI 结果仍然可用
+    ocrTextBlocks.value = [];
+    ocrDiagnosticLogger.log('[Pin RapidOCR] text blocks failed (fallback)', {
+      requestId,
+      error: error instanceof Error ? `${error.name}: ${error.message}` : String(error)
+    });
+  }
+};
+
 const recognizeCurrentImage = async () => {
   if (!imageData.value) return;
 
@@ -923,15 +971,20 @@ const recognizeCurrentImage = async () => {
   ocrError.value = '';
   recognitionEngine.value = 'pending';
   recognitionModelName.value = '';
+  ocrTextBlocks.value = [];
   const startedAt = Date.now();
 
-  ocrDiagnosticLogger.log('[Pin AI OCR] recognize start', {
+  ocrDiagnosticLogger.log('[Pin OCR] recognize start', {
     requestId,
     imageDataLength: imageData.value.length,
     imageWidth: imageWidth.value,
     imageHeight: imageHeight.value,
     language: currentOcrLanguage.value
   });
+
+  // 并行发起 RapidOCR（获取 bbox 文字块）和 AI OCR（语义分段）
+  // RapidOCR 快速返回，文字层先渲染在图片上；AI OCR 慢一些，填充右侧面板
+  recognizeTextBlocksFromImage(requestId);
 
   try {
     const aiResult = await recognizeImageWithLocalAi(
@@ -979,6 +1032,7 @@ const setOcrTextFromPlainText = (text: string) => {
   const normalized = text.trim();
   ocrText.value = normalized;
   ocrRecords.value = createRecordsFromPlainText(normalized);
+  ocrTextBlocks.value = [];
 };
 
 const createRecordsFromPlainText = (text: string): OcrRecord[] =>
@@ -2077,69 +2131,36 @@ onUnmounted(() => {
         }
       }
 
-      .ocr-text-overlay-layer {
+      .ocr-text-block-layer {
         position: absolute;
         inset: 0;
-        overflow-y: auto;
-        overflow-x: hidden;
+        overflow: hidden;
         cursor: text;
         user-select: text;
-        scrollbar-width: thin;
+        border-radius: 5px;
 
-        &::-webkit-scrollbar {
-          width: 5px;
-        }
-
-        &::-webkit-scrollbar-thumb {
-          background: color-mix(in srgb, var(--ocr-border) 60%, transparent);
-          border-radius: 3px;
-        }
-
-        &::-webkit-scrollbar-track {
-          background: transparent;
-        }
-
+        // 选中高亮：半透明主题色，让用户看到选中了哪些文字块
         ::selection {
           background: color-mix(in srgb, var(--primary-color) 32%, transparent);
         }
       }
 
-      .ocr-overlay-document {
-        padding: 14px 16px;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-        user-select: text;
-      }
-
-      .ocr-overlay-block {
-        margin: 0;
+      .ocr-text-block-item {
+        // 文字透明不可见，但可选——参考 Umi-OCR 的透明文字层实现
+        color: transparent;
         font-family: 'Microsoft YaHei', 'PingFang SC', 'Segoe UI', Arial,
           sans-serif;
         font-size: 14px;
-        line-height: 1.75;
-        color: transparent;
-        word-break: break-word;
+        line-height: 1.6;
         white-space: pre-wrap;
+        word-break: break-word;
+        overflow: hidden;
         user-select: text;
+        pointer-events: auto;
 
-        &.is-title {
-          font-size: 18px;
-          font-weight: 700;
-          line-height: 1.5;
-        }
-
-        &.is-list {
-          padding-left: 6px;
-        }
-
-        &.is-code,
-        &.is-table {
-          padding: 10px 12px;
-          overflow-x: auto;
-          font-family: var(--font-mono, 'Cascadia Code', Consolas, monospace);
-          font-size: 12px;
-          line-height: 1.65;
+        // 悬停时显示极淡的背景框，提示此处有可选文字
+        &:hover {
+          background: color-mix(in srgb, var(--primary-color) 6%, transparent);
         }
       }
 
