@@ -1,19 +1,16 @@
 use crate::app_config;
 use crate::config::get_language_internal;
-use crate::plugins::system_theme::{
-    get_windows_dark_mode, load_config, save_config, set_windows_dark_mode, start_scheduler,
-    stop_scheduler, ScheduleType, ThemeMode,
-};
 use crate::plugins::wallpaper_switcher::{
     load_config as load_wallpaper_config, save_config as save_wallpaper_config,
-    start_scheduler as start_wallpaper_scheduler, WallpaperMode, WallhavenSource,
+    start_scheduler as start_wallpaper_scheduler, WallhavenSource, WallpaperMode,
 };
 use crate::update::check_update_and_open_window;
 use crate::window::{
-    hotkey_config, hotkey_dark_mode, hotkey_search, open_config_settings,
-    open_local_launcher_settings, open_plugin_settings, open_wallpaper_switcher_window,
+    hotkey_config, hotkey_search, open_config_settings, open_local_launcher_settings,
+    open_plugin_settings, open_wallpaper_switcher_window,
 };
 use log::{debug, info};
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::Emitter;
 use tauri::{
     menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu},
@@ -21,7 +18,10 @@ use tauri::{
     AppHandle, Manager,
 };
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
+use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_opener::OpenerExt;
+
+static WALLPAPER_TRAY_SWITCHING: AtomicBool = AtomicBool::new(false);
 
 // 托盘菜单翻译结构
 struct TrayTranslations {
@@ -32,15 +32,6 @@ struct TrayTranslations {
     screen_recorder: &'static str,
     wallpaper_switcher: &'static str,
     wallpaper_switch_next: &'static str,
-    dark_mode: &'static str,
-    // 主题子菜单
-    theme_menu: &'static str,
-    theme_system: &'static str,
-    theme_light: &'static str,
-    theme_dark: &'static str,
-    theme_sun_based: &'static str,
-    theme_custom: &'static str,
-    theme_settings: &'static str,
     // 壁纸子菜单
     wallpaper_local: &'static str,
     wallpaper_online: &'static str,
@@ -50,6 +41,10 @@ struct TrayTranslations {
     wallpaper_mode_toplist: &'static str,
     wallpaper_mode_favorites: &'static str,
     wallpaper_settings: &'static str,
+    wallpaper_switching_online: &'static str,
+    wallpaper_switch_complete: &'static str,
+    wallpaper_switch_busy: &'static str,
+    wallpaper_switch_failed: &'static str,
     // 其他
     check_update: &'static str,
     view_log: &'static str,
@@ -76,7 +71,6 @@ fn known_plugin_action_label<'a>(trans: &'a TrayTranslations, item_id: &str) -> 
         "screen_recorder" => Some(trans.screen_recorder),
         "wallpaper_switcher" => Some(trans.wallpaper_switcher),
         "wallpaper_switch_next" => Some(trans.wallpaper_switch_next),
-        "dark_mode" => Some(trans.dark_mode),
         _ => None,
     }
 }
@@ -135,7 +129,7 @@ fn handle_plugin_tray_menu_click(app: &AppHandle, menu_id: &str) -> bool {
 
 pub fn exit_app_now(app: &AppHandle) -> ! {
     info!("[托盘菜单] 用户选择退出程序");
-    stop_scheduler();
+    crate::plugins::system_theme::stop_scheduler();
     crate::plugins::local_ai::stop_service_now();
     let _ = app.global_shortcut().unregister_all();
     let _ = app.remove_tray_by_id("tray");
@@ -154,14 +148,6 @@ fn get_translations(lang: &str) -> TrayTranslations {
             screen_recorder: "Screen Recorder",
             wallpaper_switcher: "Wallpaper Switcher",
             wallpaper_switch_next: "Switch to Next Wallpaper",
-            dark_mode: "System Theme",
-            theme_menu: "Theme Mode",
-            theme_system: "Follow System",
-            theme_light: "Light Mode",
-            theme_dark: "Dark Mode",
-            theme_sun_based: "Sunrise/Sunset",
-            theme_custom: "Custom Schedule",
-            theme_settings: "More Settings...",
             wallpaper_local: "Local Wallpaper",
             wallpaper_online: "Online Wallpaper",
             wallpaper_mode_fixed: "Fixed Image",
@@ -170,6 +156,10 @@ fn get_translations(lang: &str) -> TrayTranslations {
             wallpaper_mode_toplist: "Toplist",
             wallpaper_mode_favorites: "Favorites",
             wallpaper_settings: "More Settings...",
+            wallpaper_switching_online: "Fetching the next online wallpaper. Please wait...",
+            wallpaper_switch_complete: "Desktop wallpaper updated",
+            wallpaper_switch_busy: "A wallpaper switch is already in progress",
+            wallpaper_switch_failed: "Wallpaper switch failed",
             check_update: "Check for Updates",
             view_log: "View Logs",
             plugin_installing: "Plugin installs",
@@ -186,14 +176,6 @@ fn get_translations(lang: &str) -> TrayTranslations {
             screen_recorder: "区域录制",
             wallpaper_switcher: "壁纸切换",
             wallpaper_switch_next: "切换下一张壁纸",
-            dark_mode: "系统主题",
-            theme_menu: "主题模式",
-            theme_system: "跟随系统",
-            theme_light: "浅色模式",
-            theme_dark: "深色模式",
-            theme_sun_based: "日出日落",
-            theme_custom: "自定义时间",
-            theme_settings: "更多设置...",
             wallpaper_local: "本地壁纸",
             wallpaper_online: "在线壁纸",
             wallpaper_mode_fixed: "固定图片",
@@ -202,6 +184,10 @@ fn get_translations(lang: &str) -> TrayTranslations {
             wallpaper_mode_toplist: "排行榜",
             wallpaper_mode_favorites: "收藏",
             wallpaper_settings: "更多设置...",
+            wallpaper_switching_online: "正在获取下一张在线壁纸，请稍候…",
+            wallpaper_switch_complete: "桌面壁纸已更新",
+            wallpaper_switch_busy: "壁纸正在切换，请稍候",
+            wallpaper_switch_failed: "壁纸切换失败",
             check_update: "检查更新",
             view_log: "日志记录",
             plugin_installing: "插件安装",
@@ -227,93 +213,6 @@ fn plugin_install_phase_label(lang: &str, phase: &str) -> &'static str {
         (_, "installing") => "安装中",
         _ => "处理中",
     }
-}
-
-// 创建主题子菜单
-fn create_theme_submenu(app: &AppHandle, lang: &str) -> tauri::Result<Submenu<tauri::Wry>> {
-    let trans = get_translations(lang);
-    let config = load_config(app);
-
-    // 判断当前选中状态
-    let is_system = matches!(config.theme_mode, ThemeMode::System);
-    let is_light = matches!(config.theme_mode, ThemeMode::Light);
-    let is_dark = matches!(config.theme_mode, ThemeMode::Dark);
-    let is_sun_based = matches!(config.theme_mode, ThemeMode::Schedule)
-        && matches!(config.schedule_type, ScheduleType::SunBased);
-    let is_custom = matches!(config.theme_mode, ThemeMode::Schedule)
-        && matches!(config.schedule_type, ScheduleType::Custom);
-
-    debug!(
-        "[托盘菜单] 主题子菜单状态: 跟随系统={}, 浅色={}, 深色={}, 日出日落={}, 自定义={}",
-        is_system, is_light, is_dark, is_sun_based, is_custom
-    );
-
-    // 创建带勾选状态的菜单项
-    let system_i = CheckMenuItem::with_id(
-        app,
-        "theme_system",
-        trans.theme_system,
-        true,
-        is_system,
-        None::<&str>,
-    )?;
-    let light_i = CheckMenuItem::with_id(
-        app,
-        "theme_light",
-        trans.theme_light,
-        true,
-        is_light,
-        None::<&str>,
-    )?;
-    let dark_i = CheckMenuItem::with_id(
-        app,
-        "theme_dark",
-        trans.theme_dark,
-        true,
-        is_dark,
-        None::<&str>,
-    )?;
-    let separator1 = PredefinedMenuItem::separator(app)?;
-    let sun_based_i = CheckMenuItem::with_id(
-        app,
-        "theme_sun_based",
-        trans.theme_sun_based,
-        true,
-        is_sun_based,
-        None::<&str>,
-    )?;
-    let custom_i = CheckMenuItem::with_id(
-        app,
-        "theme_custom",
-        trans.theme_custom,
-        true,
-        is_custom,
-        None::<&str>,
-    )?;
-    let separator2 = PredefinedMenuItem::separator(app)?;
-    let settings_i = MenuItem::with_id(
-        app,
-        "theme_settings",
-        trans.theme_settings,
-        true,
-        None::<&str>,
-    )?;
-
-    Submenu::with_items(
-        app,
-        trans.theme_menu,
-        true,
-        &[
-            &system_i,
-            &light_i,
-            &dark_i,
-            &separator1,
-            &sun_based_i,
-            &custom_i,
-            &separator2,
-            &settings_i,
-        ],
-    )
 }
 
 // 创建壁纸子菜单
@@ -429,7 +328,6 @@ fn create_wallpaper_submenu(app: &AppHandle, lang: &str) -> tauri::Result<Submen
 
 fn build_tray_menu(app: &AppHandle, lang: &str) -> tauri::Result<Menu<tauri::Wry>> {
     let trans = get_translations(lang);
-    let system_theme_enabled = app_config::is_plugin_enabled(app, "system-theme");
 
     let search_i = MenuItem::with_id(app, "search", trans.search, true, None::<&str>)?;
     let config_i = MenuItem::with_id(app, "config", trans.config, true, None::<&str>)?;
@@ -473,7 +371,10 @@ fn build_tray_menu(app: &AppHandle, lang: &str) -> tauri::Result<Menu<tauri::Wry
     let plugin_actions = app_config::installed_plugin_capability_actions(app, "trayItems", true);
     let plugin_items = plugin_actions
         .iter()
-        .filter(|action| !(wallpaper_enabled && action.plugin_id == "wallpaper-switcher"))
+        .filter(|action| {
+            action.plugin_id != "system-theme"
+                && !(wallpaper_enabled && action.plugin_id == "wallpaper-switcher")
+        })
         .map(|action| {
             let action_count = plugin_actions
                 .iter()
@@ -488,11 +389,6 @@ fn build_tray_menu(app: &AppHandle, lang: &str) -> tauri::Result<Menu<tauri::Wry
             )
         })
         .collect::<tauri::Result<Vec<_>>>()?;
-    let theme_submenu = if system_theme_enabled {
-        Some(create_theme_submenu(app, lang)?)
-    } else {
-        None
-    };
     let wallpaper_submenu = if wallpaper_enabled {
         Some(create_wallpaper_submenu(app, lang)?)
     } else {
@@ -514,9 +410,6 @@ fn build_tray_menu(app: &AppHandle, lang: &str) -> tauri::Result<Menu<tauri::Wry
     for item in &plugin_items {
         items.push(item);
     }
-    if let Some(item) = &theme_submenu {
-        items.push(item);
-    }
     if let Some(item) = &wallpaper_submenu {
         items.push(item);
     }
@@ -528,80 +421,19 @@ fn build_tray_menu(app: &AppHandle, lang: &str) -> tauri::Result<Menu<tauri::Wry
     Menu::with_items(app, &items)
 }
 
-// 处理主题菜单项点击
-pub fn handle_theme_menu_click(app: &AppHandle, menu_id: &str) {
-    if !app_config::is_plugin_enabled(app, "system-theme") {
-        return;
+// 处理壁纸菜单项点击
+fn notify_wallpaper_tray(app: &AppHandle, title: &str, body: impl Into<String>) {
+    if let Err(error) = app
+        .notification()
+        .builder()
+        .title(title)
+        .body(body.into())
+        .show()
+    {
+        log::warn!("[托盘菜单] 显示壁纸切换通知失败: {}", error);
     }
-
-    debug!("[托盘菜单] 点击主题菜单项: {}", menu_id);
-    let mut config = load_config(app);
-    let mut should_restart_scheduler = false;
-
-    match menu_id {
-        "theme_system" => {
-            config.theme_mode = ThemeMode::System;
-            stop_scheduler();
-            info!("[TrayMenu] 切换到跟随系统模式");
-        }
-        "theme_light" => {
-            config.theme_mode = ThemeMode::Light;
-            stop_scheduler();
-            let _ = set_windows_dark_mode(false);
-            info!("[TrayMenu] 切换到浅色模式");
-        }
-        "theme_dark" => {
-            config.theme_mode = ThemeMode::Dark;
-            stop_scheduler();
-            let _ = set_windows_dark_mode(true);
-            info!("[TrayMenu] 切换到深色模式");
-        }
-        "theme_sun_based" => {
-            config.theme_mode = ThemeMode::Schedule;
-            config.schedule_type = ScheduleType::SunBased;
-            should_restart_scheduler = true;
-            info!("[TrayMenu] 切换到日出日落模式");
-        }
-        "theme_custom" => {
-            config.theme_mode = ThemeMode::Schedule;
-            config.schedule_type = ScheduleType::Custom;
-            should_restart_scheduler = true;
-            info!("[TrayMenu] 切换到自定义时间模式");
-        }
-        "theme_settings" => {
-            hotkey_dark_mode();
-            info!("[TrayMenu] 打开主题设置");
-            return; // 不需要保存配置
-        }
-        _ => return,
-    }
-
-    if should_restart_scheduler {
-        // Schedule 模式：先保存，再重启调度器，避免读取旧配置造成瞬时抖动
-        if let Err(e) = save_config(app, &config) {
-            log::error!("[TrayMenu] 保存定时主题配置失败: {}", e);
-        }
-        stop_scheduler();
-        let _ = start_scheduler(app.clone());
-    } else {
-        debug!("[托盘菜单] 已保存主题配置并刷新托盘菜单");
-        let _ = save_config(app, &config);
-    }
-
-    update_tray_theme_status(app);
-
-    // 广播后端权威主题状态，确保 dark_mode/config 等窗口立即同步状态徽标
-    let current_is_dark = get_windows_dark_mode().unwrap_or(false);
-    let _ = app.emit(
-        "dark-mode-changed",
-        serde_json::json!({
-            "isDark": current_is_dark,
-            "reason": "tray_menu"
-        }),
-    );
 }
 
-// 处理壁纸菜单项点击
 pub fn handle_wallpaper_menu_click(app: &AppHandle, menu_id: &str) {
     if !app_config::is_plugin_enabled(app, "wallpaper-switcher") {
         return;
@@ -612,16 +444,51 @@ pub fn handle_wallpaper_menu_click(app: &AppHandle, menu_id: &str) {
     match menu_id {
         "wallpaper_switch_next" => {
             debug!("[托盘菜单] 直接切换下一张壁纸");
+            let lang = get_language_internal(app);
+            let trans = get_translations(&lang);
+            if WALLPAPER_TRAY_SWITCHING
+                .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+                .is_err()
+            {
+                notify_wallpaper_tray(app, trans.wallpaper_switcher, trans.wallpaper_switch_busy);
+                return;
+            }
+
+            let is_online = matches!(load_wallpaper_config(app).mode, WallpaperMode::Wallhaven);
+            if is_online {
+                notify_wallpaper_tray(
+                    app,
+                    trans.wallpaper_switcher,
+                    trans.wallpaper_switching_online,
+                );
+            }
+
             let app_handle = app.clone();
+            let notification_title = trans.wallpaper_switcher;
+            let success_message = trans.wallpaper_switch_complete;
+            let failed_message = trans.wallpaper_switch_failed;
             tauri::async_runtime::spawn(async move {
-                if let Err(error) =
-                    crate::plugins::wallpaper_switcher::wallpaper_switch_now(app_handle.clone()).await
-                {
-                    log::warn!("[托盘菜单] 壁纸快捷切换失败: {}", error);
-                    let _ = app_handle.emit(
-                        "wallpaper-switcher-error",
-                        serde_json::json!({ "message": error }),
-                    );
+                let result =
+                    crate::plugins::wallpaper_switcher::wallpaper_switch_now(app_handle.clone())
+                        .await;
+                WALLPAPER_TRAY_SWITCHING.store(false, Ordering::SeqCst);
+                match result {
+                    Ok(_) if is_online => {
+                        notify_wallpaper_tray(&app_handle, notification_title, success_message)
+                    }
+                    Ok(_) => {}
+                    Err(error) => {
+                        log::warn!("[托盘菜单] 壁纸快捷切换失败: {}", error);
+                        notify_wallpaper_tray(
+                            &app_handle,
+                            notification_title,
+                            format!("{}：{}", failed_message, error),
+                        );
+                        let _ = app_handle.emit(
+                            "wallpaper-switcher-error",
+                            serde_json::json!({ "message": error }),
+                        );
+                    }
                 }
             });
             return;
@@ -692,12 +559,6 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
         .show_menu_on_left_click(false)
         .on_menu_event(move |app, event| {
             let menu_id = event.id.as_ref();
-
-            // 主题菜单项处理
-            if menu_id.starts_with("theme_") {
-                handle_theme_menu_click(app, menu_id);
-                return;
-            }
 
             // 壁纸菜单项处理
             if menu_id.starts_with("wallpaper_") {

@@ -163,6 +163,8 @@ pub struct WallhavenWallpaper {
     pub dimension_y: u32,
     pub file_type: String,
     pub category: Option<String>,
+    #[serde(default)]
+    pub file_size: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -180,6 +182,13 @@ struct RuntimeStatus {
     current_resolution: Option<String>,
     last_switched_at: Option<i64>,
     next_switch_at: Option<i64>,
+    current_file_stamp: Option<u128>,
+}
+
+#[derive(Debug, Clone)]
+struct WallhavenCandidateCache {
+    scope: String,
+    wallpapers: Vec<WallhavenWallpaper>,
 }
 
 static WALLPAPER_CONFIG: Mutex<Option<WallpaperConfig>> = Mutex::new(None);
@@ -189,7 +198,9 @@ static WALLPAPER_STATUS: Mutex<RuntimeStatus> = Mutex::new(RuntimeStatus {
     current_resolution: None,
     last_switched_at: None,
     next_switch_at: None,
+    current_file_stamp: None,
 });
+static WALLHAVEN_PAGE_CANDIDATES: Mutex<Option<WallhavenCandidateCache>> = Mutex::new(None);
 static SCHEDULER_RUNNING: Mutex<bool> = Mutex::new(false);
 static SCHEDULER_INSTANCE_SEQ: AtomicU64 = AtomicU64::new(0);
 static ACTIVE_SCHEDULER_INSTANCE_ID: AtomicU64 = AtomicU64::new(0);
@@ -474,6 +485,69 @@ fn image_resolution(path: &Path) -> Option<String> {
         .map(|(width, height)| format!("{} × {}", width, height))
 }
 
+fn wallpaper_file_stamp(path: &Path) -> Option<u128> {
+    let metadata = fs::metadata(path).ok()?;
+    let modified = metadata
+        .modified()
+        .ok()?
+        .duration_since(UNIX_EPOCH)
+        .ok()?
+        .as_millis();
+    Some(modified ^ u128::from(metadata.len()))
+}
+
+fn get_windows_wallpaper() -> Option<PathBuf> {
+    use windows::Win32::UI::WindowsAndMessaging::{
+        SystemParametersInfoW, SPI_GETDESKWALLPAPER, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS,
+    };
+
+    let mut buffer = vec![0u16; 32_768];
+    unsafe {
+        SystemParametersInfoW(
+            SPI_GETDESKWALLPAPER,
+            buffer.len() as u32,
+            Some(buffer.as_mut_ptr() as *mut core::ffi::c_void),
+            SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS(0),
+        )
+        .ok()?;
+    }
+    let length = buffer.iter().position(|value| *value == 0).unwrap_or(0);
+    if length == 0 {
+        return None;
+    }
+    let path = PathBuf::from(String::from_utf16_lossy(&buffer[..length]));
+    if !path.is_file() {
+        return None;
+    }
+    Some(fs::canonicalize(&path).unwrap_or(path))
+}
+
+fn sync_runtime_with_windows_wallpaper() {
+    let Some(path) = get_windows_wallpaper() else {
+        return;
+    };
+    let path_string = path_to_string(&path);
+    let file_stamp = wallpaper_file_stamp(&path);
+    let Ok(mut status) = WALLPAPER_STATUS.lock() else {
+        return;
+    };
+    let path_changed = status
+        .current_path
+        .as_deref()
+        .is_none_or(|current| !current.eq_ignore_ascii_case(&path_string));
+    let contents_changed = !path_changed
+        && status.current_file_stamp.is_some()
+        && status.current_file_stamp != file_stamp;
+
+    if path_changed || contents_changed {
+        status.current_path = Some(path_string);
+        status.current_source = Some("System".to_string());
+        status.current_resolution = image_resolution(&path);
+        status.last_switched_at = Some(now_unix_ts());
+    }
+    status.current_file_stamp = file_stamp;
+}
+
 fn set_windows_wallpaper(path: &Path) -> Result<(), String> {
     use std::os::windows::ffi::OsStrExt;
     use windows::Win32::UI::WindowsAndMessaging::{
@@ -520,6 +594,7 @@ fn update_status_after_switch(path: &Path, source: &str, next_switch_at: Option<
         status.current_resolution = resolution;
         status.last_switched_at = Some(switched_at);
         status.next_switch_at = next_switch_at;
+        status.current_file_stamp = wallpaper_file_stamp(path);
     }
     if let Ok(mut config) = WALLPAPER_CONFIG.lock() {
         if let Some(existing) = config.as_mut() {
@@ -543,6 +618,60 @@ fn random_index(len: usize) -> usize {
         .wrapping_add(1);
     let mixed = time_seed ^ counter.wrapping_mul(0x9E37_79B9_7F4A_7C15) ^ (time_seed >> 33);
     (mixed as usize) % len
+}
+
+fn remember_wallhaven_candidates(scope: &str, wallpapers: &[WallhavenWallpaper]) {
+    let Ok(mut cached) = WALLHAVEN_PAGE_CANDIDATES.lock() else {
+        return;
+    };
+    if cached.as_ref().is_none_or(|current| current.scope != scope) {
+        *cached = Some(WallhavenCandidateCache {
+            scope: scope.to_string(),
+            wallpapers: Vec::new(),
+        });
+    }
+    let Some(cached) = cached.as_mut() else {
+        return;
+    };
+    for wallpaper in wallpapers {
+        if let Some(index) = cached
+            .wallpapers
+            .iter()
+            .position(|item| item.id == wallpaper.id)
+        {
+            cached.wallpapers.remove(index);
+        }
+        cached.wallpapers.push(wallpaper.clone());
+    }
+    if cached.wallpapers.len() > 80 {
+        let excess = cached.wallpapers.len() - 80;
+        cached.wallpapers.drain(..excess);
+    }
+}
+
+fn cached_wallhaven_candidate(
+    config: &WallpaperConfig,
+    current_id: Option<&str>,
+) -> Option<WallhavenWallpaper> {
+    let cached = WALLHAVEN_PAGE_CANDIDATES.lock().ok()?;
+    let cached = cached.as_ref()?;
+    if cached.scope != wallhaven_history_scope(config) {
+        return None;
+    }
+    let candidates = cached
+        .wallpapers
+        .iter()
+        .filter(|wallpaper| {
+            current_id != Some(wallpaper.id.as_str())
+                && !config.wallhaven_seen_ids.contains(&wallpaper.id)
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    if candidates.is_empty() {
+        None
+    } else {
+        Some(candidates[random_index(candidates.len())].clone())
+    }
 }
 
 fn paths_same(left: &Path, right: &Path) -> bool {
@@ -574,15 +703,29 @@ fn current_wallhaven_id(config: &WallpaperConfig) -> Option<String> {
         .and_then(wallhaven_id_from_cache_path)
 }
 
+fn wallhaven_scope(
+    source: &WallhavenSource,
+    category: &str,
+    normalized_query: Option<&str>,
+) -> String {
+    format!(
+        "{:?}|{}|{}",
+        source,
+        category,
+        normalized_query.unwrap_or_default()
+    )
+}
+
 fn wallhaven_history_scope(config: &WallpaperConfig) -> String {
     let query = normalize_wallhaven_query(
         config.wallhaven_query.clone(),
         Some(config.wallhaven_category.as_str()),
     )
     .unwrap_or_default();
-    format!(
-        "{:?}|{}|{}",
-        config.wallhaven_source, config.wallhaven_category, query
+    wallhaven_scope(
+        &config.wallhaven_source,
+        &config.wallhaven_category,
+        Some(&query),
     )
 }
 
@@ -628,6 +771,10 @@ pub fn load_config(app_handle: &AppHandle) -> WallpaperConfig {
                 if let Ok(mut status) = WALLPAPER_STATUS.lock() {
                     if status.current_path.is_none() {
                         status.current_path = config.last_applied_path.clone();
+                        status.current_file_stamp = config
+                            .last_applied_path
+                            .as_deref()
+                            .and_then(|path| wallpaper_file_stamp(Path::new(path)));
                         status
                             .current_source
                             .get_or_insert_with(|| match config.mode {
@@ -651,10 +798,37 @@ pub fn load_config(app_handle: &AppHandle) -> WallpaperConfig {
     config
 }
 
+fn emit_wallpaper_download_progress(
+    app_handle: &AppHandle,
+    id: &str,
+    downloaded: u64,
+    total: Option<u64>,
+    phase: &str,
+) {
+    let _ = app_handle.emit(
+        "wallpaper-download-progress",
+        serde_json::json!({
+            "id": id,
+            "downloaded": downloaded,
+            "total": total,
+            "phase": phase,
+        }),
+    );
+}
+
 async fn download_wallhaven_image(
     app_handle: &AppHandle,
     wallpaper: &WallhavenWallpaper,
 ) -> Result<PathBuf, String> {
+    // Emit before resolving the detail URL. The detail request can take a few
+    // seconds on a slow connection, and the UI should never appear unresponsive.
+    emit_wallpaper_download_progress(
+        app_handle,
+        &wallpaper.id,
+        0,
+        wallpaper.file_size,
+        "preparing",
+    );
     let client = apply_wallhaven_proxy(
         reqwest::Client::builder()
             .use_native_tls()
@@ -681,6 +855,13 @@ async fn download_wallhaven_image(
     } else {
         wallpaper.clone()
     };
+    emit_wallpaper_download_progress(
+        app_handle,
+        &resolved_wallpaper.id,
+        0,
+        resolved_wallpaper.file_size,
+        "preparing",
+    );
 
     let extension = if resolved_wallpaper.file_type.contains("png") {
         "png"
@@ -689,8 +870,19 @@ async fn download_wallhaven_image(
     };
     let target =
         cache_dir(app_handle)?.join(format!("wallhaven-{}.{}", resolved_wallpaper.id, extension));
-    if target.is_file() && fs::metadata(&target).map(|m| m.len() > 0).unwrap_or(false) {
-        return Ok(target);
+    if target.is_file() {
+        if let Ok(metadata) = fs::metadata(&target) {
+            if metadata.len() > 0 {
+                emit_wallpaper_download_progress(
+                    app_handle,
+                    &resolved_wallpaper.id,
+                    metadata.len(),
+                    Some(metadata.len()),
+                    "complete",
+                );
+                return Ok(target);
+            }
+        }
     }
 
     let mut downloaded_bytes = None;
@@ -709,7 +901,14 @@ async fn download_wallhaven_image(
                 .error_for_status()
                 .map_err(|e| format!("下载壁纸失败: {}", reqwest_error_details(&e)))?;
 
-            let total = response.content_length();
+            let total = response.content_length().or(resolved_wallpaper.file_size);
+            emit_wallpaper_download_progress(
+                &app_handle_for_progress,
+                &wallpaper_id,
+                0,
+                total,
+                "downloading",
+            );
             let mut buffer: Vec<u8> = Vec::new();
             let mut downloaded: u64 = 0;
             let mut last_emit = std::time::Instant::now();
@@ -729,13 +928,12 @@ async fn download_wallhaven_image(
                         let is_first = downloaded == chunk_len;
                         let elapsed = now.duration_since(last_emit).as_millis();
                         if is_first || elapsed >= 80 {
-                            let _ = app_handle_for_progress.emit(
-                                "wallpaper-download-progress",
-                                serde_json::json!({
-                                    "id": wallpaper_id,
-                                    "downloaded": downloaded,
-                                    "total": total,
-                                }),
+                            emit_wallpaper_download_progress(
+                                &app_handle_for_progress,
+                                &wallpaper_id,
+                                downloaded,
+                                total,
+                                "downloading",
                             );
                             last_emit = now;
                         }
@@ -745,13 +943,12 @@ async fn download_wallhaven_image(
             }
 
             // 发送最终进度
-            let _ = app_handle_for_progress.emit(
-                "wallpaper-download-progress",
-                serde_json::json!({
-                    "id": wallpaper_id,
-                    "downloaded": downloaded,
-                    "total": total.or(Some(downloaded)),
-                }),
+            emit_wallpaper_download_progress(
+                &app_handle_for_progress,
+                &wallpaper_id,
+                downloaded,
+                total.or(Some(downloaded)),
+                "complete",
             );
 
             if buffer.is_empty() {
@@ -776,6 +973,13 @@ async fn download_wallhaven_image(
         }
 
         if attempt < 3 {
+            emit_wallpaper_download_progress(
+                app_handle,
+                &resolved_wallpaper.id,
+                0,
+                resolved_wallpaper.file_size,
+                "preparing",
+            );
             tokio::time::sleep(Duration::from_millis(300 * attempt)).await;
         }
     }
@@ -927,6 +1131,27 @@ async fn switch_from_wallhaven(
     let current_id = current_wallhaven_id(&config);
     prepare_wallhaven_history(&mut config);
     let mut last_error = "Wallhaven 没有返回可用壁纸".to_string();
+
+    // Reuse candidates from the most recently opened Wallhaven page. This
+    // avoids another search request for tray switching while preserving the
+    // existing recent-history rules.
+    if let Some(wallpaper) = cached_wallhaven_candidate(&config, current_id.as_deref()) {
+        match download_wallhaven_image(app_handle, &wallpaper).await {
+            Ok(downloaded) => {
+                record_wallhaven_seen(&mut config, wallpaper.id);
+                save_config(app_handle, &config)?;
+                return apply_wallpaper_path(app_handle, &downloaded, "Wallhaven").await;
+            }
+            Err(error) => {
+                last_error = error;
+                warn!(
+                    "[WallpaperSwitcher] 使用缓存候选壁纸失败，回退在线搜索: {}",
+                    last_error
+                );
+            }
+        }
+    }
+
     for reset_history in [false, true] {
         let seen_ids = config
             .wallhaven_seen_ids
@@ -1380,6 +1605,7 @@ fn parse_wallhaven_html_response(body: &str, fallback_page: u32) -> Result<Wallh
             resolution,
             dimension_x,
             dimension_y,
+            file_size: None,
         });
     }
 
@@ -1443,6 +1669,7 @@ fn parse_wallhaven_wallpaper(value: &serde_json::Value) -> Option<WallhavenWallp
         },
         file_type: json_string(value, "file_type").unwrap_or_else(|| file_type_from_path(&path)),
         category: json_string(value, "category"),
+        file_size: value.get("file_size").and_then(|value| value.as_u64()),
         path,
         resolution,
         dimension_x,
@@ -1683,6 +1910,11 @@ async fn fetch_wallhaven_page(
     let page = params.page.unwrap_or(1).clamp(1, MAX_WALLHAVEN_PAGES);
     let category = params.category.as_deref();
     let request_query = normalize_wallhaven_query(params.query.clone(), category);
+    let request_scope = wallhaven_scope(
+        &params.source,
+        category.unwrap_or("general"),
+        request_query.as_deref(),
+    );
     info!(
         "[WallpaperSwitcher] Wallhaven search source={:?} page={} category={:?} query={} screen={}x{}",
         params.source,
@@ -1727,12 +1959,14 @@ async fn fetch_wallhaven_page(
                     width,
                     height
                 );
+                remember_wallhaven_candidates(&request_scope, &parsed.data);
                 return Ok(parsed);
             }
             Ok(parsed) => {
                 last_error = format!("Wallhaven 没有返回可用壁纸 ({}x{})", width, height);
                 warn!("[WallpaperSwitcher] {}", last_error);
                 if width <= 1920 && height <= 1080 {
+                    remember_wallhaven_candidates(&request_scope, &parsed.data);
                     return Ok(parsed);
                 }
             }
@@ -1766,11 +2000,13 @@ async fn fetch_wallhaven_page(
                     width,
                     height
                 );
+                remember_wallhaven_candidates(&request_scope, &parsed.data);
                 return Ok(parsed);
             }
             Ok(parsed) => {
                 last_error = format!("Wallhaven 没有返回可用壁纸 ({}x{})", width, height);
                 if width <= 1920 && height <= 1080 {
+                    remember_wallhaven_candidates(&request_scope, &parsed.data);
                     return Ok(parsed);
                 }
             }
@@ -1830,6 +2066,10 @@ pub async fn wallpaper_save_config(
 #[tauri::command]
 pub async fn wallpaper_get_status(app_handle: AppHandle) -> Result<WallpaperStatus, String> {
     require_enabled(&app_handle)?;
+    // Reconcile with Windows on every status read so changes made from System
+    // Settings (or another wallpaper application) are reflected in the plugin.
+    let _ = load_config(&app_handle);
+    sync_runtime_with_windows_wallpaper();
     let (screen_width, screen_height) = screen_size(&app_handle);
     let cache = cache_dir(&app_handle)?;
     let runtime = WALLPAPER_STATUS

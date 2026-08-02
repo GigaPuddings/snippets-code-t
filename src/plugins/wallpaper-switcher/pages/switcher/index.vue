@@ -35,12 +35,27 @@ const saving = ref(false);
 const switching = ref(false);
 const clearingCache = ref(false);
 const openingCache = ref(false);
+const previewRevision = ref(0);
+let statusRefreshPending = false;
+let statusTimer: number | null = null;
+let unlistenFocus: (() => void) | null = null;
 
-const refreshStatus = async () => {
+const refreshStatus = async (silent = false) => {
+  if (statusRefreshPending) return;
+  statusRefreshPending = true;
   try {
-    status.value = await getWallpaperStatus();
+    const nextStatus = await getWallpaperStatus();
+    if (
+      nextStatus.currentPath !== status.value?.currentPath ||
+      nextStatus.lastSwitchedAt !== status.value?.lastSwitchedAt
+    ) {
+      previewRevision.value += 1;
+    }
+    status.value = nextStatus;
   } catch (error) {
-    modal.msg(String(error), 'error');
+    if (!silent) modal.msg(String(error), 'error');
+  } finally {
+    statusRefreshPending = false;
   }
 };
 
@@ -86,9 +101,13 @@ const {
   setupListeners
 } = wallhaven;
 
-const previewSrc = computed(() =>
-  wallpaperImageSrc(status.value?.currentPath || config.value.lastAppliedPath)
-);
+const previewSrc = computed(() => {
+  const path = status.value?.currentPath || config.value.lastAppliedPath;
+  const source = wallpaperImageSrc(path);
+  if (!source) return '';
+  const separator = source.includes('?') ? '&' : '?';
+  return `${source}${separator}wallpaperRevision=${previewRevision.value}`;
+});
 const currentWallpaperName = computed(() => {
   const path = status.value?.currentPath || config.value.lastAppliedPath;
   if (!path) return t('wallpaperSwitcher.noCurrentWallpaper');
@@ -112,6 +131,8 @@ const formatBytes = (value: number): string => {
 };
 
 const sourceLabel = computed(() => {
+  if (status.value?.currentSource === 'System')
+    return t('wallpaperSwitcher.systemSettings');
   if (config.value.mode === 'fixed') return t('wallpaperSwitcher.fixedImage');
   if (config.value.mode === 'wallhaven') return 'Wallhaven';
   return t('wallpaperSwitcher.localFolder');
@@ -297,10 +318,17 @@ const closeWindow = async () => {
 onMounted(async () => {
   await loadAll();
   await setupListeners();
+  unlistenFocus = await appWindow.onFocusChanged(({ payload: focused }) => {
+    if (focused) void refreshStatus(true);
+  });
+  statusTimer = window.setInterval(() => {
+    if (document.visibilityState === 'visible') void refreshStatus(true);
+  }, 2500);
 });
 
 onUnmounted(() => {
-  // cleanup handled in composable
+  if (statusTimer !== null) window.clearInterval(statusTimer);
+  unlistenFocus?.();
 });
 </script>
 

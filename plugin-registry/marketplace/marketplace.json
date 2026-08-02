@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-08-01",
+  "updatedAt": "2026-08-02",
   "source": "snippets-code official GitHub marketplace",
   "plugins": [
     {
@@ -286,7 +286,7 @@
     },
     {
       "id": "wallpaper-switcher",
-      "version": "2.0.83",
+      "version": "2.0.84",
       "name": {
         "i18nKey": "plugins.wallpaperSwitcher.name",
         "fallback": "Wallpaper Switcher"
@@ -296,7 +296,7 @@
         "fallback": "Windows desktop wallpaper switching, local folder rotation, and Wallhaven online wallpapers."
       },
       "category": "appearance",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-wallpaper-switcher/archive/refs/tags/2.0.83.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-wallpaper-switcher/archive/refs/tags/2.0.84.zip",
       "builtinPluginId": "wallpaper-switcher",
       "status": "included",
       "sizeBytes": 178217,
@@ -305,10 +305,10 @@
         "wallhaven",
         "appearance"
       ],
-      "minAppVersion": "2.1.47",
-      "compatibleAppVersion": ">=2.1.47",
+      "minAppVersion": "2.1.50",
+      "compatibleAppVersion": ">=2.1.50",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-wallpaper-switcher",
-      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-wallpaper-switcher/releases/tag/2.0.83"
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-wallpaper-switcher/releases/tag/2.0.84"
     },
     {
       "id": "local-launcher",

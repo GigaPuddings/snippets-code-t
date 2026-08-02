@@ -67,6 +67,7 @@ export interface WallhavenWallpaper {
   dimensionY: number;
   fileType: string;
   category?: string | null;
+  fileSize?: number | null;
 }
 
 export interface WallhavenPage {

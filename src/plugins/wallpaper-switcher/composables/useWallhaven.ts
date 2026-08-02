@@ -22,6 +22,7 @@ export type WallhavenWorkingAction = 'setting' | 'downloading';
 export interface DownloadProgress {
   downloaded: number;
   total: number | null;
+  phase: 'preparing' | 'downloading' | 'complete';
 }
 
 export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
@@ -76,18 +77,29 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
     return message.length > 120 ? `${message.slice(0, 120)}...` : message;
   };
 
-  const setWorking = (id: string, action: WallhavenWorkingAction | null) => {
+  const setWorking = (
+    wallpaper: WallhavenWallpaper,
+    action: WallhavenWorkingAction | null
+  ) => {
+    const { id } = wallpaper;
     const next = new Map(workingActions.value);
     if (action) next.set(id, action);
     else next.delete(id);
     workingActions.value = next;
 
-    // 操作结束时清除进度
-    if (!action) {
-      const nextProgress = new Map(downloadProgress.value);
+    const nextProgress = new Map(downloadProgress.value);
+    if (action) {
+      // Show feedback synchronously. Resolving the Wallhaven detail URL can
+      // take a few seconds before the first response byte arrives.
+      nextProgress.set(id, {
+        downloaded: 0,
+        total: wallpaper.fileSize ?? null,
+        phase: 'preparing'
+      });
+    } else {
       nextProgress.delete(id);
-      downloadProgress.value = nextProgress;
     }
+    downloadProgress.value = nextProgress;
   };
 
   const markThumbLoaded = (id: string) => {
@@ -205,7 +217,7 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
 
   const setWallpaperFromWallhaven = async (wallpaper: WallhavenWallpaper) => {
     if (workingActions.value.has(wallpaper.id)) return;
-    setWorking(wallpaper.id, 'setting');
+    setWorking(wallpaper, 'setting');
     try {
       modal.msg(t('wallpaperSwitcher.messages.settingWallpaper'), 'info');
       await setWallhavenWallpaper(wallpaper);
@@ -214,7 +226,7 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
     } catch (error) {
       modal.msg(formatWallhavenError(error), 'error');
     } finally {
-      setWorking(wallpaper.id, null);
+      setWorking(wallpaper, null);
     }
   };
 
@@ -222,7 +234,7 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
     wallpaper: WallhavenWallpaper
   ) => {
     if (workingActions.value.has(wallpaper.id)) return;
-    setWorking(wallpaper.id, 'downloading');
+    setWorking(wallpaper, 'downloading');
     try {
       modal.msg(t('wallpaperSwitcher.messages.downloadingWallpaper'), 'info');
       await downloadWallhavenWallpaper(wallpaper);
@@ -231,7 +243,7 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
     } catch (error) {
       modal.msg(formatWallhavenError(error), 'error');
     } finally {
-      setWorking(wallpaper.id, null);
+      setWorking(wallpaper, null);
     }
   };
 
@@ -281,15 +293,22 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
         );
       }
     );
-    unlistenProgress = await listen<{ id: string; downloaded: number; total: number | null }>(
-      'wallpaper-download-progress',
-      (event) => {
-        const { id, downloaded, total } = event.payload;
-        const next = new Map(downloadProgress.value);
-        next.set(id, { downloaded, total: total ?? null });
-        downloadProgress.value = next;
-      }
-    );
+    unlistenProgress = await listen<{
+      id: string;
+      downloaded: number;
+      total: number | null;
+      phase?: DownloadProgress['phase'];
+    }>('wallpaper-download-progress', (event) => {
+      const { id, downloaded, total, phase } = event.payload;
+      if (!workingActions.value.has(id)) return;
+      const next = new Map(downloadProgress.value);
+      next.set(id, {
+        downloaded,
+        total: total ?? null,
+        phase: phase ?? 'downloading'
+      });
+      downloadProgress.value = next;
+    });
   };
 
   return {

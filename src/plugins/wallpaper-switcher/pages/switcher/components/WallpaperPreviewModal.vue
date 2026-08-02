@@ -3,6 +3,7 @@ import { CloseSmall, Loading } from '@icon-park/vue-next';
 import { useI18n } from 'vue-i18n';
 import type { WallhavenWallpaper } from '../../../api';
 import type { DownloadProgress } from '../../../composables/useWallhaven';
+import DownloadProgressIndicator from './DownloadProgressIndicator.vue';
 
 type WallhavenWorkingAction = 'setting' | 'downloading';
 
@@ -26,11 +27,8 @@ const { t } = useI18n();
 const workingActionFor = (id: string): WallhavenWorkingAction | undefined =>
   props.workingActions.get(id);
 
-const progressFor = (id: string): number | null => {
-  const p = props.downloadProgress.get(id);
-  if (!p || !p.total || p.total <= 0) return null;
-  return Math.min(100, Math.round((p.downloaded / p.total) * 100));
-};
+const progressFor = (id: string): DownloadProgress | undefined =>
+  props.downloadProgress.get(id);
 </script>
 
 <template>
@@ -56,34 +54,11 @@ const progressFor = (id: string): number | null => {
           @load="emit('loaded')"
           @error="emit('failed')"
         />
-        <div
-          v-if="wallpaper && progressFor(wallpaper.id) !== null"
-          class="download-ring preview-download-ring"
-        >
-          <svg viewBox="0 0 48 48" class="ring-svg">
-            <circle
-              class="ring-track"
-              cx="24"
-              cy="24"
-              r="20"
-              fill="none"
-              stroke-width="4"
-            />
-            <circle
-              class="ring-fill"
-              cx="24"
-              cy="24"
-              r="20"
-              fill="none"
-              stroke-width="4"
-              stroke-linecap="round"
-              :stroke-dasharray="125.66"
-              :stroke-dashoffset="125.66 * (1 - (progressFor(wallpaper.id) ?? 0) / 100)"
-              transform="rotate(-90 24 24)"
-            />
-          </svg>
-          <span class="ring-text">{{ progressFor(wallpaper.id) }}%</span>
-        </div>
+        <DownloadProgressIndicator
+          v-if="progressFor(wallpaper.id)"
+          :progress="progressFor(wallpaper.id)!"
+          variant="preview"
+        />
       </div>
       <footer>
         <button
