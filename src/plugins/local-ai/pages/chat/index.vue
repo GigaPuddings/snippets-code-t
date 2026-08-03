@@ -60,19 +60,32 @@
       <section class="sidebar-section recent-section">
         <div class="section-title-row">
           <div class="section-title">{{ t('localAi.recent') }}</div>
-          <button
-            class="icon-action-btn"
-            type="button"
-            :title="t('plugins.refresh')"
-            :disabled="navigationLocked || refreshing"
-            @click="refreshAll"
-          >
-            <Refresh
-              :class="{ 'animate-spin': refreshing }"
-              theme="outline"
-              size="14"
-            />
-          </button>
+          <div class="section-title-actions">
+            <button
+              class="icon-action-btn"
+              type="button"
+              :title="t('localAi.clearAllChats')"
+              :disabled="
+                navigationLocked || clearingHistories || !histories.length
+              "
+              @click="clearHistoryDialogVisible = true"
+            >
+              <Delete theme="outline" size="14" />
+            </button>
+            <button
+              class="icon-action-btn"
+              type="button"
+              :title="t('plugins.refresh')"
+              :disabled="navigationLocked || refreshing || clearingHistories"
+              @click="refreshAll"
+            >
+              <Refresh
+                :class="{ 'animate-spin': refreshing }"
+                theme="outline"
+                size="14"
+              />
+            </button>
+          </div>
         </div>
         <div v-if="filteredHistories.length" class="chat-list">
           <div
@@ -90,7 +103,13 @@
             @keydown.enter.prevent="openHistory(history.id)"
           >
             <span class="chat-item-copy">
-              <span class="chat-item-title">{{ history.title }}</span>
+              <span
+                v-auto-scroll-title
+                class="chat-item-title"
+                :title="history.title"
+              >
+                <span class="chat-item-title-text">{{ history.title }}</span>
+              </span>
               <span class="chat-item-time">
                 {{ formatHistoryTime(history.updatedAt) }}
               </span>
@@ -249,12 +268,16 @@
                           : ''
                       ]"
                     >
-                      <figure
+                      <button
                         v-if="attachment.type === 'image' && attachment.dataUrl"
+                        class="attachment-image-preview-btn"
+                        type="button"
                         :title="attachment.name"
+                        :aria-label="t('localAi.previewAttachment')"
+                        @click="openAttachmentPreview(attachment)"
                       >
                         <img :src="attachment.dataUrl" :alt="attachment.name" />
-                      </figure>
+                      </button>
                       <span v-else class="attachment-file-icon">
                         {{ attachment.type === 'text' ? 'TXT' : 'FILE' }}
                       </span>
@@ -519,14 +542,6 @@
           @focusin="composerFocused = true"
           @focusout="composerFocused = false"
         >
-          <input
-            ref="fileInputRef"
-            class="attachment-input"
-            type="file"
-            multiple
-            accept=".txt,.md,.json,.csv,.html,.css,.js,.ts,.tsx,.vue,.rs,.py,.java,.go,.yaml,.yml,.toml,.xml,.log,image/png,image/jpeg,image/webp,.pdf,.doc,.docx,.xls,.xlsx"
-            @change="handleAttachmentInput"
-          />
           <div v-if="attachments.length" class="attachment-preview-list">
             <div
               v-for="attachment in attachments"
@@ -536,11 +551,16 @@
                 `attachment-preview-item--${attachment.status}`
               ]"
             >
-              <img
+              <button
                 v-if="attachment.type === 'image' && attachment.dataUrl"
-                :src="attachment.dataUrl"
-                :alt="attachment.name"
-              />
+                class="attachment-preview-image-btn"
+                type="button"
+                :title="attachment.name"
+                :aria-label="t('localAi.previewAttachment')"
+                @click="openAttachmentPreview(attachment)"
+              >
+                <img :src="attachment.dataUrl" :alt="attachment.name" />
+              </button>
               <span v-else class="attachment-file-icon">
                 {{ attachment.type === 'text' ? 'TXT' : 'FILE' }}
               </span>
@@ -552,9 +572,10 @@
                 </small>
               </span>
               <button
+                class="attachment-remove-btn"
                 type="button"
                 :title="t('common.delete')"
-                @click="removeAttachment(attachment.id)"
+                @click="removeComposerAttachment(attachment.id)"
               >
                 <Delete theme="outline" size="12" />
               </button>
@@ -577,9 +598,16 @@
                 class="composer-tool-btn"
                 type="button"
                 :title="t('localAi.addAttachment')"
-                @click="openAttachmentPicker"
+                :disabled="attachmentPicking"
+                @click="pickAttachmentFiles"
               >
-                <Link theme="outline" size="16" />
+                <Refresh
+                  v-if="attachmentPicking"
+                  class="animate-spin"
+                  theme="outline"
+                  size="16"
+                />
+                <Link v-else theme="outline" size="16" />
               </button>
               <button
                 :class="[
@@ -645,26 +673,30 @@
               </button>
             </div>
             <div class="input-toolbar-right">
-              <label class="model-select-shell">
+              <div class="model-select-shell">
                 <Cube theme="outline" size="14" />
-                <select
+                <el-select
                   v-model="selectedChatModelPath"
+                  class="chat-model-select"
+                  size="small"
                   :disabled="sending || !availableChatModels.length"
+                  :placeholder="currentModelDisplay"
+                  popper-class="chat-model-select-popper"
                   @change="changeChatModel"
                 >
-                  <option
+                  <el-option
                     v-for="path in availableChatModels"
                     :key="path"
+                    :label="fileName(path)"
                     :value="path"
-                  >
-                    {{ fileName(path) }}
-                  </option>
-                  <option v-if="!availableChatModels.length" value="">
-                    {{ currentModelDisplay }}
-                  </option>
-                </select>
-                <Down theme="outline" size="13" />
-              </label>
+                  />
+                  <el-option
+                    v-if="!availableChatModels.length"
+                    :label="currentModelDisplay"
+                    value=""
+                  />
+                </el-select>
+              </div>
               <span class="input-hint">{{ t('localAi.inputHint') }}</span>
               <button
                 v-if="currentStreamRequestId"
@@ -707,10 +739,26 @@
         </form>
       </div>
     </section>
+    <AttachmentPreviewDialog
+      v-model="attachmentPreviewVisible"
+      :attachment="previewedAttachment"
+    />
+    <ConfirmDialog
+      v-model="clearHistoryDialogVisible"
+      :title="t('localAi.clearAllChats')"
+      :confirm-text="t('common.delete')"
+      :cancel-text="t('common.cancel')"
+      :loading="clearingHistories"
+      type="danger"
+      @confirm="clearAllHistories"
+    >
+      <div>{{ t('localAi.clearAllChatsConfirm') }}</div>
+    </ConfirmDialog>
   </main>
 </template>
 
 <script setup lang="ts">
+import type { ObjectDirective } from 'vue';
 import { useI18n } from 'vue-i18n';
 import {
   Brain,
@@ -738,6 +786,7 @@ import {
 import {
   cancelLocalAiChatStream,
   chatWithLocalAi,
+  clearLocalAiChatHistories,
   createLocalAiStreamRequestId,
   deleteLocalAiChatHistory,
   getLocalAiConfig,
@@ -754,7 +803,12 @@ import {
   type LocalAiModelScan,
   type LocalAiServiceStatus
 } from '@/api/localAi';
-import { formatFileSize } from '@/utils/localAiAttachments';
+import { ConfirmDialog } from '@/components/UI';
+import {
+  cloneLocalAiAttachments,
+  formatFileSize,
+  type LocalAiAttachment
+} from '@/utils/localAiAttachments';
 import modal from '@/utils/modal';
 import { logger } from '@/utils/logger';
 import {
@@ -771,8 +825,8 @@ import {
 } from './chatContext';
 import {
   appendMessageNode,
-  collectDescendantIds,
   createMessageId,
+  deleteMessageBranch,
   findLeafNodeId,
   findRootMessage,
   getDisplayMessages,
@@ -789,6 +843,7 @@ import type {
 } from './types';
 import { useChatAttachments } from './useChatAttachments';
 import { useChatMarkdown } from './useChatMarkdown';
+import AttachmentPreviewDialog from './AttachmentPreviewDialog.vue';
 import {
   buildPromptEnhancementRequest,
   hasRequiredEnhancedPromptLanguage,
@@ -800,11 +855,11 @@ defineOptions({ name: 'LocalAiChat' });
 const { t } = useI18n();
 const {
   attachments,
+  attachmentPicking,
   attachmentStatusText,
   handleAttachmentDrop,
-  handleAttachmentInput,
   handleComposerPaste,
-  openAttachmentPicker,
+  pickAttachmentFiles,
   removeAttachment
 } = useChatAttachments();
 const {
@@ -825,6 +880,8 @@ const composerInputRef = ref<HTMLTextAreaElement | null>(null);
 const promptEnhancing = ref(false);
 const sending = ref(false);
 const refreshing = ref(false);
+const clearingHistories = ref(false);
+const clearHistoryDialogVisible = ref(false);
 const stopRequested = ref(false);
 const thinkingEnabled = ref(false);
 const VERIFIED_SOURCES_ENABLED_STORAGE_KEY =
@@ -849,6 +906,13 @@ const modelScan = ref<LocalAiModelScan | null>(null);
 const selectedChatModelPath = ref('');
 const serviceStatus = ref<LocalAiServiceStatus | null>(null);
 const messageListRef = ref<HTMLElement | null>(null);
+const previewedAttachment = ref<LocalAiAttachment | null>(null);
+const attachmentPreviewVisible = computed({
+  get: () => Boolean(previewedAttachment.value),
+  set: (visible: boolean) => {
+    if (!visible) previewedAttachment.value = null;
+  }
+});
 const statsTick = ref(Date.now());
 let statusTimer: ReturnType<typeof setInterval> | null = null;
 let statsTimer: ReturnType<typeof setInterval> | null = null;
@@ -863,6 +927,37 @@ const MESSAGE_BOTTOM_THRESHOLD = 96;
 const MIN_RESPONSE_RESERVE_TOKENS = 4096;
 const STREAM_PUMP_INTERVAL_MS = 90;
 const STREAM_STATS_TICK_MS = 1000;
+const titleResizeObservers = new WeakMap<HTMLElement, ResizeObserver>();
+const syncAutoScrollTitle = (element: HTMLElement): void => {
+  const content = element.querySelector<HTMLElement>('.chat-item-title-text');
+  if (!content) return;
+  const distance = Math.max(0, content.scrollWidth - element.clientWidth);
+  element.style.setProperty('--chat-title-scroll-distance', `${distance}px`);
+  element.classList.toggle('is-overflowing', distance > 2);
+};
+const scheduleAutoScrollTitleSync = (element: HTMLElement): void => {
+  window.requestAnimationFrame(() => syncAutoScrollTitle(element));
+};
+const vAutoScrollTitle: ObjectDirective<HTMLElement> = {
+  mounted(element) {
+    scheduleAutoScrollTitleSync(element);
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() =>
+      scheduleAutoScrollTitleSync(element)
+    );
+    observer.observe(element);
+    const content = element.querySelector<HTMLElement>('.chat-item-title-text');
+    if (content) observer.observe(content);
+    titleResizeObservers.set(element, observer);
+  },
+  updated(element) {
+    scheduleAutoScrollTitleSync(element);
+  },
+  beforeUnmount(element) {
+    titleResizeObservers.get(element)?.disconnect();
+    titleResizeObservers.delete(element);
+  }
+};
 const quickPrompts = [
   {
     title: 'localAi.quickPromptSummary',
@@ -916,6 +1011,17 @@ const displayMessages = computed(() => getDisplayMessages(activeHistory.value));
 const fileName = (path?: string | null): string => {
   if (!path) return '';
   return path.split(/[\\/]+/).pop() ?? path;
+};
+const openAttachmentPreview = (attachment: LocalAiAttachment): void => {
+  if (attachment.type !== 'image' || !attachment.dataUrl) return;
+  previewedAttachment.value = attachment;
+};
+const closeAttachmentPreview = (): void => {
+  previewedAttachment.value = null;
+};
+const removeComposerAttachment = (attachmentId: string): void => {
+  if (previewedAttachment.value?.id === attachmentId) closeAttachmentPreview();
+  removeAttachment(attachmentId);
 };
 const currentModelDisplay = computed(
   () =>
@@ -1207,8 +1313,11 @@ const refreshHistories = async () => {
         messages: normalized.messages
       };
     });
-    if (!activeHistoryId.value && histories.value[0]) {
-      activeHistoryId.value = histories.value[0].id;
+    if (
+      !histories.value.some((history) => history.id === activeHistoryId.value)
+    ) {
+      activeHistoryId.value = histories.value[0]?.id ?? '';
+      if (!activeHistoryId.value) closeAttachmentPreview();
     }
   } catch (error) {
     logger.warn('[LocalAI] refresh histories failed', error);
@@ -1262,10 +1371,42 @@ const openHistory = (id: string) => {
 };
 const deleteHistoryItem = async (id: string) => {
   if (navigationLocked.value) return;
+  const deletingActiveHistory = activeHistoryId.value === id;
   histories.value = histories.value.filter((item) => item.id !== id);
-  await deleteLocalAiChatHistory(id);
-  if (activeHistoryId.value === id) {
+  try {
+    await deleteLocalAiChatHistory(id);
+  } catch (error) {
+    logger.warn('[LocalAI] delete history failed', error);
+    await refreshHistories();
+    modal.msg(`${t('common.operationFailed')}: ${String(error)}`, 'error');
+    return;
+  }
+  if (deletingActiveHistory) {
     activeHistoryId.value = histories.value[0]?.id ?? '';
+    draft.value = '';
+    attachments.value = [];
+    closeAttachmentPreview();
+  }
+};
+const clearAllHistories = async (): Promise<void> => {
+  if (navigationLocked.value || clearingHistories.value) return;
+  clearingHistories.value = true;
+  try {
+    await clearLocalAiChatHistories();
+    histories.value = [];
+    activeHistoryId.value = '';
+    searchQuery.value = '';
+    draft.value = '';
+    attachments.value = [];
+    clearHistoryDialogVisible.value = false;
+    closeAttachmentPreview();
+    clearMarkdownState();
+    modal.msg(t('localAi.clearAllChatsSuccess'));
+  } catch (error) {
+    logger.warn('[LocalAI] clear histories failed', error);
+    modal.msg(`${t('common.operationFailed')}: ${String(error)}`, 'error');
+  } finally {
+    clearingHistories.value = false;
   }
 };
 const changeChatModel = async () => {
@@ -1804,9 +1945,7 @@ const sendMessage = async () => {
   if (navigationLocked.value || !validateBeforeSend()) return;
   ensureActiveHistory();
   const createdAt = new Date().toISOString();
-  const submittedAttachments = attachments.value.map((attachment) => ({
-    ...attachment
-  }));
+  const submittedAttachments = cloneLocalAiAttachments(attachments.value);
   const titleSource = content || submittedAttachments[0]?.name || '';
   const current = activeHistory.value;
   if (!current) return;
@@ -1937,20 +2076,29 @@ const deleteMessage = async (messageId: string) => {
   if (sending.value) return;
   const current = activeHistory.value;
   if (!current) return;
-  const target = current.messages.find((message) => message.id === messageId);
-  if (!target || isRootMessage(target)) return;
-  const deletedIds = collectDescendantIds(current.messages, messageId);
-  current.messages = current.messages
-    .filter((message) => !deletedIds.has(message.id))
-    .map((message) => ({
-      ...message,
-      childIds: (message.childIds ?? []).filter((id) => !deletedIds.has(id))
-    }));
-  if (current.currentNodeId && deletedIds.has(current.currentNodeId)) {
-    current.currentNodeId =
-      findLeafNodeId(current.messages, target.parentId) ??
-      findRootMessage(current.messages)?.id ??
-      null;
+  const result = deleteMessageBranch(
+    current.messages,
+    current.currentNodeId,
+    messageId
+  );
+  if (!result) return;
+  const deletedAttachmentIds = new Set(
+    current.messages
+      .filter((message) => result.deletedIds.has(message.id))
+      .flatMap((message) => message.attachments ?? [])
+      .map((attachment) => attachment.id)
+  );
+  if (
+    previewedAttachment.value &&
+    deletedAttachmentIds.has(previewedAttachment.value.id)
+  ) {
+    closeAttachmentPreview();
+  }
+  current.messages = result.messages;
+  current.currentNodeId = result.currentNodeId;
+  if (!current.messages.some((message) => !isRootMessage(message))) {
+    await deleteHistoryItem(current.id);
+    return;
   }
   current.updatedAt = new Date().toISOString();
   current.updatedAtLabel = new Date(current.updatedAt).toLocaleString();
@@ -1959,6 +2107,7 @@ const deleteMessage = async (messageId: string) => {
 const editMessage = (message: ChatMessage) => {
   if (sending.value) return;
   draft.value = message.content;
+  attachments.value = cloneLocalAiAttachments(message.attachments);
   if (activeHistory.value && message.parentId) {
     activeHistory.value.currentNodeId = message.parentId;
   }
@@ -2001,7 +2150,7 @@ const forkFromMessage = async (messageId: string) => {
       parentId: message.parentId ? (idMap.get(message.parentId) ?? null) : null,
       childIds: [] as string[],
       streaming: false,
-      attachments: message.attachments?.map((attachment) => ({ ...attachment }))
+      attachments: cloneLocalAiAttachments(message.attachments)
     } satisfies ChatMessage;
   });
 

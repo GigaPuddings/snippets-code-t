@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   appendMessageNode,
   collectDescendantIds,
+  deleteMessageBranch,
   getDisplayMessages,
   getVisibleMessages,
   normalizeMessagesToTree
@@ -115,5 +116,49 @@ describe('local AI chat message mutations', () => {
     expect(collectDescendantIds(history.messages, 'user-1')).toEqual(
       new Set(['user-1', 'ai-1'])
     );
+  });
+});
+
+describe('local AI chat message deletion', () => {
+  it('removes a user branch and its attachment-bearing messages completely', () => {
+    const root: ChatMessage = {
+      ...message('root', 'system', ''),
+      type: 'root',
+      parentId: null,
+      childIds: ['user-1']
+    };
+    const user: ChatMessage = {
+      ...message('user-1', 'user', 'inspect this'),
+      parentId: 'root',
+      childIds: ['ai-1'],
+      attachments: [
+        {
+          id: 'image-1',
+          name: 'screen.png',
+          type: 'image',
+          mime: 'image/png',
+          size: 128,
+          status: 'parsed',
+          dataUrl: 'data:image/png;base64,AAAA'
+        }
+      ]
+    };
+    const assistant: ChatMessage = {
+      ...message('ai-1', 'assistant', 'answer'),
+      parentId: 'user-1',
+      childIds: []
+    };
+
+    const result = deleteMessageBranch(
+      [root, user, assistant],
+      'ai-1',
+      'user-1'
+    );
+
+    expect(result?.messages).toEqual([
+      expect.objectContaining({ id: 'root', childIds: [] })
+    ]);
+    expect(result?.currentNodeId).toBe('root');
+    expect(result?.deletedIds).toEqual(new Set(['user-1', 'ai-1']));
   });
 });

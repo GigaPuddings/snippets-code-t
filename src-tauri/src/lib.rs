@@ -704,9 +704,11 @@ pub fn run() {
             plugins::local_ai::local_ai_chat_stream,                // 本地 AI 流式聊天
             plugins::local_ai::local_ai_search_verified_sources,    // 本地 AI 可验证来源查询
             plugins::local_ai::local_ai_cancel_chat_stream,         // 取消本地 AI 流式聊天
+            plugins::local_ai::local_ai_read_attachment_files,      // 读取本地 AI 附件
             plugins::local_ai::local_ai_get_chat_histories,         // 获取聊天历史
             plugins::local_ai::local_ai_save_chat_history,          // 保存聊天历史
             plugins::local_ai::local_ai_delete_chat_history,        // 删除聊天历史
+            plugins::local_ai::local_ai_clear_chat_histories,       // 清空聊天历史
             plugins::local_ai::local_ai_translate,                  // 本地 AI 翻译
             add_search_history,               // 添加搜索历史
             get_search_history,               // 获取搜索历史

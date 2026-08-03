@@ -162,3 +162,38 @@ export const collectDescendantIds = (
   visit(messageId);
   return ids;
 };
+
+export interface DeleteMessageBranchResult {
+  messages: ChatMessage[];
+  currentNodeId: string | null;
+  deletedIds: Set<string>;
+}
+
+export const deleteMessageBranch = (
+  messages: ChatMessage[],
+  currentNodeId: string | null,
+  messageId: string
+): DeleteMessageBranchResult | null => {
+  const target = messages.find((message) => message.id === messageId);
+  if (!target || isRootMessage(target)) return null;
+
+  const deletedIds = collectDescendantIds(messages, messageId);
+  const remainingMessages = messages
+    .filter((message) => !deletedIds.has(message.id))
+    .map((message) => ({
+      ...message,
+      childIds: (message.childIds ?? []).filter((id) => !deletedIds.has(id))
+    }));
+  const nextCurrentNodeId =
+    currentNodeId && deletedIds.has(currentNodeId)
+      ? (findLeafNodeId(remainingMessages, target.parentId) ??
+        findRootMessage(remainingMessages)?.id ??
+        null)
+      : currentNodeId;
+
+  return {
+    messages: remainingMessages,
+    currentNodeId: nextCurrentNodeId,
+    deletedIds
+  };
+};

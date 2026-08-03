@@ -52,6 +52,11 @@ export const LOCAL_AI_MAX_TEXT_BYTES = 1024 * 1024;
 export const LOCAL_AI_MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 export const LOCAL_AI_MAX_TEXT_CHARS = 40000;
 
+export const cloneLocalAiAttachments = (
+  attachments: LocalAiAttachment[] | null | undefined
+): LocalAiAttachment[] =>
+  attachments?.map((attachment) => ({ ...attachment })) ?? [];
+
 const extensionOf = (name: string): string =>
   name.split('.').pop()?.toLowerCase() ?? '';
 

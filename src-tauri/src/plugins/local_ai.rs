@@ -33,6 +33,10 @@ const DEFAULT_PLAYWRIGHT_SEARCH_URL: &str = "https://www.so.com/s?q={query}";
 const HEALTH_TIMEOUT_SECS: u64 = 90;
 const IDLE_CHECK_INTERVAL_SECS: u64 = 30;
 const CHAT_PARALLEL_SLOTS: u32 = 1;
+const CHAT_MAX_ATTACHMENTS: usize = 5;
+const CHAT_MAX_TEXT_BYTES: u64 = 1024 * 1024;
+const CHAT_MAX_IMAGE_BYTES: u64 = 5 * 1024 * 1024;
+const CHAT_MAX_TEXT_CHARS: usize = 40_000;
 static SERVICE_STATE: LazyLock<Mutex<LocalAiServiceState>> =
     LazyLock::new(|| Mutex::new(LocalAiServiceState::default()));
 static ACTIVE_STREAM_CANCELS: LazyLock<Mutex<HashMap<String, Arc<AtomicBool>>>> =
@@ -205,6 +209,19 @@ pub struct LocalAiChatHistory {
     pub messages: Option<Value>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalAiPickedAttachment {
+    pub name: String,
+    pub kind: String,
+    pub mime: String,
+    pub size: u64,
+    pub text: Option<String>,
+    pub data_url: Option<String>,
+    pub truncated: bool,
+    pub error: Option<String>,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LocalAiChatRequest {
@@ -344,10 +361,6 @@ fn config_path(app_handle: &AppHandle) -> PathBuf {
     local_ai_state_file(app_handle, "local-ai.json")
 }
 
-fn history_path(app_handle: &AppHandle) -> PathBuf {
-    local_ai_state_file(app_handle, "local-ai-chat-history.json")
-}
-
 fn app_json_chat_histories(app_handle: &AppHandle) -> Vec<LocalAiChatHistory> {
     crate::json_config::get_app_config_value(app_handle, "local_ai_chat_histories")
         .unwrap_or_default()
@@ -360,31 +373,8 @@ fn save_app_json_chat_histories(
     crate::json_config::set_app_config_value(app_handle, "local_ai_chat_histories", histories)
 }
 
-fn read_history_file(app_handle: &AppHandle) -> Vec<LocalAiChatHistory> {
-    let path = history_path(app_handle);
-    fs::read_to_string(path)
-        .ok()
-        .and_then(|content| serde_json::from_str::<Vec<LocalAiChatHistory>>(&content).ok())
-        .unwrap_or_default()
-}
-
-fn write_history_file(
-    app_handle: &AppHandle,
-    histories: &[LocalAiChatHistory],
-) -> Result<(), String> {
-    let path = history_path(app_handle);
-    let json = serde_json::to_string_pretty(histories)
-        .map_err(|error| format!("序列化聊天历史失败: {}", error))?;
-    crate::json_config::write_text_atomic(&path, &json)
-        .map_err(|error| format!("写入聊天历史失败 {}: {}", path.to_string_lossy(), error))
-}
-
 fn load_chat_histories(app_handle: &AppHandle) -> Vec<LocalAiChatHistory> {
-    let mut histories = app_json_chat_histories(app_handle);
-    if histories.is_empty() {
-        histories = read_history_file(app_handle);
-    }
-    histories
+    app_json_chat_histories(app_handle)
 }
 
 fn persist_chat_histories(
@@ -392,7 +382,6 @@ fn persist_chat_histories(
     histories: &[LocalAiChatHistory],
 ) -> Result<(), String> {
     save_app_json_chat_histories(app_handle, histories)
-        .or_else(|_| write_history_file(app_handle, histories))
 }
 
 fn read_config(app_handle: &AppHandle) -> LocalAiConfig {
@@ -1359,6 +1348,7 @@ fn build_server_args(
     }
     if config.flash_attn {
         args.push("--flash-attn".to_string());
+        args.push("on".to_string());
     }
     if !config.kv_offload {
         args.push("--no-kv-offload".to_string());
@@ -2514,6 +2504,142 @@ pub async fn local_ai_translate(
     translate_text(app_handle, text, from, to).await
 }
 
+fn picked_attachment_error(
+    name: String,
+    kind: &str,
+    mime: &str,
+    size: u64,
+    error: &str,
+) -> LocalAiPickedAttachment {
+    LocalAiPickedAttachment {
+        name,
+        kind: kind.to_string(),
+        mime: mime.to_string(),
+        size,
+        text: None,
+        data_url: None,
+        truncated: false,
+        error: Some(error.to_string()),
+    }
+}
+
+fn read_picked_attachment(path: &str) -> LocalAiPickedAttachment {
+    let file_path = Path::new(path);
+    let name = file_path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or(path)
+        .to_string();
+    let extension = file_path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    let size = fs::metadata(file_path)
+        .map(|metadata| metadata.len())
+        .unwrap_or_default();
+
+    let image_mime = match extension.as_str() {
+        "png" => Some("image/png"),
+        "jpg" | "jpeg" => Some("image/jpeg"),
+        "webp" => Some("image/webp"),
+        _ => None,
+    };
+    if let Some(mime) = image_mime {
+        if size > CHAT_MAX_IMAGE_BYTES {
+            return picked_attachment_error(name, "image", mime, size, "image-too-large");
+        }
+        return match fs::read(file_path) {
+            Ok(bytes) => LocalAiPickedAttachment {
+                name,
+                kind: "image".to_string(),
+                mime: mime.to_string(),
+                size,
+                text: None,
+                data_url: Some(format!(
+                    "data:{};base64,{}",
+                    mime,
+                    general_purpose::STANDARD.encode(bytes)
+                )),
+                truncated: false,
+                error: None,
+            },
+            Err(_) => picked_attachment_error(name, "image", mime, size, "read-failed"),
+        };
+    }
+
+    let is_text = matches!(
+        extension.as_str(),
+        "txt"
+            | "md"
+            | "json"
+            | "csv"
+            | "html"
+            | "css"
+            | "js"
+            | "ts"
+            | "tsx"
+            | "vue"
+            | "rs"
+            | "py"
+            | "java"
+            | "go"
+            | "yaml"
+            | "yml"
+            | "toml"
+            | "xml"
+            | "log"
+    );
+    if is_text {
+        if size > CHAT_MAX_TEXT_BYTES {
+            return picked_attachment_error(name, "text", "text/plain", size, "text-too-large");
+        }
+        return match fs::read(file_path) {
+            Ok(bytes) => {
+                let content = String::from_utf8_lossy(&bytes);
+                let mut chars = content.chars();
+                let text = chars.by_ref().take(CHAT_MAX_TEXT_CHARS).collect();
+                LocalAiPickedAttachment {
+                    name,
+                    kind: "text".to_string(),
+                    mime: "text/plain".to_string(),
+                    size,
+                    text: Some(text),
+                    data_url: None,
+                    truncated: chars.next().is_some(),
+                    error: None,
+                }
+            }
+            Err(_) => picked_attachment_error(name, "text", "text/plain", size, "read-failed"),
+        };
+    }
+
+    let error = if matches!(
+        extension.as_str(),
+        "pdf" | "doc" | "docx" | "xls" | "xlsx" | "ppt" | "pptx"
+    ) {
+        "unsupported-document"
+    } else {
+        "unsupported-attachment"
+    };
+    picked_attachment_error(name, "unsupported", "application/octet-stream", size, error)
+}
+
+#[tauri::command]
+pub fn local_ai_read_attachment_files(
+    app_handle: AppHandle,
+    paths: Vec<String>,
+) -> Result<Vec<LocalAiPickedAttachment>, String> {
+    require_plugin(&app_handle)?;
+    if paths.len() > CHAT_MAX_ATTACHMENTS {
+        return Err(format!("一次最多读取 {} 个附件", CHAT_MAX_ATTACHMENTS));
+    }
+    Ok(paths
+        .iter()
+        .map(|path| read_picked_attachment(path))
+        .collect())
+}
+
 #[tauri::command]
 pub fn local_ai_get_chat_histories(
     app_handle: AppHandle,
@@ -2548,6 +2674,15 @@ pub fn local_ai_delete_chat_history(
     histories.retain(|item| item.id != history_id);
     persist_chat_histories(&app_handle, &histories)?;
     Ok(histories)
+}
+
+#[tauri::command]
+pub fn local_ai_clear_chat_histories(
+    app_handle: AppHandle,
+) -> Result<Vec<LocalAiChatHistory>, String> {
+    require_plugin(&app_handle)?;
+    persist_chat_histories(&app_handle, &[])?;
+    Ok(Vec::new())
 }
 
 pub fn apply_runtime_change(_app_handle: &AppHandle, enabled: bool) {

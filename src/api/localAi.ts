@@ -102,6 +102,23 @@ export interface LocalAiChatHistory {
   turns: LocalAiChatTurn[];
 }
 
+export interface LocalAiPickedAttachment {
+  name: string;
+  kind: 'text' | 'image' | 'unsupported';
+  mime: string;
+  size: number;
+  text?: string | null;
+  dataUrl?: string | null;
+  truncated: boolean;
+  error?:
+    | 'image-too-large'
+    | 'text-too-large'
+    | 'read-failed'
+    | 'unsupported-document'
+    | 'unsupported-attachment'
+    | null;
+}
+
 export interface LocalAiChatResponse {
   content: string;
 }
@@ -249,6 +266,15 @@ export async function getLocalAiChatHistories(): Promise<LocalAiChatHistory[]> {
   return await invoke<LocalAiChatHistory[]>('local_ai_get_chat_histories');
 }
 
+export async function readLocalAiAttachmentFiles(
+  paths: string[]
+): Promise<LocalAiPickedAttachment[]> {
+  return await invoke<LocalAiPickedAttachment[]>(
+    'local_ai_read_attachment_files',
+    { paths }
+  );
+}
+
 export async function saveLocalAiChatHistory(
   history: LocalAiChatHistory
 ): Promise<LocalAiChatHistory[]> {
@@ -263,6 +289,12 @@ export async function deleteLocalAiChatHistory(
   return await invoke<LocalAiChatHistory[]>('local_ai_delete_chat_history', {
     historyId
   });
+}
+
+export async function clearLocalAiChatHistories(): Promise<
+  LocalAiChatHistory[]
+> {
+  return await invoke<LocalAiChatHistory[]>('local_ai_clear_chat_histories');
 }
 
 export async function translateWithLocalAi(

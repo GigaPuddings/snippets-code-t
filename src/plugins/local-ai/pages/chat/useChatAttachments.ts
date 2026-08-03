@@ -1,5 +1,10 @@
 import { ref, type Ref } from 'vue';
 import { useI18n, type ComposerTranslation } from 'vue-i18n';
+import { open } from '@tauri-apps/plugin-dialog';
+import {
+  readLocalAiAttachmentFiles,
+  type LocalAiPickedAttachment
+} from '@/api/localAi';
 import {
   fileToDataUrl,
   fileToText,
@@ -15,14 +20,44 @@ import modal from '@/utils/modal';
 
 interface ChatAttachmentsController {
   attachments: Ref<LocalAiAttachment[]>;
+  attachmentPicking: Ref<boolean>;
   attachmentStatusText: (attachment: LocalAiAttachment) => string;
-  fileInputRef: Ref<HTMLInputElement | null>;
   handleAttachmentDrop: (event: DragEvent) => Promise<void>;
-  handleAttachmentInput: (event: Event) => Promise<void>;
   handleComposerPaste: (event: ClipboardEvent) => Promise<void>;
-  openAttachmentPicker: () => void;
+  pickAttachmentFiles: () => Promise<void>;
   removeAttachment: (id: string) => void;
 }
+
+const PICKER_EXTENSIONS = [
+  'txt',
+  'md',
+  'json',
+  'csv',
+  'html',
+  'css',
+  'js',
+  'ts',
+  'tsx',
+  'vue',
+  'rs',
+  'py',
+  'java',
+  'go',
+  'yaml',
+  'yml',
+  'toml',
+  'xml',
+  'log',
+  'png',
+  'jpg',
+  'jpeg',
+  'webp',
+  'pdf',
+  'doc',
+  'docx',
+  'xls',
+  'xlsx'
+];
 
 const createAttachmentShell = (
   file: File,
@@ -135,21 +170,90 @@ const addAttachmentFiles = async (
   );
 };
 
+const pickedAttachmentError = (
+  attachment: LocalAiPickedAttachment,
+  t: ComposerTranslation
+): string | undefined => {
+  switch (attachment.error) {
+    case 'image-too-large':
+      return t('localAi.imageTooLarge');
+    case 'text-too-large':
+      return t('localAi.textFileTooLarge');
+    case 'unsupported-document':
+      return t('localAi.unsupportedDocument');
+    case 'unsupported-attachment':
+      return t('localAi.unsupportedAttachment');
+    case 'read-failed':
+      return t('localAi.attachmentReadFailed');
+    default:
+      return attachment.truncated ? 'truncated' : undefined;
+  }
+};
+
+const toLocalAiAttachment = (
+  attachment: LocalAiPickedAttachment
+): LocalAiAttachment => ({
+  id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+  name: attachment.name,
+  type: attachment.kind,
+  mime: attachment.mime,
+  size: attachment.size,
+  status: attachment.error ? 'error' : 'parsed',
+  text: attachment.text ?? undefined,
+  dataUrl: attachment.dataUrl ?? undefined,
+  error: undefined
+});
+
 export const useChatAttachments = (): ChatAttachmentsController => {
   const { t } = useI18n();
   const attachments = ref<LocalAiAttachment[]>([]);
-  const fileInputRef = ref<HTMLInputElement | null>(null);
+  const attachmentPicking = ref(false);
 
   return {
     attachments,
-    fileInputRef,
-    openAttachmentPicker: (): void => fileInputRef.value?.click(),
-    handleAttachmentInput: async (event: Event): Promise<void> => {
-      const input = event.target as HTMLInputElement;
-      if (input.files?.length) {
-        await addAttachmentFiles(attachments, input.files, t);
+    attachmentPicking,
+    pickAttachmentFiles: async (): Promise<void> => {
+      const room = LOCAL_AI_MAX_ATTACHMENTS - attachments.value.length;
+      if (room <= 0 || attachmentPicking.value) {
+        if (room <= 0) modal.msg(t('localAi.attachmentLimit'), 'warning');
+        return;
       }
-      input.value = '';
+      attachmentPicking.value = true;
+      try {
+        const selected = await open({
+          title: t('localAi.addAttachment'),
+          directory: false,
+          multiple: true,
+          filters: [
+            {
+              name: t('localAi.attachment'),
+              extensions: PICKER_EXTENSIONS
+            }
+          ]
+        });
+        if (!selected) return;
+        const paths = (Array.isArray(selected) ? selected : [selected]).slice(
+          0,
+          room
+        );
+        if ((Array.isArray(selected) ? selected.length : 1) > room) {
+          modal.msg(t('localAi.attachmentLimit'), 'warning');
+        }
+        const picked = await readLocalAiAttachmentFiles(paths);
+        attachments.value.push(
+          ...picked.map((item) => ({
+            ...toLocalAiAttachment(item),
+            error: pickedAttachmentError(item, t)
+          }))
+        );
+      } catch (error) {
+        modal.msg(
+          `${t('localAi.attachmentReadFailed')}: ${String(error)}`,
+          'error'
+        );
+      } finally {
+        attachmentPicking.value = false;
+      }
     },
     handleAttachmentDrop: async (event: DragEvent): Promise<void> => {
       if (event.dataTransfer?.files.length) {

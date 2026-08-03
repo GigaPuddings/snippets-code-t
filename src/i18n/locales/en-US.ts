@@ -2067,6 +2067,10 @@ export default {
     newChat: 'New Chat',
     newChatTitle: 'New Chat',
     recent: 'Recent Chats',
+    clearAllChats: 'Clear all chats',
+    clearAllChatsConfirm:
+      'Delete every chat and its attachment data? This cannot be undone.',
+    clearAllChatsSuccess: 'All chats and attachment data were cleared',
     searchHistory: 'Search chats',
     collapseSidebar: 'Collapse sidebar',
     expandSidebar: 'Expand sidebar',
@@ -2116,6 +2120,8 @@ export default {
     elapsedSeconds: '{seconds}s',
     attachment: 'Image / Attachment',
     addAttachment: 'Add files or images',
+    attachmentPreview: 'Image preview',
+    previewAttachment: 'Preview attachment image',
     attachmentParsed: 'Parsed',
     attachmentPending: 'Parsing',
     attachmentTruncated: 'Parsed, truncated',
@@ -2123,6 +2129,7 @@ export default {
     attachmentPendingBlock:
       'Attachments are still parsing. Please wait before sending.',
     attachmentErrorBlock: 'Remove failed or unsupported attachments first',
+    attachmentReadFailed: 'Failed to read attachment',
     unsupportedAttachment: 'This file type cannot be parsed directly.',
     unsupportedDocument:
       'This file type cannot be parsed directly. PDF, Word, and Excel parsing can be added later.',
