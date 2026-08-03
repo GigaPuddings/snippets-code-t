@@ -689,7 +689,20 @@
                     :key="path"
                     :label="fileName(path)"
                     :value="path"
-                  />
+                  >
+                    <span class="chat-model-option">
+                      <Cube theme="outline" size="14" />
+                      <span class="chat-model-option-name">
+                        {{ fileName(path) }}
+                      </span>
+                      <CheckSmall
+                        v-if="selectedChatModelPath === path"
+                        class="chat-model-option-check"
+                        theme="outline"
+                        size="15"
+                      />
+                    </span>
+                  </el-option>
                   <el-option
                     v-if="!availableChatModels.length"
                     :label="currentModelDisplay"
@@ -781,7 +794,8 @@ import {
   MagicWand,
   FileText,
   Translate,
-  Code
+  Code,
+  CheckSmall
 } from '@icon-park/vue-next';
 import {
   cancelLocalAiChatStream,
@@ -1316,8 +1330,13 @@ const refreshHistories = async () => {
     if (
       !histories.value.some((history) => history.id === activeHistoryId.value)
     ) {
-      activeHistoryId.value = histories.value[0]?.id ?? '';
-      if (!activeHistoryId.value) closeAttachmentPreview();
+      const nextActiveHistoryId = histories.value[0]?.id ?? '';
+      if (nextActiveHistoryId !== activeHistoryId.value) {
+        draft.value = '';
+        attachments.value = [];
+        closeAttachmentPreview();
+      }
+      activeHistoryId.value = nextActiveHistoryId;
     }
   } catch (error) {
     logger.warn('[LocalAI] refresh histories failed', error);
@@ -1351,14 +1370,23 @@ const createNewChat = () => {
   histories.value.unshift(next);
   activeHistoryId.value = next.id;
   draft.value = '';
+  attachments.value = [];
+  closeAttachmentPreview();
   void focusComposer();
 };
 const ensureActiveHistory = () => {
   if (activeHistory.value) return;
-  createNewChat();
+  const next = createHistory();
+  histories.value.unshift(next);
+  activeHistoryId.value = next.id;
 };
 const openHistory = (id: string) => {
   if (navigationLocked.value) return;
+  if (activeHistoryId.value !== id) {
+    draft.value = '';
+    attachments.value = [];
+    closeAttachmentPreview();
+  }
   activeHistoryId.value = id;
   const current = activeHistory.value;
   if (current && !current.currentNodeId) {
@@ -1411,14 +1439,18 @@ const clearAllHistories = async (): Promise<void> => {
 };
 const changeChatModel = async () => {
   if (!config.value || !selectedChatModelPath.value) return;
-  config.value.modelPath = selectedChatModelPath.value;
+  const nextConfig = {
+    ...config.value,
+    modelPath: selectedChatModelPath.value
+  };
   try {
-    config.value = await saveLocalAiConfig(config.value);
+    config.value = await saveLocalAiConfig(nextConfig);
     if (serviceStatus.value?.running) {
       serviceStatus.value = await restartLocalAiService();
     }
     modal.msg(t('localAi.modelChanged'));
   } catch (error) {
+    await refreshConfig();
     modal.msg(`${t('localAi.configSaveFailed')}: ${error}`, 'error');
   }
 };
@@ -2094,6 +2126,10 @@ const deleteMessage = async (messageId: string) => {
   ) {
     closeAttachmentPreview();
   }
+  const previousMessages = current.messages;
+  const previousCurrentNodeId = current.currentNodeId;
+  const previousUpdatedAt = current.updatedAt;
+  const previousUpdatedAtLabel = current.updatedAtLabel;
   current.messages = result.messages;
   current.currentNodeId = result.currentNodeId;
   if (!current.messages.some((message) => !isRootMessage(message))) {
@@ -2102,7 +2138,16 @@ const deleteMessage = async (messageId: string) => {
   }
   current.updatedAt = new Date().toISOString();
   current.updatedAtLabel = new Date(current.updatedAt).toLocaleString();
-  await persistHistory(current);
+  try {
+    await persistHistory(current);
+  } catch (error) {
+    current.messages = previousMessages;
+    current.currentNodeId = previousCurrentNodeId;
+    current.updatedAt = previousUpdatedAt;
+    current.updatedAtLabel = previousUpdatedAtLabel;
+    logger.warn('[LocalAI] delete message failed', error);
+    modal.msg(`${t('common.operationFailed')}: ${String(error)}`, 'error');
+  }
 };
 const editMessage = (message: ChatMessage) => {
   if (sending.value) return;
