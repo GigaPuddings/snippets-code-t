@@ -104,6 +104,13 @@ pub fn is_icon_cache_enabled() -> bool {
 /// 来源索引、用户编辑、搜索历史、插件配置和工作区内容均不参与级联。
 #[tauri::command]
 pub fn clear_icon_cache(app_handle: AppHandle) -> Result<usize, String> {
+    if crate::window::has_active_scan_task("index") {
+        return Err("本机来源索引正在重建，请等待索引完成后再清理图标缓存".to_string());
+    }
+    if crate::window::has_active_scan_task("icons") {
+        return Err("图标缓存正在重建，请等待当前任务完成".to_string());
+    }
+
     cancel_app_and_bookmark_icons();
     crate::plugins::desktop_files::cancel_desktop_file_icon_rebuild();
     ICON_CACHE_EPOCH.fetch_add(1, Ordering::AcqRel);
@@ -793,6 +800,22 @@ pub fn rebuild_app_and_bookmark_index(app_handle: AppHandle) {
 }
 
 fn spawn_app_and_bookmark_index_job(app_handle: AppHandle, force_rebuild: bool) {
+    let pending_reset_kind = db::peek_show_progress_kind(&app_handle);
+    if force_rebuild
+        || matches!(
+            pending_reset_kind.as_deref(),
+            Some("all" | "apps" | "bookmarks" | "launcher")
+        )
+    {
+        crate::window::emit_scan_progress_for(
+            "local-launcher",
+            "index",
+            "正在准备重建本机来源索引...",
+            0,
+            0,
+            "",
+        );
+    }
     let generation = LOCAL_LAUNCHER_JOB_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
     std::thread::spawn(move || {
         let started = std::time::Instant::now();
@@ -888,7 +911,8 @@ fn run_app_and_bookmark_initialization(
         scanned_apps_count == 0 || matches!(reset_kind, Some("all" | "apps" | "launcher"));
     let scan_bookmarks = scanned_bookmarks_count == 0
         || matches!(reset_kind, Some("all" | "bookmarks" | "launcher"));
-    let scan_desktop_files = matches!(reset_kind, Some("all" | "desktopFiles"));
+    let scan_desktop_files = crate::app_config::is_plugin_enabled(app_handle, "desktop-files")
+        && matches!(reset_kind, Some("all" | "desktopFiles"));
     let base_steps =
         (scan_apps as usize + scan_bookmarks as usize) * 2 + scan_desktop_files as usize;
     let mut current_step = 0usize;

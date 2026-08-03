@@ -649,14 +649,17 @@ const formatUsageCount = (count: number) => (count > 99 ? '99+' : `${count}`);
 const checkScanStatus = async () => {
   const versionBeforeHydration = scanEventVersion;
   try {
-    const state = await invoke<ScanProgressState>('get_scan_progress_state');
+    const states = await invoke<ScanProgressState[]>(
+      'get_scan_progress_states'
+    );
+    const state = states.find((item) => isLocalLauncherProgress(item));
 
     // 监听建立后若已收到更新事件，不再用较旧的快照覆盖实时状态。
     if (versionBeforeHydration !== scanEventVersion) return;
 
-    if (!state.completed && state.stage && isLocalLauncherProgress(state)) {
+    if (state && !state.completed && state.stage) {
       applyScanProgress(state);
-    } else if (!state.owner || state.owner === LOCAL_LAUNCHER_OWNER) {
+    } else {
       resetScanState();
     }
   } catch (error) {

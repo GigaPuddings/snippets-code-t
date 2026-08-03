@@ -21,6 +21,7 @@
         size="small"
         class="min-w-[5.5rem] shrink-0 whitespace-nowrap"
         :loading="loading"
+        :disabled="disabled"
         @click="emit('action')"
       >
         {{ t('dataManager.clearAction') }}
@@ -38,12 +39,14 @@ withDefaults(
     title: string;
     description: string;
     loading: boolean;
+    disabled?: boolean;
     secondaryLabel?: string;
     secondaryLoading?: boolean;
   }>(),
   {
     secondaryLabel: '',
-    secondaryLoading: false
+    secondaryLoading: false,
+    disabled: false
   }
 );
 

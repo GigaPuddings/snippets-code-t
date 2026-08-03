@@ -83,6 +83,8 @@ pub struct AppConfig {
     #[serde(default)]
     pub setup_restart_pending: Option<bool>,
     #[serde(default)]
+    pub index_reset_restart_pending: Option<bool>,
+    #[serde(default)]
     pub update_restart_pending: Option<bool>,
 
     // 快捷键配置
@@ -136,6 +138,7 @@ impl Default for AppConfig {
             show_progress_on_restart: Some(false),
             show_progress_reset_kind: Some(String::new()),
             setup_restart_pending: Some(false),
+            index_reset_restart_pending: Some(false),
             update_restart_pending: Some(false),
             search_hotkey: None,
             config_hotkey: None,

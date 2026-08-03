@@ -735,6 +735,8 @@ export default {
     indexTitle: 'Index Maintenance',
     indexDesc:
       'Rebuilds only derived search data without deleting workspace content, settings, or usage history.',
+    backgroundTaskHint:
+      'A background task is running. Wait for it to finish before clearing or rebuilding again.',
     localIndex: 'Local Source Indexes',
     localIndexDesc:
       'Rebuild app, browser bookmark, or desktop-file indexes. The app restarts after submission.',
@@ -777,7 +779,7 @@ export default {
     iconCacheDesc:
       'Deletes only rebuildable icons while preserving source indexes, usage history, and user data.',
     iconCacheConfirm:
-      'Icons will be re-extracted on demand from Windows Shell and local browser caches.',
+      'Icons will be re-extracted in the background from Windows Shell and local browser caches.',
     iconCacheSuccess: 'Icon cache cleared and is rebuilding in the background',
     iconCacheFailed: 'Failed to clear icon cache',
     wallpaperCache: 'Wallpaper Cache',

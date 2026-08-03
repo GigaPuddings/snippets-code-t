@@ -711,6 +711,7 @@ export default {
     openDirectoryFailed: '打开目录失败',
     indexTitle: '索引维护',
     indexDesc: '只重建可派生的搜索数据，不删除工作区内容、用户配置或使用历史',
+    backgroundTaskHint: '后台任务运行中，完成前请勿重复清理或重建',
     localIndex: '本机来源索引',
     localIndexDesc: '重建应用、浏览器书签或桌面文件索引；提交后应用将重启',
     localIndexSelect: '请选择要重建的本机来源索引：',
@@ -745,8 +746,8 @@ export default {
     iconCache: '图标缓存',
     iconCacheDesc: '只删除可重建图标；来源索引、使用历史和用户数据保持不变',
     iconCacheConfirm:
-      '清理后将从 Windows Shell 和本机浏览器缓存按需重新提取图标。',
-    iconCacheSuccess: '图标缓存已清理，正在后台按需重建',
+      '清理后将在后台从 Windows Shell 和本机浏览器缓存重新提取图标。',
+    iconCacheSuccess: '图标缓存已清理，正在后台重建',
     iconCacheFailed: '清理图标缓存失败',
     wallpaperCache: '壁纸缓存',
     wallpaperCacheDesc: '当前占用 {size}；保留正在使用的壁纸和固定图片',

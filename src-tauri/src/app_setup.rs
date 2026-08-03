@@ -48,6 +48,21 @@ pub fn is_auto_start_launch(app_handle: &tauri::AppHandle) -> bool {
     let setup_restart_pending: bool =
         crate::json_config::get_app_config_value(app_handle, "setup_restart_pending")
             .unwrap_or(false);
+    let index_reset_restart_pending: bool =
+        crate::json_config::get_app_config_value(app_handle, "index_reset_restart_pending")
+            .unwrap_or(false);
+
+    // 从后台自启动实例发起索引重置时，Tauri restart 会继承 --auto-start。
+    // 消费该标记并强制前台启动，避免重建任务被登录延迟策略额外推迟。
+    if index_reset_restart_pending {
+        info!("[Startup] index reset restart marker detected; forcing foreground startup");
+        let _ = crate::json_config::set_app_config_value(
+            app_handle,
+            "index_reset_restart_pending",
+            false,
+        );
+        return false;
+    }
 
     if has_setup_restart_flag {
         info!("[Startup] setup restart argument detected; forcing foreground startup");

@@ -20,12 +20,15 @@
         :workspace-set="Boolean(workspaceRoot)"
         :local-index-loading="localIndexLoading"
         :markdown-index-loading="markdownIndexLoading"
+        :background-index-tasks="backgroundIndexTasks"
+        :background-index-busy="backgroundIndexBusy"
         @manage-local="showIndexDialog = true"
         @rebuild-markdown="handleMarkdownIndexRebuild"
       />
       <HistoryCacheSection
         :history-loading="historyLoading"
         :icon-cache-loading="iconCacheLoading"
+        :background-index-busy="backgroundIndexBusy"
         :wallpaper-cache-available="wallpaperCacheAvailable"
         :wallpaper-cache-loading="wallpaperCacheLoading"
         :wallpaper-cache-opening="wallpaperCacheOpening"
@@ -114,6 +117,8 @@ defineOptions({
 
 const {
   dataRoot,
+  backgroundIndexBusy,
+  backgroundIndexTasks,
   handleHistoryConfirm,
   handleIconCacheConfirm,
   handleIndexConfirm,

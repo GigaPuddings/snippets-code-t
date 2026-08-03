@@ -39,7 +39,7 @@ use crate::update::{
 };
 use crate::window::{
     close_setup_window, create_setup_window, frontend_log, get_scan_progress_state,
-    get_window_info, hotkey_config, insert_text_to_last_window,
+    get_scan_progress_states, get_window_info, hotkey_config, insert_text_to_last_window,
 };
 use serde::Serialize;
 
@@ -784,6 +784,7 @@ pub fn run() {
             get_language,                     // 获取界面语言
             set_language,                     // 设置界面语言
             get_scan_progress_state,          // 获取扫描进度状态
+            get_scan_progress_states,         // 获取全部活动扫描任务
             set_auto_start_setting,           // 设置自启动偏好
             auto_start::set_auto_start_enabled, // 配置系统自启动
             auto_start::is_auto_start_enabled,  // 获取系统自启动状态

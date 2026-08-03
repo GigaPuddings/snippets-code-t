@@ -19,6 +19,7 @@
       :title="t('dataManager.iconCache')"
       :description="t('dataManager.iconCacheDesc')"
       :loading="iconCacheLoading"
+      :disabled="backgroundIndexBusy"
       @action="emit('clearIconCache')"
     />
     <ActionRow
@@ -43,6 +44,7 @@ import ActionRow from './components/ActionRow.vue';
 defineProps<{
   historyLoading: boolean;
   iconCacheLoading: boolean;
+  backgroundIndexBusy: boolean;
   wallpaperCacheAvailable: boolean;
   wallpaperCacheLoading: boolean;
   wallpaperCacheOpening: boolean;

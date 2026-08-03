@@ -10,6 +10,7 @@ use tauri::{
 pub type WindowReadyCallback = Box<dyn FnOnce(&WebviewWindow) + Send + 'static>;
 use base64::{engine::general_purpose, Engine as _};
 use image::GenericImageView;
+use std::collections::HashMap;
 use std::os::windows::process::CommandExt;
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -329,7 +330,6 @@ static LAST_FOCUS_LOST_TIME: LazyLock<Mutex<Option<std::time::Instant>>> =
 static LAST_ACTIVE_WINDOW_HWND: Mutex<Option<isize>> = Mutex::new(None);
 
 // 存储贴图窗口的图片数据 (窗口标签 -> 图片数据)
-use std::collections::HashMap;
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PinWindowData {
@@ -947,6 +947,10 @@ pub fn open_local_launcher_settings() {
     open_config_settings_tab(Some("local"));
 }
 
+pub fn open_data_manager_settings() {
+    open_config_settings_tab(Some("data"));
+}
+
 fn open_config_settings_tab(tab: Option<&'static str>) {
     // 先关闭搜索窗口
     WindowManager::close_search_window_if_visible();
@@ -958,6 +962,7 @@ fn open_config_settings_tab(tab: Option<&'static str>) {
         url: match tab {
             Some("plugins") => "/#/config/category/settings?tab=plugins",
             Some("local") => "/#/config/category/settings?tab=local",
+            Some("data") => "/#/config/category/settings?tab=data",
             _ => "/#/config/category/settings",
         },
         title: "配置",
@@ -1770,15 +1775,63 @@ pub struct ScanProgressState {
     pub apps_count: usize,
     pub bookmarks_count: usize,
     pub desktop_files_count: usize,
+    #[serde(skip)]
+    revision: u64,
 }
 
-static PROGRESS_STATE: LazyLock<Mutex<ScanProgressState>> =
-    LazyLock::new(|| Mutex::new(ScanProgressState::default()));
+static PROGRESS_STATES: LazyLock<Mutex<HashMap<String, ScanProgressState>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+static PROGRESS_REVISION: AtomicU64 = AtomicU64::new(0);
+
+fn next_progress_revision() -> u64 {
+    PROGRESS_REVISION.fetch_add(1, Ordering::AcqRel) + 1
+}
+
+pub fn get_active_scan_progress_states() -> Vec<ScanProgressState> {
+    let mut states = PROGRESS_STATES
+        .lock()
+        .map(|states| {
+            states
+                .values()
+                .filter(|state| !state.completed && !state.stage.is_empty())
+                .cloned()
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    states.sort_by(|left, right| left.owner.cmp(&right.owner));
+    states
+}
+
+pub fn has_active_scan_task(task: &str) -> bool {
+    PROGRESS_STATES
+        .lock()
+        .map(|states| {
+            states
+                .values()
+                .any(|state| !state.completed && state.task == task)
+        })
+        .unwrap_or(false)
+}
 
 // 获取扫描进度状态的命令
 #[tauri::command]
 pub fn get_scan_progress_state() -> ScanProgressState {
-    PROGRESS_STATE.lock().unwrap().clone()
+    PROGRESS_STATES
+        .lock()
+        .ok()
+        .and_then(|states| {
+            states
+                .values()
+                .max_by_key(|state| (!state.completed, state.revision))
+                .cloned()
+        })
+        .unwrap_or_default()
+}
+
+// 获取全部活动扫描任务，供设置页和托盘同时展示并行插件进度。
+#[tauri::command]
+pub fn get_scan_progress_states() -> Vec<ScanProgressState> {
+    get_active_scan_progress_states()
 }
 
 // 发送扫描进度事件（使用全局 emit_all 确保所有窗口都能收到）
@@ -1794,7 +1847,10 @@ pub fn emit_scan_progress_for(
 
     // 更新状态
     let (should_emit, should_update_tray) = {
-        let mut state = PROGRESS_STATE.lock().unwrap();
+        let mut states = PROGRESS_STATES.lock().unwrap();
+        let state = states
+            .entry(owner.to_string())
+            .or_insert_with(ScanProgressState::default);
         let previous_emit_bucket = if state.total > 0 {
             state.current.saturating_mul(50) / state.total
         } else {
@@ -1827,6 +1883,7 @@ pub fn emit_scan_progress_for(
         state.total = total;
         state.current_item = current_item.to_string();
         state.completed = false;
+        state.revision = next_progress_revision();
         (
             context_changed || previous_emit_bucket != next_emit_bucket || current == total,
             context_changed || previous_tray_bucket != next_tray_bucket || current == total,
@@ -1888,10 +1945,10 @@ pub fn emit_scan_complete_for(
 ) {
     // 更新状态
     {
-        let mut state = PROGRESS_STATE.lock().unwrap();
-        if !state.owner.is_empty() && state.owner != owner {
-            return;
-        }
+        let mut states = PROGRESS_STATES.lock().unwrap();
+        let state = states
+            .entry(owner.to_string())
+            .or_insert_with(ScanProgressState::default);
         state.owner = owner.to_string();
         state.completed = true;
         state.apps_count = apps_count;
@@ -1901,6 +1958,7 @@ pub fn emit_scan_complete_for(
             "扫描完成 (应用: {}, 书签: {}, 桌面文件: {})",
             apps_count, bookmarks_count, desktop_files_count
         );
+        state.revision = next_progress_revision();
     }
 
     if let Some(app) = APP.get() {
@@ -1923,14 +1981,17 @@ pub fn emit_scan_complete_for(
 
 pub fn clear_scan_progress_for(owner: &str) {
     let cleared = {
-        let mut state = PROGRESS_STATE.lock().unwrap();
-        if state.owner != owner || state.completed {
+        let mut states = PROGRESS_STATES.lock().unwrap();
+        let Some(state) = states.get_mut(owner) else {
+            return;
+        };
+        if state.completed {
             false
         } else {
-            *state = ScanProgressState {
-                completed: true,
-                ..ScanProgressState::default()
-            };
+            state.completed = true;
+            state.stage.clear();
+            state.current_item.clear();
+            state.revision = next_progress_revision();
             true
         }
     };

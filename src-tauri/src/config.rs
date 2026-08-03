@@ -202,6 +202,10 @@ pub fn reset_software(app_handle: tauri::AppHandle, reset_type: String) -> Resul
     if RESET_IN_PROGRESS.swap(true, Ordering::AcqRel) {
         return Err("重置任务已提交，应用即将重启".to_string());
     }
+    if crate::window::has_active_scan_task("index") {
+        RESET_IN_PROGRESS.store(false, Ordering::Release);
+        return Err("本机来源后台任务正在运行，请等待完成后再重建索引".to_string());
+    }
 
     let normalized_reset_type = if reset_type.is_empty() {
         "all".to_string()
@@ -240,6 +244,7 @@ pub fn reset_software(app_handle: tauri::AppHandle, reset_type: String) -> Resul
     let desktop_files_enabled = crate::app_config::is_plugin_enabled(&app_handle, "desktop-files");
     let progress_kind = if (reset_apps || reset_bookmarks) && local_launcher_enabled {
         Some(match normalized_reset_type.as_str() {
+            "all" => "all",
             "apps" => "apps",
             "bookmarks" => "bookmarks",
             _ => "launcher",
@@ -304,6 +309,21 @@ pub fn reset_software(app_handle: tauri::AppHandle, reset_type: String) -> Resul
             "ok",
             "",
         );
+    }
+
+    if let Some(progress_kind) = progress_kind {
+        let (owner, stage) = if progress_kind == "desktopFiles" {
+            ("desktop-files", "正在准备重建桌面文件索引...")
+        } else {
+            ("local-launcher", "正在准备重建本机来源索引...")
+        };
+        crate::window::emit_scan_progress_for(owner, "index", stage, 0, 0, "");
+    }
+
+    if let Err(error) =
+        crate::json_config::set_app_config_value(&app_handle, "index_reset_restart_pending", true)
+    {
+        log::warn!("[Reset] 保存前台重启标记失败: {}", error);
     }
 
     log_reset_step(&normalized_reset_type, "request", "ok", "");

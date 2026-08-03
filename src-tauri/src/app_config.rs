@@ -71,6 +71,8 @@ pub struct AppConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub setup_restart_pending: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub index_reset_restart_pending: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub update_restart_pending: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub search_hotkey: Option<String>,
@@ -245,6 +247,7 @@ impl Default for AppConfig {
             show_progress_on_restart: None,
             show_progress_reset_kind: None,
             setup_restart_pending: None,
+            index_reset_restart_pending: None,
             update_restart_pending: None,
             search_hotkey: None,
             config_hotkey: None,
@@ -775,17 +778,22 @@ fn apply_desktop_files_runtime_change(app_handle: &AppHandle, enabled: bool) {
                 warn!("[Plugin] 消费桌面文件重置任务失败: {}", error);
                 return;
             }
-            crate::window::emit_scan_progress_for(
+            let count = crate::plugins::desktop_files::refresh_desktop_files_cache_with_progress(
                 "desktop-files",
-                "index",
-                "正在扫描桌面文件...",
-                0,
-                1,
-                "",
             );
-            let count = crate::plugins::desktop_files::refresh_desktop_files_cache_with_count();
             crate::window::emit_scan_complete_for("desktop-files", 0, 0, count);
             notify_desktop_index_complete(app_handle, count);
+        } else if matches!(progress_reset_kind.as_deref(), Some("all")) {
+            // “全部本机来源”由本地启动器统一消费并纳入同一条进度链，
+            // 此处避免桌面文件插件同时扫描和覆盖缓存。
+            info!("[DesktopFiles] 全部来源重建由本地启动器统一处理");
+        } else if crate::window::get_active_scan_progress_states()
+            .iter()
+            .any(|state| state.owner == "local-launcher" && state.task == "index")
+        {
+            // 本地启动器可能已先一步消费 all 标记；根据活动任务再次门禁，
+            // 消除线程调度顺序导致的并发桌面扫描。
+            info!("[DesktopFiles] 本机来源索引进行中，跳过重复初始化");
         } else {
             crate::plugins::desktop_files::initialize_desktop_files_cache_with_count();
         }
@@ -817,15 +825,9 @@ fn refresh_search_plugin_index_feedback(app_handle: AppHandle, plugin_id: String
     std::thread::spawn(move || match plugin_id.as_str() {
         "local-launcher" => crate::icon::rebuild_app_and_bookmark_index(app_handle),
         "desktop-files" => {
-            crate::window::emit_scan_progress_for(
+            let count = crate::plugins::desktop_files::refresh_desktop_files_cache_with_progress(
                 "desktop-files",
-                "index",
-                "正在检索桌面文件...",
-                0,
-                1,
-                "",
             );
-            let count = crate::plugins::desktop_files::refresh_desktop_files_cache_with_count();
             crate::window::emit_scan_complete_for("desktop-files", 0, 0, count);
             notify_desktop_index_complete(&app_handle, count);
         }

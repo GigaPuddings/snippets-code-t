@@ -58,6 +58,7 @@ pub fn invalidate_desktop_files_cache() {
 
 pub fn cancel_desktop_file_icon_rebuild() {
     DESKTOP_ICON_REBUILD_GENERATION.fetch_add(1, Ordering::AcqRel);
+    crate::window::clear_scan_progress_for("desktop-files");
 }
 
 fn desktop_icon_rebuild_active(generation: u64) -> bool {
@@ -222,7 +223,7 @@ fn build_desktop_file_info(path: &Path, include_icon: bool) -> Option<DesktopFil
     })
 }
 
-fn scan_desktop_files() -> Vec<DesktopFileInfo> {
+fn scan_desktop_files_with_progress(progress_owner: Option<&str>) -> Vec<DesktopFileInfo> {
     let Some(desktop_path) = desktop_dir() else {
         warn!("未找到桌面目录，跳过桌面文件索引");
         return Vec::new();
@@ -230,27 +231,53 @@ fn scan_desktop_files() -> Vec<DesktopFileInfo> {
 
     let mut files = Vec::new();
     let mut current_paths = Vec::new();
-
-    for entry in WalkDir::new(desktop_path)
+    let source_paths = WalkDir::new(desktop_path)
         .max_depth(3)
         .follow_links(false)
         .into_iter()
         .filter_map(Result::ok)
-    {
-        if !entry.file_type().is_file() || !is_supported_desktop_file(entry.path()) {
-            continue;
-        }
+        .filter(|entry| entry.file_type().is_file() && is_supported_desktop_file(entry.path()))
+        .map(|entry| entry.into_path())
+        .collect::<Vec<_>>();
+    let total = source_paths.len();
 
-        let path = entry.path();
+    if let Some(owner) = progress_owner {
+        crate::window::emit_scan_progress_for(
+            owner,
+            "index",
+            "正在扫描桌面文件...",
+            0,
+            total.max(1),
+            "",
+        );
+    }
+
+    for (index, path) in source_paths.iter().enumerate() {
         if let Some(file) = build_desktop_file_info(path, true) {
             current_paths.push(file.content.clone());
             files.push(file);
+        }
+        if let Some(owner) = progress_owner {
+            crate::window::emit_scan_progress_for(
+                owner,
+                "index",
+                "正在扫描桌面文件...",
+                index + 1,
+                total.max(1),
+                path.file_name()
+                    .and_then(|name| name.to_str())
+                    .unwrap_or_default(),
+            );
         }
     }
 
     cleanup_missing_desktop_file_icons(&current_paths);
 
     files
+}
+
+fn scan_desktop_files() -> Vec<DesktopFileInfo> {
+    scan_desktop_files_with_progress(None)
 }
 
 fn load_desktop_files() -> Vec<DesktopFileInfo> {
@@ -454,7 +481,21 @@ pub fn refresh_missing_desktop_file_icons() -> usize {
     let generation = DESKTOP_ICON_REBUILD_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
 
     let mut files = load_desktop_files_from_db().unwrap_or_default();
+    let total_files = files.len();
+    let total = files.iter().filter(|file| file.icon.is_none()).count();
+    if total == 0 {
+        return 0;
+    }
+    crate::window::emit_scan_progress_for(
+        "desktop-files",
+        "icons",
+        "正在加载桌面文件图标...",
+        0,
+        total,
+        "",
+    );
     let mut changed = Vec::new();
+    let mut current = 0usize;
     for file in &mut files {
         if !desktop_icon_rebuild_active(generation) {
             break;
@@ -467,6 +508,15 @@ pub fn refresh_missing_desktop_file_icons() -> usize {
             file.icon = Some(icon);
             changed.push(file.clone());
         }
+        current += 1;
+        crate::window::emit_scan_progress_for(
+            "desktop-files",
+            "icons",
+            "正在加载桌面文件图标...",
+            current,
+            total,
+            &file.title,
+        );
     }
     if !desktop_icon_rebuild_active(generation) {
         return 0;
@@ -474,12 +524,14 @@ pub fn refresh_missing_desktop_file_icons() -> usize {
     if !changed.is_empty() {
         if let Err(error) = db::upsert_desktop_file_cache(&desktop_file_records(&changed)) {
             warn!("重建桌面文件图标失败: {}", error);
+            crate::window::clear_scan_progress_for("desktop-files");
             return 0;
         }
     }
     let count = changed.len();
     if desktop_icon_rebuild_active(generation) {
         set_desktop_files_memory_cache(files);
+        crate::window::emit_scan_complete_for("desktop-files", 0, 0, total_files);
     }
     count
 }
@@ -489,12 +541,20 @@ pub fn refresh_desktop_files_cache() {
 }
 
 pub fn refresh_desktop_files_cache_with_count() -> usize {
+    refresh_desktop_files_cache_with_count_internal(None)
+}
+
+pub fn refresh_desktop_files_cache_with_progress(owner: &str) -> usize {
+    refresh_desktop_files_cache_with_count_internal(Some(owner))
+}
+
+fn refresh_desktop_files_cache_with_count_internal(progress_owner: Option<&str>) -> usize {
     if let Err(e) = db::ensure_plugin_storage("desktop-files") {
         warn!("初始化桌面文件插件存储失败: {}", e);
         return 0;
     }
 
-    let files = scan_desktop_files();
+    let files = scan_desktop_files_with_progress(progress_owner);
     let count = files.len();
     let records = desktop_file_records(&files);
     if let Err(e) = db::replace_desktop_file_cache(&records) {
