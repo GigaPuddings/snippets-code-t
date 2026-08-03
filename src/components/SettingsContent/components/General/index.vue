@@ -160,7 +160,6 @@
 <script setup lang="ts">
 import { SunOne, Moon, Computer } from '@icon-park/vue-next';
 import { useI18n } from 'vue-i18n';
-import { enable, isEnabled, disable } from '@tauri-apps/plugin-autostart';
 import { useConfigurationStore } from '@/store';
 import { broadcastThemeChanged } from '@/utils/theme-sync';
 import { invoke } from '@tauri-apps/api/core';
@@ -232,7 +231,7 @@ const changeLanguage = async (value: LocaleType): Promise<void> => {
 
 const watchAutoStart = async (): Promise<void> => {
   try {
-    const enabled = await isEnabled();
+    const enabled = await invoke<boolean>('is_auto_start_enabled');
     store.autoStart = enabled;
   } catch (error) {
     console.error('获取自启动状态失败:', error);
@@ -241,15 +240,10 @@ const watchAutoStart = async (): Promise<void> => {
 
 const handleAutoStartChange = async (value: boolean): Promise<void> => {
   try {
-    if (value) {
-      await enable();
-      modal.msg(t('settings.autoStartEnabled'));
-    } else {
-      await disable();
-      modal.msg(t('settings.autoStartDisabled'));
-    }
-    // 同步保存到数据库，便于 GitHub 同步
-    await invoke('set_auto_start_setting', { value });
+    await invoke('set_auto_start_enabled', { enabled: value });
+    modal.msg(
+      value ? t('settings.autoStartEnabled') : t('settings.autoStartDisabled')
+    );
   } catch (error) {
     console.error('Failed to set autostart:', error);
     store.autoStart = !value;

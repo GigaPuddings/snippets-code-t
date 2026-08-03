@@ -23,6 +23,12 @@
 !macroend
 
 !macro NSIS_HOOK_POSTUNINSTALL
+  ${If} $UpdateMode <> 1
+    ; 清理应用创建的用户登录任务和旧版注册表启动项。
+    nsExec::ExecToLog 'schtasks.exe /Delete /TN "snippets-code AutoStart" /F'
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "snippets-code"
+  ${EndIf}
+
   ${If} $DeleteAppDataCheckboxState = 1
   ${AndIf} $UpdateMode <> 1
     ; 插件目录可能位于数据目录外；数据目录也可能位于旧版安装目录中。

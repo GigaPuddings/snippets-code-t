@@ -43,7 +43,7 @@ pub fn apply_setup_restart_delay() {
 
 /// 判断本次启动是否为后台自启动模式
 pub fn is_auto_start_launch(app_handle: &tauri::AppHandle) -> bool {
-    let has_auto_start_flag = std::env::args().any(|arg| arg == "--flag1" || arg == "--flag2");
+    let has_auto_start_flag = crate::auto_start::is_auto_start_launch();
     let has_setup_restart_flag = is_setup_restart_launch();
     let setup_restart_pending: bool =
         crate::json_config::get_app_config_value(app_handle, "setup_restart_pending")

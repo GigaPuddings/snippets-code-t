@@ -15,6 +15,7 @@ use crate::window::{
 };
 use log::{debug, info};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
 use tauri::Emitter;
 use tauri::{
     menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu},
@@ -723,9 +724,10 @@ pub fn handle_wallpaper_menu_click(app: &AppHandle, menu_id: &str) {
 }
 
 pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
-    let _ = app.remove_tray_by_id("tray");
     let lang = get_language_internal(app);
     let menu = build_tray_menu(app, &lang)?;
+    // 先完成菜单构建，再替换最小托盘，避免插件清单扫描期间图标消失。
+    let _ = app.remove_tray_by_id("tray");
 
     let app_name = app.package_info().name.clone();
 
@@ -911,6 +913,76 @@ pub fn create_minimal_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
         .build(app)?;
 
     Ok(())
+}
+
+/// 在应用 setup 的最前段创建轻量托盘，并在后台补全菜单。
+/// 计划任务可能早于 Explorer/通知区域就绪，因此失败后会短间隔重试。
+pub fn create_startup_tray(app: &AppHandle, should_create_full_menu: bool) {
+    const RETRY_INTERVAL_MILLIS: u64 = 250;
+    const MAX_RETRIES: u32 = 120;
+
+    let started_at = Instant::now();
+    let mut tray_ready = match create_minimal_tray(app) {
+        Ok(()) => {
+            info!(
+                "[Startup] minimal tray ready in {}ms",
+                started_at.elapsed().as_millis()
+            );
+            true
+        }
+        Err(error) => {
+            log::warn!("[Startup] 通知区域尚未就绪，将重试创建托盘: {error}");
+            false
+        }
+    };
+
+    let app_handle = app.clone();
+    tauri::async_runtime::spawn(async move {
+        if !tray_ready {
+            for attempt in 1..=MAX_RETRIES {
+                tokio::time::sleep(Duration::from_millis(RETRY_INTERVAL_MILLIS)).await;
+                match create_minimal_tray(&app_handle) {
+                    Ok(()) => {
+                        tray_ready = true;
+                        info!(
+                            "[Startup] tray ready after retry {}, elapsed={}ms",
+                            attempt,
+                            started_at.elapsed().as_millis()
+                        );
+                        break;
+                    }
+                    Err(error) if attempt == MAX_RETRIES => {
+                        log::error!(
+                            "[Startup] 托盘创建在 {} 次重试后仍失败: {}",
+                            MAX_RETRIES,
+                            error
+                        );
+                    }
+                    Err(_) => {}
+                }
+            }
+        }
+
+        if !tray_ready || !should_create_full_menu {
+            return;
+        }
+
+        // 先让轻量图标进入通知区域，再加载插件清单并替换为完整菜单。
+        tokio::time::sleep(Duration::from_millis(25)).await;
+        let menu_started_at = Instant::now();
+        match create_tray(&app_handle) {
+            Ok(()) => info!(
+                "[Startup] full tray menu ready in {}ms",
+                menu_started_at.elapsed().as_millis()
+            ),
+            Err(error) => {
+                log::warn!("[Startup] 完整托盘菜单创建失败，恢复最小托盘: {error}");
+                if let Err(restore_error) = create_minimal_tray(&app_handle) {
+                    log::error!("[Startup] 恢复最小托盘失败: {restore_error}");
+                }
+            }
+        }
+    });
 }
 
 pub fn recreate_tray_as_full(app: &AppHandle) -> tauri::Result<()> {

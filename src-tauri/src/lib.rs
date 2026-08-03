@@ -2,6 +2,7 @@ mod app_config;
 mod app_setup;
 mod apps;
 mod attachment;
+mod auto_start;
 mod bookmarks;
 mod commands;
 mod config;
@@ -127,7 +128,7 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
-            Some(vec!["--flag1", "--flag2"]),
+            Some(vec![auto_start::AUTO_START_ARG]),
         ))
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
@@ -152,7 +153,9 @@ pub fn run() {
                 }
             }
 
-            let is_auto_start_attempt = args.iter().any(|arg| arg == "--flag1" || arg == "--flag2");
+            let is_auto_start_attempt = args
+                .iter()
+                .any(|arg| auto_start::is_auto_start_argument(arg));
             if !is_auto_start_attempt {
                 let screenshot_active = app
                     .get_webview_window("screenshot")
@@ -204,6 +207,16 @@ pub fn run() {
                     log::warn!("⚠️ [初始化] AppConfigManager 初始化失败: {}", e);
                 }
             }
+
+            let is_setup_completed = db::is_setup_completed_internal(app.handle());
+
+            // 托盘图标优先于数据库、插件扫描和后台服务创建。完整菜单随后原位补全，
+            // 这样开机高负载或任务栏尚未就绪时也能尽快显示应用图标。
+            #[cfg(desktop)]
+            tray::create_startup_tray(app.handle(), is_setup_completed);
+
+            // 升级旧版本时，在后台把 HKCU Run 自启动迁移为更早触发的登录任务。
+            auto_start::migrate_legacy_auto_start(app.handle().clone());
 
             // 记录已验证的数据路径，供 Windows 卸载器在用户明确选择删除数据时清理。
             uninstall::record_current_paths(app.handle());
@@ -320,9 +333,6 @@ pub fn run() {
                 }
             });
 
-            // 检查是否已完成首次设置
-            let is_setup_completed = db::is_setup_completed_internal(app.handle());
-
             // 如果已完成设置，才初始化数据库
             if is_setup_completed {
                 if let Err(e) = json_config::ensure_data_layout_manifest(app.handle()) {
@@ -340,8 +350,13 @@ pub fn run() {
                 // 清理孤立附件（没有对应笔记的附件文件夹）- 在后台异步执行
                 let app_handle_cleanup = app_handle_markdown.clone();
                 tauri::async_runtime::spawn(async move {
-                    // 等待一小段时间确保其他初始化完成
-                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                    // 自启动时避开登录阶段的磁盘高峰；前台启动仍快速完成常规清理。
+                    let cleanup_delay = if is_auto_start {
+                        AUTO_START_BACKGROUND_DELAY_SECS + 3
+                    } else {
+                        1
+                    };
+                    tokio::time::sleep(tokio::time::Duration::from_secs(cleanup_delay)).await;
                     match attachment::cleanup_orphaned_attachments(app_handle_cleanup).await {
                         Ok(count) if count > 0 => {
                             log::info!("🗑️ [初始化] 清理了 {} 个孤立附件文件夹", count);
@@ -522,29 +537,14 @@ pub fn run() {
             // === 异步顺序初始化：等待上一个功能完成后再加载下一个 ===
             let app_handle_init = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                // 检查是否已完成首次设置
-                let is_setup_completed = db::is_setup_completed_internal(&app_handle_init);
-
                 tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
 
-                // 第一步：创建托盘（首次启动只创建最小托盘）
-                #[cfg(desktop)]
-                {
-                    if is_setup_completed {
-                        // 已完成设置：创建完整托盘
-                        let _ = tray::create_tray(&app_handle_init);
-                    } else {
-                        // 首次启动：只创建最小托盘
-                        let _ = tray::create_minimal_tray(&app_handle_init);
-                        log::info!("最小托盘创建完成");
-                        // 首次启动时，跳过所有其他初始化
-                        return;
-                    }
+                // 首次启动时只保留最小托盘，跳过其余后台服务。
+                if !is_setup_completed {
+                    return;
                 }
 
-                // 以下所有初始化只在 setup 完成后执行
-
-                // 第二步：注册快捷键
+                // 第一步：注册快捷键
                 if let Err(e) = register_shortcut("all") {
                     log::warn!("快捷键注册失败: {}", e);
                     let _ = app_handle_init.notification().builder()
@@ -552,13 +552,6 @@ pub fn run() {
                         .body(format!("快捷键注册失败：{}", e))
                         .show();
                 }
-
-                // 第三步：后台服务（根据插件启用状态启动）
-                app_config::apply_enabled_plugin_runtime_change(&app_handle_init, "todo");
-                app_config::apply_enabled_plugin_runtime_change(
-                    &app_handle_init,
-                    "wallpaper-switcher",
-                );
 
                 if is_auto_start {
                     tokio::time::sleep(tokio::time::Duration::from_secs(
@@ -571,14 +564,21 @@ pub fn run() {
                     );
                 }
 
+                // 第二步：后台服务（自启动时避开登录阶段的磁盘和网络高峰）
+                app_config::apply_enabled_plugin_runtime_change(&app_handle_init, "todo");
+                app_config::apply_enabled_plugin_runtime_change(
+                    &app_handle_init,
+                    "wallpaper-switcher",
+                );
+
                 // 重置更新状态（使用 JSON 配置）
                 let _ = json_config::set_app_config_value(&app_handle_init, "update_available", false);
 
-                // 第四步：资源加载（按插件启用状态加载应用、书签和桌面文件图标）
+                // 第三步：资源加载（按插件启用状态加载应用、书签和桌面文件图标）
                 app_config::apply_enabled_plugin_runtime_change(&app_handle_init, "local-launcher");
                 app_config::apply_enabled_plugin_runtime_change(&app_handle_init, "desktop-files");
 
-                // 第五步：网络操作（自动更新检查）
+                // 第四步：网络操作（自动更新检查）
                 if get_auto_update_check(app_handle_init.clone()) {
                     match check_update(&app_handle_init, false).await {
                         Ok(_) => {},
@@ -586,7 +586,7 @@ pub fn run() {
                     }
                 }
 
-                // 第六步：清理任务（数据库优化、日志清理）
+                // 第五步：清理任务（数据库优化、日志清理）
                 let _ = tokio::task::spawn_blocking(move || {
                     if let Err(e) = optimize_database() {
                         log::warn!("优化数据库失败: {}", e);
@@ -783,6 +783,8 @@ pub fn run() {
             set_language,                     // 设置界面语言
             get_scan_progress_state,          // 获取扫描进度状态
             set_auto_start_setting,           // 设置自启动偏好
+            auto_start::set_auto_start_enabled, // 配置系统自启动
+            auto_start::is_auto_start_enabled,  // 获取系统自启动状态
             get_auto_hide_on_blur,            // 获取自动失焦隐藏设置
             set_auto_hide_on_blur,            // 设置自动失焦隐藏
             plugins::translation::set_translation_engine,     // 设置默认翻译引擎
