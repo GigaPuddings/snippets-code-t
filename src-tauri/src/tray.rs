@@ -19,6 +19,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 use tauri::Emitter;
 use tauri::{
+    image::Image,
     menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Manager,
@@ -28,6 +29,7 @@ use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_opener::OpenerExt;
 
 static WALLPAPER_TRAY_SWITCHING: AtomicBool = AtomicBool::new(false);
+static AI_RESPONDING: AtomicBool = AtomicBool::new(false);
 
 // 托盘菜单翻译结构
 struct TrayTranslations {
@@ -67,6 +69,7 @@ struct TrayTranslations {
     background_icons: &'static str,
     local_sources: &'static str,
     desktop_files: &'static str,
+    ai_responding: &'static str,
     quit: &'static str,
 }
 
@@ -190,6 +193,7 @@ fn get_translations(lang: &str) -> TrayTranslations {
             background_icons: "Background icons",
             local_sources: "Local sources",
             desktop_files: "Desktop files",
+            ai_responding: "AI is responding — open chat",
             quit: "Quit",
         },
         _ => TrayTranslations {
@@ -227,6 +231,7 @@ fn get_translations(lang: &str) -> TrayTranslations {
             background_icons: "后台图标",
             local_sources: "本机来源",
             desktop_files: "桌面文件",
+            ai_responding: "AI 正在回复 — 打开对话",
             quit: "退出程序",
         },
     }
@@ -446,6 +451,18 @@ fn build_tray_menu(app: &AppHandle, lang: &str) -> tauri::Result<Menu<tauri::Wry
 
     let search_i = MenuItem::with_id(app, "search", trans.search, true, None::<&str>)?;
     let config_i = MenuItem::with_id(app, "config", trans.config, true, None::<&str>)?;
+    let ai_response_i = AI_RESPONDING
+        .load(Ordering::Acquire)
+        .then(|| {
+            MenuItem::with_id(
+                app,
+                "local_ai_response_status",
+                trans.ai_responding,
+                true,
+                None::<&str>,
+            )
+        })
+        .transpose()?;
     let plugin_install_i = app_config::active_plugin_install_status()
         .map(|(count, phase)| {
             MenuItem::with_id(
@@ -535,7 +552,12 @@ fn build_tray_menu(app: &AppHandle, lang: &str) -> tauri::Result<Menu<tauri::Wry
     let view_log_i = MenuItem::with_id(app, "view_log", trans.view_log, true, None::<&str>)?;
     let quit_i = MenuItem::with_id(app, "quit", trans.quit, true, None::<&str>)?;
 
-    let mut items: Vec<&dyn IsMenuItem<tauri::Wry>> = vec![&search_i, &config_i];
+    let mut items: Vec<&dyn IsMenuItem<tauri::Wry>> = Vec::new();
+    if let Some(item) = &ai_response_i {
+        items.push(item);
+    }
+    items.push(&search_i);
+    items.push(&config_i);
     if let Some(item) = &plugin_install_i {
         items.push(item);
     }
@@ -752,9 +774,10 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
     let _ = app.remove_tray_by_id("tray");
 
     let app_name = app.package_info().name.clone();
+    let tray_icon = tray_icon_for_state(app);
 
     let _ = TrayIconBuilder::with_id("tray")
-        .icon(app.default_window_icon().unwrap().clone())
+        .icon(tray_icon)
         .tooltip(&app_name)
         .menu(&menu)
         .show_menu_on_left_click(false)
@@ -800,6 +823,10 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
                     tauri::async_runtime::spawn(async move {
                         open_config_settings();
                     });
+                }
+                "local_ai_response_status" => {
+                    debug!("[托盘菜单] 执行：返回 AI 对话");
+                    crate::window::open_local_ai_chat(None);
                 }
                 "plugin_install_status" => {
                     debug!("[托盘菜单] 执行：查看插件安装状态");
@@ -873,6 +900,9 @@ pub fn update_plugin_install_status(app_handle: &AppHandle) {
     let app_name = app_handle.package_info().name.clone();
     let trans = get_translations(&lang);
     let mut tooltip_parts = vec![app_name];
+    if AI_RESPONDING.load(Ordering::Acquire) {
+        tooltip_parts.push(trans.ai_responding.to_string());
+    }
     if let Some((count, phase)) = app_config::active_plugin_install_status() {
         tooltip_parts.push(format!(
             "{}：{} ({})",
@@ -912,6 +942,65 @@ pub fn update_plugin_install_status(app_handle: &AppHandle) {
     }
 }
 
+fn tray_icon_for_state(app_handle: &AppHandle) -> Image<'static> {
+    let base = app_handle
+        .default_window_icon()
+        .expect("application tray icon is configured")
+        .clone()
+        .to_owned();
+    if !AI_RESPONDING.load(Ordering::Acquire) {
+        return base;
+    }
+
+    let width = base.width();
+    let height = base.height();
+    let mut rgba = base.rgba().to_vec();
+    let shortest = width.min(height) as i32;
+    let radius = (shortest / 5).max(2);
+    let center_x = width as i32 - radius - 1;
+    let center_y = height as i32 - radius - 1;
+    let border_radius = radius + (shortest / 24).max(1);
+
+    for y in 0..height as i32 {
+        for x in 0..width as i32 {
+            let dx = x - center_x;
+            let dy = y - center_y;
+            let distance_squared = dx * dx + dy * dy;
+            if distance_squared > border_radius * border_radius {
+                continue;
+            }
+
+            let index = ((y as u32 * width + x as u32) * 4) as usize;
+            if distance_squared > radius * radius {
+                rgba[index..index + 4].copy_from_slice(&[255, 255, 255, 238]);
+                continue;
+            }
+
+            let mix = ((dy + radius).clamp(0, radius * 2) * 255 / (radius * 2).max(1)) as u8;
+            rgba[index] = 124u8.saturating_sub(mix / 5);
+            rgba[index + 1] = 58u8.saturating_add(mix / 2);
+            rgba[index + 2] = 237u8.saturating_add(mix / 14);
+            rgba[index + 3] = 255;
+        }
+    }
+
+    Image::new_owned(rgba, width, height)
+}
+
+pub fn set_ai_response_status(app_handle: &AppHandle, responding: bool) {
+    let previous = AI_RESPONDING.swap(responding, Ordering::AcqRel);
+    if previous == responding {
+        return;
+    }
+
+    if let Some(tray) = app_handle.tray_by_id("tray") {
+        if let Err(error) = tray.set_icon(Some(tray_icon_for_state(app_handle))) {
+            log::warn!("[TrayMenu] 更新 AI 回复状态图标失败: {}", error);
+        }
+    }
+    update_plugin_install_status(app_handle);
+}
+
 // 更新托盘菜单语言
 pub fn update_tray_language(app_handle: &AppHandle) {
     let is_first_run = !crate::db::is_setup_completed_internal(app_handle);
@@ -941,9 +1030,10 @@ pub fn create_minimal_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
     let quit_i = MenuItem::with_id(app, "quit", trans.quit, true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&quit_i])?;
     let app_name = app.package_info().name.clone();
+    let tray_icon = tray_icon_for_state(app);
 
     TrayIconBuilder::with_id("tray")
-        .icon(app.default_window_icon().unwrap().clone())
+        .icon(tray_icon)
         .tooltip(&app_name)
         .menu(&menu)
         .show_menu_on_left_click(false)

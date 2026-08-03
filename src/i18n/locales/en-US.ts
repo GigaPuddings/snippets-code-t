@@ -997,6 +997,7 @@ export default {
     activeFilters: 'Active Filters',
     noResults: 'No Results',
     suggestRelax: 'Try relaxing filter conditions',
+    askAi: 'Ask in AI Chat',
     deepSearch: 'Deep Search',
     deepSearchOn:
       'Deep search on: matching titles, content, notes, paths, and tags',

@@ -8,10 +8,12 @@ import { useSearchKeyboard } from './composables/useSearchKeyboard';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { ErrorHandler, ErrorType } from '@/utils/error-handler';
 import Result from './components/Result.vue';
-import { Search } from '@icon-park/vue-next';
+import { ArrowRight, Robot, Search } from '@icon-park/vue-next';
 import { useI18n } from 'vue-i18n';
+import { usePluginStore } from '@/store';
 
 const { t } = useI18n();
+const pluginStore = usePluginStore();
 const {
   searchText,
   searchResults,
@@ -85,6 +87,39 @@ const focusSearchWindow = async (): Promise<void> => {
   requestAnimationFrame(() => searchInputRef.value?.focus());
 };
 
+const aiPrompt = computed(() => searchText.value.trim());
+const showAiEntry = computed(
+  () => pluginStore.isEnabled('local-ai') && Boolean(aiPrompt.value)
+);
+
+const openAiChat = async (): Promise<void> => {
+  const prompt = aiPrompt.value;
+  if (!prompt) return;
+
+  localStorage.setItem('snippets.localAi.pendingPrompt', prompt);
+  await invoke('show_hide_window_command', {
+    label: 'local_ai_chat',
+    context: prompt
+  });
+};
+
+const handleSearchKeyDown = async (event: Event): Promise<void> => {
+  if (
+    event instanceof KeyboardEvent &&
+    event.code === 'Enter' &&
+    (event.ctrlKey || event.metaKey) &&
+    !event.isComposing &&
+    showAiEntry.value
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+    await openAiChat();
+    return;
+  }
+
+  await handleKeyDown(event);
+};
+
 onMounted(async () => {
   // The webview can already be mounted while its window is hidden.
   // Focus explicitly so input works before a pointer-enter event occurs.
@@ -131,7 +166,7 @@ onUnmounted(() => {
         ref="searchInputRef"
         class="input"
         v-model="searchText"
-        @keydown="handleKeyDown"
+        @keydown="handleSearchKeyDown"
         @focus="handleInputFocus"
       />
       <button
@@ -157,6 +192,23 @@ onUnmounted(() => {
         @click="handleGoConfig"
       />
     </section>
+    <button
+      v-if="showAiEntry"
+      type="button"
+      class="ai-chat-entry"
+      @mousedown.prevent
+      @click="openAiChat"
+    >
+      <span class="ai-chat-entry-icon">
+        <Robot theme="outline" size="16" />
+      </span>
+      <span class="ai-chat-entry-copy">
+        <span class="ai-chat-entry-title">{{ t('search.askAi') }}</span>
+        <span class="ai-chat-entry-query">“{{ aiPrompt }}”</span>
+      </span>
+      <span class="ai-chat-entry-shortcut">Ctrl Enter</span>
+      <ArrowRight class="ai-chat-entry-arrow" theme="outline" size="14" />
+    </button>
     <Result
       ref="resultRef"
       :results="searchResults"
@@ -199,6 +251,7 @@ onUnmounted(() => {
 
     .deep-search-toggle {
       @apply flex items-center justify-center w-8 h-8 mr-2 rounded-md text-search-secondary bg-transparent border border-transparent cursor-pointer;
+
       transition:
         color 0.18s ease,
         background-color 0.18s ease,
@@ -213,6 +266,46 @@ onUnmounted(() => {
     .home {
       @apply p-1 w-9 h-9 rounded-md opacity-90 hover:opacity-100 cursor-pointer;
     }
+  }
+
+  .ai-chat-entry {
+    @apply mt-2 flex w-full items-center gap-2 rounded-md border border-search bg-search-hover px-2.5 py-2 text-left text-search transition-colors;
+
+    &:hover {
+      background-color: var(--search-soft-bg);
+      border-color: var(--search-result-active-border);
+    }
+
+    &:focus-visible {
+      @apply outline-none;
+
+      box-shadow: 0 0 0 2px
+        color-mix(in srgb, var(--search-result-accent) 28%, transparent);
+    }
+  }
+
+  .ai-chat-entry-icon {
+    @apply inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md bg-search text-search-secondary;
+  }
+
+  .ai-chat-entry-copy {
+    @apply flex min-w-0 flex-1 items-center gap-1.5 text-xs;
+  }
+
+  .ai-chat-entry-title {
+    @apply flex-shrink-0 font-semibold;
+  }
+
+  .ai-chat-entry-query {
+    @apply truncate text-search-secondary;
+  }
+
+  .ai-chat-entry-shortcut {
+    @apply flex-shrink-0 rounded border border-search bg-search px-1.5 py-0.5 text-[10px] text-search-secondary;
+  }
+
+  .ai-chat-entry-arrow {
+    @apply flex-shrink-0 text-search-secondary;
   }
 
   :deep(.hidden) {

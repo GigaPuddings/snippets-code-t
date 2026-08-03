@@ -151,13 +151,17 @@ pub fn search_apps(
         .into_iter()
         .map(|(app, score)| {
             let is_shell_app = is_shell_apps_folder_path(&app.content);
+            let is_shortcut = app.content.to_lowercase().ends_with(".lnk");
             let display_content = if is_shell_app {
                 resolve_shell_apps_folder_display_path(&app.content)
+                    .unwrap_or_else(|| app.content.clone())
+            } else if is_shortcut {
+                crate::apps::resolve_shortcut_display_path(&app.content)
                     .unwrap_or_else(|| app.content.clone())
             } else {
                 app.content.clone()
             };
-            let metadata = if is_shell_app {
+            let metadata = if is_shell_app || is_shortcut {
                 Some(serde_json::json!({
                     "launch_path": app.content,
                     "display_path": display_content,

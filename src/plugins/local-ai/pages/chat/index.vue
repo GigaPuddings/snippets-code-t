@@ -108,7 +108,15 @@
                 class="chat-item-title"
                 :title="history.title"
               >
-                <span class="chat-item-title-text">{{ history.title }}</span>
+                <span class="chat-item-title-track">
+                  <span class="chat-item-title-text">{{ history.title }}</span>
+                  <span
+                    class="chat-item-title-text chat-item-title-clone"
+                    aria-hidden="true"
+                  >
+                    {{ history.title }}
+                  </span>
+                </span>
               </span>
               <span class="chat-item-time">
                 {{ formatHistoryTime(history.updatedAt) }}
@@ -915,6 +923,7 @@ const autoFollowMessages = ref(true);
 const showJumpToBottom = ref(false);
 const currentStreamRequestId = ref<string | null>(null);
 const currentStreamingMessage = shallowRef<ChatMessage | null>(null);
+const PENDING_PROMPT_STORAGE_KEY = 'snippets.localAi.pendingPrompt';
 const config = ref<LocalAiConfig | null>(null);
 const modelScan = ref<LocalAiModelScan | null>(null);
 const selectedChatModelPath = ref('');
@@ -945,9 +954,12 @@ const titleResizeObservers = new WeakMap<HTMLElement, ResizeObserver>();
 const syncAutoScrollTitle = (element: HTMLElement): void => {
   const content = element.querySelector<HTMLElement>('.chat-item-title-text');
   if (!content) return;
-  const distance = Math.max(0, content.scrollWidth - element.clientWidth);
-  element.style.setProperty('--chat-title-scroll-distance', `${distance}px`);
-  element.classList.toggle('is-overflowing', distance > 2);
+  const overflowing = content.scrollWidth - element.clientWidth > 2;
+  const loopDistance = content.scrollWidth + 24;
+  const duration = Math.max(5, loopDistance / 34);
+  element.style.setProperty('--chat-title-loop-distance', `${loopDistance}px`);
+  element.style.setProperty('--chat-title-scroll-duration', `${duration}s`);
+  element.classList.toggle('is-overflowing', overflowing);
 };
 const scheduleAutoScrollTitleSync = (element: HTMLElement): void => {
   window.requestAnimationFrame(() => syncAutoScrollTitle(element));
@@ -1100,6 +1112,20 @@ const resizeComposerInput = (): void => {
     : contentHeight;
   input.style.height = `${Math.min(contentHeight, maxHeight)}px`;
   input.style.overflowY = contentHeight > maxHeight ? 'auto' : 'hidden';
+};
+
+const applyPendingPrompt = (prompt: unknown): void => {
+  if (typeof prompt !== 'string' || !prompt.trim()) return;
+  draft.value = prompt.trim();
+  localStorage.removeItem(PENDING_PROMPT_STORAGE_KEY);
+  nextTick(() => {
+    resizeComposerInput();
+    composerInputRef.value?.focus();
+  });
+};
+
+const handlePendingPromptEvent = (event: Event): void => {
+  applyPendingPrompt((event as CustomEvent<unknown>).detail);
 };
 const focusComposer = async (): Promise<void> => {
   await nextTick();
@@ -2277,6 +2303,8 @@ const regenerateMessage = async (messageId: string) => {
 };
 
 onMounted(async () => {
+  window.addEventListener('local-ai-prompt-ready', handlePendingPromptEvent);
+  applyPendingPrompt(localStorage.getItem(PENDING_PROMPT_STORAGE_KEY));
   resizeComposerInput();
   if (typeof ResizeObserver !== 'undefined') {
     streamingResizeObserver = new ResizeObserver(() => {
@@ -2297,6 +2325,7 @@ watch(modelSupportsThinking, (supported) => {
   if (!supported) thinkingEnabled.value = false;
 });
 onUnmounted(() => {
+  window.removeEventListener('local-ai-prompt-ready', handlePendingPromptEvent);
   if (statusTimer) clearInterval(statusTimer);
   if (scrollFrameId !== null) {
     window.cancelAnimationFrame(scrollFrameId);

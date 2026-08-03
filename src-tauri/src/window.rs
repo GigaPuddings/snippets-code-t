@@ -951,6 +951,37 @@ pub fn open_data_manager_settings() {
     open_config_settings_tab(Some("data"));
 }
 
+pub fn open_local_ai_chat(prompt: Option<String>) {
+    WindowManager::close_search_window_if_visible();
+    cancel_startup_transition_for_user_action("open_local_ai_chat");
+
+    let spec = WindowSpec {
+        label: "config",
+        url: "/#/local-ai/chat",
+        title: "配置",
+        width: 1180.0,
+        height: 626.0,
+        resizable: true,
+        transparent: true,
+        shadow: false,
+        always_on_top: false,
+        ready_event: None,
+    };
+
+    if let Ok(window) = WindowManager::get_or_create_with_behavior(
+        &spec,
+        WindowShowBehavior::AlwaysShow,
+        Some(Box::new(move |window| {
+            let _ = window.emit(
+                "navigate-to-local-ai-chat",
+                serde_json::json!({ "prompt": prompt }),
+            );
+        })),
+    ) {
+        ensure_config_cleanup_listener(&window);
+    }
+}
+
 fn open_config_settings_tab(tab: Option<&'static str>) {
     // 先关闭搜索窗口
     WindowManager::close_search_window_if_visible();
@@ -1439,6 +1470,13 @@ pub async fn show_hide_window_command(label: &str, context: Option<String>) -> R
         }
         "config_settings" => {
             open_config_settings();
+        }
+        "local_ai_chat" => {
+            let Some(app) = get_app_handle_or_log("show_hide_window_command:local_ai_chat") else {
+                return Err("应用未初始化".to_string());
+            };
+            crate::app_config::require_plugin_enabled(app, "local-ai")?;
+            open_local_ai_chat(context);
         }
         "translate" => {
             let Some(app) = get_app_handle_or_log("show_hide_window_command:translate") else {

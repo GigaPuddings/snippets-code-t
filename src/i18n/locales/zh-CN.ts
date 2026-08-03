@@ -959,6 +959,7 @@ export default {
     activeFilters: '激活的筛选',
     noResults: '无匹配结果',
     suggestRelax: '尝试放宽筛选条件',
+    askAi: '在 AI 聊天中提问',
     deepSearch: '深度检索',
     deepSearchOn: '深度检索已开启：匹配标题、内容、笔记、路径和标签',
     deepSearchOff: '深度检索已关闭：仅匹配标题',

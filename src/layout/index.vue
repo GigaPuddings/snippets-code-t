@@ -14,6 +14,17 @@ import type { ConfigContentNavigationPayload } from '@/pages/search/composables/
 const store = useConfigurationStore();
 const router = useRouter();
 let unlistenConfigContentNavigation: UnlistenFn | null = null;
+let unlistenLocalAiNavigation: UnlistenFn | null = null;
+
+interface LocalAiNavigationPayload {
+  prompt?: string;
+}
+
+interface ThemeChangedPayload {
+  source?: string;
+  theme?: 'light' | 'dark' | 'auto';
+  isDark?: boolean;
+}
 
 const normalizeFragmentId = (id: unknown): string =>
   String(id ?? '').replace(/^markdown:/i, '');
@@ -22,26 +33,43 @@ onMounted(async () => {
   // Layout remains mounted while the config window switches to plugin pages.
   // Keep cross-window content navigation here so AI chat and other tabs can
   // always be reset back to the requested config content route.
-  unlistenConfigContentNavigation = await listen<ConfigContentNavigationPayload>(
-    'navigate-to-config-content',
-    async ({ payload }) => {
-      const fragmentId = normalizeFragmentId(payload?.fragmentId);
-      const categoryId = String(payload?.categoryId ?? '');
-      if (!fragmentId || !categoryId) return;
+  unlistenConfigContentNavigation =
+    await listen<ConfigContentNavigationPayload>(
+      'navigate-to-config-content',
+      async ({ payload }) => {
+        const fragmentId = normalizeFragmentId(payload?.fragmentId);
+        const categoryId = String(payload?.categoryId ?? '');
+        if (!fragmentId || !categoryId) return;
 
-      localStorage.removeItem('pendingNavigation');
-      localStorage.removeItem('pendingSnippetOpen');
-      await router.push({
-        path: `/config/category/contentList/${categoryId}/content/${encodeURIComponent(fragmentId)}`,
-        query: payload.preview ? { preview: '1' } : undefined
-      });
+        localStorage.removeItem('pendingNavigation');
+        localStorage.removeItem('pendingSnippetOpen');
+        await router.push({
+          path: `/config/category/contentList/${categoryId}/content/${encodeURIComponent(fragmentId)}`,
+          query: payload.preview ? { preview: '1' } : undefined
+        });
+      }
+    );
+
+  unlistenLocalAiNavigation = await listen<LocalAiNavigationPayload>(
+    'navigate-to-local-ai-chat',
+    async ({ payload }) => {
+      const prompt = payload?.prompt?.trim();
+      if (prompt) {
+        localStorage.setItem('snippets.localAi.pendingPrompt', prompt);
+      }
+      await router.push('/local-ai/chat');
+      if (prompt) {
+        window.dispatchEvent(
+          new CustomEvent('local-ai-prompt-ready', { detail: prompt })
+        );
+      }
     }
   );
 
   // 检查是否已完成首次设置
   try {
     const isSetupCompleted = await invoke<boolean>('is_setup_completed');
-    
+
     // 只有在 setup 完成后才初始化配置
     if (isSetupCompleted) {
       await store.initialize();
@@ -51,13 +79,15 @@ onMounted(async () => {
   }
 
   // 监听主题变化事件（仅处理用户主动切换，避免与系统/后端事件形成广播风暴）
-  await listen('theme-changed', (event: any) => {
+  await listen<ThemeChangedPayload>('theme-changed', (event) => {
     const source = event.payload?.source;
     if (source !== 'user-change') {
       return;
     }
 
-    logger.debug(`[主题][窗口:layout] 收到用户主题切换事件：${JSON.stringify(event.payload)}`);
+    logger.debug(
+      `[主题][窗口:layout] 收到用户主题切换事件：${JSON.stringify(event.payload)}`
+    );
 
     // 同步 store.theme 值，确保跨窗口一致
     if (event.payload?.theme) {
@@ -86,6 +116,8 @@ onMounted(async () => {
 onUnmounted(() => {
   unlistenConfigContentNavigation?.();
   unlistenConfigContentNavigation = null;
+  unlistenLocalAiNavigation?.();
+  unlistenLocalAiNavigation = null;
 });
 </script>
 

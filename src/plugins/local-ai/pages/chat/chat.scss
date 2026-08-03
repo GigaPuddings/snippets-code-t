@@ -232,16 +232,29 @@
   @apply block min-w-0 overflow-hidden whitespace-nowrap text-xs font-semibold;
 }
 
-.chat-item-title-text {
-  @apply inline-block min-w-max;
+.chat-item-title-track {
+  @apply inline-flex min-w-max items-center;
 
+  gap: 24px;
+  transform: translateX(0);
   will-change: transform;
 }
 
-.chat-list-item:is(:hover, .active)
-  .chat-item-title.is-overflowing
-  .chat-item-title-text {
-  animation: local-ai-history-title-scroll 7s ease-in-out infinite;
+.chat-item-title-text {
+  @apply block min-w-max;
+}
+
+.chat-item-title:not(.is-overflowing) .chat-item-title-clone {
+  visibility: hidden;
+}
+
+.chat-list-item:hover .chat-item-title.is-overflowing .chat-item-title-track {
+  color: var(--chat-neon-text);
+  text-shadow:
+    0 0 4px var(--chat-neon-glow),
+    0 0 10px var(--chat-neon-glow-strong);
+  animation: local-ai-history-title-scroll var(--chat-title-scroll-duration)
+    linear infinite;
 }
 
 .chat-item-time {
@@ -1168,23 +1181,19 @@
 }
 
 @keyframes local-ai-history-title-scroll {
-  0%,
-  18% {
+  from {
     transform: translateX(0);
   }
 
-  72%,
-  88% {
-    transform: translateX(calc(-1 * var(--chat-title-scroll-distance)));
-  }
-
-  100% {
-    transform: translateX(0);
+  to {
+    transform: translateX(calc(-1 * var(--chat-title-loop-distance)));
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .chat-item-title-text {
+  .chat-item-title-track {
+    color: inherit !important;
+    text-shadow: none !important;
     animation: none !important;
   }
 }

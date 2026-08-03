@@ -12,11 +12,12 @@ use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use uuid::Uuid;
-use windows::core::{BOOL, PCWSTR};
-use windows::Win32::Foundation::{HWND, LPARAM};
+use windows::core::{BOOL, GUID, HSTRING, PCWSTR};
+use windows::Win32::Foundation::{HWND, LPARAM, PROPERTYKEY};
+use windows::Win32::System::Com::{CoInitialize, CoTaskMemFree};
 use windows::Win32::System::ProcessStatus::{K32EnumProcesses, K32GetModuleFileNameExA};
 use windows::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ};
-use windows::Win32::UI::Shell::ShellExecuteW;
+use windows::Win32::UI::Shell::{IShellItem2, SHCreateItemFromParsingName, ShellExecuteW};
 use windows::Win32::UI::WindowsAndMessaging::{
     BringWindowToTop, EnumWindows, GetWindow, GetWindowThreadProcessId, IsIconic, IsWindowVisible,
     SetForegroundWindow, ShowWindow, SwitchToThisWindow, GW_OWNER, SW_RESTORE, SW_SHOWNORMAL,
@@ -103,7 +104,7 @@ fn get_package_root_for_family(package_family: &str) -> Option<String> {
     let key = hkcu.open_subkey(path).ok()?;
 
     for package_name in key.enum_keys().filter_map(Result::ok) {
-        if !package_name.starts_with(package_family) {
+        if !package_name_matches_family(&package_name, package_family) {
             continue;
         }
 
@@ -117,6 +118,21 @@ fn get_package_root_for_family(package_family: &str) -> Option<String> {
     }
 
     None
+}
+
+fn package_name_matches_family(package_name: &str, package_family: &str) -> bool {
+    let Some((name, publisher_id)) = package_family.rsplit_once('_') else {
+        return package_name.eq_ignore_ascii_case(package_family);
+    };
+    let expected_prefix = format!("{}_", name);
+    let expected_suffix = format!("__{}", publisher_id);
+
+    package_name
+        .get(..expected_prefix.len())
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case(&expected_prefix))
+        && package_name
+            .get(package_name.len().saturating_sub(expected_suffix.len())..)
+            .is_some_and(|suffix| suffix.eq_ignore_ascii_case(&expected_suffix))
 }
 
 fn extract_executable_for_app_id_from_manifest(
@@ -390,13 +406,21 @@ fn get_desktop_shortcuts() -> Vec<AppInfo> {
 
                     let file_name = format_shortcut_title(&raw_file_name);
 
-                    let target_path = resolve_shortcut(&path)
-                        .unwrap_or_else(|| path.to_string_lossy().to_string());
+                    let Some(target_path) = resolve_shortcut(&path) else {
+                        // 解析失败的 .lnk 不能作为应用结果兜底，否则搜索页会展示一个
+                        // 无法启动、也无法提取真实图标的“假应用”。
+                        continue;
+                    };
 
-                    // 检查是否为有效的可执行文件或快捷方式
-                    let is_valid = (target_path.ends_with(".exe")
-                        && Path::new(&target_path).exists())
-                        || target_path.ends_with(".lnk");
+                    let target_extension = Path::new(&target_path)
+                        .extension()
+                        .and_then(|value| value.to_str())
+                        .unwrap_or_default();
+                    let is_valid = is_shell_apps_folder_path(&target_path)
+                        || (["exe", "com", "cmd", "bat"]
+                            .iter()
+                            .any(|extension| target_extension.eq_ignore_ascii_case(extension))
+                            && Path::new(&target_path).exists());
 
                     if is_valid {
                         let lower_target_path = target_path.to_lowercase();
@@ -407,10 +431,18 @@ fn get_desktop_shortcuts() -> Vec<AppInfo> {
                             && !lower_file_name.contains("uninstall")
                             && !lower_file_name.contains("remove")
                         {
+                            // Store/packaged shortcuts are safest to launch through AppsFolder.
+                            // Classic shortcuts keep the .lnk as their launch path so Shell keeps
+                            // shortcut arguments and working-directory metadata intact.
+                            let launch_path = if is_shell_apps_folder_path(&target_path) {
+                                target_path
+                            } else {
+                                path.to_string_lossy().to_string()
+                            };
                             apps.push(AppInfo {
                                 id: Uuid::new_v4().to_string(),
                                 title: file_name,
-                                content: target_path,
+                                content: launch_path,
                                 icon: None,
                                 summarize: "app".to_string(),
                                 usage_count: 0,
@@ -422,6 +454,43 @@ fn get_desktop_shortcuts() -> Vec<AppInfo> {
         }
     }
     apps
+}
+
+const PKEY_LINK_TARGET_PARSING_PATH: PROPERTYKEY = PROPERTYKEY {
+    fmtid: GUID::from_u128(0xb9b4b3fc_2b51_4a42_b5d8_324146afcf25),
+    pid: 2,
+};
+
+fn normalize_shortcut_target(target: String) -> Option<String> {
+    let target = target.trim().trim_matches('\0').trim().to_string();
+    if target.is_empty() {
+        return None;
+    }
+
+    if is_shell_apps_folder_path(&target) {
+        return Some(target);
+    }
+
+    // Store shortcuts commonly expose only an application user model id such
+    // as `OpenAI.Codex_...!App` through System.Link.TargetParsingPath.
+    if target.contains('!') && !target.contains('\\') && !target.contains('/') {
+        return Some(format!("shell:AppsFolder\\{}", target));
+    }
+
+    Some(target)
+}
+
+fn resolve_shortcut_target_property(shortcut_path: &Path) -> Option<String> {
+    let parsing_path = HSTRING::from(shortcut_path.to_string_lossy().as_ref());
+
+    unsafe {
+        let _ = CoInitialize(None);
+        let item: IShellItem2 = SHCreateItemFromParsingName(&parsing_path, None).ok()?;
+        let value = item.GetString(&PKEY_LINK_TARGET_PARSING_PATH).ok()?;
+        let target = value.to_string().ok();
+        CoTaskMemFree(Some(value.0 as *const core::ffi::c_void));
+        target.and_then(normalize_shortcut_target)
+    }
 }
 
 // 解析快捷方式获取目标路径
@@ -467,68 +536,13 @@ fn resolve_shortcut(shortcut_path: &Path) -> Option<String> {
         }
     }
 
-    // 包装在一个独立函数中，避免在出错时影响整个应用程序
-    match resolve_shortcut_with_powershell(shortcut_path) {
-        Ok(Some(path)) => {
-            // info!("成功解析快捷方式: {} -> {}", shortcut_path_str, path);
-            Some(path)
-        }
-        Ok(None) => None,
-        Err(_) => None,
-    }
+    resolve_shortcut_target_property(shortcut_path)
 }
 
-// 使用PowerShell解析快捷方式，但添加错误处理
-fn resolve_shortcut_with_powershell(shortcut_path: &Path) -> Result<Option<String>, String> {
-    let shortcut_path_str = shortcut_path.to_string_lossy().to_string();
-
-    // 使用try_with_timeout包装PowerShell执行，防止长时间阻塞
-    let result = try_with_timeout(
-        move || {
-            let output = std::process::Command::new("powershell")
-            .args([
-                "-NoProfile",
-                "-NonInteractive", // 添加非交互模式，减少显示窗口的机会
-                "-ExecutionPolicy", "Bypass", // 确保脚本可以运行
-                "-Command",
-            ])
-            .arg(format!(
-                "try {{ $shortcut = $(New-Object -ComObject WScript.Shell).CreateShortcut('{}'); $shortcut.TargetPath }} catch {{ Write-Output 'ERROR:' $_.Exception.Message }}",
-                shortcut_path_str.replace("'", "''") // 正确处理路径中的单引号
-            ))
-            .creation_flags(0x08000000) // CREATE_NO_WINDOW 标志，防止窗口闪现
-            .output();
-
-            match output {
-                Ok(output) => {
-                    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-
-                    // 检查PowerShell错误输出
-                    if stdout.starts_with("ERROR:") {
-                        return Err(stdout);
-                    }
-
-                    // 确保得到有效路径
-                    if !stdout.is_empty() && stdout.ends_with(".exe") && Path::new(&stdout).exists()
-                    {
-                        return Ok(Some(stdout));
-                    }
-
-                    Ok(None)
-                }
-                Err(e) => Err(format!("执行PowerShell命令失败: {}", e)),
-            }
-        },
-        std::time::Duration::from_secs(1),
-    );
-
-    match result {
-        Ok(result) => result,
-        Err(_) => Err("解析快捷方式超时".to_string()),
-    }
+pub fn resolve_shortcut_display_path(shortcut_path: &str) -> Option<String> {
+    resolve_shortcut(Path::new(shortcut_path))
 }
 
-// 执行一个操作，如果超时则返回错误
 fn try_with_timeout<T, E, F>(f: F, timeout: std::time::Duration) -> Result<Result<T, E>, ()>
 where
     F: FnOnce() -> Result<T, E> + Send + 'static,
@@ -536,18 +550,13 @@ where
     E: Send + 'static,
 {
     use std::sync::mpsc;
-    use std::thread;
 
     let (tx, rx) = mpsc::channel();
-
-    thread::spawn(move || {
-        tx.send(f()).unwrap_or(());
+    std::thread::spawn(move || {
+        let _ = tx.send(f());
     });
 
-    match rx.recv_timeout(timeout) {
-        Ok(result) => Ok(result),
-        Err(_) => Err(()),
-    }
+    rx.recv_timeout(timeout).map_err(|_| ())
 }
 
 // 获取Windows内置应用
@@ -1587,6 +1596,39 @@ fn open_app_path_as_admin(app_path: &str, launch_path: &str) -> Result<(), Strin
     Ok(())
 }
 
+fn open_app_path_with_shell(app_path: &str, launch_path: &str) -> Result<(), String> {
+    let operation = wide_null(OsStr::new("open"));
+    let file = wide_null(OsStr::new(launch_path));
+    let directory = Path::new(launch_path)
+        .parent()
+        .filter(|path| path.exists())
+        .map(|path| wide_null(path.as_os_str()));
+
+    let result = unsafe {
+        ShellExecuteW(
+            None,
+            PCWSTR(operation.as_ptr()),
+            PCWSTR(file.as_ptr()),
+            PCWSTR::null(),
+            directory
+                .as_ref()
+                .map(|value| PCWSTR(value.as_ptr()))
+                .unwrap_or(PCWSTR::null()),
+            SW_SHOWNORMAL,
+        )
+    };
+
+    let code = result.0 as isize;
+    if code <= 32 {
+        return Err(format!(
+            "启动应用程序失败 '{}': ShellExecuteW 错误 {}",
+            app_path, code
+        ));
+    }
+
+    Ok(())
+}
+
 fn open_app_path_detached(app_path: &str, launch_path: &str) -> Result<(), String> {
     const CREATE_NO_WINDOW: u32 = 0x08000000;
     const DETACHED_PROCESS: u32 = 0x00000008;
@@ -1623,7 +1665,13 @@ pub fn open_app_command(app_handle: tauri::AppHandle, app_path: String) -> Resul
         return Err(format!("应用程序路径不存在: {}", app_path));
     }
 
-    if let Some(hwnd) = find_existing_window(&app_path) {
+    let resolved_path = if app_path.ends_with(".lnk") {
+        resolve_shortcut(Path::new(&app_path)).unwrap_or_else(|| app_path.clone())
+    } else {
+        app_path.clone()
+    };
+
+    if let Some(hwnd) = find_existing_window(&resolved_path) {
         unsafe {
             if IsIconic(hwnd).as_bool() {
                 let _ = ShowWindow(hwnd, SW_RESTORE);
@@ -1635,13 +1683,11 @@ pub fn open_app_command(app_handle: tauri::AppHandle, app_path: String) -> Resul
         return Ok(());
     }
 
-    let actual_path = if app_path.ends_with(".lnk") {
-        resolve_shortcut(Path::new(&app_path)).unwrap_or(app_path.clone())
-    } else {
-        app_path.clone()
-    };
+    if app_path.ends_with(".lnk") {
+        return open_app_path_with_shell(&app_path, &app_path);
+    }
 
-    open_app_path_detached(&app_path, &actual_path)
+    open_app_path_detached(&app_path, &app_path)
 }
 
 pub fn open_app_as_admin_command(
@@ -1659,11 +1705,11 @@ pub fn open_app_as_admin_command(
         return Err(format!("应用程序路径不存在: {}", app_path));
     }
 
-    let actual_path = if app_path.ends_with(".lnk") {
-        resolve_shortcut(path).unwrap_or(app_path.clone())
-    } else {
-        app_path.clone()
-    };
+    if app_path.ends_with(".lnk") {
+        return open_app_path_as_admin(&app_path, &app_path);
+    }
+
+    let actual_path = app_path.clone();
 
     let ps_script = format!(
         "Start-Process -FilePath '{}' -Verb RunAs",
@@ -1706,4 +1752,42 @@ pub fn open_app_file_location_command(
         .map_err(|e| format!("打开应用文件夹失败 '{}': {}", actual_path, e))?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{normalize_shortcut_target, package_name_matches_family};
+
+    #[test]
+    fn normalizes_store_shortcut_app_id() {
+        assert_eq!(
+            normalize_shortcut_target("OpenAI.Codex_2p2nqsd0c76g0!App".to_string()),
+            Some("shell:AppsFolder\\OpenAI.Codex_2p2nqsd0c76g0!App".to_string())
+        );
+    }
+
+    #[test]
+    fn preserves_regular_shortcut_target() {
+        assert_eq!(
+            normalize_shortcut_target(" C:\\Apps\\Example.exe ".to_string()),
+            Some("C:\\Apps\\Example.exe".to_string())
+        );
+    }
+
+    #[test]
+    fn rejects_empty_shortcut_target() {
+        assert_eq!(normalize_shortcut_target("  ".to_string()), None);
+    }
+
+    #[test]
+    fn matches_package_full_name_to_family_name() {
+        assert!(package_name_matches_family(
+            "OpenAI.Codex_1.2.3.0_x64__2p2nqsd0c76g0",
+            "OpenAI.Codex_2p2nqsd0c76g0"
+        ));
+        assert!(!package_name_matches_family(
+            "OpenAI.Codex_1.2.3.0_x64__anotherpublisher",
+            "OpenAI.Codex_2p2nqsd0c76g0"
+        ));
+    }
 }

@@ -142,6 +142,9 @@
   --chat-send-disabled-bg: #eef2f7;
   --chat-send-disabled-text: #7c8799;
   --chat-primary-soft: rgb(95 116 243 / 12%);
+  --chat-neon-text: #4f46e5;
+  --chat-neon-glow: rgb(79 70 229 / 34%);
+  --chat-neon-glow-strong: rgb(34 211 238 / 24%);
   --chat-shadow-sm: 0 2px 8px rgb(15 23 42 / 4%);
   --chat-shadow-md: 0 8px 28px rgb(15 23 42 / 5%);
   --chat-shadow-lg: 0 10px 28px rgb(15 23 42 / 8%);
@@ -310,6 +313,9 @@ html.dark {
   --chat-send-disabled-bg: #2a2a2a;
   --chat-send-disabled-text: #6b7280;
   --chat-primary-soft: rgb(93 109 253 / 15%);
+  --chat-neon-text: #67e8f9;
+  --chat-neon-glow: rgb(103 232 249 / 52%);
+  --chat-neon-glow-strong: rgb(167 139 250 / 42%);
   --chat-shadow-sm: 0 2px 8px rgb(0 0 0 / 20%);
   --chat-shadow-md: 0 8px 28px rgb(0 0 0 / 20%);
   --chat-shadow-lg: 0 10px 28px rgb(0 0 0 / 25%);

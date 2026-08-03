@@ -1588,6 +1588,13 @@ fn register_active_stream(request_id: &str, window_label: &str, cancel_flag: Arc
     }
 }
 
+fn has_active_streams() -> bool {
+    ACTIVE_STREAM_CANCELS
+        .lock()
+        .map(|streams| !streams.is_empty())
+        .unwrap_or(false)
+}
+
 fn remove_active_stream(request_id: &str) {
     if let Ok(mut cancels) = ACTIVE_STREAM_CANCELS.lock() {
         cancels.remove(request_id);
@@ -2014,6 +2021,7 @@ async fn chat_completion_stream(
 
     let cancel_flag = Arc::new(AtomicBool::new(false));
     register_active_stream(&request_id, window.label(), Arc::clone(&cancel_flag));
+    crate::tray::set_ai_response_status(app_handle, true);
     let config = read_config(app_handle);
     let service_result = tokio::select! {
         result = ensure_service_running(app_handle, &config) => Some(result),
@@ -2426,7 +2434,7 @@ pub async fn local_ai_chat_stream(
     request: LocalAiChatRequest,
     request_id: String,
 ) -> Result<LocalAiChatResponse, String> {
-    match chat_completion_stream(
+    let result = match chat_completion_stream(
         &app_handle,
         window.clone(),
         request_id.clone(),
@@ -2450,7 +2458,9 @@ pub async fn local_ai_chat_stream(
             );
             Err(error)
         }
-    }
+    };
+    crate::tray::set_ai_response_status(&app_handle, has_active_streams());
+    result
 }
 
 #[tauri::command]
