@@ -263,7 +263,10 @@ import { useI18n } from 'vue-i18n';
 import SegmentedToggle from '@/components/SegmentedToggle/index.vue';
 import ConfigQuickSearch from '@/components/ConfigQuickSearch/index.vue';
 import { useLayoutStore, usePluginStore } from '@/store';
-import { configNavigationTabs } from '@/plugins/navigation';
+import {
+  configNavigationTabs,
+  isConfigNavigationPathActive
+} from '@/plugins/navigation';
 
 const { t } = useI18n();
 const layoutStore = useLayoutStore();
@@ -330,7 +333,7 @@ const visibleTabs = computed(() =>
 const setActiveTabFromRoute = () => {
   const currentPath = router.currentRoute.value.path;
   const index = visibleTabs.value.findIndex((tab) =>
-    currentPath.startsWith(tab.path)
+    isConfigNavigationPathActive(currentPath, tab.path)
   );
   if (index !== -1) {
     activeTabIndex.value = index;

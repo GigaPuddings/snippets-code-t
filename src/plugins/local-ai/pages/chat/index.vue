@@ -927,6 +927,7 @@ const currentStreamingMessage = shallowRef<ChatMessage | null>(null);
 const PENDING_PROMPT_STORAGE_KEY = 'snippets.localAi.pendingPrompt';
 let promptTransferReady = false;
 let queuedTransferredPrompt: string | null = null;
+let queuedPromptFromSearch = false;
 const config = ref<LocalAiConfig | null>(null);
 const modelScan = ref<LocalAiModelScan | null>(null);
 const selectedChatModelPath = ref('');
@@ -1117,12 +1118,22 @@ const resizeComposerInput = (): void => {
   input.style.overflowY = contentHeight > maxHeight ? 'auto' : 'hidden';
 };
 
-const applyPendingPrompt = (prompt: unknown): void => {
+const applyPendingPrompt = (
+  prompt: unknown,
+  fromSearch = false
+): void => {
   if (typeof prompt !== 'string' || !prompt.trim()) return;
   const normalizedPrompt = prompt.trim();
   if (!promptTransferReady) {
     queuedTransferredPrompt = normalizedPrompt;
+    if (fromSearch) queuedPromptFromSearch = true;
     return;
+  }
+
+  // 当提示词来自快捷搜索窗口时，先创建一个新对话再填充输入框，
+  // 避免将搜索内容追加到已有对话中。
+  if (fromSearch && activeMessages.value.length > 0) {
+    createNewChat();
   }
 
   draft.value = normalizedPrompt;
@@ -1151,7 +1162,7 @@ const takePendingLocalAiPrompt = async (): Promise<string> => {
 const handlePendingPromptEvent = (event: Event): void => {
   const eventPrompt = (event as CustomEvent<unknown>).detail;
   void takePendingLocalAiPrompt().then((pendingPrompt) => {
-    applyPendingPrompt(pendingPrompt || eventPrompt);
+    applyPendingPrompt(pendingPrompt || eventPrompt, true);
   });
 };
 const focusComposer = async (): Promise<void> => {
@@ -2360,12 +2371,14 @@ onMounted(async () => {
   } finally {
     const backendPrompt = await takePendingLocalAiPrompt();
     promptTransferReady = true;
+    const fromSearch = Boolean(backendPrompt) || queuedPromptFromSearch;
     const pendingPrompt =
       backendPrompt ||
       queuedTransferredPrompt ||
       localStorage.getItem(PENDING_PROMPT_STORAGE_KEY);
     queuedTransferredPrompt = null;
-    applyPendingPrompt(pendingPrompt);
+    queuedPromptFromSearch = false;
+    applyPendingPrompt(pendingPrompt, fromSearch);
   }
   statusTimer = setInterval(() => {
     refreshStatus().catch((error) =>
@@ -2379,6 +2392,7 @@ watch(modelSupportsThinking, (supported) => {
 onUnmounted(() => {
   promptTransferReady = false;
   queuedTransferredPrompt = null;
+  queuedPromptFromSearch = false;
   window.removeEventListener('local-ai-prompt-ready', handlePendingPromptEvent);
   if (statusTimer) clearInterval(statusTimer);
   if (scrollFrameId !== null) {

@@ -13,6 +13,11 @@ export interface ConfigNavigationTab {
   pluginId?: PluginId;
 }
 
+export const isConfigNavigationPathActive = (
+  currentPath: string,
+  tabPath: string
+): boolean => currentPath === tabPath || currentPath.startsWith(`${tabPath}/`);
+
 export const configNavigationTabs: ConfigNavigationTab[] = [
   {
     icon: BookOpen,
