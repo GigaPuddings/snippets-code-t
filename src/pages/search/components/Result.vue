@@ -149,7 +149,7 @@ defineExpose({
 
 // 7px
 .top-bar {
-  @apply flex items-center justify-between px-3 py-[0.4375rem] rounded-tl-lg rounded-tr-lg border-b border-search flex-shrink-0;
+  @apply flex items-center justify-between px-3 pb-[0.4375rem] rounded-tl-lg rounded-tr-lg border-b border-search flex-shrink-0;
 
   .tabs-group {
     @apply flex items-center gap-2 min-w-0 overflow-x-auto overflow-y-hidden flex-nowrap;
@@ -177,7 +177,9 @@ defineExpose({
     }
 
     &.active {
-      @apply bg-search-hover text-search border-search;
+      @apply bg-search-hover border-search;
+
+      color: var(--search-result-accent);
 
       .tab-count {
         @apply bg-search text-search;

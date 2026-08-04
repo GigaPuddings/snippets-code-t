@@ -14,16 +14,18 @@ use url::Url;
 use windows::core::HSTRING;
 use windows::Win32::Foundation::SIZE;
 use windows::Win32::Graphics::Gdi::{
-    CreateCompatibleDC, DeleteDC, DeleteObject, GetDIBits, SelectObject, BITMAPINFO,
-    BITMAPINFOHEADER, DIB_RGB_COLORS, HBITMAP, HGDIOBJ,
+    DeleteObject, GetDC, GetDIBits, GetObjectW, ReleaseDC, BITMAP, BITMAPINFO, BITMAPINFOHEADER,
+    DIB_RGB_COLORS, HBITMAP, HGDIOBJ,
 };
 use windows::Win32::System::Com::CoInitialize;
 use windows::Win32::UI::Shell::{
-    IShellItemImageFactory, SHCreateItemFromParsingName, SIIGBF_BIGGERSIZEOK, SIIGBF_ICONONLY,
-    SIIGBF_INCACHEONLY,
+    IShellItemImageFactory, SHCreateItemFromParsingName, SIIGBF_BIGGERSIZEOK, SIIGBF_CROPTOSQUARE,
+    SIIGBF_ICONONLY, SIIGBF_INCACHEONLY,
 };
 
-use crate::apps::{get_installed_apps, is_shell_apps_folder_path, AppInfo};
+use crate::apps::{
+    get_installed_apps, is_shell_apps_folder_path, resolve_shell_apps_folder_icon_source, AppInfo,
+};
 use crate::bookmarks::{
     get_browser_bookmarks, get_favicon_from_browser_cache, get_favicons_from_browser_cache,
     BookmarkInfo,
@@ -42,6 +44,10 @@ pub struct CachedIcon {
 // 图标缓存常数
 const MAX_CACHE_AGE: u64 = 604800; // 7 days in seconds
 const MAX_CACHE_SIZE: usize = 500; // 最多缓存500个图标，防止内存溢出
+const APP_INDEX_STORAGE_SCHEMA_VERSION: u64 = 1;
+const APP_INDEX_EXTRACTOR_VERSION: u64 = 4;
+const BOOKMARK_INDEX_STORAGE_SCHEMA_VERSION: u64 = 1;
+const BOOKMARK_INDEX_EXTRACTOR_VERSION: u64 = 1;
 
 // 全局图标缓存 - 使用 LRU 缓存自动淘汰最少使用的图标
 static ICON_CACHE: Lazy<Arc<Mutex<LruCache<String, CachedIcon>>>> = Lazy::new(|| {
@@ -147,18 +153,29 @@ pub fn extract_icon_from_app(
 // 从可执行文件中提取图标的功能
 pub fn extract_app_icon(app_path: &str) -> Option<String> {
     let cache_epoch = ICON_CACHE_EPOCH.load(Ordering::Acquire);
+    let is_shell_app = is_shell_apps_folder_path(app_path);
+    let cache_key = app_icon_cache_key(app_path, is_shell_app);
     // 首先检查缓存
     if is_icon_cache_enabled() {
-        if let Some(cached_icon) = get_cached_icon(app_path) {
+        if let Some(cached_icon) = get_cached_icon(&cache_key) {
             return Some(cached_icon);
         }
     }
 
     // 验证路径是否存在且为有效文件
-    let is_shell_app = is_shell_apps_folder_path(app_path);
     let path = std::path::Path::new(app_path);
     if !is_shell_app && (!path.exists() || !path.is_file()) {
         return None;
+    }
+
+    // Packaged apps can ship an explicit light-unplated asset. Prefer that
+    // official transparent glyph so it matches this launcher's neutral icon
+    // tile and never inherits the legacy Appx BackgroundColor plate.
+    if is_shell_app {
+        if let Some(base64) = extract_packaged_app_icon(app_path) {
+            cache_extracted_app_icon(app_path, &base64, cache_epoch);
+            return Some(base64);
+        }
     }
 
     // 规范化路径，去除可能的路径问题
@@ -180,157 +197,254 @@ pub fn extract_app_icon(app_path: &str) -> Option<String> {
 
     // info!("提取应用图标: {}", canonical_path);
 
-    unsafe {
-        // 初始化 COM
-        let _ = CoInitialize(None);
+    let shell_icon = unsafe {
+        (|| -> Option<String> {
+            // 初始化 COM
+            let _ = CoInitialize(None);
 
-        // 转换路径为宽字符串
-        let path_hstring = HSTRING::from(canonical_path.as_str());
+            // 转换路径为宽字符串
+            let path_hstring = HSTRING::from(canonical_path.as_str());
 
-        // 创建 Shell 项并直接转换为IShellItemImageFactory
-        let image_factory: IShellItemImageFactory =
-            match SHCreateItemFromParsingName(&path_hstring, None) {
-                Ok(item) => item,
-                Err(_) => return None,
-            };
+            // 创建 Shell 项并直接转换为IShellItemImageFactory
+            let image_factory: IShellItemImageFactory =
+                match SHCreateItemFromParsingName(&path_hstring, None) {
+                    Ok(item) => item,
+                    Err(_) => return None,
+                };
 
-        // 定义图标大小 (48x48 - 更大以获得更好的图标)
-        let size = SIZE { cx: 48, cy: 48 };
+            // 定义图标大小 (48x48 - 更大以获得更好的图标)
+            let size = SIZE { cx: 48, cy: 48 };
 
-        // 获取图标的位图句柄
-        let h_bitmap: HBITMAP = image_factory
-            .GetImage(
-                size,
-                SIIGBF_BIGGERSIZEOK | SIIGBF_ICONONLY | SIIGBF_INCACHEONLY,
-            )
-            .or_else(|_| image_factory.GetImage(size, SIIGBF_BIGGERSIZEOK | SIIGBF_ICONONLY))
-            .ok()?;
+            // 获取图标的位图句柄
+            let h_bitmap: HBITMAP = image_factory
+                .GetImage(
+                    size,
+                    SIIGBF_BIGGERSIZEOK
+                        | SIIGBF_ICONONLY
+                        | SIIGBF_CROPTOSQUARE
+                        | SIIGBF_INCACHEONLY,
+                )
+                .or_else(|_| {
+                    image_factory.GetImage(
+                        size,
+                        SIIGBF_BIGGERSIZEOK | SIIGBF_ICONONLY | SIIGBF_CROPTOSQUARE,
+                    )
+                })
+                .ok()?;
 
-        // 创建设备上下文
-        let hdc = CreateCompatibleDC(None);
-        if hdc.is_invalid() {
-            let _ = DeleteObject(HGDIOBJ(h_bitmap.0));
-            return None;
-        }
-
-        // 选择位图到DC
-        let old_obj = SelectObject(hdc, HGDIOBJ(h_bitmap.0));
-
-        // 准备位图信息
-        let mut bitmap_info = BITMAPINFO {
-            bmiHeader: BITMAPINFOHEADER {
-                biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
-                biWidth: 48,
-                biHeight: -48, // 负值表示自上而下的DIB
-                biPlanes: 1,
-                biBitCount: 32,
-                biCompression: 0, // BI_RGB is 0
-                biSizeImage: 0,
-                biXPelsPerMeter: 0,
-                biYPelsPerMeter: 0,
-                biClrUsed: 0,
-                biClrImportant: 0,
-            },
-            bmiColors: [windows::Win32::Graphics::Gdi::RGBQUAD::default()],
-        };
-
-        // 分配内存存储像素数据 (BGRA 格式)
-        let buffer_size = 48 * 48 * 4;
-        let mut buffer = vec![0u8; buffer_size];
-
-        // 获取位图数据
-        let result = GetDIBits(
-            hdc,
-            h_bitmap,
-            0,
-            48,
-            Some(buffer.as_mut_ptr() as *mut core::ffi::c_void),
-            &mut bitmap_info,
-            DIB_RGB_COLORS,
-        );
-
-        // 清理资源
-        SelectObject(hdc, old_obj);
-        let _ = DeleteDC(hdc);
-        let _ = DeleteObject(HGDIOBJ(h_bitmap.0));
-
-        if result == 0 {
-            return None;
-        }
-
-        // info!("成功获取位图数据，大小: {}", buffer.len());
-
-        // 检查透明度和数据有效性
-        // let mut has_transparency = false;
-        let mut non_zero_pixels = 0;
-
-        for i in (0..buffer.len()).step_by(4) {
-            if i + 3 < buffer.len() {
-                if buffer[i] != 0 || buffer[i + 1] != 0 || buffer[i + 2] != 0 {
-                    non_zero_pixels += 1;
-                }
-                // if buffer[i+3] != 255 {
-                //     has_transparency = true;
-                // }
-
-                // 确保Alpha通道正确
-                if buffer[i + 3] == 0 {
-                    // 完全透明像素的RGB应该为0
-                    buffer[i] = 0;
-                    buffer[i + 1] = 0;
-                    buffer[i + 2] = 0;
-                }
-
-                // 交换B和R通道 (BGRA -> RGBA)
-                buffer.swap(i, i + 2);
-            }
-        }
-
-        // info!("图像分析 - 非零像素: {}, 有透明度: {}", non_zero_pixels, has_transparency);
-
-        if non_zero_pixels == 0 {
-            // info!("图标数据无效 - 全黑");
-            return None;
-        }
-
-        // 使用PNG库编码图标
-        let mut png_data = Vec::new();
-        {
-            let mut encoder = png::Encoder::new(Cursor::new(&mut png_data), 48, 48);
-            encoder.set_color(png::ColorType::Rgba);
-            encoder.set_depth(png::BitDepth::Eight);
-
-            let mut writer = match encoder.write_header() {
-                Ok(writer) => writer,
-                Err(_) => return None,
-            };
-
-            if writer.write_image_data(&buffer).is_err() {
+            // Read the actual bitmap dimensions returned by the Shell. With
+            // BIGGERSIZEOK it may be larger than the requested 48px.
+            let mut bitmap = BITMAP::default();
+            if GetObjectW(
+                HGDIOBJ(h_bitmap.0),
+                std::mem::size_of::<BITMAP>() as i32,
+                Some((&mut bitmap as *mut BITMAP).cast()),
+            ) == 0
+            {
+                let _ = DeleteObject(HGDIOBJ(h_bitmap.0));
                 return None;
             }
-        }
+            let bitmap_width = bitmap.bmWidth.unsigned_abs().max(1);
+            let bitmap_height = bitmap.bmHeight.unsigned_abs().max(1);
 
-        // info!("PNG编码成功，大小: {}", png_data.len());
+            // GetDIBits requires the bitmap not to be selected into a DC. Use the
+            // screen DC exactly as established launcher implementations do.
+            let hdc = GetDC(None);
+            if hdc.is_invalid() {
+                let _ = DeleteObject(HGDIOBJ(h_bitmap.0));
+                return None;
+            }
 
-        // 转换为base64
-        let base64 = format!("data:image/png;base64,{}", STANDARD.encode(&png_data));
-
-        // 清理缓存期间已经开始的旧任务不得在 DELETE 完成后把旧代次写回。
-        if is_icon_cache_enabled() && ICON_CACHE_EPOCH.load(Ordering::Acquire) == cache_epoch {
-            let cached_icon = CachedIcon {
-                data: base64.clone(),
-                timestamp: SystemTime::now()
-                    .duration_since(SystemTime::UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_secs(),
-                source_mtime: icon_source_mtime(app_path),
+            // 准备位图信息
+            let mut bitmap_info = BITMAPINFO {
+                bmiHeader: BITMAPINFOHEADER {
+                    biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
+                    biWidth: bitmap_width as i32,
+                    biHeight: -(bitmap_height as i32), // 负值表示自上而下的DIB
+                    biPlanes: 1,
+                    biBitCount: 32,
+                    biCompression: 0, // BI_RGB is 0
+                    biSizeImage: 0,
+                    biXPelsPerMeter: 0,
+                    biYPelsPerMeter: 0,
+                    biClrUsed: 0,
+                    biClrImportant: 0,
+                },
+                bmiColors: [windows::Win32::Graphics::Gdi::RGBQUAD::default()],
             };
-            cache_icon(app_path, cached_icon);
-        }
 
-        // info!("图标提取成功，Base64长度: {}", base64.len());
+            // 分配内存存储像素数据 (BGRA 格式)
+            let buffer_size = bitmap_width as usize * bitmap_height as usize * 4;
+            let mut buffer = vec![0u8; buffer_size];
 
-        Some(base64)
+            // 获取位图数据
+            let result = GetDIBits(
+                hdc,
+                h_bitmap,
+                0,
+                bitmap_height,
+                Some(buffer.as_mut_ptr() as *mut core::ffi::c_void),
+                &mut bitmap_info,
+                DIB_RGB_COLORS,
+            );
+
+            // 清理资源
+            ReleaseDC(None, hdc);
+            let _ = DeleteObject(HGDIOBJ(h_bitmap.0));
+
+            if result == 0 {
+                return None;
+            }
+
+            // info!("成功获取位图数据，大小: {}", buffer.len());
+
+            // 检查透明度和数据有效性
+            // let mut has_transparency = false;
+            let mut non_zero_pixels = 0;
+
+            for i in (0..buffer.len()).step_by(4) {
+                if i + 3 < buffer.len() {
+                    if buffer[i] != 0 || buffer[i + 1] != 0 || buffer[i + 2] != 0 {
+                        non_zero_pixels += 1;
+                    }
+                    // if buffer[i+3] != 255 {
+                    //     has_transparency = true;
+                    // }
+
+                    // 确保Alpha通道正确
+                    if buffer[i + 3] == 0 {
+                        // 完全透明像素的RGB应该为0
+                        buffer[i] = 0;
+                        buffer[i + 1] = 0;
+                        buffer[i + 2] = 0;
+                    }
+
+                    // 交换B和R通道 (BGRA -> RGBA)
+                    buffer.swap(i, i + 2);
+                }
+            }
+
+            // info!("图像分析 - 非零像素: {}, 有透明度: {}", non_zero_pixels, has_transparency);
+
+            if non_zero_pixels == 0 {
+                // info!("图标数据无效 - 全黑");
+                return None;
+            }
+
+            // 使用PNG库编码图标
+            let mut png_data = Vec::new();
+            {
+                let mut encoder =
+                    png::Encoder::new(Cursor::new(&mut png_data), bitmap_width, bitmap_height);
+                encoder.set_color(png::ColorType::Rgba);
+                encoder.set_depth(png::BitDepth::Eight);
+
+                let mut writer = match encoder.write_header() {
+                    Ok(writer) => writer,
+                    Err(_) => return None,
+                };
+
+                if writer.write_image_data(&buffer).is_err() {
+                    return None;
+                }
+            }
+
+            // info!("PNG编码成功，大小: {}", png_data.len());
+
+            // 转换为base64
+            let base64 = format!("data:image/png;base64,{}", STANDARD.encode(&png_data));
+
+            // 清理缓存期间已经开始的旧任务不得在 DELETE 完成后把旧代次写回。
+            if is_icon_cache_enabled() && ICON_CACHE_EPOCH.load(Ordering::Acquire) == cache_epoch {
+                let cached_icon = CachedIcon {
+                    data: base64.clone(),
+                    timestamp: SystemTime::now()
+                        .duration_since(SystemTime::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs(),
+                    source_mtime: icon_source_mtime(app_path),
+                };
+                cache_icon(&cache_key, cached_icon);
+            }
+
+            // info!("图标提取成功，Base64长度: {}", base64.len());
+
+            Some(base64)
+        })()
+    };
+
+    if shell_icon.is_some() {
+        return shell_icon;
+    }
+
+    None
+}
+
+fn extract_packaged_app_icon(app_path: &str) -> Option<String> {
+    let (logo_path, _background_color) = resolve_shell_apps_folder_icon_source(app_path)?;
+    let source = image::open(&logo_path).ok()?.into_rgba8();
+    let (source_width, source_height) = source.dimensions();
+    if source_width == 0 || source_height == 0 {
+        return None;
+    }
+
+    const ICON_SIZE: u32 = 48;
+    let scale =
+        (ICON_SIZE as f32 / source_width as f32).min(ICON_SIZE as f32 / source_height as f32);
+    let target_width = ((source_width as f32 * scale).round() as u32).max(1);
+    let target_height = ((source_height as f32 * scale).round() as u32).max(1);
+    let resized = image::imageops::resize(
+        &source,
+        target_width,
+        target_height,
+        image::imageops::FilterType::Lanczos3,
+    );
+    let mut canvas = image::RgbaImage::from_pixel(ICON_SIZE, ICON_SIZE, image::Rgba([0, 0, 0, 0]));
+    let offset_x = i64::from((ICON_SIZE - target_width) / 2);
+    let offset_y = i64::from((ICON_SIZE - target_height) / 2);
+    image::imageops::overlay(&mut canvas, &resized, offset_x, offset_y);
+
+    let mut png_data = Vec::new();
+    {
+        let mut encoder = png::Encoder::new(Cursor::new(&mut png_data), ICON_SIZE, ICON_SIZE);
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        let mut writer = encoder.write_header().ok()?;
+        writer.write_image_data(canvas.as_raw()).ok()?;
+    }
+
+    Some(format!(
+        "data:image/png;base64,{}",
+        STANDARD.encode(png_data)
+    ))
+}
+
+fn cache_extracted_app_icon(app_path: &str, data: &str, cache_epoch: u64) {
+    if !is_icon_cache_enabled() || ICON_CACHE_EPOCH.load(Ordering::Acquire) != cache_epoch {
+        return;
+    }
+
+    cache_icon(
+        &app_icon_cache_key(app_path, is_shell_apps_folder_path(app_path)),
+        CachedIcon {
+            data: data.to_string(),
+            timestamp: SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
+            source_mtime: None,
+        },
+    );
+}
+
+fn app_icon_cache_key(app_path: &str, is_shell_app: bool) -> String {
+    if is_shell_app {
+        // Version the derived AppsFolder bitmap independently from the app id.
+        // Older cache entries may contain a plated tile rather than the
+        // official unplated Shell icon.
+        format!("packaged-app-icon-v3:{}", app_path)
+    } else {
+        app_path.to_string()
     }
 }
 
@@ -867,6 +981,18 @@ fn run_app_and_bookmark_initialization(
     // 检查数据库中是否已有数据
     let scanned_apps_count = db::count_scanned_apps().unwrap_or(0);
     let scanned_bookmarks_count = db::count_scanned_bookmarks().unwrap_or(0);
+    let apps_index_stale = db::index_needs_refresh(
+        "apps",
+        APP_INDEX_STORAGE_SCHEMA_VERSION,
+        APP_INDEX_EXTRACTOR_VERSION,
+    )
+    .unwrap_or(true);
+    let bookmarks_index_stale = db::index_needs_refresh(
+        "bookmarks",
+        BOOKMARK_INDEX_STORAGE_SCHEMA_VERSION,
+        BOOKMARK_INDEX_EXTRACTOR_VERSION,
+    )
+    .unwrap_or(true);
 
     let pending_reset_kind = db::peek_show_progress_kind(app_handle);
     let launcher_reset_pending = force_rebuild
@@ -875,7 +1001,12 @@ fn run_app_and_bookmark_initialization(
             Some("all" | "apps" | "bookmarks" | "launcher")
         );
 
-    if scanned_apps_count > 0 && scanned_bookmarks_count > 0 && !launcher_reset_pending {
+    if scanned_apps_count > 0
+        && scanned_bookmarks_count > 0
+        && !apps_index_stale
+        && !bookmarks_index_stale
+        && !launcher_reset_pending
+    {
         load_missing_icons(app_handle.clone(), generation);
         return;
     }
@@ -907,9 +1038,11 @@ fn run_app_and_bookmark_initialization(
     let mut bookmarks_to_load = Vec::new();
 
     let reset_kind = progress_reset_kind.as_deref();
-    let scan_apps =
-        scanned_apps_count == 0 || matches!(reset_kind, Some("all" | "apps" | "launcher"));
+    let scan_apps = scanned_apps_count == 0
+        || apps_index_stale
+        || matches!(reset_kind, Some("all" | "apps" | "launcher"));
     let scan_bookmarks = scanned_bookmarks_count == 0
+        || bookmarks_index_stale
         || matches!(reset_kind, Some("all" | "bookmarks" | "launcher"));
     let scan_desktop_files = crate::app_config::is_plugin_enabled(app_handle, "desktop-files")
         && matches!(reset_kind, Some("all" | "desktopFiles"));
@@ -944,8 +1077,9 @@ fn run_app_and_bookmark_initialization(
             base_steps.max(1),
             &format!("共 {} 个应用", apps_to_load.len()),
         );
-        let replace_scanned_index =
-            force_rebuild || matches!(reset_kind, Some("all" | "apps" | "launcher"));
+        let replace_scanned_index = force_rebuild
+            || apps_index_stale
+            || matches!(reset_kind, Some("all" | "apps" | "launcher"));
         let persist_result = if replace_scanned_index {
             db::replace_apps(&apps_to_load)
         } else {
@@ -954,7 +1088,11 @@ fn run_app_and_bookmark_initialization(
         if let Err(e) = persist_result {
             log::error!("插入应用到数据库失败: {}", e);
         } else {
-            let _ = db::mark_index_success("apps", 1, 1);
+            let _ = db::mark_index_success(
+                "apps",
+                APP_INDEX_STORAGE_SCHEMA_VERSION,
+                APP_INDEX_EXTRACTOR_VERSION,
+            );
         }
         current_step += 1;
     }
@@ -986,8 +1124,9 @@ fn run_app_and_bookmark_initialization(
             base_steps.max(1),
             &format!("共 {} 个书签", bookmarks_to_load.len()),
         );
-        let replace_scanned_index =
-            force_rebuild || matches!(reset_kind, Some("all" | "bookmarks" | "launcher"));
+        let replace_scanned_index = force_rebuild
+            || bookmarks_index_stale
+            || matches!(reset_kind, Some("all" | "bookmarks" | "launcher"));
         let persist_result = if replace_scanned_index {
             db::replace_bookmarks(&bookmarks_to_load)
         } else {
@@ -996,7 +1135,11 @@ fn run_app_and_bookmark_initialization(
         if let Err(e) = persist_result {
             log::error!("插入书签到数据库失败: {}", e);
         } else {
-            let _ = db::mark_index_success("bookmarks", 1, 1);
+            let _ = db::mark_index_success(
+                "bookmarks",
+                BOOKMARK_INDEX_STORAGE_SCHEMA_VERSION,
+                BOOKMARK_INDEX_EXTRACTOR_VERSION,
+            );
         }
         current_step += 1;
     }

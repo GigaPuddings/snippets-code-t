@@ -5,8 +5,15 @@
   >
     <!-- 左侧：品牌 + 版本号；宽屏时含导航 -->
     <div class="titlebar-left" data-tauri-drag-region>
-      <img src="@/assets/128x128.png" alt="" class="titlebar-logo" data-tauri-drag-region />
-      <span class="titlebar-app-name" data-tauri-drag-region>{{ state.appName }}</span>
+      <img
+        src="@/assets/128x128.png"
+        alt=""
+        class="titlebar-logo"
+        data-tauri-drag-region
+      />
+      <span class="titlebar-app-name" data-tauri-drag-region>
+        {{ state.appName }}
+      </span>
       <!-- <span class="titlebar-app-version">{{ state.appVersion }}</span> -->
       <div v-show="!isNarrow" class="titlebar-nav">
         <SegmentedToggle
@@ -42,8 +49,15 @@
         @mousedown.stop
         @click.stop="openConfigQuickSearch"
       >
-        <search class="quick-search-icon" theme="outline" size="15" :strokeWidth="3" />
-        <span class="quick-search-placeholder">{{ $t('titlebar.quickSearchPlaceholder') }}</span>
+        <search
+          class="quick-search-icon"
+          theme="outline"
+          size="15"
+          :strokeWidth="3"
+        />
+        <span class="quick-search-placeholder">
+          {{ $t('titlebar.quickSearchPlaceholder') }}
+        </span>
         <span class="quick-search-shortcut">Ctrl K</span>
       </button>
     </div>
@@ -55,7 +69,11 @@
         <div
           class="titlebar-button"
           @click="handleTitlebar('isAlwaysOnTop')"
-          :title="isAlwaysOnTop ? $t('titlebar.unpinWindow') : $t('titlebar.pinWindow')"
+          :title="
+            isAlwaysOnTop
+              ? $t('titlebar.unpinWindow')
+              : $t('titlebar.pinWindow')
+          "
           :aria-label="$t('titlebar.pinWindow')"
         >
           <component
@@ -124,21 +142,48 @@
         <template #dropdown>
           <el-dropdown-menu>
             <el-dropdown-item command="userCenter">
-              <me theme="outline" size="16" :strokeWidth="3" class="align-middle" />
+              <me
+                theme="outline"
+                size="16"
+                :strokeWidth="3"
+                class="align-middle"
+              />
               <span class="ml-2">{{ $t('titlebar.userCenter') }}</span>
             </el-dropdown-item>
             <!-- 窄屏时更多里才显示插件动作 / 置顶 -->
             <el-dropdown-item command="checkUpdate">
-              <update-rotation theme="outline" size="16" :strokeWidth="3" class="align-middle" />
+              <update-rotation
+                theme="outline"
+                size="16"
+                :strokeWidth="3"
+                class="align-middle"
+              />
               <span class="ml-2">{{ $t('titlebar.checkUpdate') }}</span>
               <span v-if="hasUpdate" class="update-dot-inline"></span>
             </el-dropdown-item>
             <el-dropdown-item v-if="isNarrow" command="pinWindow">
-              <component :is="isAlwaysOnTop ? Pushpin : Pin" theme="outline" size="16" :strokeWidth="3" class="align-middle" />
-              <span class="ml-2">{{ isAlwaysOnTop ? $t('titlebar.unpinWindow') : $t('titlebar.pinWindow') }}</span>
+              <component
+                :is="isAlwaysOnTop ? Pushpin : Pin"
+                theme="outline"
+                size="16"
+                :strokeWidth="3"
+                class="align-middle"
+              />
+              <span class="ml-2">
+                {{
+                  isAlwaysOnTop
+                    ? $t('titlebar.unpinWindow')
+                    : $t('titlebar.pinWindow')
+                }}
+              </span>
             </el-dropdown-item>
             <el-dropdown-item command="settings">
-              <setting-two theme="outline" size="16" :strokeWidth="3" class="align-middle" />
+              <setting-two
+                theme="outline"
+                size="16"
+                :strokeWidth="3"
+                class="align-middle"
+              />
               <span class="ml-2">{{ $t('titlebar.settings') }}</span>
             </el-dropdown-item>
           </el-dropdown-menu>
@@ -146,7 +191,7 @@
       </el-dropdown>
 
       <div class="titlebar-divider titlebar-divider--thick"></div>
-      
+
       <div
         class="titlebar-button titlebar-button--window"
         @click="handleTitlebar('minimize')"
@@ -205,7 +250,7 @@ import {
   SettingTwo,
   Me,
   MoreOne,
-  Search,
+  Search
   // ViewList,
   // MenuFoldOne,
   // MenuUnfoldOne
@@ -228,8 +273,12 @@ const pluginStore = usePluginStore();
 const TITLEBAR_NARROW_BREAKPOINT = 720;
 const TITLEBAR_SEARCH_BREAKPOINT = 980;
 
-const isNarrow = computed(() => layoutStore.windowWidth <= TITLEBAR_NARROW_BREAKPOINT);
-const hideQuickSearch = computed(() => layoutStore.windowWidth <= TITLEBAR_SEARCH_BREAKPOINT);
+const isNarrow = computed(
+  () => layoutStore.windowWidth <= TITLEBAR_NARROW_BREAKPOINT
+);
+const hideQuickSearch = computed(
+  () => layoutStore.windowWidth <= TITLEBAR_SEARCH_BREAKPOINT
+);
 
 // 窄屏下拉菜单 ref，用于在 isNarrow 变为 false 时主动关闭
 const moreDropdownRef = ref();
@@ -270,14 +319,19 @@ const quickSearchVisible = ref(false);
 // 当前激活的tab索引
 const activeTabIndex = ref(0);
 
-const visibleTabs = computed(() => (
-  configNavigationTabs.filter((tab) => !tab.pluginId || pluginStore.isEnabled(tab.pluginId))
-));
+const visibleTabs = computed(() =>
+  configNavigationTabs.filter(
+    (tab) => !tab.pluginId || pluginStore.isEnabled(tab.pluginId)
+  )
+);
 
-// 根据当前路由设置激活的tab
+// 根据当前路由设置激活的 tab。插件启用状态初始化后 visibleTabs 会异步变化，
+// 因此路由和可见 Tab 列表都必须触发同步，避免索引停留在上一个页面。
 const setActiveTabFromRoute = () => {
   const currentPath = router.currentRoute.value.path;
-  const index = visibleTabs.value.findIndex((tab) => currentPath.startsWith(tab.path));
+  const index = visibleTabs.value.findIndex((tab) =>
+    currentPath.startsWith(tab.path)
+  );
   if (index !== -1) {
     activeTabIndex.value = index;
   }
@@ -392,12 +446,14 @@ onMounted(async () => {
 
   // 设置初始激活的tab
   setActiveTabFromRoute();
-
 });
 
 // 监听路由变化，同步更新activeTabIndex
 watch(
-  () => router.currentRoute.value.path,
+  [
+    () => router.currentRoute.value.path,
+    () => visibleTabs.value.map((tab) => tab.path).join('|')
+  ],
   () => {
     setActiveTabFromRoute();
   },
@@ -555,16 +611,16 @@ onUnmounted(() => {
   cursor: pointer;
   border-radius: 4px;
   transition: all 0.2s ease;
-  
+
   &:hover {
     background-color: rgba(93, 109, 253, 0.08);
-    
+
     .icon {
       color: #5d6dfd;
       background-color: transparent !important;
     }
   }
-  
+
   &--update {
     &:hover .icon {
       @apply animate-spin;
@@ -573,29 +629,29 @@ onUnmounted(() => {
       background-color: transparent !important;
     }
   }
-  
+
   &--window {
     &:hover {
       background-color: rgba(93, 109, 253, 0.08);
-      
+
       .icon {
         color: #5d6dfd;
         background-color: transparent !important;
       }
     }
   }
-  
+
   &--close {
     &:hover {
       background-color: rgba(239, 68, 68, 0.1);
-      
+
       .icon {
         color: #ef4444;
         background-color: transparent !important;
       }
     }
   }
-  
+
   &:hover {
     .update-dot {
       @apply animate-none;
@@ -614,7 +670,7 @@ onUnmounted(() => {
   background: rgba(0, 0, 0, 0.15);
   flex-shrink: 0;
   box-shadow: 1px 0 0 rgba(255, 255, 255, 0.1);
-  
+
   &--thick {
     width: 1px;
     background: rgba(0, 0, 0, 0.2);
@@ -626,7 +682,7 @@ onUnmounted(() => {
 .dark .titlebar-divider {
   background: rgba(255, 255, 255, 0.1);
   box-shadow: 1px 0 0 rgba(255, 255, 255, 0.05);
-  
+
   &--thick {
     background: rgba(255, 255, 255, 0.15);
     box-shadow: 1px 0 0 rgba(255, 255, 255, 0.08);
@@ -651,11 +707,11 @@ onUnmounted(() => {
     color: #5d6dfd;
     background-color: rgba(93, 109, 253, 0.08);
   }
-  
+
   &.icon-active {
     color: #5d6dfd;
     background-color: rgba(93, 109, 253, 0.1);
-    
+
     &:hover {
       background-color: rgba(93, 109, 253, 0.15);
     }
@@ -669,7 +725,8 @@ onUnmounted(() => {
 }
 
 @keyframes pulse-dot {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
     transform: scale(1);
   }
@@ -705,7 +762,6 @@ onUnmounted(() => {
   .quick-search-shortcut {
     display: none;
   }
-
 }
 
 /* 极窄屏（≤640px）：应用名可截断；窄屏布局由 isNarrow 控制，此处仅保留版本号 */

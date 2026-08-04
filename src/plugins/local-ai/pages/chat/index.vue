@@ -781,6 +781,7 @@
 <script setup lang="ts">
 import type { ObjectDirective } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { invoke } from '@tauri-apps/api/core';
 import {
   Brain,
   Copy,
@@ -924,6 +925,8 @@ const showJumpToBottom = ref(false);
 const currentStreamRequestId = ref<string | null>(null);
 const currentStreamingMessage = shallowRef<ChatMessage | null>(null);
 const PENDING_PROMPT_STORAGE_KEY = 'snippets.localAi.pendingPrompt';
+let promptTransferReady = false;
+let queuedTransferredPrompt: string | null = null;
 const config = ref<LocalAiConfig | null>(null);
 const modelScan = ref<LocalAiModelScan | null>(null);
 const selectedChatModelPath = ref('');
@@ -1116,16 +1119,40 @@ const resizeComposerInput = (): void => {
 
 const applyPendingPrompt = (prompt: unknown): void => {
   if (typeof prompt !== 'string' || !prompt.trim()) return;
-  draft.value = prompt.trim();
-  localStorage.removeItem(PENDING_PROMPT_STORAGE_KEY);
+  const normalizedPrompt = prompt.trim();
+  if (!promptTransferReady) {
+    queuedTransferredPrompt = normalizedPrompt;
+    return;
+  }
+
+  draft.value = normalizedPrompt;
   nextTick(() => {
     resizeComposerInput();
     composerInputRef.value?.focus();
   });
 };
 
+const takePendingLocalAiPrompt = async (): Promise<string> => {
+  try {
+    const prompt = await invoke<string | null>('take_pending_local_ai_prompt');
+    const normalizedPrompt = typeof prompt === 'string' ? prompt.trim() : '';
+    if (normalizedPrompt) {
+      // 插件运行时初始化期间组件可能重挂载。先写入当前 config WebView 的
+      // 草稿存储，后续稳定实例仍能恢复已从 Rust 一次性队列取出的提示词。
+      localStorage.setItem(PENDING_PROMPT_STORAGE_KEY, normalizedPrompt);
+    }
+    return normalizedPrompt;
+  } catch (error) {
+    logger.warn('[LocalAI] take pending prompt failed', error);
+    return '';
+  }
+};
+
 const handlePendingPromptEvent = (event: Event): void => {
-  applyPendingPrompt((event as CustomEvent<unknown>).detail);
+  const eventPrompt = (event as CustomEvent<unknown>).detail;
+  void takePendingLocalAiPrompt().then((pendingPrompt) => {
+    applyPendingPrompt(pendingPrompt || eventPrompt);
+  });
 };
 const focusComposer = async (): Promise<void> => {
   await nextTick();
@@ -1133,6 +1160,20 @@ const focusComposer = async (): Promise<void> => {
   composerInputRef.value?.focus();
 };
 watch(draft, resizeComposerInput, { flush: 'post' });
+watch(
+  draft,
+  (value) => {
+    // refreshAll 会在插件启动阶段重置 draft；此时不能清掉刚转移过来的提示词。
+    if (!promptTransferReady) return;
+    const normalizedDraft = value.trim();
+    if (normalizedDraft) {
+      localStorage.setItem(PENDING_PROMPT_STORAGE_KEY, value);
+    } else {
+      localStorage.removeItem(PENDING_PROMPT_STORAGE_KEY);
+    }
+  },
+  { flush: 'sync' }
+);
 const applyQuickPrompt = (key: string): void => {
   draft.value = t(key);
   void focusComposer();
@@ -2314,7 +2355,18 @@ onMounted(async () => {
   window.addEventListener('pointerup', finishMessagePointerScroll);
   window.addEventListener('pointercancel', finishMessagePointerScroll);
   window.addEventListener('keydown', handleGlobalKeydown);
-  await refreshAll();
+  try {
+    await refreshAll();
+  } finally {
+    const backendPrompt = await takePendingLocalAiPrompt();
+    promptTransferReady = true;
+    const pendingPrompt =
+      backendPrompt ||
+      queuedTransferredPrompt ||
+      localStorage.getItem(PENDING_PROMPT_STORAGE_KEY);
+    queuedTransferredPrompt = null;
+    applyPendingPrompt(pendingPrompt);
+  }
   statusTimer = setInterval(() => {
     refreshStatus().catch((error) =>
       logger.warn('[LocalAI] status timer failed', error)
@@ -2325,6 +2377,8 @@ watch(modelSupportsThinking, (supported) => {
   if (!supported) thinkingEnabled.value = false;
 });
 onUnmounted(() => {
+  promptTransferReady = false;
+  queuedTransferredPrompt = null;
   window.removeEventListener('local-ai-prompt-ready', handlePendingPromptEvent);
   if (statusTimer) clearInterval(statusTimer);
   if (scrollFrameId !== null) {

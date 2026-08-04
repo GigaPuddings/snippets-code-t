@@ -733,7 +733,7 @@ const stopService = async () => {
   }
 };
 const openChat = () => {
-  window.location.hash = '#/local-ai/chat';
+  window.location.hash = '#/config/local-ai/chat';
 };
 
 onMounted(async () => {

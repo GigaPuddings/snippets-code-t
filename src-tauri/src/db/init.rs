@@ -43,6 +43,29 @@ pub fn mark_index_success(
     Ok(())
 }
 
+pub fn index_needs_refresh(
+    source: &str,
+    storage_schema_version: u64,
+    extractor_version: u64,
+) -> Result<bool, rusqlite::Error> {
+    let conn = DbConnectionManager::get()?;
+    let versions = conn.query_row(
+        "SELECT storage_schema_version, extractor_version
+         FROM index_meta
+         WHERE source = ?1",
+        [source],
+        |row| Ok((row.get::<_, u64>(0)?, row.get::<_, u64>(1)?)),
+    );
+
+    match versions {
+        Ok((stored_schema, stored_extractor)) => {
+            Ok(stored_schema != storage_schema_version || stored_extractor != extractor_version)
+        }
+        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(true),
+        Err(error) => Err(error),
+    }
+}
+
 fn create_data_contract_tables(conn: &rusqlite::Connection) -> Result<(), rusqlite::Error> {
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS schema_migrations (

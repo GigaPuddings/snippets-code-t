@@ -33,9 +33,9 @@ export const configNavigationTabs: ConfigNavigationTab[] = [
     path: '/config/todo',
     pluginId: 'todo'
   },
-    {
+  {
     icon: Robot,
-    path: '/local-ai/chat',
+    path: '/config/local-ai/chat',
     pluginId: 'local-ai'
   }
 ];

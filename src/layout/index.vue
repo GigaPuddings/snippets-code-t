@@ -7,18 +7,44 @@ import { useConfigurationStore } from '@/store';
 import { listen } from '@tauri-apps/api/event';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { logger } from '@/utils/logger';
 import { useRouter } from 'vue-router';
 import type { ConfigContentNavigationPayload } from '@/pages/search/composables/openConfigContent';
 
 const store = useConfigurationStore();
 const router = useRouter();
+const isConfigWindow = getCurrentWindow().label === 'config';
 let unlistenConfigContentNavigation: UnlistenFn | null = null;
 let unlistenLocalAiNavigation: UnlistenFn | null = null;
 
 interface LocalAiNavigationPayload {
   prompt?: string;
 }
+
+const PENDING_LOCAL_AI_PROMPT_STORAGE_KEY = 'snippets.localAi.pendingPrompt';
+
+const normalizeLocalAiPrompt = (value: unknown): string =>
+  typeof value === 'string' ? value.trim() : '';
+
+const navigateToLocalAiChat = async (
+  fallbackPrompt?: unknown,
+  forceNavigation = false
+): Promise<void> => {
+  const prompt = normalizeLocalAiPrompt(fallbackPrompt);
+  if (!forceNavigation && !prompt) return;
+
+  if (prompt) {
+    localStorage.setItem(PENDING_LOCAL_AI_PROMPT_STORAGE_KEY, prompt);
+  }
+  await router.push('/config/local-ai/chat');
+  await nextTick();
+  if (prompt) {
+    window.dispatchEvent(
+      new CustomEvent('local-ai-prompt-ready', { detail: prompt })
+    );
+  }
+};
 
 interface ThemeChangedPayload {
   source?: string;
@@ -30,41 +56,34 @@ const normalizeFragmentId = (id: unknown): string =>
   String(id ?? '').replace(/^markdown:/i, '');
 
 onMounted(async () => {
-  // Layout remains mounted while the config window switches to plugin pages.
-  // Keep cross-window content navigation here so AI chat and other tabs can
-  // always be reset back to the requested config content route.
-  unlistenConfigContentNavigation =
-    await listen<ConfigContentNavigationPayload>(
-      'navigate-to-config-content',
-      async ({ payload }) => {
-        const fragmentId = normalizeFragmentId(payload?.fragmentId);
-        const categoryId = String(payload?.categoryId ?? '');
-        if (!fragmentId || !categoryId) return;
+  if (isConfigWindow) {
+    // Layout also renders inside the quick-search WebView. Cross-window
+    // navigation must only be consumed by config, otherwise the search window
+    // itself is routed into the target page and can steal one-time payloads.
+    unlistenConfigContentNavigation =
+      await listen<ConfigContentNavigationPayload>(
+        'navigate-to-config-content',
+        async ({ payload }) => {
+          const fragmentId = normalizeFragmentId(payload?.fragmentId);
+          const categoryId = String(payload?.categoryId ?? '');
+          if (!fragmentId || !categoryId) return;
 
-        localStorage.removeItem('pendingNavigation');
-        localStorage.removeItem('pendingSnippetOpen');
-        await router.push({
-          path: `/config/category/contentList/${categoryId}/content/${encodeURIComponent(fragmentId)}`,
-          query: payload.preview ? { preview: '1' } : undefined
-        });
+          localStorage.removeItem('pendingNavigation');
+          localStorage.removeItem('pendingSnippetOpen');
+          await router.push({
+            path: `/config/category/contentList/${categoryId}/content/${encodeURIComponent(fragmentId)}`,
+            query: payload.preview ? { preview: '1' } : undefined
+          });
+        }
+      );
+
+    unlistenLocalAiNavigation = await listen<LocalAiNavigationPayload>(
+      'navigate-to-local-ai-chat',
+      ({ payload }) => {
+        void navigateToLocalAiChat(payload?.prompt, true);
       }
     );
-
-  unlistenLocalAiNavigation = await listen<LocalAiNavigationPayload>(
-    'navigate-to-local-ai-chat',
-    async ({ payload }) => {
-      const prompt = payload?.prompt?.trim();
-      if (prompt) {
-        localStorage.setItem('snippets.localAi.pendingPrompt', prompt);
-      }
-      await router.push('/local-ai/chat');
-      if (prompt) {
-        window.dispatchEvent(
-          new CustomEvent('local-ai-prompt-ready', { detail: prompt })
-        );
-      }
-    }
-  );
+  }
 
   // 检查是否已完成首次设置
   try {

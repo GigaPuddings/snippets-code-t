@@ -31,6 +31,11 @@ static STARTUP_TRANSITION_STARTED_AT: LazyLock<Mutex<Option<Instant>>> =
 static STARTUP_CONFIG_READY_LISTENER: LazyLock<Mutex<Option<u32>>> =
     LazyLock::new(|| Mutex::new(None));
 
+// 快速搜索和配置页运行在不同 WebView 中。首次创建配置窗口时，导航事件
+// 可能早于前端监听器注册，因此在进程内保留一份一次性提示词作为可靠兜底。
+static PENDING_LOCAL_AI_PROMPT: LazyLock<Mutex<Option<String>>> =
+    LazyLock::new(|| Mutex::new(None));
+
 const SEARCH_WINDOW_IDLE_DESTROY_DELAY_SECS: u64 = 60;
 
 // 搜索窗口隐藏后延迟销毁；每次重新显示都会递增 token，取消旧的销毁任务。
@@ -952,12 +957,24 @@ pub fn open_data_manager_settings() {
 }
 
 pub fn open_local_ai_chat(prompt: Option<String>) {
+    let prompt = prompt
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    match PENDING_LOCAL_AI_PROMPT.lock() {
+        Ok(mut pending_prompt) => {
+            *pending_prompt = prompt.clone();
+        }
+        Err(error) => {
+            warn!("open_local_ai_chat: 保存待发送提示词失败: {}", error);
+        }
+    }
+
     WindowManager::close_search_window_if_visible();
     cancel_startup_transition_for_user_action("open_local_ai_chat");
 
     let spec = WindowSpec {
         label: "config",
-        url: "/#/local-ai/chat",
+        url: "/#/config/local-ai/chat",
         title: "配置",
         width: 1180.0,
         height: 626.0,
@@ -980,6 +997,15 @@ pub fn open_local_ai_chat(prompt: Option<String>) {
     ) {
         ensure_config_cleanup_listener(&window);
     }
+}
+
+#[tauri::command]
+pub fn take_pending_local_ai_prompt() -> Result<Option<String>, String> {
+    let prompt = PENDING_LOCAL_AI_PROMPT
+        .lock()
+        .map(|mut pending_prompt| pending_prompt.take())
+        .map_err(|error| format!("读取待发送提示词失败: {}", error))?;
+    Ok(prompt)
 }
 
 fn open_config_settings_tab(tab: Option<&'static str>) {

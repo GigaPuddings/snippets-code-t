@@ -8,9 +8,10 @@ import { useSearchKeyboard } from './composables/useSearchKeyboard';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { ErrorHandler, ErrorType } from '@/utils/error-handler';
 import Result from './components/Result.vue';
-import { ArrowRight, Robot, Search } from '@icon-park/vue-next';
+import { ArrowRight, Search } from '@icon-park/vue-next';
 import { useI18n } from 'vue-i18n';
 import { usePluginStore } from '@/store';
+import aiChatSparkleIcon from '@/assets/ai-chat-sparkle-icon.png';
 
 const { t } = useI18n();
 const pluginStore = usePluginStore();
@@ -96,31 +97,53 @@ const openAiChat = async (): Promise<void> => {
   const prompt = aiPrompt.value;
   if (!prompt) return;
 
-  localStorage.setItem('snippets.localAi.pendingPrompt', prompt);
-  await invoke('show_hide_window_command', {
-    label: 'local_ai_chat',
-    context: prompt
-  });
+  try {
+    localStorage.setItem('snippets.localAi.pendingPrompt', prompt);
+    await invoke('show_hide_window_command', {
+      label: 'local_ai_chat',
+      context: prompt
+    });
+  } catch (error) {
+    ErrorHandler.handle(
+      error,
+      {
+        type: ErrorType.TAURI_COMMAND_ERROR,
+        operation: 'openAiChat',
+        timestamp: new Date()
+      },
+      {
+        userMessage: '打开 AI 聊天失败'
+      }
+    );
+  }
 };
 
-const handleSearchKeyDown = async (event: Event): Promise<void> => {
+const handleAiChatShortcut = (event: KeyboardEvent): void => {
+  const isEnter = event.key === 'Enter' || event.code === 'NumpadEnter';
   if (
-    event instanceof KeyboardEvent &&
-    event.code === 'Enter' &&
-    (event.ctrlKey || event.metaKey) &&
-    !event.isComposing &&
-    showAiEntry.value
+    !isEnter ||
+    (!event.ctrlKey && !event.metaKey) ||
+    event.isComposing ||
+    event.repeat ||
+    !showAiEntry.value
   ) {
-    event.preventDefault();
-    event.stopPropagation();
-    await openAiChat();
     return;
   }
 
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  void openAiChat();
+};
+
+const handleSearchKeyDown = async (event: Event): Promise<void> => {
   await handleKeyDown(event);
 };
 
 onMounted(async () => {
+  // Capture the shortcut at window level so Element Plus input forwarding and
+  // result-list keyboard listeners cannot consume Ctrl+Enter first.
+  window.addEventListener('keydown', handleAiChatShortcut, true);
+
   // The webview can already be mounted while its window is hidden.
   // Focus explicitly so input works before a pointer-enter event occurs.
   void focusSearchWindow();
@@ -147,6 +170,7 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  window.removeEventListener('keydown', handleAiChatShortcut, true);
   unlistenWindowFocused?.();
   unlistenResetSearchState?.();
   unlistenWindowFocused = null;
@@ -161,54 +185,56 @@ onUnmounted(() => {
     class="main"
     @mouseenter="focusSearchWindow"
   >
-    <section class="search transparent-input">
-      <el-input
-        ref="searchInputRef"
-        class="input"
-        v-model="searchText"
-        @keydown="handleSearchKeyDown"
-        @focus="handleInputFocus"
-      />
+    <section class="search-command-surface">
+      <section class="search transparent-input">
+        <el-input
+          ref="searchInputRef"
+          class="input"
+          v-model="searchText"
+          @keydown="handleSearchKeyDown"
+          @focus="handleInputFocus"
+        />
+        <button
+          type="button"
+          class="deep-search-toggle"
+          :class="{ active: deepSearchEnabled }"
+          :title="
+            deepSearchEnabled
+              ? t('search.deepSearchOn')
+              : t('search.deepSearchOff')
+          "
+          :aria-label="t('search.deepSearch')"
+          :aria-pressed="deepSearchEnabled"
+          @mousedown.prevent
+          @click="toggleDeepSearch"
+        >
+          <Search theme="outline" size="16" />
+        </button>
+        <img
+          src="@tauri/icons/icon.png"
+          class="home"
+          loading="eager"
+          @click="handleGoConfig"
+        />
+      </section>
       <button
+        v-if="showAiEntry"
         type="button"
-        class="deep-search-toggle"
-        :class="{ active: deepSearchEnabled }"
-        :title="
-          deepSearchEnabled
-            ? t('search.deepSearchOn')
-            : t('search.deepSearchOff')
-        "
-        :aria-label="t('search.deepSearch')"
-        :aria-pressed="deepSearchEnabled"
+        class="ai-chat-entry"
         @mousedown.prevent
-        @click="toggleDeepSearch"
+        @click="openAiChat"
       >
-        <Search theme="outline" size="16" />
+        <span class="ai-chat-entry-icon" aria-hidden="true">
+          <img :src="aiChatSparkleIcon" alt="" />
+        </span>
+        <span class="ai-chat-entry-copy">
+          <span class="ai-chat-entry-title">{{ t('search.askAi') }}</span>
+          <span class="ai-chat-entry-query">“{{ aiPrompt }}”</span>
+        </span>
+        <kbd class="ai-chat-entry-shortcut" aria-hidden="true">Ctrl Enter</kbd>
+        <ArrowRight class="ai-chat-entry-arrow" theme="outline" size="18" />
       </button>
-      <img
-        src="@tauri/icons/icon.png"
-        class="home"
-        loading="eager"
-        @click="handleGoConfig"
-      />
     </section>
-    <button
-      v-if="showAiEntry"
-      type="button"
-      class="ai-chat-entry"
-      @mousedown.prevent
-      @click="openAiChat"
-    >
-      <span class="ai-chat-entry-icon">
-        <Robot theme="outline" size="16" />
-      </span>
-      <span class="ai-chat-entry-copy">
-        <span class="ai-chat-entry-title">{{ t('search.askAi') }}</span>
-        <span class="ai-chat-entry-query">“{{ aiPrompt }}”</span>
-      </span>
-      <span class="ai-chat-entry-shortcut">Ctrl Enter</span>
-      <ArrowRight class="ai-chat-entry-arrow" theme="outline" size="14" />
-    </button>
     <Result
       ref="resultRef"
       :results="searchResults"
@@ -268,13 +294,17 @@ onUnmounted(() => {
     }
   }
 
-  .ai-chat-entry {
-    @apply mt-2 flex w-full items-center gap-2 rounded-md border border-search bg-search-hover px-2.5 py-2 text-left text-search transition-colors;
+  .search-command-surface {
+    @apply flex flex-col;
+  }
 
-    &:hover {
-      background-color: var(--search-soft-bg);
-      border-color: var(--search-result-active-border);
-    }
+  .ai-chat-entry {
+    @apply flex h-11 w-full items-center gap-3 bg-search px-4 text-left text-search;
+
+    transition:
+      background-color 0.18s ease,
+      border-color 0.18s ease,
+      box-shadow 0.18s ease;
 
     &:focus-visible {
       @apply outline-none;
@@ -285,27 +315,33 @@ onUnmounted(() => {
   }
 
   .ai-chat-entry-icon {
-    @apply inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md bg-search text-search-secondary;
+    @apply inline-flex h-5 w-5 flex-shrink-0 items-center justify-center;
+
+    img {
+      @apply block h-full w-full object-contain;
+    }
   }
 
   .ai-chat-entry-copy {
-    @apply flex min-w-0 flex-1 items-center gap-1.5 text-xs;
+    @apply flex min-w-0 flex-1 items-center gap-3 text-[13px] leading-none;
   }
 
   .ai-chat-entry-title {
-    @apply flex-shrink-0 font-semibold;
+    @apply flex-shrink-0 font-semibold text-search;
   }
 
   .ai-chat-entry-query {
-    @apply truncate text-search-secondary;
+    @apply truncate font-medium text-search-secondary;
   }
 
   .ai-chat-entry-shortcut {
-    @apply flex-shrink-0 rounded border border-search bg-search px-1.5 py-0.5 text-[10px] text-search-secondary;
+    @apply inline-flex h-6 flex-shrink-0 items-center justify-center rounded-md border border-search bg-search-hover px-2 font-sans text-[10px] font-medium leading-none text-search-secondary;
+
+    box-shadow: 0 1px 2px rgb(15 23 42 / 5%);
   }
 
   .ai-chat-entry-arrow {
-    @apply flex-shrink-0 text-search-secondary;
+    @apply ml-0.5 flex-shrink-0 text-search-secondary;
   }
 
   :deep(.hidden) {

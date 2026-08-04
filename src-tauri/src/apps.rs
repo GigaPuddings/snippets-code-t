@@ -98,6 +98,102 @@ pub fn resolve_shell_apps_folder_display_path(app_path: &str) -> Option<String> 
     None
 }
 
+/// Resolves the official packaged-app logo declared for an AppsFolder entry.
+///
+/// Windows Store shortcuts do not point at a normal executable icon. Their
+/// visual identity lives in AppxManifest.xml, so callers need both the logo
+/// asset and its declared tile background to reproduce the system icon.
+pub fn resolve_shell_apps_folder_icon_source(app_path: &str) -> Option<(String, Option<String>)> {
+    let app_id = shell_apps_folder_app_id(app_path)?;
+    let (package_family, app_entry_id) = app_id.split_once('!')?;
+    let package_root = get_package_root_for_family(package_family)?;
+    let manifest_path = Path::new(&package_root).join("AppxManifest.xml");
+    let manifest_content = fs::read_to_string(manifest_path).ok()?;
+    let (declared_logo, background_color) =
+        extract_icon_metadata_for_app_id_from_manifest(&manifest_content, app_entry_id)?;
+    let logo_path = resolve_packaged_icon_asset(Path::new(&package_root), &declared_logo)?;
+
+    Some((logo_path.to_string_lossy().to_string(), background_color))
+}
+
+fn extract_icon_metadata_for_app_id_from_manifest(
+    manifest_content: &str,
+    app_entry_id: &str,
+) -> Option<(String, Option<String>)> {
+    let parser = EventReader::new(manifest_content.as_bytes());
+    let mut matching_application = false;
+
+    for event in parser {
+        match event.ok()? {
+            XmlEvent::StartElement {
+                name, attributes, ..
+            } if name.local_name == "Application" => {
+                matching_application = attributes.iter().any(|attribute| {
+                    attribute.name.local_name == "Id" && attribute.value == app_entry_id
+                });
+            }
+            XmlEvent::StartElement {
+                name, attributes, ..
+            } if matching_application && name.local_name == "VisualElements" => {
+                let mut logo = None;
+                let mut background_color = None;
+
+                for attribute in attributes {
+                    match attribute.name.local_name.as_str() {
+                        "Square44x44Logo" => logo = Some(attribute.value),
+                        "BackgroundColor" => background_color = Some(attribute.value),
+                        _ => {}
+                    }
+                }
+
+                if let Some(logo) = logo {
+                    return Some((logo, background_color));
+                }
+            }
+            XmlEvent::EndElement { name } if name.local_name == "Application" => {
+                matching_application = false;
+            }
+            _ => {}
+        }
+    }
+
+    None
+}
+
+fn resolve_packaged_icon_asset(package_root: &Path, declared_logo: &str) -> Option<PathBuf> {
+    let normalized_logo = declared_logo.replace(['\\', '/'], std::path::MAIN_SEPARATOR_STR);
+    let declared_path = package_root.join(normalized_logo);
+    let parent = declared_path.parent()?;
+    let stem = declared_path.file_stem()?.to_string_lossy();
+    let extension = declared_path.extension()?.to_string_lossy();
+
+    // Prefer a target-sized unplated asset: it is the sharpest official source
+    // for a 48px result icon and avoids scaling a much larger Store tile.
+    let candidates = [
+        parent.join(format!(
+            "{}.targetsize-48_altform-lightunplated.{}",
+            stem, extension
+        )),
+        parent.join(format!(
+            "{}.altform-lightunplated_targetsize-48.{}",
+            stem, extension
+        )),
+        parent.join(format!(
+            "{}.targetsize-48_altform-unplated.{}",
+            stem, extension
+        )),
+        parent.join(format!(
+            "{}.altform-unplated_targetsize-48.{}",
+            stem, extension
+        )),
+        parent.join(format!("{}.targetsize-48.{}", stem, extension)),
+        declared_path.clone(),
+        parent.join(format!("{}.scale-200.{}", stem, extension)),
+    ];
+
+    candidates.into_iter().find(|path| path.is_file())
+}
+
 fn get_package_root_for_family(package_family: &str) -> Option<String> {
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let path = r"Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\Repository\Packages";
@@ -1288,14 +1384,17 @@ pub fn get_installed_apps() -> Vec<AppInfo> {
         all_apps.extend(apps);
     }
 
+    // User-created shortcuts carry the name the user expects to search for.
+    // Put them before packaged-app discovery so an AppsFolder shortcut named
+    // "Codex" wins over the package manifest's legacy "ChatGPT" display name.
+    let shortcut_apps = get_desktop_shortcuts();
+    all_apps.extend(shortcut_apps);
+
     let uwp_apps = get_uwp_apps();
     all_apps.extend(uwp_apps);
 
     let store_apps = get_windows_store_apps();
     all_apps.extend(store_apps);
-
-    let shortcut_apps = get_desktop_shortcuts();
-    all_apps.extend(shortcut_apps);
 
     let windows_apps = get_windows_apps();
     all_apps.extend(windows_apps);
@@ -1313,8 +1412,16 @@ pub fn get_installed_apps() -> Vec<AppInfo> {
     let mut seen_titles = HashSet::new();
 
     for app in all_apps {
-        // 标准化路径（转为小写以忽略大小写差异）
-        let normalized_path = app.content.to_lowercase();
+        // AppsFolder and manifest scanners can describe the same packaged app
+        // through different paths. Resolve both to the executable for dedupe,
+        // while preserving the AppsFolder value as the safer launch target.
+        let normalized_path = if is_shell_apps_folder_path(&app.content) {
+            resolve_shell_apps_folder_display_path(&app.content)
+                .unwrap_or_else(|| app.content.clone())
+                .to_lowercase()
+        } else {
+            app.content.to_lowercase()
+        };
         // 标准化标题（用于去除不同路径的同名应用）
         let normalized_title = app.title.to_lowercase().trim().to_string();
 
@@ -1756,7 +1863,10 @@ pub fn open_app_file_location_command(
 
 #[cfg(test)]
 mod tests {
-    use super::{normalize_shortcut_target, package_name_matches_family};
+    use super::{
+        extract_icon_metadata_for_app_id_from_manifest, normalize_shortcut_target,
+        package_name_matches_family,
+    };
 
     #[test]
     fn normalizes_store_shortcut_app_id() {
@@ -1789,5 +1899,29 @@ mod tests {
             "OpenAI.Codex_1.2.3.0_x64__anotherpublisher",
             "OpenAI.Codex_2p2nqsd0c76g0"
         ));
+    }
+
+    #[test]
+    fn reads_icon_metadata_for_the_requested_packaged_app() {
+        let manifest = r##"
+          <Package xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10">
+            <Applications>
+              <Application Id="Other" Executable="other.exe">
+                <uap:VisualElements Square44x44Logo="assets/other.png" BackgroundColor="#000000" />
+              </Application>
+              <Application Id="App" Executable="app.exe">
+                <uap:VisualElements Square44x44Logo="assets/Square44x44Logo.png" BackgroundColor="#3143FF" />
+              </Application>
+            </Applications>
+          </Package>
+        "##;
+
+        assert_eq!(
+            extract_icon_metadata_for_app_id_from_manifest(manifest, "App"),
+            Some((
+                "assets/Square44x44Logo.png".to_string(),
+                Some("#3143FF".to_string())
+            ))
+        );
     }
 }

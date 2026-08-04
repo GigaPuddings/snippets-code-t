@@ -4,8 +4,8 @@ import type { PluginFrontendRuntimeContext } from '../runtime';
 
 export const activate = (context: PluginFrontendRuntimeContext): void => {
   context.registerRoute({
-    target: 'layout',
-    path: '/local-ai/chat',
+    target: 'config',
+    path: 'local-ai/chat',
     name: 'LocalAiChat',
     component: () => import('./pages/chat/index.vue')
   });
