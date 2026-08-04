@@ -12,7 +12,7 @@ use std::io;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 // 应用配置结构
 // 兼容旧的 json_config 模块使用的字段
@@ -853,7 +853,7 @@ fn apply_local_ai_runtime_change(app_handle: &AppHandle, enabled: bool) {
     crate::plugins::local_ai::apply_runtime_change(app_handle, enabled);
 }
 
-fn apply_plugin_runtime_change(app_handle: &AppHandle, plugin_id: &str, enabled: bool) {
+fn apply_plugin_runtime_effects(app_handle: &AppHandle, plugin_id: &str, enabled: bool) {
     if let Some(spec) = plugin_runtime_spec(plugin_id) {
         (spec.apply_runtime_change)(app_handle, enabled);
     }
@@ -864,7 +864,10 @@ fn apply_plugin_runtime_change(app_handle: &AppHandle, plugin_id: &str, enabled:
             plugin_id, enabled, e
         );
     }
+}
 
+fn apply_plugin_runtime_change(app_handle: &AppHandle, plugin_id: &str, enabled: bool) {
+    apply_plugin_runtime_effects(app_handle, plugin_id, enabled);
     refresh_plugin_shell_integration(app_handle, plugin_id, enabled);
 }
 
@@ -974,7 +977,8 @@ fn refresh_plugin_shell_integration(app_handle: &AppHandle, plugin_id: &str, ena
         "plugin-state-changed",
         serde_json::json!({
             "pluginId": plugin_id,
-            "enabled": enabled
+            "enabled": enabled,
+            "installed": is_local_plugin_package_installed(app_handle, plugin_id)
         }),
     );
 }
@@ -2309,21 +2313,47 @@ fn is_terminal_plugin_install_phase(phase: &str) -> bool {
     matches!(phase, "installed" | "failed")
 }
 
+fn plugin_install_progress_percent(
+    phase: &str,
+    downloaded_bytes: u64,
+    total_bytes: Option<u64>,
+) -> Option<f64> {
+    total_bytes.filter(|total| *total > 0).map(|total| {
+        let percent = ((downloaded_bytes as f64 / total as f64) * 100.0).clamp(0.0, 100.0);
+        if phase == "downloading" {
+            percent.min(99.0)
+        } else {
+            percent
+        }
+    })
+}
+
+fn plugin_download_total_bytes(
+    response_content_length: Option<u64>,
+    expected_size_bytes: Option<u64>,
+) -> Option<u64> {
+    response_content_length
+        .filter(|size| *size > 0)
+        .or_else(|| expected_size_bytes.filter(|size| *size > 0))
+}
+
 fn publish_plugin_install_progress(
     app_handle: &AppHandle,
     payload: PluginInstallProgressPayload,
     previous_phase: Option<String>,
 ) {
     let phase_changed = previous_phase.as_deref() != Some(payload.phase.as_str());
-    debug!(
-        "[Plugin] install progress plugin={:?} phase={} url={} downloaded={} total={:?} progress={:?}",
-        payload.plugin_id,
-        payload.phase,
-        payload.package_url,
-        payload.downloaded_bytes,
-        payload.total_bytes,
-        payload.progress
-    );
+    if phase_changed {
+        debug!(
+            "[Plugin] install phase plugin={:?} phase={} url={} downloaded={} total={:?} progress={:?}",
+            payload.plugin_id,
+            payload.phase,
+            payload.package_url,
+            payload.downloaded_bytes,
+            payload.total_bytes,
+            payload.progress
+        );
+    }
     let _ = app_handle.emit("plugin-install-progress", payload);
     if phase_changed {
         crate::tray::update_plugin_install_status(app_handle);
@@ -2377,9 +2407,7 @@ fn emit_plugin_install_progress(
         };
         let retained_total =
             total_bytes.or_else(|| previous.as_ref().and_then(|task| task.total_bytes));
-        let progress = retained_total
-            .filter(|total| *total > 0)
-            .map(|total| ((retained_downloaded as f64 / total as f64) * 100.0).clamp(0.0, 100.0));
+        let progress = plugin_install_progress_percent(phase, retained_downloaded, retained_total);
         let payload = PluginInstallProgressPayload {
             package_url: package_url.to_string(),
             plugin_id: previous.as_ref().and_then(|task| task.plugin_id.clone()),
@@ -2450,7 +2478,7 @@ pub fn active_plugin_install_status() -> Option<(usize, String)> {
 async fn download_plugin_url_to_temp(
     app_handle: &AppHandle,
     package_url: &str,
-    _expected_size_bytes: Option<u64>,
+    expected_size_bytes: Option<u64>,
     mirror_urls: &[String],
 ) -> Result<PathBuf, String> {
     validate_plugin_remote_url(package_url)?;
@@ -2466,14 +2494,20 @@ async fn download_plugin_url_to_temp(
 
     let temp_dir = create_plugin_install_temp_dir(app_handle)?;
     let temp_file = temp_dir.join("package.zip");
+    let expected_size_bytes = expected_size_bytes.filter(|size| *size > 0);
     let result = async {
         debug!("[Plugin] downloading remote package {}", package_url);
-        emit_plugin_install_progress(app_handle, package_url, "downloading", 0, None);
+        emit_plugin_install_progress(
+            app_handle,
+            package_url,
+            "downloading",
+            0,
+            expected_size_bytes,
+        );
 
         let client = reqwest::Client::builder()
             .user_agent("snippets-code-plugin-installer")
             .connect_timeout(Duration::from_secs(20))
-            .timeout(Duration::from_secs(180))
             .redirect(reqwest::redirect::Policy::limited(10))
             .build()
             .map_err(|e| format!("创建插件下载客户端失败: {}", e))?;
@@ -2487,12 +2521,23 @@ async fn download_plugin_url_to_temp(
                         "[Plugin] retrying remote package download url={} attempt={}/{}",
                         download_url, attempt, MAX_DOWNLOAD_ATTEMPTS
                     );
-                    emit_plugin_install_progress(app_handle, package_url, "downloading", 0, None);
+                    emit_plugin_install_progress(
+                        app_handle,
+                        package_url,
+                        "downloading",
+                        0,
+                        expected_size_bytes,
+                    );
                 }
 
-                let response = match client.get(download_url).send().await {
-                    Ok(response) => response,
-                    Err(error) => {
+                let response = match tokio::time::timeout(
+                    Duration::from_secs(60),
+                    client.get(download_url).send(),
+                )
+                .await
+                {
+                    Ok(Ok(response)) => response,
+                    Ok(Err(error)) => {
                         let message = format!(
                             "请求插件包失败: {} ({})",
                             download_url,
@@ -2501,6 +2546,19 @@ async fn download_plugin_url_to_temp(
                         warn!(
                             "[Plugin] download request failed url={} attempt={}/{} error={}",
                             download_url, attempt, MAX_DOWNLOAD_ATTEMPTS, message
+                        );
+                        last_error = Some(message);
+                        tokio::time::sleep(Duration::from_millis(500 * attempt as u64)).await;
+                        continue;
+                    }
+                    Err(_) => {
+                        let message = format!(
+                            "请求插件包超时: {} (60 秒内未收到响应)",
+                            download_url
+                        );
+                        warn!(
+                            "[Plugin] download response timed out url={} attempt={}/{}",
+                            download_url, attempt, MAX_DOWNLOAD_ATTEMPTS
                         );
                         last_error = Some(message);
                         tokio::time::sleep(Duration::from_millis(500 * attempt as u64)).await;
@@ -2526,7 +2584,8 @@ async fn download_plugin_url_to_temp(
                     continue;
                 }
 
-                let total_bytes = response.content_length();
+                let total_bytes =
+                    plugin_download_total_bytes(response.content_length(), expected_size_bytes);
                 emit_plugin_install_progress(
                     app_handle,
                     package_url,
@@ -2556,10 +2615,39 @@ async fn download_plugin_url_to_temp(
                 })?;
                 let mut downloaded_bytes = 0_u64;
                 let mut last_emitted_bytes = 0_u64;
+                let mut last_emitted_at = Instant::now();
                 let mut stream = response.bytes_stream();
                 let mut stream_failed = false;
 
-                while let Some(chunk) = stream.next().await {
+                loop {
+                    let next_chunk = match tokio::time::timeout(
+                        Duration::from_secs(90),
+                        stream.next(),
+                    )
+                    .await
+                    {
+                        Ok(next_chunk) => next_chunk,
+                        Err(_) => {
+                            let message = format!(
+                                "读取插件下载内容超时: {} (90 秒内未收到新数据)",
+                                download_url
+                            );
+                            warn!(
+                                "[Plugin] download stream stalled url={} attempt={}/{} downloaded={} error={}",
+                                download_url,
+                                attempt,
+                                MAX_DOWNLOAD_ATTEMPTS,
+                                downloaded_bytes,
+                                message
+                            );
+                            last_error = Some(message);
+                            stream_failed = true;
+                            break;
+                        }
+                    };
+                    let Some(chunk) = next_chunk else {
+                        break;
+                    };
                     let chunk = match chunk {
                         Ok(chunk) => chunk,
                         Err(error) => {
@@ -2582,12 +2670,15 @@ async fn download_plugin_url_to_temp(
                     })?;
                     downloaded_bytes += chunk.len() as u64;
 
-                    if total_bytes
+                    let download_complete = total_bytes
                         .map(|total| downloaded_bytes >= total)
-                        .unwrap_or(false)
-                        || downloaded_bytes.saturating_sub(last_emitted_bytes) >= 512 * 1024
+                        .unwrap_or(false);
+                    if download_complete
+                        || (downloaded_bytes.saturating_sub(last_emitted_bytes) >= 512 * 1024
+                            && last_emitted_at.elapsed() >= Duration::from_millis(250))
                     {
                         last_emitted_bytes = downloaded_bytes;
+                        last_emitted_at = Instant::now();
                         emit_plugin_install_progress(
                             app_handle,
                             package_url,
@@ -2614,7 +2705,7 @@ async fn download_plugin_url_to_temp(
                     package_url,
                     "downloaded",
                     downloaded_bytes,
-                    total_bytes,
+                    Some(downloaded_bytes),
                 );
                 return Ok(temp_file.clone());
             }
@@ -2718,7 +2809,9 @@ pub fn install_local_plugin_package(
             if !overwrite {
                 return Err(format!("插件 '{}' 已安装", plugin_id));
             }
-            apply_plugin_runtime_change(&app_handle, &plugin_id, false);
+            // 停止旧运行时后再覆盖目录；此时不能广播插件状态，否则其他
+            // WebView 会在旧目录仍存在时重新读回旧插件清单。
+            apply_plugin_runtime_effects(&app_handle, &plugin_id, false);
             fs::remove_dir_all(&target_dir)
                 .map_err(|e| format!("移除旧插件目录失败: {} ({})", target_dir.display(), e))?;
         }
@@ -2777,6 +2870,49 @@ pub fn install_local_plugin_package(
     result
 }
 
+fn install_downloaded_plugin_package(
+    app_handle: AppHandle,
+    package_url: String,
+    downloaded_package: PathBuf,
+    package_subdir: Option<String>,
+    overwrite: bool,
+) -> Result<LocalPluginPackage, String> {
+    let temp_dir = downloaded_package.parent().map(Path::to_path_buf);
+    emit_plugin_install_progress(&app_handle, &package_url, "extracting", 0, None);
+
+    let result = (|| {
+        if let Some(package_subdir) = package_subdir.filter(|value| !value.trim().is_empty()) {
+            let extract_dir = temp_dir
+                .as_ref()
+                .ok_or("插件下载临时目录无效".to_string())?
+                .join("extract");
+            fs::create_dir_all(&extract_dir)
+                .map_err(|e| format!("创建插件解压目录失败: {} ({})", extract_dir.display(), e))?;
+            extract_plugin_zip_package(&downloaded_package, &extract_dir)
+                .and_then(|_| find_plugin_archive_subdir(&extract_dir, package_subdir.trim()))
+                .and_then(|source_dir| {
+                    emit_plugin_install_progress(&app_handle, &package_url, "installing", 0, None);
+                    install_local_plugin_package(
+                        app_handle.clone(),
+                        source_dir.to_string_lossy().to_string(),
+                        overwrite,
+                    )
+                })
+        } else {
+            install_local_plugin_package(
+                app_handle.clone(),
+                downloaded_package.to_string_lossy().to_string(),
+                overwrite,
+            )
+        }
+    })();
+
+    if let Some(temp_dir) = temp_dir {
+        let _ = fs::remove_dir_all(temp_dir);
+    }
+    result
+}
+
 #[command]
 pub async fn install_plugin_package_from_url(
     app_handle: AppHandle,
@@ -2800,39 +2936,19 @@ pub async fn install_plugin_package_from_url(
             &mirror_urls,
         )
         .await?;
-        let temp_dir = downloaded_package.parent().map(Path::to_path_buf);
-        emit_plugin_install_progress(&app_handle, &package_url, "extracting", 0, None);
-        let install_result = if let Some(package_subdir) =
-            package_subdir.filter(|value| !value.trim().is_empty())
-        {
-            let extract_dir = temp_dir
-                .as_ref()
-                .ok_or("插件下载临时目录无效".to_string())?
-                .join("extract");
-            fs::create_dir_all(&extract_dir)
-                .map_err(|e| format!("创建插件解压目录失败: {} ({})", extract_dir.display(), e))?;
-            extract_plugin_zip_package(&downloaded_package, &extract_dir)
-                .and_then(|_| find_plugin_archive_subdir(&extract_dir, package_subdir.trim()))
-                .and_then(|source_dir| {
-                    emit_plugin_install_progress(&app_handle, &package_url, "installing", 0, None);
-                    install_local_plugin_package(
-                        app_handle.clone(),
-                        source_dir.to_string_lossy().to_string(),
-                        overwrite,
-                    )
-                })
-        } else {
-            install_local_plugin_package(
-                app_handle.clone(),
-                downloaded_package.to_string_lossy().to_string(),
+        let install_app_handle = app_handle.clone();
+        let install_package_url = package_url.clone();
+        tokio::task::spawn_blocking(move || {
+            install_downloaded_plugin_package(
+                install_app_handle,
+                install_package_url,
+                downloaded_package,
+                package_subdir,
                 overwrite,
             )
-        };
-
-        if let Some(temp_dir) = temp_dir {
-            let _ = fs::remove_dir_all(temp_dir);
-        }
-        install_result
+        })
+        .await
+        .map_err(|error| format!("插件安装后台任务失败: {}", error))?
     }
     .await;
 
@@ -2863,7 +2979,8 @@ pub fn uninstall_local_plugin_package(
             plugin_id, error
         );
     }
-    apply_plugin_runtime_change(&app_handle, &plugin_id, false);
+    // 先停止运行时，等目录和持久化状态都清理完成后再广播一次最终状态。
+    apply_plugin_runtime_effects(&app_handle, &plugin_id, false);
 
     fs::remove_dir_all(&target_dir)
         .map_err(|e| format!("删除插件目录失败: {} ({})", target_dir.display(), e))?;
@@ -3223,4 +3340,33 @@ pub fn set_plugin_enabled(
     }
     apply_plugin_runtime_change(&app_handle, &plugin_id, effective_enabled);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{plugin_download_total_bytes, plugin_install_progress_percent};
+
+    #[test]
+    fn plugin_download_uses_expected_size_without_content_length() {
+        assert_eq!(
+            plugin_download_total_bytes(None, Some(1_000_000_000)),
+            Some(1_000_000_000)
+        );
+        assert_eq!(
+            plugin_download_total_bytes(Some(800), Some(1_000)),
+            Some(800)
+        );
+    }
+
+    #[test]
+    fn active_download_progress_reaches_one_hundred_only_after_download() {
+        assert_eq!(
+            plugin_install_progress_percent("downloading", 1_000, Some(1_000)),
+            Some(99.0)
+        );
+        assert_eq!(
+            plugin_install_progress_percent("downloaded", 1_000, Some(1_000)),
+            Some(100.0)
+        );
+    }
 }

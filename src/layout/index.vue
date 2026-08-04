@@ -11,6 +11,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { logger } from '@/utils/logger';
 import { useRouter } from 'vue-router';
 import type { ConfigContentNavigationPayload } from '@/pages/search/composables/openConfigContent';
+import { PENDING_LOCAL_AI_PROMPT_STORAGE_KEY } from '@/plugins/local-ai/promptTransfer';
 
 const store = useConfigurationStore();
 const router = useRouter();
@@ -21,8 +22,6 @@ let unlistenLocalAiNavigation: UnlistenFn | null = null;
 interface LocalAiNavigationPayload {
   prompt?: string;
 }
-
-const PENDING_LOCAL_AI_PROMPT_STORAGE_KEY = 'snippets.localAi.pendingPrompt';
 
 const normalizeLocalAiPrompt = (value: unknown): string =>
   typeof value === 'string' ? value.trim() : '';

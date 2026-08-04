@@ -214,44 +214,10 @@
                   {{ tag }}
                 </span>
               </div>
-              <div
-                v-if="getMarketplaceItemInstallProgress(item)"
-                class="plugin-install-progress"
-                :class="{
-                  'plugin-install-progress--failed':
-                    getMarketplaceItemInstallProgress(item)?.phase === 'failed'
-                }"
-              >
-                <div class="plugin-install-progress-text">
-                  <span>{{ installProgressText(item) }}</span>
-                  <span>
-                    {{
-                      installProgressSizeText(
-                        getMarketplaceItemInstallProgress(item)
-                      )
-                    }}
-                  </span>
-                </div>
-                <div
-                  class="plugin-install-progress-track"
-                  :class="{
-                    'plugin-install-progress-track--indeterminate':
-                      getMarketplaceItemInstallProgress(item)?.phase !==
-                        'failed' &&
-                      getMarketplaceItemInstallProgress(item)?.progress ===
-                        undefined
-                  }"
-                >
-                  <div
-                    class="plugin-install-progress-bar"
-                    :style="{
-                      width: installProgressBarWidth(
-                        getMarketplaceItemInstallProgress(item)
-                      )
-                    }"
-                  ></div>
-                </div>
-              </div>
+              <PluginInstallProgress
+                :item="item"
+                :marketplace-items="marketplaceItems"
+              />
             </div>
             <div class="plugin-controls">
               <CustomButton
@@ -328,45 +294,10 @@
                       {{ label }}
                     </span>
                   </div>
-                  <div
-                    v-if="getMarketplaceItemInstallProgress(resource)"
-                    class="plugin-install-progress"
-                    :class="{
-                      'plugin-install-progress--failed':
-                        getMarketplaceItemInstallProgress(resource)?.phase ===
-                        'failed'
-                    }"
-                  >
-                    <div class="plugin-install-progress-text">
-                      <span>{{ installProgressText(resource) }}</span>
-                      <span>
-                        {{
-                          installProgressSizeText(
-                            getMarketplaceItemInstallProgress(resource)
-                          )
-                        }}
-                      </span>
-                    </div>
-                    <div
-                      class="plugin-install-progress-track"
-                      :class="{
-                        'plugin-install-progress-track--indeterminate':
-                          getMarketplaceItemInstallProgress(resource)?.phase !==
-                            'failed' &&
-                          getMarketplaceItemInstallProgress(resource)
-                            ?.progress === undefined
-                      }"
-                    >
-                      <div
-                        class="plugin-install-progress-bar"
-                        :style="{
-                          width: installProgressBarWidth(
-                            getMarketplaceItemInstallProgress(resource)
-                          )
-                        }"
-                      ></div>
-                    </div>
-                  </div>
+                  <PluginInstallProgress
+                    :item="resource"
+                    :marketplace-items="marketplaceItems"
+                  />
                 </div>
                 <div class="plugin-controls">
                   <CustomButton
@@ -600,7 +531,6 @@ import {
   fetchPluginMarketplace,
   getPluginInstallDir,
   setPluginInstallDir,
-  type PluginInstallProgress,
   type PluginMarketplaceItem
 } from '@/api/plugins';
 import { getPluginById } from '@/plugins/registry';
@@ -616,6 +546,7 @@ import { useConfigurationStore, usePluginStore } from '@/store';
 import { CustomButton, CustomSwitch } from '@/components/UI';
 import { logger } from '@/utils/logger';
 import modal from '@/utils/modal';
+import PluginInstallProgress from './PluginInstallProgress.vue';
 
 defineOptions({
   name: 'PluginsSettings'
@@ -865,45 +796,6 @@ const formatBytes = (value?: number | null): string => {
   const precision = unitIndex === 0 || size >= 10 ? 0 : 1;
   return `${size.toFixed(precision)} ${units[unitIndex]}`;
 };
-
-const installPhaseText = (phase: string): string => {
-  const key = `plugins.installPhases.${phase}`;
-  const translated = t(key);
-  return translated === key ? phase : translated;
-};
-
-const getMarketplaceItemInstallProgress = (
-  item: PluginMarketplaceItem
-): PluginInstallProgress | undefined => {
-  if (!item.packageUrl) return undefined;
-  const progress = pluginStore.installProgressByPackageUrl[item.packageUrl];
-  return progress && progress.phase !== 'installed' ? progress : undefined;
-};
-
-const installProgressText = (item: PluginMarketplaceItem): string => {
-  const progress = getMarketplaceItemInstallProgress(item);
-  if (!progress) return '';
-  const phase = installPhaseText(progress.phase);
-  const percent =
-    progress.progress === undefined ? '' : ` ${Math.round(progress.progress)}%`;
-  return `${phase} ${pluginText(item.name)}${percent}`;
-};
-
-const installProgressSizeText = (progress?: PluginInstallProgress): string => {
-  if (!progress || (!progress.downloadedBytes && !progress.totalBytes))
-    return '';
-  const downloaded = formatBytes(progress.downloadedBytes);
-  return progress.totalBytes
-    ? `${downloaded} / ${formatBytes(progress.totalBytes)}`
-    : downloaded;
-};
-
-const installProgressBarWidth = (progress?: PluginInstallProgress): string =>
-  progress?.phase === 'failed'
-    ? '100%'
-    : progress?.progress === undefined
-      ? '35%'
-      : `${Math.round(progress.progress)}%`;
 
 const isMarketplaceItemInstalling = (item: PluginMarketplaceItem): boolean =>
   pluginStore.isMarketplaceInstallRequested(item.id) ||
@@ -1427,46 +1319,6 @@ const unregisterPluginHotkeys = async (
 
 .marketplace-empty {
   @apply py-3 text-center text-xs text-panel-text-secondary;
-}
-
-.plugin-install-progress {
-  @apply mt-2 max-w-md;
-}
-
-.plugin-install-progress-text {
-  @apply mb-1 flex items-center justify-between gap-3 text-xs text-panel-text-secondary;
-}
-
-.plugin-install-progress-track {
-  @apply h-1.5 overflow-hidden rounded bg-hover;
-}
-
-.plugin-install-progress-track--indeterminate .plugin-install-progress-bar {
-  animation: plugin-progress-indeterminate 1.1s ease-in-out infinite;
-}
-
-.plugin-install-progress-bar {
-  @apply h-full rounded bg-primary transition-all duration-200;
-}
-
-.plugin-install-progress--failed {
-  .plugin-install-progress-text {
-    @apply text-chat-error;
-  }
-
-  .plugin-install-progress-bar {
-    @apply bg-red-500;
-  }
-}
-
-@keyframes plugin-progress-indeterminate {
-  0% {
-    transform: translateX(-110%);
-  }
-
-  100% {
-    transform: translateX(320%);
-  }
 }
 
 .plugin-main {

@@ -872,6 +872,12 @@ import {
   hasRequiredEnhancedPromptLanguage,
   normalizeEnhancedPrompt
 } from './promptEnhancement';
+import {
+  markPendingLocalAiPromptForNewChat,
+  pendingLocalAiPromptRequiresNewChat,
+  PENDING_LOCAL_AI_PROMPT_MODE_STORAGE_KEY,
+  PENDING_LOCAL_AI_PROMPT_STORAGE_KEY
+} from '../../promptTransfer';
 
 defineOptions({ name: 'LocalAiChat' });
 
@@ -924,10 +930,10 @@ const autoFollowMessages = ref(true);
 const showJumpToBottom = ref(false);
 const currentStreamRequestId = ref<string | null>(null);
 const currentStreamingMessage = shallowRef<ChatMessage | null>(null);
-const PENDING_PROMPT_STORAGE_KEY = 'snippets.localAi.pendingPrompt';
 let promptTransferReady = false;
 let queuedTransferredPrompt: string | null = null;
 let queuedPromptFromSearch = false;
+let lastAppliedTransferredPrompt: string | null = null;
 const config = ref<LocalAiConfig | null>(null);
 const modelScan = ref<LocalAiModelScan | null>(null);
 const selectedChatModelPath = ref('');
@@ -1118,25 +1124,23 @@ const resizeComposerInput = (): void => {
   input.style.overflowY = contentHeight > maxHeight ? 'auto' : 'hidden';
 };
 
-const applyPendingPrompt = (
-  prompt: unknown,
-  fromSearch = false
-): void => {
+const applyPendingPrompt = (prompt: unknown, fromSearch = false): void => {
   if (typeof prompt !== 'string' || !prompt.trim()) return;
   const normalizedPrompt = prompt.trim();
-  if (!promptTransferReady) {
+  if (!promptTransferReady || (fromSearch && navigationLocked.value)) {
     queuedTransferredPrompt = normalizedPrompt;
     if (fromSearch) queuedPromptFromSearch = true;
     return;
   }
 
-  // 当提示词来自快捷搜索窗口时，先创建一个新对话再填充输入框，
-  // 避免将搜索内容追加到已有对话中。
-  if (fromSearch && activeMessages.value.length > 0) {
+  // 快捷搜索明确要求每次都从全新会话开始，即使当前会话尚无消息。
+  if (fromSearch) {
     createNewChat();
+    lastAppliedTransferredPrompt = normalizedPrompt;
   }
 
   draft.value = normalizedPrompt;
+  localStorage.removeItem(PENDING_LOCAL_AI_PROMPT_MODE_STORAGE_KEY);
   nextTick(() => {
     resizeComposerInput();
     composerInputRef.value?.focus();
@@ -1150,7 +1154,7 @@ const takePendingLocalAiPrompt = async (): Promise<string> => {
     if (normalizedPrompt) {
       // 插件运行时初始化期间组件可能重挂载。先写入当前 config WebView 的
       // 草稿存储，后续稳定实例仍能恢复已从 Rust 一次性队列取出的提示词。
-      localStorage.setItem(PENDING_PROMPT_STORAGE_KEY, normalizedPrompt);
+      markPendingLocalAiPromptForNewChat(localStorage, normalizedPrompt);
     }
     return normalizedPrompt;
   } catch (error) {
@@ -1162,8 +1166,37 @@ const takePendingLocalAiPrompt = async (): Promise<string> => {
 const handlePendingPromptEvent = (event: Event): void => {
   const eventPrompt = (event as CustomEvent<unknown>).detail;
   void takePendingLocalAiPrompt().then((pendingPrompt) => {
-    applyPendingPrompt(pendingPrompt || eventPrompt, true);
+    const normalizedEventPrompt =
+      typeof eventPrompt === 'string' ? eventPrompt.trim() : '';
+    const transferredPrompt = pendingPrompt || normalizedEventPrompt;
+    if (!transferredPrompt) return;
+
+    const hasPendingNewChatTransfer =
+      Boolean(pendingPrompt) ||
+      pendingLocalAiPromptRequiresNewChat(localStorage);
+    if (
+      !hasPendingNewChatTransfer &&
+      transferredPrompt === lastAppliedTransferredPrompt
+    ) {
+      return;
+    }
+    applyPendingPrompt(transferredPrompt, true);
   });
+};
+const flushQueuedTransferredPrompt = (): void => {
+  if (
+    !promptTransferReady ||
+    navigationLocked.value ||
+    !queuedTransferredPrompt
+  ) {
+    return;
+  }
+
+  const pendingPrompt = queuedTransferredPrompt;
+  const fromSearch = queuedPromptFromSearch;
+  queuedTransferredPrompt = null;
+  queuedPromptFromSearch = false;
+  applyPendingPrompt(pendingPrompt, fromSearch);
 };
 const focusComposer = async (): Promise<void> => {
   await nextTick();
@@ -1171,6 +1204,9 @@ const focusComposer = async (): Promise<void> => {
   composerInputRef.value?.focus();
 };
 watch(draft, resizeComposerInput, { flush: 'post' });
+watch(navigationLocked, (locked) => {
+  if (!locked) flushQueuedTransferredPrompt();
+});
 watch(
   draft,
   (value) => {
@@ -1178,9 +1214,9 @@ watch(
     if (!promptTransferReady) return;
     const normalizedDraft = value.trim();
     if (normalizedDraft) {
-      localStorage.setItem(PENDING_PROMPT_STORAGE_KEY, value);
+      localStorage.setItem(PENDING_LOCAL_AI_PROMPT_STORAGE_KEY, value);
     } else {
-      localStorage.removeItem(PENDING_PROMPT_STORAGE_KEY);
+      localStorage.removeItem(PENDING_LOCAL_AI_PROMPT_STORAGE_KEY);
     }
   },
   { flush: 'sync' }
@@ -1442,7 +1478,7 @@ const persistHistory = async (current: ChatHistoryView | null) => {
     messages: current.messages
   } as PersistedChatHistory);
 };
-const createNewChat = () => {
+function createNewChat(): void {
   if (navigationLocked.value) return;
   const next = createHistory();
   histories.value.unshift(next);
@@ -1451,7 +1487,7 @@ const createNewChat = () => {
   attachments.value = [];
   closeAttachmentPreview();
   void focusComposer();
-};
+}
 const ensureActiveHistory = () => {
   if (activeHistory.value) return;
   const next = createHistory();
@@ -2356,7 +2392,10 @@ const regenerateMessage = async (messageId: string) => {
 
 onMounted(async () => {
   window.addEventListener('local-ai-prompt-ready', handlePendingPromptEvent);
-  applyPendingPrompt(localStorage.getItem(PENDING_PROMPT_STORAGE_KEY));
+  applyPendingPrompt(
+    localStorage.getItem(PENDING_LOCAL_AI_PROMPT_STORAGE_KEY),
+    pendingLocalAiPromptRequiresNewChat(localStorage)
+  );
   resizeComposerInput();
   if (typeof ResizeObserver !== 'undefined') {
     streamingResizeObserver = new ResizeObserver(() => {
@@ -2371,11 +2410,14 @@ onMounted(async () => {
   } finally {
     const backendPrompt = await takePendingLocalAiPrompt();
     promptTransferReady = true;
-    const fromSearch = Boolean(backendPrompt) || queuedPromptFromSearch;
+    const fromSearch =
+      Boolean(backendPrompt) ||
+      queuedPromptFromSearch ||
+      pendingLocalAiPromptRequiresNewChat(localStorage);
     const pendingPrompt =
       backendPrompt ||
       queuedTransferredPrompt ||
-      localStorage.getItem(PENDING_PROMPT_STORAGE_KEY);
+      localStorage.getItem(PENDING_LOCAL_AI_PROMPT_STORAGE_KEY);
     queuedTransferredPrompt = null;
     queuedPromptFromSearch = false;
     applyPendingPrompt(pendingPrompt, fromSearch);
@@ -2393,6 +2435,7 @@ onUnmounted(() => {
   promptTransferReady = false;
   queuedTransferredPrompt = null;
   queuedPromptFromSearch = false;
+  lastAppliedTransferredPrompt = null;
   window.removeEventListener('local-ai-prompt-ready', handlePendingPromptEvent);
   if (statusTimer) clearInterval(statusTimer);
   if (scrollFrameId !== null) {

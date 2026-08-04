@@ -112,23 +112,26 @@ defineEmits(['click']);
 
   &--medium {
     @apply text-sm px-4 h-8;
-    line-height: 32px;
+
     padding-top: 0;
     padding-bottom: 0;
+    line-height: 32px;
   }
 
   &--small {
     @apply text-xs px-3 h-6;
-    line-height: 24px;
+
     padding-top: 0;
     padding-bottom: 0;
+    line-height: 24px;
   }
 
   &--large {
     @apply text-base px-5 h-10;
-    line-height: 40px;
+
     padding-top: 0;
     padding-bottom: 0;
+    line-height: 40px;
   }
 
   &--loading {
@@ -146,12 +149,13 @@ defineEmits(['click']);
   &__spinner {
     width: 1.25rem;
     height: 1.25rem;
-    animation: rotate 2s linear infinite;
+    animation: rotate 0.8s linear infinite;
+    will-change: transform;
 
     & .path {
       stroke: currentcolor;
+      stroke-dasharray: 80, 150;
       stroke-linecap: round;
-      animation: dash 1.5s ease-in-out infinite;
     }
   }
 }
@@ -159,23 +163,6 @@ defineEmits(['click']);
 @keyframes rotate {
   100% {
     transform: rotate(360deg);
-  }
-}
-
-@keyframes dash {
-  0% {
-    stroke-dasharray: 1, 150;
-    stroke-dashoffset: 0;
-  }
-
-  50% {
-    stroke-dasharray: 90, 150;
-    stroke-dashoffset: -35;
-  }
-
-  100% {
-    stroke-dasharray: 90, 150;
-    stroke-dashoffset: -124;
   }
 }
 </style>

@@ -12,6 +12,11 @@ import { ArrowRight, Search } from '@icon-park/vue-next';
 import { useI18n } from 'vue-i18n';
 import { usePluginStore } from '@/store';
 import aiChatSparkleIcon from '@/assets/ai-chat-sparkle-icon.png';
+import {
+  markPendingLocalAiPromptForNewChat,
+  PENDING_LOCAL_AI_PROMPT_MODE_STORAGE_KEY,
+  PENDING_LOCAL_AI_PROMPT_STORAGE_KEY
+} from '@/plugins/local-ai/promptTransfer';
 
 const { t } = useI18n();
 const pluginStore = usePluginStore();
@@ -98,12 +103,16 @@ const openAiChat = async (): Promise<void> => {
   if (!prompt) return;
 
   try {
-    localStorage.setItem('snippets.localAi.pendingPrompt', prompt);
+    markPendingLocalAiPromptForNewChat(localStorage, prompt);
     await invoke('show_hide_window_command', {
       label: 'local_ai_chat',
       context: prompt
     });
   } catch (error) {
+    if (localStorage.getItem(PENDING_LOCAL_AI_PROMPT_STORAGE_KEY) === prompt) {
+      localStorage.removeItem(PENDING_LOCAL_AI_PROMPT_STORAGE_KEY);
+      localStorage.removeItem(PENDING_LOCAL_AI_PROMPT_MODE_STORAGE_KEY);
+    }
     ErrorHandler.handle(
       error,
       {

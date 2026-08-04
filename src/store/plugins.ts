@@ -34,6 +34,7 @@ import { logger } from '@/utils/logger';
 interface PluginStateChangedPayload {
   pluginId: string;
   enabled: boolean;
+  installed?: boolean;
 }
 
 interface ReconcileInstalledPluginsOptions {
@@ -146,6 +147,7 @@ export const usePluginStore = defineStore('plugins', {
     stateUnlisten: UnlistenFn | null;
     installProgressUnlisten: UnlistenFn | null;
     installProgressByPackageUrl: Record<string, PluginInstallProgress>;
+    installPhaseByPackageUrl: Record<string, string>;
     marketplaceInstallRequests: Record<string, boolean>;
   } => ({
     enabled: { ...DEFAULT_PLUGIN_STATES },
@@ -156,6 +158,7 @@ export const usePluginStore = defineStore('plugins', {
     stateUnlisten: null,
     installProgressUnlisten: null,
     installProgressByPackageUrl: {},
+    installPhaseByPackageUrl: {},
     marketplaceInstallRequests: {}
   }),
   getters: {
@@ -183,9 +186,7 @@ export const usePluginStore = defineStore('plugins', {
       (packageUrl?: string): boolean =>
         Boolean(
           packageUrl &&
-            isActiveInstallPhase(
-              state.installProgressByPackageUrl[packageUrl]?.phase
-            )
+            isActiveInstallPhase(state.installPhaseByPackageUrl[packageUrl])
         ),
     isMarketplaceInstallRequested:
       (state) =>
@@ -412,6 +413,29 @@ export const usePluginStore = defineStore('plugins', {
       logger.info('[PluginStore] uninstall complete', { pluginId });
     },
 
+    applyPluginStateChanged({
+      pluginId,
+      enabled,
+      installed
+    }: PluginStateChangedPayload): void {
+      if (installed === false) {
+        // 卸载事件来自其他 WebView 时先同步移除清单，避免在异步重新
+        // 拉取 manifest 期间继续暴露插件入口或执行插件功能。
+        this.installedPlugins = this.installedPlugins.filter(
+          (plugin) => plugin.id !== pluginId
+        );
+        delete this.enabled[pluginId];
+        return;
+      }
+
+      if (
+        this.installedPlugins.some((plugin) => plugin.id === pluginId) ||
+        isPluginId(pluginId)
+      ) {
+        this.enabled[pluginId] = enabled;
+      }
+    },
+
     async ensureStateListener(): Promise<void> {
       if (this.stateUnlisten) return;
 
@@ -420,12 +444,7 @@ export const usePluginStore = defineStore('plugins', {
           'plugin-state-changed',
           async (event) => {
             const { pluginId, enabled } = event.payload;
-            if (
-              this.installedPlugins.some((plugin) => plugin.id === pluginId) ||
-              isPluginId(pluginId)
-            ) {
-              this.enabled[pluginId] = enabled;
-            }
+            this.applyPluginStateChanged(event.payload);
             await this.reconcileInstalledPlugins(
               'backend-state-event',
               enabled ? [] : [pluginId]
@@ -445,10 +464,12 @@ export const usePluginStore = defineStore('plugins', {
       ) {
         return;
       }
-      this.installProgressByPackageUrl = {
-        ...this.installProgressByPackageUrl,
-        [progress.packageUrl]: progress
-      };
+      this.installProgressByPackageUrl[progress.packageUrl] = progress;
+      if (
+        this.installPhaseByPackageUrl[progress.packageUrl] !== progress.phase
+      ) {
+        this.installPhaseByPackageUrl[progress.packageUrl] = progress.phase;
+      }
     },
 
     async ensureInstallProgressListener(): Promise<void> {

@@ -228,4 +228,35 @@ describe('plugin runtime reconciliation', () => {
       store.installProgressByPackageUrl['https://example.com/plugin.zip'].phase
     ).toBe('installing');
   });
+
+  it('removes an uninstalled plugin immediately on a cross-window event', () => {
+    const store = usePluginStore();
+    store.installedPlugins = [createPlugin('2.0.24', '2026-07-27T08:00:00Z')];
+    store.enabled['git-sync'] = true;
+
+    store.applyPluginStateChanged({
+      pluginId: 'git-sync',
+      enabled: false,
+      installed: false
+    });
+
+    expect(store.isInstalled('git-sync')).toBe(false);
+    expect(store.isEnabled('git-sync')).toBe(false);
+    expect(store.enabled['git-sync']).toBeUndefined();
+  });
+
+  it('applies a disabled state immediately on a cross-window event', () => {
+    const store = usePluginStore();
+    store.installedPlugins = [createPlugin('2.0.24', '2026-07-27T08:00:00Z')];
+    store.enabled['git-sync'] = true;
+
+    store.applyPluginStateChanged({
+      pluginId: 'git-sync',
+      enabled: false,
+      installed: true
+    });
+
+    expect(store.isInstalled('git-sync')).toBe(true);
+    expect(store.isEnabled('git-sync')).toBe(false);
+  });
 });
