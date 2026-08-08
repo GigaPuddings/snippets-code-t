@@ -170,6 +170,7 @@ export function useContentDialogs(): UseContentDialogsReturn {
         const routeCid = cid || (categoryId === '未分类' ? '0' : categoryId);
         const targetPath = `/config/category/contentList/${routeCid}/content/${encodeURIComponent(filePath)}`;
         const category = store.categories.find((item) => item.id === categoryId);
+        const createdAt = new Date().toISOString();
         const optimisticContent: ContentType = {
           id: filePath,
           title: normalizedTitle,
@@ -178,7 +179,9 @@ export function useContentDialogs(): UseContentDialogsReturn {
           format: pendingFragmentType.value === 'note' ? 'markdown' : 'plain',
           category_id: categoryId === '未分类' ? 0 : categoryId,
           category_name: category?.name || (categoryId === '未分类' ? '未分类' : undefined),
-          tags: []
+          tags: [],
+          created_at: createdAt,
+          updated_at: createdAt
         };
         store.contents = [
           optimisticContent,

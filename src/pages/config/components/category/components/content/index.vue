@@ -228,7 +228,14 @@ import { findBacklinks, getBacklinkStats } from '@/utils/wikilink-updater';
 import BacklinkUpdateDialog from '@/components/UI/BacklinkUpdateDialog.vue';
 import AiAssistDialog from '@/components/AiAssistDialog/index.vue';
 import AiSelectionToolbar from '@/components/AiSelectionToolbar/index.vue';
-import { htmlToMarkdown, createTurndownService, markdownToHtml, jsonToMarkdown, normalizeAiMarkdown } from '@/components/TipTapEditor/utils/markdown';
+import {
+  htmlToMarkdown,
+  createTurndownService,
+  markdownToHtml,
+  jsonToMarkdown,
+  MARKDOWN_EDITOR_PARSE_OPTIONS,
+  normalizeAiMarkdown
+} from '@/components/TipTapEditor/utils/markdown';
 import { getWorkspaceRoot } from '@/api/markdown';
 import { syncAttachmentsOnRename, cleanupUnusedAttachments } from '@/plugins/attachments/api';
 
@@ -779,7 +786,10 @@ const performSave = async (data: Partial<ContentType> = {}, options: { updateRou
           if (tipTapEditorRef.value) {
             const editor = tipTapEditorRef.value.getEditor();
             if (editor) {
-              editor.commands.setContent(updatedHtml, { emitUpdate: false });
+              editor.commands.setContent(updatedHtml, {
+                emitUpdate: false,
+                parseOptions: MARKDOWN_EDITOR_PARSE_OPTIONS
+              });
             }
           }
         }
@@ -1095,7 +1105,10 @@ const applyAiContent = (content: string) => {
       const editor = tipTapEditorRef.value?.getEditor?.();
       const html = markdownToHtml(markdown, workspaceRoot.value);
       if (editor && editor.getHTML() !== html) {
-        editor.commands.setContent(html, { emitUpdate: false });
+        editor.commands.setContent(html, {
+          emitUpdate: false,
+          parseOptions: MARKDOWN_EDITOR_PARSE_OPTIONS
+        });
       }
     });
     return;
@@ -1406,7 +1419,10 @@ const fetchContentById = async (id: string) => {
         const editor = tipTapEditorRef.value.getEditor();
         const html = markdownToHtml(newContent, workspaceRoot.value);
         if (editor && editor.getHTML() !== html) {
-          editor.commands.setContent(html, { emitUpdate: false });
+          editor.commands.setContent(html, {
+            emitUpdate: false,
+            parseOptions: MARKDOWN_EDITOR_PARSE_OPTIONS
+          });
         }
       }
       finishMountedEditorLoading();

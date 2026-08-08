@@ -116,6 +116,7 @@ import { handleEditorError } from '@/utils/error-handler';
 import {
   markdownToHtml,
   jsonToMarkdown,
+  MARKDOWN_EDITOR_PARSE_OPTIONS,
   richHtmlToEditorHtml,
   shouldPreferMarkdownClipboardText
 } from './utils/markdown';
@@ -808,6 +809,7 @@ function handlePreviewScroll(event: Event): void {
 // 初始化编辑器
 const editor = useEditor({
   content: props.content,
+  parseOptions: MARKDOWN_EDITOR_PARSE_OPTIONS,
   editable: !props.disabled,
   autofocus: props.autofocus,
   extensions: createEditorExtensions(handleWikilinkClick, {

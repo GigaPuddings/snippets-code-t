@@ -75,6 +75,21 @@ describe('jsonToMarkdown', () => {
     expect(markdown).toBe('## Vue Pattern\n\n`useModal` with [docs](https://vuejs.org)\n');
   });
 
+  it('keeps consecutive spaces in the Markdown and intermediate HTML', () => {
+    const markdown = jsonToMarkdown({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: '左侧  右侧' }]
+        }
+      ]
+    });
+
+    expect(markdown).toBe('左侧  右侧\n');
+    expect(markdownToHtml(markdown)).toContain('<p>左侧  右侧</p>');
+  });
+
   it('round-trips combined bold and italic marks in a stable order', () => {
     const markdown = jsonToMarkdown({
       type: 'doc',

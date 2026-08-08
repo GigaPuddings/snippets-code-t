@@ -163,6 +163,7 @@
 
       <RecycleScroller
         v-else
+        ref="scrollerRef"
         class="local-list"
         :items="filteredList"
         :item-size="listItemSize"
@@ -298,6 +299,10 @@ import 'vue-virtual-scroller/dist/vue-virtual-scroller.css';
 import EditDialog from './components/EditDialog.vue';
 import { ConfirmDialog } from '@/components/UI';
 import { getPrimarySearchHistoryKey } from '@/hooks/searchRanking';
+import {
+  refreshRecycleScroller,
+  type RecycleScrollerInstance
+} from '@/utils/recycleScroller';
 
 defineOptions({
   name: 'Local',
@@ -376,6 +381,7 @@ const showDeleteDialog = ref(false);
 const deleteTarget = ref<AppInfo | BookmarkInfo | null>(null);
 const deleteFromDialog = ref(false);
 const localContentRef = ref<HTMLElement | null>(null);
+const scrollerRef = ref<RecycleScrollerInstance | null>(null);
 const listItemSize = ref(88);
 const visibleListItemCount = 8;
 
@@ -442,6 +448,15 @@ const filteredList = computed(() => {
       item.content.toLowerCase().includes(query)
   );
 });
+
+watch(
+  [filteredList, listItemSize],
+  async () => {
+    await nextTick();
+    refreshRecycleScroller(scrollerRef.value);
+  },
+  { flush: 'post' }
+);
 
 // 加载数据
 const loadApps = async () => {

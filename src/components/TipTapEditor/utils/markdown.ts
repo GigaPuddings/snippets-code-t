@@ -3,6 +3,13 @@ import { marked } from 'marked';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { sanitizeHtml } from '@/utils/html-sanitize';
 
+// HTML is only an intermediate representation for Markdown notes. ProseMirror's
+// default DOM parser collapses consecutive spaces, so every initial/setContent
+// parse must use this option to keep the Markdown text round-trip lossless.
+export const MARKDOWN_EDITOR_PARSE_OPTIONS = {
+  preserveWhitespace: 'full' as const
+};
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')

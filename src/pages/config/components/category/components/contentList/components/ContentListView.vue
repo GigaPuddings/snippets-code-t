@@ -41,6 +41,10 @@ import { RecycleScroller } from 'vue-virtual-scroller';
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css';
 import ContentItem from '@/components/ContentItem/index.vue';
 import { useRoute } from 'vue-router';
+import {
+  refreshRecycleScroller,
+  type RecycleScrollerInstance
+} from '@/utils/recycleScroller';
 
 /**
  * 组件 Props 接口
@@ -70,7 +74,7 @@ const props = defineProps<ContentListViewProps>();
 defineEmits<ContentListViewEmits>();
 
 const route = useRoute();
-const scrollerRef = ref<InstanceType<typeof RecycleScroller> | null>(null);
+const scrollerRef = ref<RecycleScrollerInstance | null>(null);
 // 单元格包含卡片本体与条目间留白，避免虚拟列表把相邻卡片贴在一起。
 const ITEM_SIZE = 66;
 
@@ -106,13 +110,15 @@ const isIndexVisibleInScroller = (index: number, container: HTMLElement) => {
 };
 
 function getScrollerElement(): HTMLElement | null {
-  const scroller = scrollerRef.value as any;
+  const scroller = scrollerRef.value;
   return scroller?.$el ?? null;
 }
 
 function scrollActiveContentIntoView(index: number): void {
+  refreshRecycleScroller(scrollerRef.value);
+
   requestAnimationFrame(() => {
-    const scroller = scrollerRef.value as any;
+    const scroller = scrollerRef.value;
     const container = getScrollerElement();
 
     if (container && isIndexVisibleInScroller(index, container)) {
@@ -121,22 +127,27 @@ function scrollActiveContentIntoView(index: number): void {
 
     if (scroller?.scrollToItem) {
       scroller.scrollToItem(index);
+      refreshRecycleScroller(scroller);
       return;
     }
 
     if (container) {
       container.scrollTop = Math.max(0, index * ITEM_SIZE - Math.floor(container.clientHeight / 2) + Math.floor(ITEM_SIZE / 2));
+      refreshRecycleScroller(scroller);
     }
   });
 }
 
 watch(
-  () => [activeContentIndex.value, activeContentId.value, props.contents.length],
-  async ([index]) => {
-    const resolvedIndex = Number(index);
-    if (!Number.isFinite(resolvedIndex) || resolvedIndex < 0) return;
+  [() => props.contents, activeContentId],
+  async (): Promise<void> => {
     await nextTick();
-    scrollActiveContentIntoView(resolvedIndex);
+    refreshRecycleScroller(scrollerRef.value);
+
+    const index = activeContentIndex.value;
+    if (index >= 0) {
+      scrollActiveContentIntoView(index);
+    }
   },
   { immediate: true, flush: 'post' }
 );

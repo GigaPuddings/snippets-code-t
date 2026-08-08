@@ -67,6 +67,10 @@ import { getSearchResultIcon } from '../composables/useSearchResultIcon';
 import { useSearchResultKeyboard } from '../composables/useSearchResultKeyboard';
 import { useSearchResultState } from '../composables/useSearchResultState';
 import { useI18n } from 'vue-i18n';
+import {
+  refreshRecycleScroller,
+  type RecycleScrollerInstance
+} from '@/utils/recycleScroller';
 
 const { t } = useI18n();
 
@@ -87,7 +91,7 @@ const emit = defineEmits<{
   primaryAction: [item: ContentType];
 }>();
 
-interface ResultScrollerRef {
+interface ResultScrollerRef extends RecycleScrollerInstance {
   $el: HTMLElement;
   scrollToPosition: (position: number) => void;
 }
@@ -139,12 +143,17 @@ const emitSelectionChangeById = (id: string | number) => {
   emit('selectionChange', selectItemById(id));
 };
 
-watch(filteredResults, async () => {
-  syncSelectionWithResults(store.id);
+watch(
+  [filteredResults, itemSize],
+  async () => {
+    syncSelectionWithResults(store.id);
 
-  await nextTick();
-  syncShortcutWindowFromScroll();
-}, { immediate: true });
+    await nextTick();
+    refreshRecycleScroller(scrollerRef.value);
+    syncShortcutWindowFromScroll();
+  },
+  { immediate: true }
+);
 
 watch(() => props.searchQuery, () => {
   void resetShortcutViewport();
@@ -209,6 +218,7 @@ async function resetShortcutViewport(): Promise<void> {
 
   scroller.scrollToPosition(0);
   scroller.$el.scrollTop = 0;
+  refreshRecycleScroller(scroller);
   await nextTick();
   syncShortcutWindowFromScroll();
 }
@@ -232,6 +242,7 @@ function ensureItemVisible(index: number): void {
       scroller.scrollTop = targetTop;
     }
 
+    refreshRecycleScroller(scrollerInstance);
     syncShortcutWindowFromScroll();
   });
 }

@@ -15,7 +15,10 @@ use crate::window::{
     open_wallpaper_switcher_window,
 };
 use log::{debug, info};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Mutex,
+};
 use std::time::{Duration, Instant};
 use tauri::Emitter;
 use tauri::{
@@ -30,6 +33,11 @@ use tauri_plugin_opener::OpenerExt;
 
 static WALLPAPER_TRAY_SWITCHING: AtomicBool = AtomicBool::new(false);
 static AI_RESPONDING: AtomicBool = AtomicBool::new(false);
+static APP_EXITING: AtomicBool = AtomicBool::new(false);
+// Windows Explorer 对通知区域图标的增删是异步的。启动阶段可能同时收到
+// “最小托盘升级”和“数据库初始化完成”两次完整菜单请求，必须串行更新同一个图标，
+// 否则两个相同 ID 的 remove/build 会留下没有事件处理器的幽灵图标。
+static TRAY_MUTATION_LOCK: Mutex<()> = Mutex::new(());
 
 // 托盘菜单翻译结构
 struct TrayTranslations {
@@ -148,10 +156,16 @@ fn handle_plugin_tray_menu_click(app: &AppHandle, menu_id: &str) -> bool {
 
 pub fn exit_app_now(app: &AppHandle) -> ! {
     info!("[托盘菜单] 用户选择退出程序");
+    APP_EXITING.store(true, Ordering::Release);
     crate::plugins::system_theme::stop_scheduler();
     crate::plugins::local_ai::stop_service_now();
     let _ = app.global_shortcut().unregister_all();
-    let _ = app.remove_tray_by_id("tray");
+    {
+        let _tray_guard = TRAY_MUTATION_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let _ = app.remove_tray_by_id("tray");
+    }
     app.cleanup_before_exit();
     std::process::exit(0);
 }
@@ -767,16 +781,31 @@ pub fn handle_wallpaper_menu_click(app: &AppHandle, menu_id: &str) {
     }
 }
 
-pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
-    let lang = get_language_internal(app);
-    let menu = build_tray_menu(app, &lang)?;
-    // 先完成菜单构建，再替换最小托盘，避免插件清单扫描期间图标消失。
-    let _ = app.remove_tray_by_id("tray");
+fn create_or_update_tray(app: &AppHandle, menu: Menu<tauri::Wry>) -> tauri::Result<()> {
+    if APP_EXITING.load(Ordering::Acquire) {
+        return Ok(());
+    }
+
+    let _tray_guard = TRAY_MUTATION_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if APP_EXITING.load(Ordering::Acquire) {
+        return Ok(());
+    }
 
     let app_name = app.package_info().name.clone();
     let tray_icon = tray_icon_for_state(app);
 
-    let _ = TrayIconBuilder::with_id("tray")
+    // 菜单、图标和提示都可以原位更新。避免在 Explorer 尚未完全就绪时连续
+    // remove/build 同一个托盘 ID；那种做法偶发会在通知区域残留一个无响应图标。
+    if let Some(tray) = app.tray_by_id("tray") {
+        tray.set_icon(Some(tray_icon))?;
+        tray.set_tooltip(Some(&app_name))?;
+        tray.set_menu(Some(menu))?;
+        return Ok(());
+    }
+
+    TrayIconBuilder::with_id("tray")
         .icon(tray_icon)
         .tooltip(&app_name)
         .menu(&menu)
@@ -865,13 +894,17 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
                 _ => {}
             }
         })
-        .on_tray_icon_event(move |_tray, event| {
+        .on_tray_icon_event(move |tray, event| {
             if let TrayIconEvent::Click {
                 button: MouseButton::Left,
                 button_state: MouseButtonState::Up,
                 ..
             } = event
             {
+                // 最小托盘阶段仍保持原行为：首次设置完成前，左键不打开配置窗口。
+                if !crate::db::is_setup_completed_internal(tray.app_handle()) {
+                    return;
+                }
                 tauri::async_runtime::spawn(async move {
                     hotkey_config();
                 });
@@ -880,6 +913,12 @@ pub fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
         .build(app)?;
 
     Ok(())
+}
+
+pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
+    let lang = get_language_internal(app);
+    let menu = build_tray_menu(app, &lang)?;
+    create_or_update_tray(app, menu)
 }
 
 // 更新托盘菜单主题状态显示
@@ -1024,27 +1063,11 @@ fn recreate_minimal_tray_menu(app: &AppHandle) -> tauri::Result<()> {
 
 // 创建最小化托盘（首次运行时使用）
 pub fn create_minimal_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
-    let _ = app.remove_tray_by_id("tray");
     let lang = get_language_internal(app);
     let trans = get_translations(&lang);
     let quit_i = MenuItem::with_id(app, "quit", trans.quit, true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&quit_i])?;
-    let app_name = app.package_info().name.clone();
-    let tray_icon = tray_icon_for_state(app);
-
-    TrayIconBuilder::with_id("tray")
-        .icon(tray_icon)
-        .tooltip(&app_name)
-        .menu(&menu)
-        .show_menu_on_left_click(false)
-        .on_menu_event(move |app, event| {
-            if event.id.as_ref() == "quit" {
-                exit_app_now(app);
-            }
-        })
-        .build(app)?;
-
-    Ok(())
+    create_or_update_tray(app, menu)
 }
 
 /// 在应用 setup 的最前段创建轻量托盘，并在后台补全菜单。
@@ -1099,7 +1122,7 @@ pub fn create_startup_tray(app: &AppHandle, should_create_full_menu: bool) {
             return;
         }
 
-        // 先让轻量图标进入通知区域，再加载插件清单并替换为完整菜单。
+        // 先让轻量图标进入通知区域，再加载插件清单并原位升级为完整菜单。
         tokio::time::sleep(Duration::from_millis(25)).await;
         let menu_started_at = Instant::now();
         match create_tray(&app_handle) {

@@ -105,7 +105,8 @@ describe('useEditorPersistenceBridge', () => {
     await nextTick();
 
     expect(setContent).toHaveBeenCalledWith(expect.stringContaining('<h1'), {
-      emitUpdate: false
+      emitUpdate: false,
+      parseOptions: { preserveWhitespace: 'full' }
     });
     expect(bridge.lastEmittedContent.value).toContain('<h1');
     expect(bridge.emitContentChange).toHaveBeenCalledWith('# Button');
@@ -118,7 +119,10 @@ describe('useEditorPersistenceBridge', () => {
     bridge.applySourceContentToEditor(editor);
     await nextTick();
 
-    expect(setContent).toHaveBeenCalledWith('<p></p>', { emitUpdate: false });
+    expect(setContent).toHaveBeenCalledWith('<p></p>', {
+      emitUpdate: false,
+      parseOptions: { preserveWhitespace: 'full' }
+    });
     expect(bridge.emitContentChange).toHaveBeenCalledWith('');
   });
 
@@ -128,7 +132,10 @@ describe('useEditorPersistenceBridge', () => {
 
     bridge.syncIncomingContent('<p>new</p>', editor);
 
-    expect(setContent).toHaveBeenCalledWith('<p>new</p>', { emitUpdate: false });
+    expect(setContent).toHaveBeenCalledWith('<p>new</p>', {
+      emitUpdate: false,
+      parseOptions: { preserveWhitespace: 'full' }
+    });
     expect(bridge.lastEmittedContent.value).toBe('<p>new</p>');
     expect(bridge.updateStats).toHaveBeenCalledWith('Hello persistence');
   });

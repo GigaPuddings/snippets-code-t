@@ -255,7 +255,7 @@ pub fn is_setup_completed(app_handle: tauri::AppHandle) -> bool {
 #[tauri::command]
 pub fn set_setup_completed(app_handle: tauri::AppHandle) {
     let _ = json_config::set_app_config_value(&app_handle, "setup_completed", true);
-    // 从首次启动的最小托盘切换到完整托盘时，必须连事件处理器一起重建。
+    // 从首次启动的最小菜单原位升级到完整菜单；托盘图标和事件处理器保持不变。
     let _ = crate::tray::recreate_tray_as_full(&app_handle);
 }
 

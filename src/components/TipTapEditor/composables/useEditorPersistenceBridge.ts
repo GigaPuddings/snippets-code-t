@@ -1,5 +1,9 @@
 import { nextTick, ref, type Ref } from 'vue';
-import { jsonToMarkdown, markdownToHtml } from '../utils/markdown';
+import {
+  jsonToMarkdown,
+  MARKDOWN_EDITOR_PARSE_OPTIONS,
+  markdownToHtml
+} from '../utils/markdown';
 
 export interface EditorPersistenceBridgeEditor {
   isDestroyed?: boolean;
@@ -7,7 +11,13 @@ export interface EditorPersistenceBridgeEditor {
   getHTML: () => string;
   getText: () => string;
   commands: {
-    setContent: (content: string, options?: { emitUpdate?: boolean }) => void;
+    setContent: (
+      content: string,
+      options?: {
+        emitUpdate?: boolean;
+        parseOptions?: { preserveWhitespace?: boolean | 'full' };
+      }
+    ) => void;
   };
 }
 
@@ -106,7 +116,10 @@ export function useEditorPersistenceBridge(options: UseEditorPersistenceBridgeOp
     try {
       debouncedEmitUpdate.cancel();
       const html = markdownToHtml(options.sourceContent.value, options.workspaceRoot.value);
-      editorInstance.commands.setContent(html || '<p></p>', { emitUpdate: false });
+      editorInstance.commands.setContent(html || '<p></p>', {
+        emitUpdate: false,
+        parseOptions: MARKDOWN_EDITOR_PARSE_OPTIONS
+      });
       lastEmittedContent.value = html;
       nextTick(() => {
         if (!isDisposed) {
@@ -135,7 +148,10 @@ export function useEditorPersistenceBridge(options: UseEditorPersistenceBridgeOp
     try {
       if (editorInstance.getHTML() !== newContent) {
         debouncedEmitUpdate.cancel();
-        editorInstance.commands.setContent(newContent, { emitUpdate: false });
+        editorInstance.commands.setContent(newContent, {
+          emitUpdate: false,
+          parseOptions: MARKDOWN_EDITOR_PARSE_OPTIONS
+        });
         lastEmittedContent.value = newContent;
         options.updateStats(editorInstance.getText());
       }
