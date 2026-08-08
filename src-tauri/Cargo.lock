@@ -6270,7 +6270,7 @@ dependencies = [
 
 [[package]]
 name = "snippets-code"
-version = "2.1.54"
+version = "2.1.55"
 dependencies = [
  "aes-gcm",
  "base64 0.22.1",
