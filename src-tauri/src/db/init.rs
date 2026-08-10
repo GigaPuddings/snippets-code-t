@@ -263,7 +263,6 @@ pub fn ensure_plugin_storage(plugin_id: &str) -> Result<(), rusqlite::Error> {
     }
 }
 
-#[allow(dead_code)] // 仅供未来显式“卸载并删除数据”流程调用；普通卸载必须保留用户数据。
 pub fn clear_plugin_storage(plugin_id: &str) -> Result<(), rusqlite::Error> {
     let conn = DbConnectionManager::get()?;
     match plugin_id {

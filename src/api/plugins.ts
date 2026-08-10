@@ -161,9 +161,10 @@ export async function fetchPluginMarketplace(
 }
 
 export async function uninstallLocalPluginPackage(
-  pluginId: PluginId | string
+  pluginId: PluginId | string,
+  deleteData = false
 ): Promise<void> {
-  await invoke('uninstall_local_plugin_package', { pluginId });
+  await invoke('uninstall_local_plugin_package', { pluginId, deleteData });
 }
 
 export async function setPluginEnabled(

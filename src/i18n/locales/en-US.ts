@@ -547,7 +547,16 @@ export default {
     installFailed: 'Failed to install local plugin',
     updateSuccess: 'Plugin updated',
     updateFailed: 'Failed to update plugin',
+    uninstallConfirmTitle: 'Confirm plugin uninstall',
+    uninstallConfirmMessage: 'Uninstall “{plugin}”?',
+    uninstallConfirmAction: 'Continue',
+    uninstallDataTitle: 'Plugin data',
+    uninstallDataMessage:
+      'Before uninstalling “{plugin}”, choose whether to delete its related data.\n• This includes plugin settings, state data, and plugin-specific database content\n• Deleted data cannot be recovered; retained data can be reused after reinstalling',
+    uninstallKeepData: 'Keep data and uninstall',
+    uninstallDeleteData: 'Delete data and uninstall',
     uninstallSuccess: 'Local plugin uninstalled; user data was preserved',
+    uninstallWithDataSuccess: 'Local plugin and related data deleted',
     uninstallFailed: 'Failed to uninstall local plugin',
     refresh: 'Refresh',
     refreshed: 'Plugin list refreshed',
@@ -2163,15 +2172,6 @@ export default {
     reasoningTitle: 'Think',
     thinkingEnabled: 'Thinking is on',
     thinkingDisabled: 'Thinking is off',
-    webSearch: 'Web search',
-    webSearchPluginDesc:
-      'Search the current input in your system browser using the Search Engines plugin',
-    webSearchNeedsQuery: 'Enter something to search for first',
-    webSearchPluginUnavailable:
-      'Install and enable the Search Engines plugin from the marketplace first.',
-    webSearchPluginNoDefault:
-      'No default search engine is configured. Choose one in the plugin settings first.',
-    webSearchPluginFailed: 'Failed to open web search',
     jumpToLatest: 'Jump to latest',
     modelChanged: 'Model changed and saved',
     you: 'You',

@@ -17,7 +17,9 @@ pub use connection::DbConnectionManager;
 
 // 重新导出初始化函数
 pub use init::init_db;
-pub use init::{ensure_plugin_storage, index_needs_refresh, mark_index_success};
+pub use init::{
+    clear_plugin_storage, ensure_plugin_storage, index_needs_refresh, mark_index_success,
+};
 pub use reset::reset_rebuildable_indexes;
 
 // 重新导出应用相关函数

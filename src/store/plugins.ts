@@ -406,11 +406,17 @@ export const usePluginStore = defineStore('plugins', {
       ]);
     },
 
-    async uninstall(pluginId: PluginId | string): Promise<void> {
-      logger.info('[PluginStore] uninstall start', { pluginId });
-      await uninstallLocalPluginPackage(pluginId);
-      await this.reconcileInstalledPlugins('uninstall', [String(pluginId)]);
-      logger.info('[PluginStore] uninstall complete', { pluginId });
+    async uninstall(
+      pluginId: PluginId | string,
+      deleteData = false
+    ): Promise<void> {
+      logger.info('[PluginStore] uninstall start', { pluginId, deleteData });
+      try {
+        await uninstallLocalPluginPackage(pluginId, deleteData);
+      } finally {
+        await this.reconcileInstalledPlugins('uninstall', [String(pluginId)]);
+      }
+      logger.info('[PluginStore] uninstall complete', { pluginId, deleteData });
     },
 
     applyPluginStateChanged({

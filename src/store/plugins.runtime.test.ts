@@ -10,7 +10,8 @@ const mocks = vi.hoisted(() => ({
   ensureLocalPluginFrontendEntries: vi.fn(),
   getInstalledPluginManifests: vi.fn(),
   getPluginInstallTasks: vi.fn(),
-  getPluginStates: vi.fn()
+  getPluginStates: vi.fn(),
+  uninstallLocalPluginPackage: vi.fn()
 }));
 
 vi.mock('@/api/plugins', () => ({
@@ -24,7 +25,7 @@ vi.mock('@/api/plugins', () => ({
   installLocalPluginPackage: vi.fn(),
   installPluginPackageFromUrl: vi.fn(),
   setPluginEnabled: vi.fn(),
-  uninstallLocalPluginPackage: vi.fn()
+  uninstallLocalPluginPackage: mocks.uninstallLocalPluginPackage
 }));
 
 vi.mock('@/api/localAi', () => ({
@@ -91,7 +92,10 @@ describe('plugin runtime reconciliation', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.clearAllMocks();
+    mocks.getInstalledPluginManifests.mockResolvedValue([]);
     mocks.getPluginInstallTasks.mockResolvedValue([]);
+    mocks.getPluginStates.mockResolvedValue({});
+    mocks.uninstallLocalPluginPackage.mockResolvedValue(undefined);
   });
 
   it('waits for an active frontend load before clearing and reloading a plugin', async () => {
@@ -243,6 +247,17 @@ describe('plugin runtime reconciliation', () => {
     expect(store.isInstalled('git-sync')).toBe(false);
     expect(store.isEnabled('git-sync')).toBe(false);
     expect(store.enabled['git-sync']).toBeUndefined();
+  });
+
+  it('forwards the delete-data choice when uninstalling a plugin', async () => {
+    const store = usePluginStore();
+
+    await store.uninstall('git-sync', true);
+
+    expect(mocks.uninstallLocalPluginPackage).toHaveBeenCalledWith(
+      'git-sync',
+      true
+    );
   });
 
   it('applies a disabled state immediately on a cross-window event', () => {

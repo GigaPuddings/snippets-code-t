@@ -178,7 +178,7 @@
     },
     {
       "id": "local-ai",
-      "version": "2.0.92",
+      "version": "2.0.93",
       "name": {
         "i18nKey": "plugins.localAi.name",
         "fallback": "Local AI"
@@ -188,7 +188,7 @@
         "fallback": "Run local GGUF models with llama.cpp for AI chat, translation, and assistance."
       },
       "category": "automation",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai/archive/refs/tags/2.0.92.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai/archive/refs/tags/2.0.93.zip",
       "status": "available",
       "sizeBytes": 403478,
       "dependencies": [
@@ -202,7 +202,7 @@
       "minAppVersion": "2.1.55",
       "compatibleAppVersion": ">=2.1.55",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai",
-      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai/releases/tag/2.0.92"
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai/releases/tag/2.0.93"
     },
     {
       "id": "local-ai-llama-runtime",
@@ -361,32 +361,6 @@
       "compatibleAppVersion": ">=2.1.42",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-desktop-files",
       "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-desktop-files/releases/tag/2.0.7"
-    },
-    {
-      "id": "search-engines",
-      "version": "2.0.15",
-      "name": {
-        "i18nKey": "plugins.searchEngines.name",
-        "fallback": "Search Engines"
-      },
-      "description": {
-        "i18nKey": "plugins.searchEngines.description",
-        "fallback": "Custom search engines, keyword search, and default web search entries."
-      },
-      "category": "search",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-search-engines/archive/refs/tags/2.0.15.zip",
-      "builtinPluginId": "search-engines",
-      "status": "included",
-      "sizeBytes": 694234,
-      "tags": [
-        "search",
-        "web",
-        "keyword"
-      ],
-      "minAppVersion": "2.1.55",
-      "compatibleAppVersion": ">=2.1.55",
-      "repository": "https://github.com/GigaPuddings/snippets-code-plugin-search-engines",
-      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-search-engines/releases/tag/2.0.15"
     },
     {
       "id": "quick-tools",

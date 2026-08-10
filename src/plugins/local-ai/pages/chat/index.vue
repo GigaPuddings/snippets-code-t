@@ -618,20 +618,6 @@
                 <span>{{ t('localAi.enhancePrompt') }}</span>
               </button>
               <button
-                class="composer-tool-btn composer-tool-btn--wide"
-                type="button"
-                :disabled="!draft.trim() || navigationLocked"
-                :title="
-                  draft.trim()
-                    ? t('localAi.webSearchPluginDesc')
-                    : t('localAi.webSearchNeedsQuery')
-                "
-                @click="searchWebWithPlugin"
-              >
-                <Search theme="outline" size="15" />
-                <span>{{ t('localAi.webSearch') }}</span>
-              </button>
-              <button
                 v-if="modelSupportsThinking"
                 :class="[
                   'composer-tool-btn',
@@ -797,12 +783,6 @@ import {
   type LocalAiServiceStatus
 } from '@/api/localAi';
 import { ConfirmDialog } from '@/components/UI';
-import {
-  findDefaultSearchEngine,
-  loadEnabledSearchEngines,
-  openSearchEngine
-} from '@/plugins/search-engines/searchRuntime';
-import type { SearchEngine } from '@/types';
 import {
   cloneLocalAiAttachments,
   formatFileSize,
@@ -1607,35 +1587,6 @@ const assistantMessagePendingText = (message: ChatMessage): string => {
   if (message.allowThinking && !message.reasoningEndedAt)
     return t('localAi.thinking');
   return t('localAi.generating');
-};
-const searchWebWithPlugin = async (): Promise<void> => {
-  const query = draft.value.trim();
-  if (!query || navigationLocked.value) return;
-
-  let defaultEngine: SearchEngine | undefined;
-  try {
-    const engines = await loadEnabledSearchEngines();
-    defaultEngine = findDefaultSearchEngine(engines);
-  } catch (error) {
-    logger.warn('[LocalAI] search-engines plugin unavailable', error);
-    modal.msg(t('localAi.webSearchPluginUnavailable'), 'warning');
-    return;
-  }
-
-  if (!defaultEngine) {
-    modal.msg(t('localAi.webSearchPluginNoDefault'), 'warning');
-    return;
-  }
-
-  try {
-    await openSearchEngine(defaultEngine, query, { hideSearchWindow: false });
-  } catch (error) {
-    logger.warn('[LocalAI] search-engines plugin search failed', error);
-    modal.msg(
-      `${t('localAi.webSearchPluginFailed')}: ${String(error)}`,
-      'error'
-    );
-  }
 };
 const toApiMessages = (
   history: ChatHistoryView | null = activeHistory.value

@@ -532,6 +532,9 @@ impl AppConfigManager {
                 self.config.wallpaper_switcher_config = None;
                 self.config.wallpaper_switcher_hotkey = None;
             }
+            "local-ai" => {
+                self.config.extra.remove("local_ai_chat_histories");
+            }
             _ => {}
         }
     }
@@ -929,13 +932,19 @@ fn clear_workspace_plugin_config(app_handle: &AppHandle, plugin_id: &str) -> Res
 }
 
 fn clear_database_plugin_config(plugin_id: &str) -> Result<(), String> {
-    if plugin_id != "git-sync" {
-        return Ok(());
+    if plugin_id == "git-sync" {
+        let conn = crate::db::DbConnectionManager::get().map_err(|e| e.to_string())?;
+        conn.execute("DELETE FROM user_settings WHERE id = 1", [])
+            .map_err(|e| e.to_string())?;
     }
 
-    let conn = crate::db::DbConnectionManager::get().map_err(|e| e.to_string())?;
-    conn.execute("DELETE FROM user_settings WHERE id = 1", [])
-        .map_err(|e| e.to_string())?;
+    if matches!(
+        plugin_id,
+        "local-launcher" | "desktop-files" | "search-engines" | "todo"
+    ) {
+        crate::db::clear_plugin_storage(plugin_id).map_err(|e| e.to_string())?;
+    }
+
     Ok(())
 }
 
@@ -958,11 +967,11 @@ fn clear_app_plugin_config(app_handle: &AppHandle, plugin_id: &str) -> Result<()
     Ok(())
 }
 
-#[allow(dead_code)] // 预留给未来“卸载并删除数据”显式操作；普通卸载不得调用。
-fn clear_plugin_owned_config(app_handle: &AppHandle, plugin_id: &str) -> Result<(), String> {
+fn clear_plugin_owned_data(app_handle: &AppHandle, plugin_id: &str) -> Result<(), String> {
     clear_app_plugin_config(app_handle, plugin_id)?;
     clear_workspace_plugin_config(app_handle, plugin_id)?;
     clear_database_plugin_config(plugin_id)?;
+    clear_local_plugin_state(app_handle, plugin_id)?;
     Ok(())
 }
 
@@ -1834,16 +1843,45 @@ fn local_plugin_package_dir(app_handle: &AppHandle, plugin_id: &str) -> Result<P
     Ok(package_dir)
 }
 
-fn local_plugin_data_path(app_handle: &AppHandle, plugin_id: &str) -> Result<PathBuf, String> {
+fn local_plugin_state_dir(app_handle: &AppHandle, plugin_id: &str) -> Result<PathBuf, String> {
     validate_plugin_package_id(plugin_id)?;
-    let data_path = crate::json_config::get_data_dir(app_handle)
+    Ok(crate::json_config::get_data_dir(app_handle)
         .join("state")
         .join("plugins")
-        .join(plugin_id)
-        .join("data.json");
+        .join(plugin_id))
+}
+
+fn local_plugin_data_path(app_handle: &AppHandle, plugin_id: &str) -> Result<PathBuf, String> {
+    let data_path = local_plugin_state_dir(app_handle, plugin_id)?.join("data.json");
 
     crate::json_config::recover_atomic_file(&data_path)?;
     Ok(data_path)
+}
+
+fn clear_local_plugin_state(app_handle: &AppHandle, plugin_id: &str) -> Result<(), String> {
+    let state_dir = local_plugin_state_dir(app_handle, plugin_id)?;
+    if state_dir.exists() {
+        fs::remove_dir_all(&state_dir).map_err(|error| {
+            format!("删除插件状态目录失败: {} ({})", state_dir.display(), error)
+        })?;
+    }
+
+    if plugin_id == "local-ai" {
+        let legacy_config = crate::json_config::get_data_dir(app_handle)
+            .join(".snippets-code")
+            .join("local-ai.json");
+        if legacy_config.is_file() {
+            fs::remove_file(&legacy_config).map_err(|error| {
+                format!(
+                    "删除本地 AI 旧配置失败: {} ({})",
+                    legacy_config.display(),
+                    error
+                )
+            })?;
+        }
+    }
+
+    Ok(())
 }
 
 fn local_plugin_backend_spec(
@@ -2963,8 +3001,10 @@ pub async fn install_plugin_package_from_url(
 pub fn uninstall_local_plugin_package(
     app_handle: AppHandle,
     plugin_id: String,
+    delete_data: Option<bool>,
 ) -> Result<(), String> {
     validate_plugin_package_id(&plugin_id)?;
+    let delete_data = delete_data.unwrap_or(false);
 
     let plugins_dir = plugin_packages_dir(&app_handle)?;
     let target_dir = plugins_dir.join(&plugin_id);
@@ -2997,12 +3037,24 @@ pub fn uninstall_local_plugin_package(
         manager.save()?;
     }
 
+    let data_cleanup_result = if delete_data {
+        clear_plugin_owned_data(&app_handle, &plugin_id).map_err(|error| {
+            format!(
+                "插件包已卸载，但删除插件 '{}' 的相关数据失败: {}",
+                plugin_id, error
+            )
+        })
+    } else {
+        Ok(())
+    };
+
     info!(
-        "✅ [Plugin] uninstalled local package {} (user data preserved)",
-        plugin_id
+        "✅ [Plugin] uninstalled local package {} (user data {})",
+        plugin_id,
+        if delete_data { "deleted" } else { "preserved" }
     );
     refresh_plugin_shell_integration(&app_handle, &plugin_id, false);
-    Ok(())
+    data_cleanup_result
 }
 
 #[command]
@@ -3344,7 +3396,10 @@ pub fn set_plugin_enabled(
 
 #[cfg(test)]
 mod tests {
-    use super::{plugin_download_total_bytes, plugin_install_progress_percent};
+    use super::{
+        plugin_download_total_bytes, plugin_install_progress_percent, AppConfig, AppConfigManager,
+    };
+    use std::path::PathBuf;
 
     #[test]
     fn plugin_download_uses_expected_size_without_content_length() {
@@ -3368,5 +3423,22 @@ mod tests {
             plugin_install_progress_percent("downloaded", 1_000, Some(1_000)),
             Some(100.0)
         );
+    }
+
+    #[test]
+    fn clearing_local_ai_config_removes_saved_chat_histories() {
+        let mut config = AppConfig::default();
+        config.extra.insert(
+            "local_ai_chat_histories".to_string(),
+            serde_json::json!([{ "id": "history-1" }]),
+        );
+        let mut manager = AppConfigManager {
+            config_path: PathBuf::new(),
+            config,
+        };
+
+        manager.clear_plugin_owned_config("local-ai");
+
+        assert!(!manager.config.extra.contains_key("local_ai_chat_histories"));
     }
 }

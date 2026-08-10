@@ -419,7 +419,9 @@
             size="small"
             plain
             :loading="removingPluginId === plugin.id"
-            @click="handleUninstall(plugin.id)"
+            @click="
+              requestUninstall(plugin.id, pluginText(plugin.manifest.name))
+            "
           >
             <Delete theme="outline" size="14" />
           </CustomButton>
@@ -489,7 +491,12 @@
                 size="small"
                 plain
                 :loading="removingPluginId === resource.id"
-                @click="handleUninstall(resource.id)"
+                @click="
+                  requestUninstall(
+                    resource.id,
+                    pluginText(resource.manifest.name)
+                  )
+                "
               >
                 <Delete theme="outline" size="14" />
               </CustomButton>
@@ -506,6 +513,38 @@
         </div>
       </section>
     </main>
+
+    <ConfirmDialog
+      v-model="uninstallConfirmVisible"
+      :title="t('plugins.uninstallConfirmTitle')"
+      :message="
+        t('plugins.uninstallConfirmMessage', {
+          plugin: pendingUninstallPlugin?.name ?? ''
+        })
+      "
+      :confirm-text="t('plugins.uninstallConfirmAction')"
+      :cancel-text="t('common.cancel')"
+      type="danger"
+      @update:model-value="handleUninstallConfirmVisibility"
+      @confirm="handleUninstallConfirmed"
+      @cancel="resetUninstallRequest"
+    />
+
+    <ConfirmChoiceDialog
+      v-model="uninstallDataChoiceVisible"
+      :title="t('plugins.uninstallDataTitle')"
+      :message="
+        t('plugins.uninstallDataMessage', {
+          plugin: pendingUninstallPlugin?.name ?? ''
+        })
+      "
+      :primary-text="t('plugins.uninstallDeleteData')"
+      :secondary-text="t('plugins.uninstallKeepData')"
+      type="danger"
+      @primary="handleUninstallChoice(true)"
+      @secondary="handleUninstallChoice(false)"
+      @close="resetUninstallRequest"
+    />
   </div>
 </template>
 
@@ -543,7 +582,12 @@ import type {
 import { getHotkeyValue, setHotkeyValue } from '@/plugins/hotkeys';
 import type { PluginId } from '@/plugins/types';
 import { useConfigurationStore, usePluginStore } from '@/store';
-import { CustomButton, CustomSwitch } from '@/components/UI';
+import {
+  ConfirmChoiceDialog,
+  ConfirmDialog,
+  CustomButton,
+  CustomSwitch
+} from '@/components/UI';
 import { logger } from '@/utils/logger';
 import modal from '@/utils/modal';
 import PluginInstallProgress from './PluginInstallProgress.vue';
@@ -568,6 +612,9 @@ const visiblePlugins = computed(() =>
 );
 const installing = ref(false);
 const removingPluginId = ref<string | null>(null);
+const pendingUninstallPlugin = ref<{ id: string; name: string } | null>(null);
+const uninstallConfirmVisible = ref(false);
+const uninstallDataChoiceVisible = ref(false);
 const marketplaceLoading = ref(false);
 const marketplaceItems = ref<PluginMarketplaceItem[]>([]);
 const marketplaceQuery = ref('');
@@ -1108,23 +1155,74 @@ const handleInstallZip = async () => {
   }
 };
 
-const handleUninstall = async (pluginId: PluginId | string) => {
+const requestUninstall = (
+  pluginId: PluginId | string,
+  pluginName: string
+): void => {
+  if (removingPluginId.value) return;
+  pendingUninstallPlugin.value = {
+    id: String(pluginId),
+    name: pluginName
+  };
+  uninstallConfirmVisible.value = true;
+};
+
+const handleUninstallConfirmed = (): void => {
+  if (!pendingUninstallPlugin.value) return;
+  uninstallConfirmVisible.value = false;
+  uninstallDataChoiceVisible.value = true;
+};
+
+const handleUninstallConfirmVisibility = (visible: boolean): void => {
+  if (!visible && !uninstallDataChoiceVisible.value) {
+    pendingUninstallPlugin.value = null;
+  }
+};
+
+const resetUninstallRequest = (): void => {
+  if (removingPluginId.value) return;
+  uninstallConfirmVisible.value = false;
+  uninstallDataChoiceVisible.value = false;
+  pendingUninstallPlugin.value = null;
+};
+
+const handleUninstall = async (
+  pluginId: PluginId | string,
+  deleteData: boolean
+): Promise<void> => {
   removingPluginId.value = String(pluginId);
   try {
-    logger.info('[PluginSettings] uninstall start', { pluginId });
+    logger.info('[PluginSettings] uninstall start', { pluginId, deleteData });
     const hotkeyNames = getPluginHotkeyNames(pluginId);
     await unregisterPluginHotkeys(pluginId, hotkeyNames);
-    await pluginStore.uninstall(pluginId);
+    await pluginStore.uninstall(pluginId, deleteData);
     clearPluginHotkeyValues(hotkeyNames);
     await configurationStore.initialize();
-    logger.info('[PluginSettings] uninstall complete', { pluginId });
-    modal.msg(t('plugins.uninstallSuccess'));
+    logger.info('[PluginSettings] uninstall complete', {
+      pluginId,
+      deleteData
+    });
+    modal.msg(
+      t(
+        deleteData
+          ? 'plugins.uninstallWithDataSuccess'
+          : 'plugins.uninstallSuccess'
+      )
+    );
   } catch (error) {
     logger.error('[PluginSettings] uninstall failed', { pluginId, error });
     modal.msg(`${t('plugins.uninstallFailed')}: ${error}`, 'error');
   } finally {
     removingPluginId.value = null;
   }
+};
+
+const handleUninstallChoice = async (deleteData: boolean): Promise<void> => {
+  const pending = pendingUninstallPlugin.value;
+  if (!pending) return;
+  uninstallDataChoiceVisible.value = false;
+  await handleUninstall(pending.id, deleteData);
+  pendingUninstallPlugin.value = null;
 };
 
 const handleToggle = async (pluginId: PluginId | string, enabled: boolean) => {
