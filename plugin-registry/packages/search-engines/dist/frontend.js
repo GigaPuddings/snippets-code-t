@@ -8567,7 +8567,7 @@ const yt = {
   for (const [o, r] of t)
     n[o] = r;
   return n;
-}, Co = /* @__PURE__ */ Do(Yg, [["__scopeId", "data-v-9497085f"]]), qg = { class: "dialog-footer-default" }, Zg = { class: "footer-left" }, Jg = { class: "footer-right" }, Xg = /* @__PURE__ */ F({
+}, Co = /* @__PURE__ */ Do(Yg, [["__scopeId", "data-v-5d7f8015"]]), qg = { class: "dialog-footer-default" }, Zg = { class: "footer-left" }, Jg = { class: "footer-right" }, Xg = /* @__PURE__ */ F({
   __name: "CommonDialog",
   props: {
     modelValue: { type: Boolean, default: !1 },

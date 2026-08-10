@@ -146,24 +146,6 @@ export interface LocalAiChatStreamOptions {
   onStats?: (stats: LocalAiChatStreamStats) => void;
 }
 
-export interface LocalAiVerifiedSourceSearchRequest {
-  query: string;
-  maxResults?: number;
-}
-
-export interface LocalAiVerifiedSource {
-  title: string;
-  url: string;
-  snippet: string;
-  source: string;
-  publishedAt?: string | null;
-}
-
-export interface LocalAiVerifiedSourceSearchResponse {
-  query: string;
-  results: LocalAiVerifiedSource[];
-}
-
 export async function getLocalAiConfig(): Promise<LocalAiConfig> {
   return await invoke<LocalAiConfig>('local_ai_get_config');
 }
@@ -251,15 +233,6 @@ export async function cancelLocalAiChatStream(
   requestId: string
 ): Promise<boolean> {
   return await invoke<boolean>('local_ai_cancel_chat_stream', { requestId });
-}
-
-export async function searchVerifiedSourcesWithLocalAi(
-  request: LocalAiVerifiedSourceSearchRequest
-): Promise<LocalAiVerifiedSourceSearchResponse> {
-  return await invoke<LocalAiVerifiedSourceSearchResponse>(
-    'local_ai_search_verified_sources',
-    { request }
-  );
 }
 
 export async function getLocalAiChatHistories(): Promise<LocalAiChatHistory[]> {

@@ -1,8 +1,4 @@
-import type {
-  LocalAiChatHistory,
-  LocalAiChatStreamStats,
-  LocalAiVerifiedSource
-} from '@/api/localAi';
+import type { LocalAiChatHistory, LocalAiChatStreamStats } from '@/api/localAi';
 import type { LocalAiAttachment } from '@/utils/localAiAttachments';
 
 export interface ChatMessage {
@@ -26,8 +22,6 @@ export interface ChatMessage {
   allowThinking?: boolean;
   reasoningStartedAt?: number;
   reasoningEndedAt?: number;
-  verifiedSourcesStatus?: 'searching' | 'done' | 'failed';
-  verifiedSources?: LocalAiVerifiedSource[];
   error?: string;
 }
 

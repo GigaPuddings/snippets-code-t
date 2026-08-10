@@ -103,11 +103,7 @@
             @keydown.enter.prevent="openHistory(history.id)"
           >
             <span class="chat-item-copy">
-              <span
-                v-auto-scroll-title
-                class="chat-item-title"
-                :title="history.title"
-              >
+              <span v-auto-scroll-title class="chat-item-title">
                 <span class="chat-item-title-track">
                   <span class="chat-item-title-text">{{ history.title }}</span>
                   <span
@@ -397,27 +393,6 @@
                     }}
                   </div>
                 </div>
-                <div
-                  v-if="display.message.verifiedSources?.length"
-                  class="verified-source-panel"
-                >
-                  <div class="verified-source-panel__header">
-                    <span>{{ t('localAi.verifiedSourcesUsed') }}</span>
-                  </div>
-                  <a
-                    v-for="(source, index) in display.message.verifiedSources"
-                    :key="`${source.url}-${index}`"
-                    class="verified-source"
-                    :href="source.url"
-                    target="_blank"
-                    rel="noreferrer"
-                    :title="source.url"
-                  >
-                    <span>[{{ index + 1 }}]</span>
-                    <strong>{{ source.title }}</strong>
-                    <em>{{ source.source }}</em>
-                  </a>
-                </div>
                 <div v-if="display.message.content" class="message-stats">
                   <span class="message-stats__context">
                     {{ t('localAi.contextLabel') }}:
@@ -643,22 +618,18 @@
                 <span>{{ t('localAi.enhancePrompt') }}</span>
               </button>
               <button
-                :class="[
-                  'composer-tool-btn',
-                  'composer-tool-btn--wide',
-                  verifiedSourcesEnabled ? 'composer-tool-btn--active' : ''
-                ]"
+                class="composer-tool-btn composer-tool-btn--wide"
                 type="button"
+                :disabled="!draft.trim() || navigationLocked"
                 :title="
-                  verifiedSourcesEnabled
-                    ? t('localAi.verifiedSourcesEnabled')
-                    : t('localAi.verifiedSourcesDisabled')
+                  draft.trim()
+                    ? t('localAi.webSearchPluginDesc')
+                    : t('localAi.webSearchNeedsQuery')
                 "
-                :aria-pressed="verifiedSourcesEnabled"
-                @click="toggleVerifiedSources"
+                @click="searchWebWithPlugin"
               >
                 <Search theme="outline" size="15" />
-                <span>{{ t('localAi.verifiedSourcesTitle') }}</span>
+                <span>{{ t('localAi.webSearch') }}</span>
               </button>
               <button
                 v-if="modelSupportsThinking"
@@ -819,7 +790,6 @@ import {
   saveLocalAiChatHistory,
   saveLocalAiConfig,
   scanLocalAiModels,
-  searchVerifiedSourcesWithLocalAi,
   streamChatWithLocalAi,
   type LocalAiConfig,
   type LocalAiMessage,
@@ -827,6 +797,12 @@ import {
   type LocalAiServiceStatus
 } from '@/api/localAi';
 import { ConfirmDialog } from '@/components/UI';
+import {
+  findDefaultSearchEngine,
+  loadEnabledSearchEngines,
+  openSearchEngine
+} from '@/plugins/search-engines/searchRuntime';
+import type { SearchEngine } from '@/types';
 import {
   cloneLocalAiAttachments,
   formatFileSize,
@@ -838,7 +814,6 @@ import {
   apiUserMessageContent,
   compactMessagesForBudget,
   createRuntimeContextMessage,
-  createVerifiedSourceContextMessage,
   estimateChatTokens,
   estimateStreamingOutputTokens,
   estimateTokens,
@@ -913,18 +888,6 @@ const clearingHistories = ref(false);
 const clearHistoryDialogVisible = ref(false);
 const stopRequested = ref(false);
 const thinkingEnabled = ref(false);
-const VERIFIED_SOURCES_ENABLED_STORAGE_KEY =
-  'snippets.localAi.verifiedSourcesEnabled';
-const loadVerifiedSourcesEnabled = (): boolean => {
-  try {
-    return (
-      localStorage.getItem(VERIFIED_SOURCES_ENABLED_STORAGE_KEY) === 'true'
-    );
-  } catch {
-    return false;
-  }
-};
-const verifiedSourcesEnabled = ref(loadVerifiedSourcesEnabled());
 const composerFocused = ref(false);
 const autoFollowMessages = ref(true);
 const showJumpToBottom = ref(false);
@@ -1641,21 +1604,37 @@ const messageActivityLabel = (message: ChatMessage): string => {
   return t('localAi.generating');
 };
 const assistantMessagePendingText = (message: ChatMessage): string => {
-  if (message.verifiedSourcesStatus === 'searching')
-    return t('localAi.verifiedSourcesSearching');
   if (message.allowThinking && !message.reasoningEndedAt)
     return t('localAi.thinking');
   return t('localAi.generating');
 };
-const toggleVerifiedSources = (): void => {
-  verifiedSourcesEnabled.value = !verifiedSourcesEnabled.value;
+const searchWebWithPlugin = async (): Promise<void> => {
+  const query = draft.value.trim();
+  if (!query || navigationLocked.value) return;
+
+  let defaultEngine: SearchEngine | undefined;
   try {
-    localStorage.setItem(
-      VERIFIED_SOURCES_ENABLED_STORAGE_KEY,
-      String(verifiedSourcesEnabled.value)
-    );
+    const engines = await loadEnabledSearchEngines();
+    defaultEngine = findDefaultSearchEngine(engines);
   } catch (error) {
-    logger.warn('[LocalAI] save verified source state failed', error);
+    logger.warn('[LocalAI] search-engines plugin unavailable', error);
+    modal.msg(t('localAi.webSearchPluginUnavailable'), 'warning');
+    return;
+  }
+
+  if (!defaultEngine) {
+    modal.msg(t('localAi.webSearchPluginNoDefault'), 'warning');
+    return;
+  }
+
+  try {
+    await openSearchEngine(defaultEngine, query, { hideSearchWindow: false });
+  } catch (error) {
+    logger.warn('[LocalAI] search-engines plugin search failed', error);
+    modal.msg(
+      `${t('localAi.webSearchPluginFailed')}: ${String(error)}`,
+      'error'
+    );
   }
 };
 const toApiMessages = (
@@ -1683,51 +1662,6 @@ const toApiMessages = (
       t('localAi.previousAnswerTail')
     )
   ];
-};
-const verifiedSourceQueryFor = (
-  history: ChatHistoryView,
-  assistantMessage: ChatMessage
-): string => {
-  const parent = history.messages.find(
-    (message) => message.id === assistantMessage.parentId
-  );
-  return parent?.role === 'user' ? parent.content.trim() : '';
-};
-const withVerifiedSourceContext = async (
-  messages: LocalAiMessage[],
-  assistantMessage: ChatMessage,
-  history: ChatHistoryView
-): Promise<LocalAiMessage[]> => {
-  if (assistantMessage.verifiedSourcesStatus !== 'searching') return messages;
-  const query = verifiedSourceQueryFor(history, assistantMessage);
-  if (!query) throw new Error(t('localAi.verifiedSourcesNoQuery'));
-
-  const response = await searchVerifiedSourcesWithLocalAi({
-    query,
-    maxResults: 6
-  });
-  if (!response.results.length)
-    throw new Error(t('localAi.verifiedSourcesEmpty'));
-  assistantMessage.verifiedSources = response.results;
-  assistantMessage.verifiedSourcesStatus = 'done';
-
-  const sourceMessage = createVerifiedSourceContextMessage(response);
-  const systemMessages = messages.filter(
-    (message) => message.role === 'system'
-  );
-  const conversationMessages = messages.filter(
-    (message) => message.role !== 'system'
-  );
-  const pinnedMessages = [...systemMessages, sourceMessage];
-  const contextTokens = estimateChatTokens(pinnedMessages);
-  return mergeSystemMessages([
-    ...pinnedMessages,
-    ...compactMessagesForBudget(
-      conversationMessages,
-      Math.max(512, requestContextBudget.value - contextTokens),
-      t('localAi.previousAnswerTail')
-    )
-  ]);
 };
 const requestMaxTokens = (): number | undefined =>
   resolveRequestMaxTokens(config.value?.maxTokens ?? 0);
@@ -1870,9 +1804,6 @@ const markMessageStopped = (message: ChatMessage, elapsedMs?: number): void => {
   message.stopped = true;
   message.interrupted = false;
   message.error = '';
-  if (message.verifiedSourcesStatus === 'searching') {
-    message.verifiedSourcesStatus = 'failed';
-  }
   if (message.reasoningStartedAt && !message.reasoningEndedAt) {
     message.reasoningEndedAt = Date.now();
   }
@@ -1892,16 +1823,6 @@ const streamAssistantMessage = async (
   let drainResolver: (() => void) | null = null;
   let receivedDelta = false;
   let repetitionStopRequested = false;
-  if (stopRequested.value) {
-    markMessageStopped(assistantMessage, performance.now() - startedAt);
-    clearGeneration(requestId);
-    return;
-  }
-  messages = await withVerifiedSourceContext(
-    messages,
-    assistantMessage,
-    history
-  );
   if (stopRequested.value) {
     markMessageStopped(assistantMessage, performance.now() - startedAt);
     clearGeneration(requestId);
@@ -2110,9 +2031,6 @@ const sendMessage = async () => {
     parentId: userMessage.id,
     streaming: true,
     allowThinking: thinkingEnabled.value && modelSupportsThinking.value,
-    verifiedSourcesStatus: verifiedSourcesEnabled.value
-      ? 'searching'
-      : undefined,
     contextSize: effectiveContextLimit.value
   });
   draft.value = '';
@@ -2349,10 +2267,7 @@ const regenerateMessage = async (messageId: string) => {
     createdAt: new Date().toISOString(),
     parentId: source.parentId,
     streaming: true,
-    allowThinking: thinkingEnabled.value && modelSupportsThinking.value,
-    verifiedSourcesStatus: verifiedSourcesEnabled.value
-      ? 'searching'
-      : undefined
+    allowThinking: thinkingEnabled.value && modelSupportsThinking.value
   });
   sending.value = true;
   const requestId = beginGeneration(assistantMessage);

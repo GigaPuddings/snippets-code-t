@@ -210,14 +210,7 @@
   transition:
     background-color 0.16s ease,
     color 0.16s ease,
-    border-color 0.16s ease,
-    transform 0.16s ease;
-}
-
-.chat-list-item:hover {
-  @apply bg-chat-hover-alt;
-
-  transform: translateX(1px);
+    border-color 0.16s ease;
 }
 
 .chat-list-item.active {
@@ -249,10 +242,6 @@
 }
 
 .chat-list-item:hover .chat-item-title.is-overflowing .chat-item-title-track {
-  color: var(--chat-neon-text);
-  text-shadow:
-    0 0 4px var(--chat-neon-glow),
-    0 0 10px var(--chat-neon-glow-strong);
   animation: local-ai-history-title-scroll var(--chat-title-scroll-duration)
     linear infinite;
 }
@@ -791,39 +780,6 @@
   font-feature-settings: 'tnum';
   font-variant-numeric: tabular-nums;
   line-height: 18px;
-}
-
-.verified-source-panel {
-  @apply grid text-chat-secondary text-xs gap-1.5;
-
-  width: min(100%, var(--chat-readable-width));
-  margin-top: 8px;
-}
-
-.verified-source-panel__header {
-  @apply text-chat-secondary font-semibold;
-}
-
-.verified-source {
-  @apply grid items-center text-chat-secondary no-underline bg-chat-inset border border-chat rounded-md;
-
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  column-gap: 7px;
-  padding: 5px 8px;
-}
-
-.verified-source:hover {
-  @apply text-primary;
-
-  border-color: rgb(95 116 243 / 36%);
-}
-
-.verified-source strong {
-  @apply min-w-0 overflow-hidden font-medium text-ellipsis whitespace-nowrap;
-}
-
-.verified-source em {
-  @apply text-chat-tertiary text-[11px] not-italic;
 }
 
 .message-stats span {

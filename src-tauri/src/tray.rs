@@ -43,6 +43,7 @@ static TRAY_MUTATION_LOCK: Mutex<()> = Mutex::new(());
 struct TrayTranslations {
     search: &'static str,
     config: &'static str,
+    ai_chat: &'static str,
     translate: &'static str,
     screenshot: &'static str,
     screen_recorder: &'static str,
@@ -176,6 +177,7 @@ fn get_translations(lang: &str) -> TrayTranslations {
         "en-US" => TrayTranslations {
             search: "Quick Search",
             config: "Settings",
+            ai_chat: "AI Chat",
             translate: "Translate",
             screenshot: "Screenshot",
             screen_recorder: "Screen Recorder",
@@ -214,6 +216,7 @@ fn get_translations(lang: &str) -> TrayTranslations {
             // zh-CN 默认
             search: "快速搜索",
             config: "配置管理",
+            ai_chat: "AI 聊天",
             translate: "输入翻译",
             screenshot: "快速截图",
             screen_recorder: "区域录制",
@@ -465,13 +468,16 @@ fn build_tray_menu(app: &AppHandle, lang: &str) -> tauri::Result<Menu<tauri::Wry
 
     let search_i = MenuItem::with_id(app, "search", trans.search, true, None::<&str>)?;
     let config_i = MenuItem::with_id(app, "config", trans.config, true, None::<&str>)?;
-    let ai_response_i = AI_RESPONDING
-        .load(Ordering::Acquire)
+    let ai_chat_i = app_config::is_plugin_enabled(app, "local-ai")
         .then(|| {
             MenuItem::with_id(
                 app,
-                "local_ai_response_status",
-                trans.ai_responding,
+                "local_ai_chat",
+                if AI_RESPONDING.load(Ordering::Acquire) {
+                    trans.ai_responding
+                } else {
+                    trans.ai_chat
+                },
                 true,
                 None::<&str>,
             )
@@ -567,10 +573,10 @@ fn build_tray_menu(app: &AppHandle, lang: &str) -> tauri::Result<Menu<tauri::Wry
     let quit_i = MenuItem::with_id(app, "quit", trans.quit, true, None::<&str>)?;
 
     let mut items: Vec<&dyn IsMenuItem<tauri::Wry>> = Vec::new();
-    if let Some(item) = &ai_response_i {
+    items.push(&search_i);
+    if let Some(item) = &ai_chat_i {
         items.push(item);
     }
-    items.push(&search_i);
     items.push(&config_i);
     if let Some(item) = &plugin_install_i {
         items.push(item);
@@ -853,8 +859,8 @@ fn create_or_update_tray(app: &AppHandle, menu: Menu<tauri::Wry>) -> tauri::Resu
                         open_config_settings();
                     });
                 }
-                "local_ai_response_status" => {
-                    debug!("[托盘菜单] 执行：返回 AI 对话");
+                "local_ai_chat" | "local_ai_response_status" => {
+                    debug!("[托盘菜单] 执行：打开 AI 对话");
                     crate::window::open_local_ai_chat(None);
                 }
                 "plugin_install_status" => {

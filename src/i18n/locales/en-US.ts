@@ -2163,18 +2163,15 @@ export default {
     reasoningTitle: 'Think',
     thinkingEnabled: 'Thinking is on',
     thinkingDisabled: 'Thinking is off',
-    verifiedSourcesTitle: 'Web search',
-    verifiedSourcesEnabled: 'Web search is on',
-    verifiedSourcesDisabled: 'Web search is off',
-    verifiedSourcesSearching:
-      'Searching pages with Playwright MCP and extracting article text...',
-    verifiedSourcesUsed: 'Web sources used for this response',
-    verifiedSourcesNoQuery: 'There is no question content to search for.',
-    verifiedSourcesEmpty:
-      'No usable web content was retrieved. Refine the query and try again.',
     webSearch: 'Web search',
-    webSearchDesc:
-      'AI opens the built-in search entry with Playwright MCP, reads the first 3–5 results, extracts article text, then summarizes it with sources.',
+    webSearchPluginDesc:
+      'Search the current input in your system browser using the Search Engines plugin',
+    webSearchNeedsQuery: 'Enter something to search for first',
+    webSearchPluginUnavailable:
+      'Install and enable the Search Engines plugin from the marketplace first.',
+    webSearchPluginNoDefault:
+      'No default search engine is configured. Choose one in the plugin settings first.',
+    webSearchPluginFailed: 'Failed to open web search',
     jumpToLatest: 'Jump to latest',
     modelChanged: 'Model changed and saved',
     you: 'You',
