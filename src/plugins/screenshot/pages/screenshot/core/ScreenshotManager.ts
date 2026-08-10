@@ -16,6 +16,11 @@ import { reflowOcrBlocks, type ParagraphBlock } from './OcrLayoutReflow'
 import type { DetectedLanguage } from '@/utils/text'
 import { VisualElementDetector } from './VisualElementDetector'
 import { SelectionCandidateStabilizer } from './SelectionCandidateStabilizer'
+import {
+  findNearbyWindow,
+  hasIntentionalPointerMovement,
+  type SnappableWindow
+} from './WindowSnap'
 
 interface AnnotationHistorySnapshot {
   annotations: AnnotationData[]
@@ -39,16 +44,10 @@ interface CropOptions {
 
 type TranslationLanguage = 'zh' | 'en'
 
-interface WindowInfo {
-  x: number
-  y: number
-  width: number
-  height: number
+interface WindowInfo extends SnappableWindow {
   title: string
   handle?: number
   z_order: number  // 原始窗口层级
-  is_fullscreen: boolean  // 是否为全屏窗口
-  display_order: number  // 实际显示层级（考虑全屏和遮挡后），值越小层级越高
 }
 
 interface UiElementInfo {
@@ -116,6 +115,9 @@ export class ScreenshotManager {
   private showSnapPreview = false
   private captureMonitor = { x: 0, y: 0, scale: 1 }
   private lastPointerPosition: Point | null = null
+  private elementSelectionPointerOrigin: Point | null = null
+  private elementSelectionActivated = false
+  private readonly elementSelectionMoveThreshold = 12
   private smartDetectionSequence = 0
   private smartDetectionTimer: number | null = null
   private accessibilityDetectionTimer: number | null = null
@@ -369,7 +371,11 @@ export class ScreenshotManager {
                 this.canvas.width / dpr,
                 this.canvas.height / dpr
               )
-              if (this.lastPointerPosition && this.snappedWindow) {
+              if (
+                this.elementSelectionActivated &&
+                this.lastPointerPosition &&
+                this.snappedWindow
+              ) {
                 this.scheduleUiElementDetection(
                   this.lastPointerPosition,
                   this.snappedWindow
@@ -600,12 +606,14 @@ export class ScreenshotManager {
       // 检测鼠标位置附近的窗口
       const nearbyWindow = this.detectNearbyWindow(canvasMousePos)
       this.lastPointerPosition = canvasMousePos
+      if (!this.elementSelectionPointerOrigin) {
+        this.elementSelectionPointerOrigin = { ...canvasMousePos }
+      }
 
       if (nearbyWindow) {
         this.snappedWindow = nearbyWindow
         this.showSnapPreview = true
         this.draw()
-        this.scheduleUiElementDetection(canvasMousePos, nearbyWindow)
       } else {
         this.showSnapPreview = true
         this.draw()
@@ -682,50 +690,7 @@ export class ScreenshotManager {
   }
 
   private detectNearbyWindow(mousePos: Point): WindowInfo | null {
-    if (this.allWindows.length === 0) return null
-
-    // 找出所有候选窗口（鼠标在窗口内或接近窗口边缘）
-    const candidates: Array<{ window: WindowInfo; distance: number }> = []
-
-    for (const window of this.allWindows) {
-      const isInWindow = mousePos.x >= window.x && 
-                        mousePos.x <= window.x + window.width &&
-                        mousePos.y >= window.y && 
-                        mousePos.y <= window.y + window.height
-
-      if (isInWindow) {
-        candidates.push({ window, distance: 0 })
-        continue
-      }
-
-      const distToLeft = Math.abs(mousePos.x - window.x)
-      const distToRight = Math.abs(mousePos.x - (window.x + window.width))
-      const distToTop = Math.abs(mousePos.y - window.y)
-      const distToBottom = Math.abs(mousePos.y - (window.y + window.height))
-      const minDist = Math.min(distToLeft, distToRight, distToTop, distToBottom)
-      
-      if (minDist <= this.snapThreshold) {
-        candidates.push({ window, distance: minDist })
-      }
-    }
-
-    if (candidates.length === 0) return null
-
-    // 按照优先级排序：
-    // 1. 优先选择 display_order 最小的（最顶层）
-    // 2. 如果 display_order 相同，优先选择距离最近的
-    // 3. 如果距离也相同，优先选择全屏窗口
-    return candidates.reduce((best, current) => {
-      if (current.window.display_order < best.window.display_order) return current
-      if (current.window.display_order > best.window.display_order) return best
-      
-      if (current.distance < best.distance) return current
-      if (current.distance > best.distance) return best
-      
-      if (current.window.is_fullscreen && !best.window.is_fullscreen) return current
-      
-      return best
-    }).window
+    return findNearbyWindow(this.allWindows, mousePos, this.snapThreshold)
   }
 
   private getFullscreenCandidate(): SelectionCandidate {
@@ -772,6 +737,22 @@ export class ScreenshotManager {
       }
     }
     return this.lastPointerPosition ? this.getFullscreenCandidate() : null
+  }
+
+  private updateElementSelectionIntent(mousePos: Point): void {
+    if (this.elementSelectionActivated) return
+    if (!this.elementSelectionPointerOrigin) {
+      this.elementSelectionPointerOrigin = { ...mousePos }
+      return
+    }
+
+    if (hasIntentionalPointerMovement(
+      this.elementSelectionPointerOrigin,
+      mousePos,
+      this.elementSelectionMoveThreshold
+    )) {
+      this.elementSelectionActivated = true
+    }
   }
 
   private scheduleUiElementDetection(
@@ -1124,6 +1105,7 @@ export class ScreenshotManager {
     } else {
       // 非绘制状态时检测窗口吸附
       if (this.currentTool === ToolType.Select && !this.selectionRect) {
+        this.updateElementSelectionIntent(mousePos)
         const nearbyWindow = this.detectNearbyWindow(mousePos)
         
         if (nearbyWindow !== this.snappedWindow) {
@@ -1138,7 +1120,7 @@ export class ScreenshotManager {
           this.showSnapPreview = true
           this.draw()
         }
-        if (nearbyWindow) {
+        if (nearbyWindow && this.elementSelectionActivated) {
           this.scheduleUiElementDetection(mousePos, nearbyWindow)
         }
       }
@@ -2570,6 +2552,8 @@ export class ScreenshotManager {
     this.snappedWindow = null
     this.snappedElement = null
     this.elementCandidateStabilizer.reset()
+    this.elementSelectionPointerOrigin = null
+    this.elementSelectionActivated = false
     this.showSnapPreview = false
     this.pendingSnapCandidate = null
     this.cancelSmartDetection()

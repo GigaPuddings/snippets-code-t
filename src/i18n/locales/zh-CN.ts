@@ -1495,6 +1495,8 @@ export default {
   },
 
   searchPreview: {
+    showPanel: '显示预览面板',
+    hidePanel: '隐藏预览面板',
     expandPreview: '展开预览',
     collapsePreview: '收起预览',
     availableActions: '可用操作',

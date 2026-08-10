@@ -3370,22 +3370,11 @@ pub fn get_all_windows() -> Result<Vec<WindowInfo>, String> {
             // 排序：按Z-order排序（z_order值越小表示层级越高，即最顶层的窗口）
             windows.sort_by_key(|window: &WindowInfo| window.z_order);
 
-            // 过滤被遮挡的窗口
-            let mut filtered_windows: Vec<WindowInfo> = Vec::new();
-            for mut window in windows {
-                let is_occluded = filtered_windows.iter().any(|higher_window| {
-                    let overlap = calculate_overlap_area(&window, higher_window);
-                    let area = window.width * window.height;
-                    area > 0 && overlap as f64 / area as f64 > 0.2
-                });
-
-                if !is_occluded {
-                    window.display_order = filtered_windows.len() as i32;
-                    filtered_windows.push(window);
-                }
+            // 保留所有顶层窗口。鼠标命中时会按 Z-order 选择包含该点的最上层窗口，
+            // 因此完全被遮挡的窗口不会被误选，而部分可见的低层窗口仍可在露出区域命中。
+            for (display_order, window) in windows.iter_mut().enumerate() {
+                window.display_order = display_order as i32;
             }
-
-            windows = filtered_windows;
         }
     }
 
@@ -3529,20 +3518,6 @@ pub fn get_ui_element_at_point(
         unsafe { CoUninitialize() };
     }
     result
-}
-
-// 计算两个窗口的重叠面积
-fn calculate_overlap_area(window1: &WindowInfo, window2: &WindowInfo) -> i32 {
-    let left = std::cmp::max(window1.x, window2.x);
-    let top = std::cmp::max(window1.y, window2.y);
-    let right = std::cmp::min(window1.x + window1.width, window2.x + window2.width);
-    let bottom = std::cmp::min(window1.y + window1.height, window2.y + window2.height);
-
-    if left < right && top < bottom {
-        (right - left) * (bottom - top)
-    } else {
-        0
-    }
 }
 
 // ==================== 设置向导窗口 ====================

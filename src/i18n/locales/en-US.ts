@@ -1544,6 +1544,8 @@ export default {
   },
 
   searchPreview: {
+    showPanel: 'Show Preview Panel',
+    hidePanel: 'Hide Preview Panel',
     expandPreview: 'Expand Preview',
     collapsePreview: 'Collapse Preview',
     availableActions: 'Available Actions',

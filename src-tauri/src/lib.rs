@@ -844,6 +844,8 @@ pub fn run() {
             // 应用配置命令
             app_config::get_app_config,                 // 获取应用配置
             app_config::update_app_config,              // 更新应用配置
+            app_config::get_quick_search_preview_visible, // 获取快速搜索预览面板状态
+            app_config::set_quick_search_preview_visible, // 更新快速搜索预览面板状态
             app_config::get_editor_settings,            // 获取编辑器显示设置
             app_config::update_editor_settings,         // 更新编辑器显示设置
             app_config::get_git_settings_command,       // 获取 Git 设置

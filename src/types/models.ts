@@ -229,6 +229,9 @@ export interface AppConfig {
     lineNumbers: boolean;
     lineHeight: number;
   };
+  quick_search?: {
+    preview_visible: boolean;
+  };
   git: GitSettings;
   plugins?: Record<string, { enabled: boolean }>;
   pluginInstallDir?: string | null;

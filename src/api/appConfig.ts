@@ -62,6 +62,20 @@ export async function updateGitSettings(settings: GitSettings): Promise<void> {
 }
 
 /**
+ * 获取快速搜索右侧预览面板是否显示。
+ */
+export async function getQuickSearchPreviewVisible(): Promise<boolean> {
+  return await invoke<boolean>('get_quick_search_preview_visible');
+}
+
+/**
+ * 更新快速搜索右侧预览面板显示状态。
+ */
+export async function setQuickSearchPreviewVisible(visible: boolean): Promise<void> {
+  await invoke('set_quick_search_preview_visible', { visible });
+}
+
+/**
  * 获取编辑器显示设置
  */
 export async function getEditorSettings(): Promise<EditorSettings> {

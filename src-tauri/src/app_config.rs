@@ -44,6 +44,10 @@ pub struct AppConfig {
     #[serde(default)]
     pub editor: EditorSettings,
 
+    // 快速搜索显示配置
+    #[serde(default)]
+    pub quick_search: QuickSearchSettings,
+
     // 插件启用状态。官方功能默认需要安装本地插件包，核心功能除外。
     #[serde(default = "default_plugin_states")]
     pub plugins: PluginStates,
@@ -159,6 +163,12 @@ impl Default for EditorSettings {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct QuickSearchSettings {
+    #[serde(default)]
+    pub preview_visible: bool,
+}
+
 const HOST_PLUGIN_IDS: &[&str] = &[
     "translation",
     "screenshot",
@@ -235,6 +245,7 @@ impl Default for AppConfig {
             cache_icons: true,
             git: GitSettings::default(),
             editor: EditorSettings::default(),
+            quick_search: QuickSearchSettings::default(),
             plugins: default_plugin_states(),
             plugin_install_dir: None,
             // 兼容字段默认为 None
@@ -465,6 +476,10 @@ impl AppConfigManager {
         }
         settings.line_height = settings.line_height.clamp(1.2, 2.0);
         self.config.editor = settings;
+    }
+
+    pub fn set_quick_search_preview_visible(&mut self, visible: bool) {
+        self.config.quick_search.preview_visible = visible;
     }
 
     /// 更新主题
@@ -1021,6 +1036,41 @@ pub fn update_app_config(app_handle: AppHandle, config: AppConfig) -> Result<(),
         manager.update_config(config);
         manager.save()?;
         info!("✅ [AppConfig] 应用配置已更新");
+        Ok(())
+    } else {
+        Err("AppConfigManager 未初始化".to_string())
+    }
+}
+
+/// 获取快速搜索预览面板的显示状态。
+#[command]
+pub fn get_quick_search_preview_visible(app_handle: AppHandle) -> Result<bool, String> {
+    if let Some(config_state) = app_handle.try_state::<Arc<RwLock<AppConfigManager>>>() {
+        let manager = config_state
+            .read()
+            .map_err(|e| format!("获取配置锁失败: {}", e))?;
+        Ok(manager.get_config().quick_search.preview_visible)
+    } else {
+        let workspace_root = crate::json_config::get_workspace_root(&app_handle)?
+            .ok_or("工作区未设置".to_string())?;
+        let manager = AppConfigManager::new(&workspace_root)?;
+        Ok(manager.get_config().quick_search.preview_visible)
+    }
+}
+
+/// 更新快速搜索预览面板的显示状态，并立即持久化到 app.json。
+#[command]
+pub fn set_quick_search_preview_visible(
+    app_handle: AppHandle,
+    visible: bool,
+) -> Result<(), String> {
+    if let Some(config_state) = app_handle.try_state::<Arc<RwLock<AppConfigManager>>>() {
+        let mut manager = config_state
+            .write()
+            .map_err(|e| format!("获取配置锁失败: {}", e))?;
+        manager.set_quick_search_preview_visible(visible);
+        manager.save()?;
+        info!("✅ [AppConfig] 快速搜索预览面板状态已更新: {}", visible);
         Ok(())
     } else {
         Err("AppConfigManager 未初始化".to_string())
@@ -3440,5 +3490,24 @@ mod tests {
         manager.clear_plugin_owned_config("local-ai");
 
         assert!(!manager.config.extra.contains_key("local_ai_chat_histories"));
+    }
+
+    #[test]
+    fn quick_search_preview_is_hidden_when_legacy_config_has_no_setting() {
+        let config = AppConfigManager::load_from_str("{}").expect("config should deserialize");
+
+        assert!(!config.quick_search.preview_visible);
+    }
+
+    #[test]
+    fn quick_search_preview_setting_round_trips() {
+        let mut config = AppConfig::default();
+        config.quick_search.preview_visible = true;
+
+        let serialized = serde_json::to_string(&config).expect("config should serialize");
+        let restored =
+            AppConfigManager::load_from_str(&serialized).expect("config should deserialize");
+
+        assert!(restored.quick_search.preview_visible);
     }
 }
