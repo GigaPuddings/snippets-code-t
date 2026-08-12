@@ -10,6 +10,13 @@ import {
 } from './markdown';
 
 describe('jsonToMarkdown', () => {
+  it('keeps the editor default empty document empty', () => {
+    expect(jsonToMarkdown({
+      type: 'doc',
+      content: [{ type: 'paragraph' }]
+    })).toBe('');
+  });
+
   it('escapes literal HTML-like text so it remains visible after reopening a note', () => {
     const markdown = jsonToMarkdown({
       type: 'doc',
@@ -88,6 +95,51 @@ describe('jsonToMarkdown', () => {
 
     expect(markdown).toBe('左侧  右侧\n');
     expect(markdownToHtml(markdown)).toContain('<p>左侧  右侧</p>');
+  });
+
+  it('round-trips an intentional empty paragraph between text paragraphs', () => {
+    const markdown = jsonToMarkdown({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: '1、段落1' }]
+        },
+        { type: 'paragraph' },
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: '2、段落2' }]
+        }
+      ]
+    });
+
+    expect(markdown).toBe('1、段落1\n\n<p></p>\n\n2、段落2\n');
+    expect(markdownToHtml(markdown)).toBe(
+      '<p>1、段落1</p><p></p><p>2、段落2</p>\n'
+    );
+  });
+
+  it('preserves each consecutive top-level empty paragraph', () => {
+    const markdown = jsonToMarkdown({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: '上文' }]
+        },
+        { type: 'paragraph' },
+        { type: 'paragraph' },
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: '下文' }]
+        }
+      ]
+    });
+
+    expect(markdown.match(/<p><\/p>/g)).toHaveLength(2);
+    expect(markdownToHtml(markdown)).toBe(
+      '<p>上文</p><p></p><p></p><p>下文</p>\n'
+    );
   });
 
   it('round-trips combined bold and italic marks in a stable order', () => {
@@ -507,6 +559,46 @@ describe('markdownToHtml', () => {
     expect(html).not.toContain('**');
   });
 
+});
+
+describe('HTML empty paragraph compatibility', () => {
+  it('keeps a legacy document containing only empty paragraphs empty', () => {
+    const markdown = htmlToMarkdown(
+      '<p><br></p><p><br></p>',
+      createTurndownService()
+    );
+
+    expect(markdown).toBe('');
+  });
+
+  it('preserves a top-level empty paragraph when legacy HTML is converted', () => {
+    const markdown = htmlToMarkdown(
+      '<p>1、段落1</p><p><br></p><p>2、段落2</p>',
+      createTurndownService()
+    );
+
+    expect(markdown).toBe('1、段落1\n\n<p></p>\n\n2、段落2');
+    expect(markdownToHtml(markdown)).toBe(
+      '<p>1、段落1</p><p></p><p>2、段落2</p>\n'
+    );
+  });
+
+  it('does not promote an empty paragraph inside a list to document spacing', () => {
+    const markdown = htmlToMarkdown(
+      '<ul><li><p>列表项</p><p><br></p></li></ul><p>正文</p>',
+      createTurndownService()
+    );
+
+    expect(markdown).not.toContain('<p></p>');
+  });
+
+  it('loads the previously persisted br marker as exactly one empty paragraph', () => {
+    const html = markdownToHtml('1、段落\n\n<p><br></p>\n\n2、段落');
+
+    expect(html).toBe('<p>1、段落</p><p></p><p>2、段落</p>\n');
+    expect(html).not.toContain('<br>');
+    expect(html).not.toMatch(/<p>\s+<\/p>/);
+  });
 });
 
 describe('rich clipboard conversion', () => {

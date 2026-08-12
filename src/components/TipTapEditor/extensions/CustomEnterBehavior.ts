@@ -24,6 +24,39 @@ function findAncestorDepth($pos: ResolvedPos, typeName: string): number {
   return -1;
 }
 
+/**
+ * 无序列表的新空项中输入 `- ` 时退出列表。
+ * 列表外的 `- ` 仍由 Markdown 输入规则转换为列表。
+ */
+export function exitBulletListOnMarkerSpace(editor: Editor): boolean {
+  const { selection } = editor.state;
+  const { $from } = selection;
+
+  if (
+    !selection.empty ||
+    $from.parent.type.name !== 'paragraph' ||
+    $from.parentOffset !== 1 ||
+    $from.parent.textContent !== '-'
+  ) {
+    return false;
+  }
+
+  const listItemDepth = findAncestorDepth($from, 'listItem');
+  if (
+    listItemDepth < 1 ||
+    $from.node(listItemDepth - 1).type.name !== 'bulletList'
+  ) {
+    return false;
+  }
+
+  if (!editor.commands.deleteRange({ from: $from.pos - 1, to: $from.pos })) {
+    return false;
+  }
+
+  // liftListItem 需要删除标记后的最新文档状态，不能与 deleteRange 共用 chain。
+  return editor.commands.liftListItem('listItem');
+}
+
 function findOrderedListItemDepth($pos: ResolvedPos): number {
   for (let depth = $pos.depth; depth > 1; depth--) {
     if (
@@ -484,6 +517,10 @@ export const CustomEnterBehavior = Extension.create({
       },
       'Shift-Enter': () => {
         return this.editor.commands.setHardBreak();
+      },
+
+      'Space': () => {
+        return exitBulletListOnMarkerSpace(this.editor);
       },
 
       'Mod-Enter': () => {

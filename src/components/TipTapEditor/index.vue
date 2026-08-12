@@ -1624,6 +1624,10 @@ defineExpose({
       display: list-item !important;
       list-style: inherit !important;
     }
+
+    > li::marker {
+      content: '-  ';
+    }
   }
 
   ol {

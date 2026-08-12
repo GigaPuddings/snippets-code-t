@@ -1,8 +1,12 @@
-import type { Editor } from '@tiptap/core';
+import { Editor } from '@tiptap/core';
 import { Schema } from '@tiptap/pm/model';
 import { EditorState, TextSelection, type Transaction } from '@tiptap/pm/state';
+import StarterKit from '@tiptap/starter-kit';
 import { describe, expect, it, vi } from 'vitest';
-import { continueOrderedListAfterTable } from './CustomEnterBehavior';
+import {
+  continueOrderedListAfterTable,
+  exitBulletListOnMarkerSpace
+} from './CustomEnterBehavior';
 
 const schema = new Schema({
   nodes: {
@@ -14,12 +18,95 @@ const schema = new Schema({
       content: 'listItem+',
       group: 'block'
     },
+    bulletList: { content: 'listItem+', group: 'block' },
     listItem: { content: 'paragraph block*' },
     table: { content: 'tableRow+', group: 'block' },
     tableRow: { content: '(tableCell | tableHeader)+' },
     tableCell: { content: 'block+' },
     tableHeader: { content: 'block+' }
   }
+});
+
+function createListEditor(
+  doc: ReturnType<typeof schema.node>,
+  cursor: number
+): Editor {
+  const editor = new Editor({
+    extensions: [StarterKit],
+    content: doc.toJSON()
+  });
+  editor.commands.setTextSelection(cursor);
+  return editor;
+}
+
+function findCursorAtEnd(
+  doc: ReturnType<typeof schema.node>,
+  text: string
+): number {
+  let cursor = -1;
+  doc.descendants((node, pos) => {
+    if (node.type.name === 'paragraph' && node.textContent === text) {
+      cursor = pos + 1 + node.content.size;
+    }
+  });
+  return cursor;
+}
+
+describe('exitBulletListOnMarkerSpace', () => {
+  it('removes a standalone marker and lifts the current bullet-list item', () => {
+    const doc = schema.node('doc', null, [
+      schema.node('bulletList', null, [
+        schema.node('listItem', null, [
+          schema.node('paragraph', null, schema.text('列表 1'))
+        ]),
+        schema.node('listItem', null, [
+          schema.node('paragraph', null, schema.text('-'))
+        ])
+      ]),
+      schema.node('paragraph', null, schema.text('其他文本'))
+    ]);
+    const editor = createListEditor(doc, findCursorAtEnd(doc, '-'));
+
+    expect(exitBulletListOnMarkerSpace(editor)).toBe(true);
+    expect(editor.getJSON().content?.map(node => node.type)).toEqual([
+      'bulletList',
+      'paragraph',
+      'paragraph'
+    ]);
+    expect(editor.getJSON().content?.[0].content).toHaveLength(1);
+    expect(editor.getJSON().content?.[1]).toEqual({ type: 'paragraph' });
+    expect(editor.state.doc.child(2).textContent).toBe('其他文本');
+    expect(editor.state.selection.$from.parent.type.name).toBe('paragraph');
+    editor.destroy();
+  });
+});
+
+describe('exitBulletListOnMarkerSpace guards', () => {
+  it('keeps a standalone marker in a normal paragraph', () => {
+    const doc = schema.node('doc', null, [
+      schema.node('paragraph', null, schema.text('-'))
+    ]);
+    const editor = createListEditor(doc, findCursorAtEnd(doc, '-'));
+
+    expect(exitBulletListOnMarkerSpace(editor)).toBe(false);
+    expect(editor.getText()).toBe('-');
+    editor.destroy();
+  });
+
+  it('keeps non-marker list content unchanged', () => {
+    const doc = schema.node('doc', null, [
+      schema.node('bulletList', null, [
+        schema.node('listItem', null, [
+          schema.node('paragraph', null, schema.text('- 列表 2'))
+        ])
+      ])
+    ]);
+    const editor = createListEditor(doc, findCursorAtEnd(doc, '- 列表 2'));
+
+    expect(exitBulletListOnMarkerSpace(editor)).toBe(false);
+    expect(editor.state.doc.textContent).toBe('- 列表 2');
+    editor.destroy();
+  });
 });
 
 describe('continueOrderedListAfterTable', () => {

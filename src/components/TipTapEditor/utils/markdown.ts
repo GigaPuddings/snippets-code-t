@@ -10,6 +10,23 @@ export const MARKDOWN_EDITOR_PARSE_OPTIONS = {
   preserveWhitespace: 'full' as const
 };
 
+// CommonMark 会折叠段落之间任意数量的空行，无法仅靠 `\n` 区分普通段落
+// 分隔与用户主动插入的空段落。使用标准 Markdown 支持的 raw HTML 保留该结构。
+// 不在标记中放置 <br>：TipTap 会将它解析成 hardBreak，而不是空段落占位符。
+const EMPTY_PARAGRAPH_MARKDOWN = '<p></p>';
+
+/**
+ * marked 会在 raw HTML 块前后保留 Markdown 分隔换行。在编辑器使用
+ * preserveWhitespace: 'full' 解析时，这些换行会变成额外的空段落；旧版标记里的
+ * <br> 还会再变成一个 hardBreak。这里同时兼容新旧标记，并输出唯一的空 <p>。
+ */
+function normalizeEditorEmptyParagraphHtml(html: string): string {
+  return html.replace(
+    /(?:\r?\n)*<p>[ \t]*(?:<br\s*\/?>[ \t]*)?<\/p>(?:\r?\n)*/gi,
+    '<p></p>'
+  );
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
@@ -497,6 +514,25 @@ export function createTurndownService(): TurndownService {
     replacement: () => ''
   });
 
+  // 保留编辑器上下文之间的顶层空段落。列表、引用和表格内部的空段落由各自
+  // 的块级序列化规则处理，不能提升成文档级空白行。
+  turndownService.addRule('editorEmptyParagraph', {
+    filter: (node) => {
+      if (node.nodeName !== 'P' || node.textContent?.trim()) return false;
+
+      const element = node as Element;
+      if (element.closest('li, blockquote, td, th')) return false;
+
+      return Array.from(node.childNodes).every((child) => {
+        return (
+          (child.nodeType === 3 && !(child.nodeValue || '').trim()) ||
+          child.nodeName === 'BR'
+        );
+      });
+    },
+    replacement: () => `\n\n${EMPTY_PARAGRAPH_MARKDOWN}\n\n`
+  });
+
   // 添加任务列表规则 - 识别 TipTap 的任务列表结构
   turndownService.addRule('taskListItem', {
     filter: (node) => {
@@ -687,8 +723,11 @@ export function markdownToHtml(markdown: string, workspaceRoot?: string): string
   // marked 的全局配置可能被其他扩展覆盖，导致 AI 输出的单换行被折叠。
   const parsedHtml = marked.parse(normalizedMarkdown, { breaks: true, gfm: true }) as string;
   // 移除预处理阶段插入的零宽空格（marked 解析完成后不再需要），
-  // 否则会干扰 renderUnparsedLabelStrong 中的正则匹配。
-  const cleanedHtml = parsedHtml.replace(/\u200B/g, '');
+  // 否则会干扰 renderUnparsedLabelStrong 中的正则匹配。随后将持久化用的
+  // 空段落标记规范化为 TipTap 需要的唯一空段落节点。
+  const cleanedHtml = normalizeEditorEmptyParagraphHtml(
+    parsedHtml.replace(/\u200B/g, '')
+  );
   const html = sanitizeHtml(renderUnparsedLabelStrong(cleanedHtml));
   
   let processedHtml = html;
@@ -837,6 +876,11 @@ export function htmlToMarkdown(html: string, turndownService: TurndownService): 
   
   // 13. 移除多余的空行（超过2个连续换行）
   markdown = markdown.replace(/\n{3,}/g, '\n\n');
+
+  // 只有空段落的旧版 HTML 仍视为空笔记，避免把编辑器的默认空节点写入文件。
+  if (!markdown.split(EMPTY_PARAGRAPH_MARKDOWN).join('').trim()) {
+    return '';
+  }
   
   // 14. 确保文档开头没有多余空行
   markdown = markdown.replace(/^\n+/, '');
@@ -860,6 +904,13 @@ export function richHtmlToEditorHtml(html: string, workspaceRoot?: string): stri
 // TipTap JSON 转 Markdown
 export function jsonToMarkdown(json: any): string {
   if (!json || !json.content) {
+    return '';
+  }
+
+  const hasMeaningfulTopLevelNode = json.content.some((node: any) => {
+    return node.type !== 'paragraph' || (node.content?.length ?? 0) > 0;
+  });
+  if (!hasMeaningfulTopLevelNode) {
     return '';
   }
 
@@ -1099,7 +1150,15 @@ export function jsonToMarkdown(json: any): string {
     return '';
   };
   
-  let markdown = json.content.map(processNode).join('');
+  const processTopLevelNode = (node: any): string => {
+    if (node.type === 'paragraph' && (!node.content || node.content.length === 0)) {
+      return EMPTY_PARAGRAPH_MARKDOWN + '\n\n';
+    }
+
+    return processNode(node);
+  };
+
+  let markdown = json.content.map(processTopLevelNode).join('');
   
   // 清理多余的空行
   markdown = markdown.replace(/\n{3,}/g, '\n\n');
