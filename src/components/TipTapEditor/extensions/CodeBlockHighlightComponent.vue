@@ -195,8 +195,9 @@ const copyCode = async () => {
 
 <style lang="scss" scoped>
 .code-block-wrapper {
-  @apply relative my-3 box-border w-full min-w-0 max-w-full overflow-hidden;
+  @apply relative box-border w-full min-w-0 max-w-full overflow-hidden;
 
+  margin: 0.6em 0 0.72em;
   border: 1px solid var(--code-block-border, var(--editor-border));
   border-radius: 7px;
   background: var(--code-block-bg, var(--editor-hover-bg));
@@ -275,7 +276,7 @@ const copyCode = async () => {
   @apply m-0 box-border w-full min-w-0 max-w-full overflow-x-auto;
 
   margin: 0 !important;
-  padding: 14px 16px;
+  padding: 12px 14px;
   font-family: ui-monospace, 'SF Mono', 'Monaco', 'Cascadia Code', 'Roboto Mono', 'Consolas', 'Courier New', monospace;
   font-size: 13px;
   line-height: 1.6;

@@ -121,7 +121,8 @@ const copyCode = async () => {
 
 <style lang="scss" scoped>
 .code-block-wrapper {
-  @apply relative my-3 overflow-hidden;
+  @apply relative overflow-hidden;
+  margin: 0.6em 0 0.72em;
   border: 1px solid var(--code-block-border, var(--editor-border));
   border-radius: 7px;
   background: var(--code-block-bg, var(--editor-hover-bg));
@@ -163,10 +164,11 @@ const copyCode = async () => {
 }
 
 pre {
-  @apply m-0 overflow-x-auto bg-transparent px-4 py-3.5;
+  @apply m-0 overflow-x-auto bg-transparent;
+  padding: 12px 14px;
   font-family: ui-monospace, 'SF Mono', 'Monaco', 'Cascadia Code', 'Roboto Mono', 'Consolas', 'Courier New', monospace;
   font-size: 13.5px;
-  line-height: 1.65;
+  line-height: 1.55;
 
   &::-webkit-scrollbar {
     @apply h-2;

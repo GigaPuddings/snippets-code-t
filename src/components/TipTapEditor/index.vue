@@ -1322,9 +1322,9 @@ defineExpose({
 
 :deep(.tiptap-editor) {
   @apply box-border h-auto min-h-full max-w-full whitespace-pre-wrap overflow-y-visible min-w-0 outline-none;
-  width: min(100%, 1024px);
+  width: min(100%, 1080px);
   margin: 0 auto;
-  padding: 34px clamp(28px, 5vw, 64px) 104px;
+  padding: 22px clamp(20px, 3.5vw, 44px) 76px;
   font-size: 15px;
   line-height: var(--editor-line-height);
   color: var(--editor-text);
@@ -1379,7 +1379,7 @@ defineExpose({
 
     /* 代码块样式已移至 CodeBlockComponent.vue */
     pre {
-      @apply mb-4;
+      @apply mb-3;
     }
 
     /* 暗色编辑区：代码块关键词高亮 */
@@ -1523,11 +1523,11 @@ defineExpose({
   }
 
   h1 {
-    margin-top: 2.15em;
-    margin-bottom: 0.8em;
-    padding-bottom: 0.38em;
+    margin-top: 1.25em;
+    margin-bottom: 0.48em;
+    padding-bottom: 0.28em;
     color: var(--markdown-heading);
-    font-size: 2em;
+    font-size: 1.82em;
     font-weight: 750;
     line-height: 1.22;
     letter-spacing: -0.025em;
@@ -1536,10 +1536,10 @@ defineExpose({
   }
 
   h2 {
-    margin-top: 1.9em;
-    margin-bottom: 0.72em;
+    margin-top: 1.1em;
+    margin-bottom: 0.42em;
     color: var(--markdown-heading);
-    font-size: 1.56em;
+    font-size: 1.42em;
     font-weight: 720;
     line-height: 1.28;
     letter-spacing: -0.018em;
@@ -1547,18 +1547,18 @@ defineExpose({
   }
 
   h3 {
-    margin-top: 1.65em;
-    margin-bottom: 0.62em;
+    margin-top: 1em;
+    margin-bottom: 0.38em;
     color: var(--markdown-heading);
-    font-size: 1.28em;
+    font-size: 1.22em;
     font-weight: 700;
     line-height: 1.35;
     transition: color 0.3s ease;
   }
 
   h4 {
-    margin-top: 1.45em;
-    margin-bottom: 0.55em;
+    margin-top: 0.9em;
+    margin-bottom: 0.34em;
     color: var(--markdown-heading);
     font-size: 1.12em;
     font-weight: 680;
@@ -1567,8 +1567,8 @@ defineExpose({
   }
 
   h5 {
-    margin-top: 1.35em;
-    margin-bottom: 0.5em;
+    margin-top: 0.82em;
+    margin-bottom: 0.3em;
     color: var(--markdown-heading);
     font-size: 1em;
     font-weight: 680;
@@ -1577,8 +1577,8 @@ defineExpose({
   }
 
   h6 {
-    margin-top: 1.25em;
-    margin-bottom: 0.48em;
+    margin-top: 0.78em;
+    margin-bottom: 0.3em;
     color: var(--markdown-muted);
     font-size: 0.95em;
     font-weight: 680;
@@ -1595,10 +1595,34 @@ defineExpose({
   }
 
   p {
-    margin: 0 0 0.82em;
+    margin: 0 0 0.5em;
     min-height: calc(var(--editor-line-height) * 1em);
     line-height: var(--editor-line-height);
     transition: color 0.3s ease;
+  }
+
+  // 保留 Markdown 中用户明确输入的空行，但避免按“完整行高 + 段后距”重复放大。
+  p:has(> br.ProseMirror-trailingBreak:only-child) {
+    min-height: 0.65em;
+    margin-bottom: 0.12em;
+    line-height: 0.65;
+  }
+
+  p:has(> br.ProseMirror-trailingBreak:only-child) + h1,
+  p:has(> br.ProseMirror-trailingBreak:only-child) + h2,
+  p:has(> br.ProseMirror-trailingBreak:only-child) + h3,
+  p:has(> br.ProseMirror-trailingBreak:only-child) + h4,
+  p:has(> br.ProseMirror-trailingBreak:only-child) + h5,
+  p:has(> br.ProseMirror-trailingBreak:only-child) + h6 {
+    margin-top: 0.48em;
+  }
+
+  li > p {
+    margin-bottom: 0.18em;
+  }
+
+  li > p:last-child {
+    margin-bottom: 0;
   }
 
   strong {
@@ -1635,7 +1659,7 @@ defineExpose({
 
   /* 代码块样式已移至 CodeBlockComponent.vue */
   pre {
-    @apply mb-5;
+    @apply mb-3;
   }
 
   /* 亮色编辑区：代码块关键词高亮 */
@@ -1659,13 +1683,13 @@ defineExpose({
   }
 
   ul:not([data-type="taskList"]) {
-    margin: 0.45em 0 1.15em;
-    padding-left: 1.65rem !important;
+    margin: 0.25em 0 0.65em;
+    padding-left: 1.5rem !important;
     list-style: disc !important;
     list-style-position: outside !important;
 
     li {
-      margin-bottom: 0.38em;
+      margin-bottom: 0.2em;
       line-height: var(--editor-line-height);
       transition: color 0.3s ease;
       display: list-item !important;
@@ -1680,13 +1704,13 @@ defineExpose({
   }
 
   ol {
-    margin: 0.45em 0 1.15em;
-    padding-left: 1.75rem !important;
+    margin: 0.25em 0 0.65em;
+    padding-left: 1.6rem !important;
     list-style: decimal !important;
     list-style-position: outside !important;
 
     li {
-      margin-bottom: 0.38em;
+      margin-bottom: 0.2em;
       line-height: var(--editor-line-height);
       transition: color 0.3s ease;
       display: list-item !important;
@@ -1700,10 +1724,10 @@ defineExpose({
   }
 
   .task-list {
-    @apply list-none pl-0 mb-5;
+    @apply list-none pl-0 mb-3;
 
     .task-item {
-      @apply flex items-start mb-2;
+      @apply flex items-start mb-1;
 
       > label {
         @apply flex items-center mr-2;
@@ -1730,13 +1754,13 @@ defineExpose({
   // TipTap 标准任务列表样式
   ul[data-type="taskList"],
   ul.task-list {
-    @apply list-none mb-5;
+    @apply list-none mb-3;
     padding-left: 0 !important;
     list-style: none !important;
 
     li[data-type="taskItem"],
     li.task-item {
-      @apply mb-2;
+      @apply mb-1;
       display: flex !important;
       align-items: center !important;
       list-style: none !important;
@@ -1780,8 +1804,8 @@ defineExpose({
   }
 
   blockquote {
-    margin: 1.4em 0;
-    padding: 0.85em 1.1em 0.85em 1.25em;
+    margin: 0.85em 0;
+    padding: 0.62em 0.9em 0.62em 1em;
     color: var(--editor-text);
     font-style: normal;
     line-height: var(--editor-line-height);
@@ -1798,7 +1822,7 @@ defineExpose({
 
   hr {
     height: 1px;
-    margin: 2.6em 0;
+    margin: 1.7em 0;
     background: linear-gradient(90deg, transparent, var(--markdown-heading-border) 12%, var(--markdown-heading-border) 88%, transparent);
     border: 0;
     transition: border-color 0.3s ease;
@@ -1877,7 +1901,7 @@ defineExpose({
 
   table {
     width: 100%;
-    margin: 1.25em 0 1.8em;
+    margin: 0.85em 0 1.15em;
     overflow: hidden;
     border-spacing: 0;
     border-collapse: separate;
@@ -1886,11 +1910,11 @@ defineExpose({
     transition: border-color 0.3s ease;
 
     th, td {
-      padding: 0.7em 0.9em;
+      padding: 0.52em 0.72em;
       text-align: left;
       border-right: 1px solid var(--markdown-heading-border);
       border-bottom: 1px solid var(--markdown-heading-border);
-      line-height: 1.6;
+      line-height: 1.5;
       transition: border-color 0.3s ease, background-color 0.3s ease, color 0.3s ease;
     }
 
@@ -1922,7 +1946,7 @@ defineExpose({
   }
 
   img:not(.ProseMirror-separator) {
-    margin: 1.35em auto;
+    margin: 0.9em auto;
     border: 1px solid var(--markdown-heading-border);
     border-radius: 10px;
     box-shadow: 0 8px 24px rgb(15 23 42 / 8%);
