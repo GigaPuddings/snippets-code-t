@@ -428,20 +428,11 @@ const confirmDelete = async () => {
       color-mix(in srgb, var(--search-result-active) 94%, transparent),
       color-mix(in srgb, var(--search-result-active) 62%, var(--categories-panel-bg))
     );
-    border-color: var(--search-result-accent);
-    box-shadow: var(--fragment-drop-shadow);
-    transform: translateX(3px) scale(1.015);
-
-    &::before {
-      position: absolute;
-      top: 7px;
-      bottom: 7px;
-      left: -1px;
-      width: 3px;
-      content: '';
-      background: var(--search-result-accent);
-      border-radius: 0 999px 999px 0;
-    }
+    /* 内描边始终绘制在滚动容器内，避免右边框被 overflow 裁切。 */
+    border-color: transparent;
+    box-shadow:
+      inset 0 0 0 1px var(--search-result-accent),
+      var(--fragment-drop-shadow);
 
     .category-folder-icon {
       color: var(--search-result-accent);

@@ -188,20 +188,12 @@ const createDragPreview = (): HTMLElement => {
   icon.className = 'fragment-drag-preview__icon';
   icon.setAttribute('aria-hidden', 'true');
   icon.innerHTML =
-    '<svg viewBox="0 0 24 24"><path d="M3.75 6.75h5l1.5 1.75h10v8.75a2 2 0 0 1-2 2H5.75a2 2 0 0 1-2-2V6.75Z"/><path d="M3.75 9h16.5"/></svg>';
+    '<svg viewBox="0 0 24 24"><path d="M6 3.75h7.5L18 8.25v12H6v-16.5Z"/><path d="M13.5 3.75v4.5H18M9 12h6M9 15.5h6"/></svg>';
 
-  const copy = document.createElement('span');
-  copy.className = 'fragment-drag-preview__copy';
   const title = document.createElement('strong');
+  title.className = 'fragment-drag-preview__title';
   title.textContent = content.value.title;
-  const hint = document.createElement('small');
-  hint.textContent = t('contentItem.dragHint');
-  copy.append(title, hint);
-
-  const action = document.createElement('span');
-  action.className = 'fragment-drag-preview__action';
-  action.textContent = t('contentItem.move');
-  preview.append(icon, copy, action);
+  preview.append(icon, title);
   document.body.appendChild(preview);
   return preview;
 };
@@ -270,7 +262,8 @@ const handleDragStart = (event: DragEvent): void => {
   event.dataTransfer.setData('text/plain', String(content.value.title));
 
   const dragPreview = createDragPreview();
-  event.dataTransfer.setDragImage(dragPreview, 28, 28);
+  // 将鼠标热点放在浮层左侧外部，避免浮层遮住当前分类目标。
+  event.dataTransfer.setDragImage(dragPreview, -12, -8);
   requestAnimationFrame(() => dragPreview.remove());
 };
 
@@ -375,19 +368,26 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
 
   &.is-dragging {
     z-index: 1;
-    border-color: color-mix(in srgb, var(--search-result-accent) 52%, transparent);
-    background: color-mix(in srgb, var(--search-result-active) 72%, var(--categories-panel-bg));
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--search-result-accent) 16%, transparent);
-    opacity: 0.68;
-    transform: scale(0.985);
+    border-color: transparent;
+    background: color-mix(
+      in srgb,
+      var(--search-result-active) 42%,
+      transparent
+    );
+    box-shadow: none;
 
-    &::after {
+    .content-item-wrapper {
+      opacity: 0.42;
+    }
+
+    &::before {
       position: absolute;
-      inset: 4px;
+      inset: 2px;
+      z-index: 2;
       pointer-events: none;
       content: '';
-      border: 1px dashed color-mix(in srgb, var(--search-result-accent) 58%, transparent);
-      border-radius: 6px;
+      border: 2px dashed var(--search-result-accent);
+      border-radius: 7px;
     }
   }
 }
@@ -406,35 +406,36 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
   left: -1000px;
   z-index: 99999;
   display: flex;
-  width: 292px;
-  min-height: 62px;
-  padding: 10px 11px;
+  width: max-content;
+  max-width: 220px;
+  min-height: 36px;
+  padding: 6px 10px 6px 7px;
   align-items: center;
-  gap: 10px;
+  gap: 7px;
   color: var(--panel-text);
-  background: color-mix(in srgb, var(--panel-bg) 94%, transparent);
-  border: 1px solid color-mix(in srgb, var(--search-result-accent) 42%, var(--panel-border));
-  border-radius: 12px;
+  background: color-mix(in srgb, var(--panel-bg) 97%, transparent);
+  border: 1px solid
+    color-mix(in srgb, var(--search-result-accent) 26%, var(--panel-border));
+  border-radius: 9px;
   box-shadow: var(--fragment-drag-shadow);
-  backdrop-filter: blur(18px);
+  backdrop-filter: blur(12px);
   pointer-events: none;
 }
 
 :global(.fragment-drag-preview__icon) {
   display: grid;
-  width: 38px;
-  height: 38px;
-  flex: 0 0 38px;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
   color: var(--search-result-accent);
-  background: color-mix(in srgb, var(--search-result-active) 82%, transparent);
-  border: 1px solid color-mix(in srgb, var(--search-result-accent) 28%, transparent);
-  border-radius: 10px;
+  background: color-mix(in srgb, var(--search-result-active) 72%, transparent);
+  border-radius: 7px;
   place-items: center;
 }
 
 :global(.fragment-drag-preview__icon svg) {
-  width: 20px;
-  height: 20px;
+  width: 15px;
+  height: 15px;
   fill: none;
   stroke: currentcolor;
   stroke-width: 1.7;
@@ -442,41 +443,17 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
   stroke-linejoin: round;
 }
 
-:global(.fragment-drag-preview__copy) {
-  display: flex;
+:global(.fragment-drag-preview__title) {
+  display: block;
   min-width: 0;
+  overflow: hidden;
   flex: 1;
-  flex-direction: column;
-  gap: 3px;
-}
-
-:global(.fragment-drag-preview__copy strong) {
-  overflow: hidden;
   color: var(--panel-text);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
-  line-height: 1.2;
+  line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-:global(.fragment-drag-preview__copy small) {
-  overflow: hidden;
-  color: var(--panel-text-secondary);
-  font-size: 11px;
-  line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-:global(.fragment-drag-preview__action) {
-  padding: 4px 7px;
-  flex: 0 0 auto;
-  color: var(--search-result-accent);
-  font-size: 10px;
-  font-weight: 600;
-  background: color-mix(in srgb, var(--search-result-active) 72%, transparent);
-  border-radius: 999px;
 }
 
 .link:not(.active):hover {
