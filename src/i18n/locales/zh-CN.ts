@@ -1957,13 +1957,16 @@ export default {
     modelCached: '模型已缓存（未激活）',
     modelNotLoaded: '模型未加载',
     runtimeMissing: '运行时未安装',
+    runtimeInstalling: '运行时安装中...',
     installRuntime: '安装运行时',
     runtimeMarketplaceMissing:
       '插件市场未找到 translation-offline-runtime 资源包',
     runtimeInstallSuccess: '离线翻译运行时安装成功',
     runtimeInstallFailed: '离线翻译运行时安装失败',
     runtimeInstallVerifyFailed:
-      '运行时安装后仍未找到资源文件，请检查网络后重试',
+      '运行时安装不完整，仍缺少必要资源文件，请检查网络后重试',
+    runtimeLoadVerifyFailed:
+      '运行时文件已下载，但加载验证失败，请重新安装后重试',
     runtimeMissingInstallFirst: '请先安装离线翻译运行时',
     loadModel: '下载模型',
     activateModel: '激活模型',

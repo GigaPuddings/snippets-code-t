@@ -44,7 +44,7 @@
             {{ $t('translation.installRuntime') }}
           </CustomButton>
           <CustomButton
-            v-if="runtimeAvailable && !modelCached && !isLoading"
+            v-if="runtimeAvailable && !modelCached && !isLoading && !isInstallingRuntime"
             type="primary"
             size="small"
             @click="loadModel"
@@ -52,7 +52,7 @@
             {{ $t('translation.loadModel') }}
           </CustomButton>
           <CustomButton
-            v-if="runtimeAvailable && modelCached && !modelLoaded && !backendActivated && !isLoading"
+            v-if="runtimeAvailable && modelCached && !modelLoaded && !backendActivated && !isLoading && !isInstallingRuntime"
             type="primary"
             size="small"
             @click="activateModel"
@@ -60,7 +60,7 @@
             {{ $t('translation.activateModel') }}
           </CustomButton>
           <CustomButton
-            v-if="modelCached && !isLoading"
+            v-if="modelCached && !isLoading && !isInstallingRuntime"
             type="default"
             size="small"
             @click="deleteModel"
@@ -170,14 +170,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, nextTick, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { invoke } from '@tauri-apps/api/core'
 import { CustomButton } from '@/components/UI'
 import {
   DEFAULT_PLUGIN_MARKETPLACE_URL,
   fetchPluginMarketplace,
-  getLocalPluginResourcePath,
   installPluginPackageFromUrl,
   installTranslationOfflineRuntimeResources,
   type PluginMarketplaceItem
@@ -192,6 +191,8 @@ import {
   clearModelCache,
   getModelCacheInfo,
   getModelFiles,
+  getOfflineRuntimeCandidates,
+  verifyOfflineTranslatorRuntime,
   type ModelCacheInfo,
   type FileDownloadStatus
 } from '@/plugins/translation/utils/offlineTranslator'
@@ -203,8 +204,6 @@ defineOptions({
 
 const { t } = useI18n()
 
-const TRANSFORMERS_RUNTIME_ENTRY = 'resources/transformers/transformers.min.js'
-const TRANSFORMERS_RUNTIME_PACKAGES = ['translation-offline-runtime', 'translation']
 const OFFLINE_RUNTIME_PLUGIN_ID = 'translation-offline-runtime'
 
 // 状态
@@ -234,6 +233,7 @@ const engineOptions = computed(() => [
 // 模型状态文本
 const modelStatusText = computed(() => {
   if (isLoading.value) return t('translation.modelLoading')
+  if (isInstallingRuntime.value) return t('translation.runtimeInstalling')
   if (!runtimeAvailable.value) return t('translation.runtimeMissing')
   if (modelLoaded.value) return t('translation.modelReady')  // 内存已加载
   if (modelCached.value && backendActivated.value) return t('translation.modelActivated')  // 已激活（懒加载）
@@ -244,6 +244,7 @@ const modelStatusText = computed(() => {
 // 模型状态样式
 const modelStatusClass = computed(() => {
   if (isLoading.value) return 'text-yellow-500'
+  if (isInstallingRuntime.value) return 'text-yellow-500'
   if (!runtimeAvailable.value) return 'text-red-500'
   if (modelLoaded.value) return 'text-green-500'
   if (modelCached.value && backendActivated.value) return 'text-green-500'  // 已激活
@@ -275,16 +276,9 @@ const updateFileStatus = (fileName: string, progress: number, status: FileDownlo
 }
 
 const refreshRuntimeAvailability = async () => {
-  for (const pluginId of TRANSFORMERS_RUNTIME_PACKAGES) {
-    const runtimePath = await getLocalPluginResourcePath(pluginId, TRANSFORMERS_RUNTIME_ENTRY)
-    if (runtimePath) {
-      runtimeAvailable.value = true
-      return true
-    }
-  }
-
-  runtimeAvailable.value = false
-  return false
+  const runtimeCandidates = await getOfflineRuntimeCandidates()
+  runtimeAvailable.value = runtimeCandidates.length > 0
+  return runtimeAvailable.value
 }
 
 const installOfflineRuntime = async () => {
@@ -308,9 +302,23 @@ const installOfflineRuntime = async () => {
       throw new Error(t('translation.runtimeInstallVerifyFailed'))
     }
 
+    try {
+      await verifyOfflineTranslatorRuntime()
+    } catch (error) {
+      runtimeAvailable.value = false
+      logger.error('[翻译设置] 运行时文件存在但动态加载验证失败:', error)
+      throw new Error(t('translation.runtimeLoadVerifyFailed'))
+    }
+
+    // 先结束安装态并让最终状态完成渲染，再显示成功提示，避免生产环境中
+    // 同一帧出现“安装成功”和“安装中/运行时未安装”的矛盾信息。
+    isInstallingRuntime.value = false
+    await nextTick()
     modal.msg(t('translation.runtimeInstallSuccess'))
   } catch (error) {
     logger.error('[翻译设置] 安装离线翻译运行时失败:', error)
+    isInstallingRuntime.value = false
+    await nextTick()
     modal.msg(
       error instanceof Error ? error.message : t('translation.runtimeInstallFailed'),
       'error'

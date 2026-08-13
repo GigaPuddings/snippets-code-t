@@ -1,5 +1,20 @@
-import { describe, expect, it } from 'vitest'
-import { getRuntimeBaseUrl, getRuntimeWasmPaths } from './offlineTranslator'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { getLocalPluginResourcePath } from '@/api/plugins'
+import {
+  getOfflineRuntimeCandidates,
+  getRuntimeBaseUrl,
+  getRuntimeWasmPaths
+} from './offlineTranslator'
+
+vi.mock('@/api/plugins', () => ({
+  getLocalPluginResourcePath: vi.fn()
+}))
+
+const getLocalPluginResourcePathMock = vi.mocked(getLocalPluginResourcePath)
+
+beforeEach(() => {
+  getLocalPluginResourcePathMock.mockReset()
+})
 
 describe('offlineTranslator runtime URL helpers', () => {
   it('keeps encoded Windows asset URLs in the transformers directory', () => {
@@ -20,5 +35,28 @@ describe('offlineTranslator runtime URL helpers', () => {
     expect(getRuntimeBaseUrl(runtimeUrl)).toBe(
       'http://asset.localhost/plugins/runtime/'
     )
+  })
+
+  it('accepts a runtime candidate only when the entry and every WASM file exist', async () => {
+    getLocalPluginResourcePathMock.mockImplementation(async (pluginId, relativePath) => {
+      if (pluginId !== 'translation-offline-runtime') return null
+      if (relativePath.endsWith('ort-wasm.wasm')) return null
+      return `D:\\plugins\\${pluginId}\\${relativePath}`
+    })
+
+    expect(await getOfflineRuntimeCandidates()).toEqual([])
+
+    getLocalPluginResourcePathMock.mockImplementation(async (pluginId, relativePath) => {
+      if (pluginId !== 'translation-offline-runtime') return null
+      return `D:\\plugins\\${pluginId}\\${relativePath}`
+    })
+
+    expect(await getOfflineRuntimeCandidates()).toEqual([
+      {
+        pluginId: 'translation-offline-runtime',
+        runtimePath:
+          'D:\\plugins\\translation-offline-runtime\\resources/transformers/transformers.min.js'
+      }
+    ])
   })
 })

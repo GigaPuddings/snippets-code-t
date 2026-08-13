@@ -3374,11 +3374,21 @@ pub async fn install_translation_offline_runtime_resources(
         download_translation_runtime_file(&client, file_name, &target_path).await?;
     }
 
-    let runtime_entry = runtime_dir.join("transformers.min.js");
-    if !runtime_entry.is_file() {
+    let missing_runtime_files = TRANSLATION_OFFLINE_RUNTIME_FILES
+        .iter()
+        .filter(|file_name| {
+            let path = runtime_dir.join(file_name);
+            !path.is_file()
+                || fs::metadata(&path)
+                    .map(|metadata| metadata.len() == 0)
+                    .unwrap_or(true)
+        })
+        .copied()
+        .collect::<Vec<_>>();
+    if !missing_runtime_files.is_empty() {
         return Err(format!(
-            "离线翻译运行时安装后仍缺少 {}",
-            runtime_entry.display()
+            "离线翻译运行时安装不完整，仍缺少资源文件: {}",
+            missing_runtime_files.join(", ")
         ));
     }
 

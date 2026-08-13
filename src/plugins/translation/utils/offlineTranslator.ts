@@ -39,7 +39,38 @@ const TRANSFORMERS_WASM_FILES = [
   'ort-wasm-threaded.wasm',
   'ort-wasm.wasm'
 ]
+const TRANSFORMERS_RUNTIME_RESOURCES = [
+  TRANSFORMERS_RUNTIME_ENTRY,
+  ...TRANSFORMERS_WASM_FILES.map(fileName => `resources/transformers/${fileName}`)
+]
 let transformersModulePromise: Promise<TransformersModule> | null = null
+
+export interface OfflineRuntimeCandidate {
+  pluginId: string
+  runtimePath: string
+}
+
+/**
+ * 只有入口脚本和全部 ONNX WASM 文件都存在时，运行时才算完整安装。
+ * 避免生产环境中资源包只下载了一部分，却被界面误判为安装成功。
+ */
+export async function getOfflineRuntimeCandidates(): Promise<OfflineRuntimeCandidate[]> {
+  const candidates: OfflineRuntimeCandidate[] = []
+
+  for (const pluginId of TRANSFORMERS_RUNTIME_PACKAGES) {
+    const resourcePaths = await Promise.all(
+      TRANSFORMERS_RUNTIME_RESOURCES.map(relativePath =>
+        getLocalPluginResourcePath(pluginId, relativePath)
+      )
+    )
+
+    if (resourcePaths.every((resourcePath): resourcePath is string => Boolean(resourcePath))) {
+      candidates.push({ pluginId, runtimePath: resourcePaths[0] })
+    }
+  }
+
+  return candidates
+}
 
 const getLastPathSeparator = (
   value: string
@@ -98,22 +129,31 @@ async function loadTransformersModule(): Promise<TransformersModule> {
   if (transformersModulePromise) return transformersModulePromise
 
   transformersModulePromise = (async () => {
-    for (const pluginId of TRANSFORMERS_RUNTIME_PACKAGES) {
-      const runtimePath = await getLocalPluginResourcePath(pluginId, TRANSFORMERS_RUNTIME_ENTRY)
-      if (!runtimePath) continue
+    const runtimeCandidates = await getOfflineRuntimeCandidates()
+    let lastLoadError: unknown = null
 
+    for (const { pluginId, runtimePath } of runtimeCandidates) {
       const runtimeUrl = convertFileSrc(runtimePath)
-      const module = await import(/* @vite-ignore */ runtimeUrl) as TransformersModule
-      configureTransformersEnvironment(module.env, runtimeUrl)
-      logger.info(`[离线翻译] 已从插件资源加载 Transformers runtime: ${pluginId}`, {
-        wasmPaths: module.env.backends?.onnx?.wasm?.wasmPaths,
-        numThreads: module.env.backends?.onnx?.wasm?.numThreads,
-        remoteHost: module.env.remoteHost,
-        remotePathTemplate: module.env.remotePathTemplate,
-        allowLocalModels: module.env.allowLocalModels,
-        localModelPath: module.env.localModelPath
-      })
-      return module
+      try {
+        const module = await import(/* @vite-ignore */ runtimeUrl) as TransformersModule
+        configureTransformersEnvironment(module.env, runtimeUrl)
+        logger.info(`[离线翻译] 已从插件资源加载 Transformers runtime: ${pluginId}`, {
+          wasmPaths: module.env.backends?.onnx?.wasm?.wasmPaths,
+          numThreads: module.env.backends?.onnx?.wasm?.numThreads,
+          remoteHost: module.env.remoteHost,
+          remotePathTemplate: module.env.remotePathTemplate,
+          allowLocalModels: module.env.allowLocalModels,
+          localModelPath: module.env.localModelPath
+        })
+        return module
+      } catch (error) {
+        lastLoadError = error
+        logger.warn(`[离线翻译] 无法加载插件运行时，尝试下一个候选包: ${pluginId}`, error)
+      }
+    }
+
+    if (lastLoadError) {
+      throw lastLoadError
     }
 
     throw new Error('离线翻译运行时未安装，请先安装 translation-offline-runtime 插件资源包')
@@ -123,6 +163,11 @@ async function loadTransformersModule(): Promise<TransformersModule> {
   })
 
   return transformersModulePromise
+}
+
+/** 安装完成后仅验证运行时模块，不触发约 300MB 的模型下载。 */
+export async function verifyOfflineTranslatorRuntime(): Promise<void> {
+  await loadTransformersModule()
 }
 
 // 翻译管道缓存

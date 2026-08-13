@@ -2019,13 +2019,16 @@ export default {
     modelCached: 'Model cached (not activated)',
     modelNotLoaded: 'Model not loaded',
     runtimeMissing: 'Runtime not installed',
+    runtimeInstalling: 'Installing runtime...',
     installRuntime: 'Install Runtime',
     runtimeMarketplaceMissing:
       'translation-offline-runtime resource package was not found in the marketplace',
     runtimeInstallSuccess: 'Offline translation runtime installed',
     runtimeInstallFailed: 'Failed to install offline translation runtime',
     runtimeInstallVerifyFailed:
-      'Runtime files were still missing after installation. Please check the network and retry',
+      'The runtime installation is incomplete. Required files are still missing; check the network and retry',
+    runtimeLoadVerifyFailed:
+      'Runtime files were downloaded but failed to load. Reinstall the runtime and retry',
     runtimeMissingInstallFirst:
       'Please install the offline translation runtime first',
     loadModel: 'Download Model',
