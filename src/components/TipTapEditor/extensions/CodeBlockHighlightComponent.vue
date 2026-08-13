@@ -81,6 +81,11 @@ onMounted(() => {
 const languageMap: Record<string, string> = {
   javascript: 'JavaScript',
   typescript: 'TypeScript',
+  react: 'React',
+  reactjs: 'React JSX',
+  'react-js': 'React JSX',
+  reacttsx: 'React TSX',
+  'react-ts': 'React TSX',
   python: 'Python',
   dart: 'Dart',
   flutter: 'Flutter',
@@ -90,6 +95,9 @@ const languageMap: Record<string, string> = {
   csharp: 'C#',
   go: 'Go',
   rust: 'Rust',
+  tauri: 'Tauri',
+  'tauri-rust': 'Tauri · Rust',
+  'tauri-ts': 'Tauri · TypeScript',
   php: 'PHP',
   ruby: 'Ruby',
   swift: 'Swift',
@@ -131,13 +139,19 @@ const languageMap: Record<string, string> = {
 
 const displayLangKey = computed(() => {
   const raw = (props.node.attrs.language as string | null) || '';
-  if (raw.trim()) return raw;
-  return resolveCodeBlockLang(null, props.node.textContent) || 'plaintext';
+  return resolveCodeBlockLang(raw || null, props.node.textContent) || 'plaintext';
 });
 
 const displayLanguage = computed(() => {
+  const raw = ((props.node.attrs.language as string | null) || '').trim().toLowerCase();
   const key = displayLangKey.value.toLowerCase();
-  return languageMap[key] || props.node.attrs.language || 'Plain Text';
+  if (raw === 'react') return key === 'tsx' ? 'React · TSX' : 'React · JSX';
+  if (raw === 'tauri') {
+    if (key === 'rust') return 'Tauri · Rust';
+    if (key === 'toml') return 'Tauri · Cargo';
+    return 'Tauri · TypeScript';
+  }
+  return languageMap[raw] || languageMap[key] || props.node.attrs.language || 'Plain Text';
 });
 
 const codeClass = computed(() => {

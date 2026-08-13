@@ -624,6 +624,13 @@ pub fn build_window(label: &str, url: &str, option: WindowConfig) -> Result<Webv
                     .center()
                     .visible(false);
 
+            // Windows WebView2 的原生文件拖放处理器会拦截前端 HTML5 drag/drop。
+            // config 页需要让 ContentItem 可拖到 CategoryItem，因此关闭该原生处理器。
+            // 项目中的编辑器图片拖入仍由前端 drop 事件处理。
+            if label == "config" {
+                builder = builder.disable_drag_drop_handler();
+            }
+
             builder = builder.decorations(false);
 
             if label == "main" {

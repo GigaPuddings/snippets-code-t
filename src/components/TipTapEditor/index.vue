@@ -7,6 +7,10 @@
         ref="editorContentRef"
         v-show="viewMode === 'preview' || viewMode === 'reading'"
         class="editor-content"
+        :class="{
+          'is-reading-mode': viewMode === 'reading',
+          'is-editing-mode': viewMode === 'preview'
+        }"
         :style="props.codeStyle"
         @contextmenu="handleContextMenu"
         @scroll.passive="handlePreviewScroll"
@@ -1136,9 +1140,14 @@ const handleSourceContentChange = (value: string) => {
 };
 
 // 监听内容变化
-watch(() => props.content, (newContent) => {
-  editorPersistenceBridge.syncIncomingContent(newContent, editor.value);
-});
+watch(
+  [() => props.content, () => props.currentFragmentId],
+  ([newContent, newFragmentId], [, oldFragmentId]) => {
+    editorPersistenceBridge.syncIncomingContent(newContent, editor.value, {
+      resetSelection: oldFragmentId !== undefined && newFragmentId !== oldFragmentId
+    });
+  }
+);
 
 // 监听禁用状态变化
 watch(() => props.disabled, (disabled) => {
@@ -1312,7 +1321,11 @@ defineExpose({
 }
 
 :deep(.tiptap-editor) {
-  @apply box-border h-auto min-h-full max-w-full m-0 p-3 text-sm whitespace-pre-wrap overflow-y-visible w-full min-w-0 outline-none;
+  @apply box-border h-auto min-h-full max-w-full whitespace-pre-wrap overflow-y-visible min-w-0 outline-none;
+  width: min(100%, 1024px);
+  margin: 0 auto;
+  padding: 34px clamp(28px, 5vw, 64px) 104px;
+  font-size: 15px;
   line-height: var(--editor-line-height);
   color: var(--editor-text);
   background-color: var(--editor-bg);
@@ -1354,8 +1367,8 @@ defineExpose({
     }
 
     code {
-      background-color: var(--editor-hover-bg);
-      color: var(--editor-text);
+      color: var(--markdown-inline-code-text);
+      background-color: var(--markdown-inline-code-bg);
       transition: background-color 0.3s ease, color 0.3s ease;
     }
 
@@ -1390,8 +1403,8 @@ defineExpose({
     }
 
     blockquote {
-      border-left-color: var(--panel-border);
-      color: var(--panel-text-secondary);
+      color: var(--editor-text);
+      border-left-color: var(--markdown-quote-border);
       transition: border-color 0.3s ease, color 0.3s ease;
     }
 
@@ -1462,16 +1475,16 @@ defineExpose({
     }
 
     table {
-      @apply border-[#727377];
+      border-color: var(--markdown-heading-border);
       transition: border-color 0.3s ease;
 
       th, td {
-        @apply border-[#727377];
+        border-color: var(--markdown-heading-border);
         transition: border-color 0.3s ease, background-color 0.3s ease;
       }
 
       th {
-        @apply bg-[#282d32];
+        background: var(--markdown-table-header);
       }
     }
 
@@ -1510,48 +1523,79 @@ defineExpose({
   }
 
   h1 {
-    @apply font-bold mb-3 mt-5;
-    font-size: 1.55em;
-    line-height: 1.3;
+    margin-top: 2.15em;
+    margin-bottom: 0.8em;
+    padding-bottom: 0.38em;
+    color: var(--markdown-heading);
+    font-size: 2em;
+    font-weight: 750;
+    line-height: 1.22;
+    letter-spacing: -0.025em;
+    border-bottom: 1px solid var(--markdown-heading-border);
     transition: color 0.3s ease;
   }
 
   h2 {
-    @apply font-bold mb-2.5 mt-5;
-    font-size: 1.35em;
-    line-height: 1.3;
+    margin-top: 1.9em;
+    margin-bottom: 0.72em;
+    color: var(--markdown-heading);
+    font-size: 1.56em;
+    font-weight: 720;
+    line-height: 1.28;
+    letter-spacing: -0.018em;
     transition: color 0.3s ease;
   }
 
   h3 {
-    @apply font-bold mb-2 mt-4;
-    font-size: 1.2em;
-    line-height: 1.4;
+    margin-top: 1.65em;
+    margin-bottom: 0.62em;
+    color: var(--markdown-heading);
+    font-size: 1.28em;
+    font-weight: 700;
+    line-height: 1.35;
     transition: color 0.3s ease;
   }
 
   h4 {
-    @apply font-bold mb-2 mt-4;
-    font-size: 1.08em;
+    margin-top: 1.45em;
+    margin-bottom: 0.55em;
+    color: var(--markdown-heading);
+    font-size: 1.12em;
+    font-weight: 680;
     line-height: 1.4;
     transition: color 0.3s ease;
   }
 
   h5 {
-    @apply font-bold mb-2 mt-3;
+    margin-top: 1.35em;
+    margin-bottom: 0.5em;
+    color: var(--markdown-heading);
     font-size: 1em;
+    font-weight: 680;
     line-height: 1.4;
     transition: color 0.3s ease;
   }
 
   h6 {
-    @apply font-bold mb-2 mt-3;
+    margin-top: 1.25em;
+    margin-bottom: 0.48em;
+    color: var(--markdown-muted);
     font-size: 0.95em;
+    font-weight: 680;
+    letter-spacing: 0.01em;
     line-height: 1.4;
     transition: color 0.3s ease;
   }
 
+  > h1:first-child,
+  > h2:first-child,
+  > h3:first-child,
+  > h4:first-child {
+    margin-top: 0;
+  }
+
   p {
+    margin: 0 0 0.82em;
     min-height: calc(var(--editor-line-height) * 1em);
     line-height: var(--editor-line-height);
     transition: color 0.3s ease;
@@ -1570,10 +1614,13 @@ defineExpose({
   }
 
   code {
-    @apply rounded text-sm font-mono;
-    background-color: var(--editor-hover-bg);
-    color: var(--editor-text);
-    padding: 0.2em 0.4em;
+    @apply font-mono;
+    padding: 0.16em 0.38em;
+    color: var(--markdown-inline-code-text);
+    font-size: 0.88em;
+    background-color: var(--markdown-inline-code-bg);
+    border: 1px solid color-mix(in srgb, var(--markdown-heading-border) 74%, transparent);
+    border-radius: 5px;
     transition: background-color 0.3s ease, color 0.3s ease;
   }
 
@@ -1612,13 +1659,13 @@ defineExpose({
   }
 
   ul:not([data-type="taskList"]) {
-    @apply mb-5;
-    padding-left: 1.5rem !important;
+    margin: 0.45em 0 1.15em;
+    padding-left: 1.65rem !important;
     list-style: disc !important;
     list-style-position: outside !important;
 
     li {
-      @apply mb-2;
+      margin-bottom: 0.38em;
       line-height: var(--editor-line-height);
       transition: color 0.3s ease;
       display: list-item !important;
@@ -1627,21 +1674,28 @@ defineExpose({
 
     > li::marker {
       content: '-  ';
+      color: var(--search-result-accent);
+      font-weight: 700;
     }
   }
 
   ol {
-    @apply mb-5;
-    padding-left: 1.5rem !important;
+    margin: 0.45em 0 1.15em;
+    padding-left: 1.75rem !important;
     list-style: decimal !important;
     list-style-position: outside !important;
 
     li {
-      @apply mb-2;
+      margin-bottom: 0.38em;
       line-height: var(--editor-line-height);
       transition: color 0.3s ease;
       display: list-item !important;
       list-style: inherit !important;
+    }
+
+    > li::marker {
+      color: var(--search-result-accent);
+      font-weight: 650;
     }
   }
 
@@ -1726,22 +1780,42 @@ defineExpose({
   }
 
   blockquote {
-    @apply border-l-4 border-panel pl-4 italic text-panel-text-secondary mb-5;
+    margin: 1.4em 0;
+    padding: 0.85em 1.1em 0.85em 1.25em;
+    color: var(--editor-text);
+    font-style: normal;
     line-height: var(--editor-line-height);
+    background: var(--markdown-quote-bg);
+    border: 1px solid color-mix(in srgb, var(--markdown-quote-border) 24%, var(--markdown-heading-border));
+    border-left: 4px solid var(--markdown-quote-border);
+    border-radius: 0 9px 9px 0;
     transition: border-color 0.3s ease, color 0.3s ease;
+
+    p:last-child {
+      margin-bottom: 0;
+    }
   }
 
   hr {
-    @apply border-t border-panel my-8;
+    height: 1px;
+    margin: 2.6em 0;
+    background: linear-gradient(90deg, transparent, var(--markdown-heading-border) 12%, var(--markdown-heading-border) 88%, transparent);
+    border: 0;
     transition: border-color 0.3s ease;
   }
 
   a {
-    @apply text-blue-600 underline cursor-pointer;
-    transition: color 0.3s ease;
+    color: var(--search-result-accent);
+    text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, var(--search-result-accent) 38%, transparent);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+    cursor: pointer;
+    transition: color 0.2s ease, text-decoration-color 0.2s ease;
 
     &:hover {
-      @apply text-blue-800;
+      color: var(--el-color-primary);
+      text-decoration-color: currentcolor;
     }
   }
 
@@ -1802,11 +1876,20 @@ defineExpose({
   }
 
   table {
-    @apply border-collapse w-full mb-5 border border-panel;
+    width: 100%;
+    margin: 1.25em 0 1.8em;
+    overflow: hidden;
+    border-spacing: 0;
+    border-collapse: separate;
+    border: 1px solid var(--markdown-heading-border);
+    border-radius: 9px;
     transition: border-color 0.3s ease;
 
     th, td {
-      @apply border border-panel px-4 py-2 text-left;
+      padding: 0.7em 0.9em;
+      text-align: left;
+      border-right: 1px solid var(--markdown-heading-border);
+      border-bottom: 1px solid var(--markdown-heading-border);
       line-height: 1.6;
       transition: border-color 0.3s ease, background-color 0.3s ease, color 0.3s ease;
     }
@@ -1820,8 +1903,33 @@ defineExpose({
     }
 
     th {
-      @apply bg-content font-bold;
+      color: var(--markdown-heading);
+      font-weight: 650;
+      background: var(--markdown-table-header);
     }
+
+    tr:last-child > * {
+      border-bottom: 0;
+    }
+
+    tr > *:last-child {
+      border-right: 0;
+    }
+
+    tbody tr:hover td {
+      background: var(--markdown-table-row-hover);
+    }
+  }
+
+  img:not(.ProseMirror-separator) {
+    margin: 1.35em auto;
+    border: 1px solid var(--markdown-heading-border);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgb(15 23 42 / 8%);
+  }
+
+  &.dark img:not(.ProseMirror-separator) {
+    box-shadow: 0 10px 28px rgb(0 0 0 / 28%);
   }
 
   &:focus {

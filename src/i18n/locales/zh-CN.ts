@@ -914,12 +914,12 @@ export default {
     deleteFailed: '删除失败',
     convertType: '转换类型',
     convertToNote: '转换为笔记',
-    convertToCode: '转换为代码',
+    convertToCode: '转换为片段',
     convertConfirmTitle: '确认类型转换',
     convertToNoteConfirm:
       '将代码片段转换为笔记后，代码将被包装在代码块中。是否继续？',
     convertToCodeConfirm:
-      '将笔记转换为代码片段后，所有格式将丢失，只保留纯文本内容。是否继续？',
+      '将笔记转换为片段后，所有格式将丢失，只保留纯文本内容。是否继续？',
     convertSuccess: '类型转换成功',
     convertFailed: '类型转换失败',
     unsavedChanges: '当前内容有未保存的更改，是否保存？',
@@ -1450,6 +1450,10 @@ export default {
 
   // 内容项目右键菜单
   contentItem: {
+    move: '移动',
+    dragHint: '拖放到左侧文件夹以移动',
+    dropToMove: '移至此处',
+    currentCategory: '当前分类',
     changeCategory: '修改分类',
     changeCategorySuccess: '分类修改成功',
     changeCategoryFailed: '分类修改失败',

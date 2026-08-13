@@ -5,6 +5,7 @@
       :key="item.id"
       :category="item"
       v-memo="[item.id, item.name, editCategoryId]"
+      @move-content="$emit('move-content', $event, item.id)"
     />
   </div>
   <div v-else class="category-empty">
@@ -31,18 +32,29 @@ defineOptions({
 });
 
 const props = defineProps<CategoryListViewProps>();
+defineEmits<{
+  (e: 'move-content', content: ContentType, categoryId: string | number): void;
+}>();
 const route = useRoute();
 const listRef = ref<HTMLDivElement | null>(null);
 
 const activeCategoryIndex = computed(() => {
   const cid = route.params.cid;
   const normalizedCid = Array.isArray(cid) ? cid[0] : cid;
-  if (normalizedCid === undefined || normalizedCid === null || normalizedCid === '') return -1;
-  return props.categories.findIndex((category) => String(category.id) === String(normalizedCid));
+  if (
+    normalizedCid === undefined ||
+    normalizedCid === null ||
+    normalizedCid === ''
+  )
+    return -1;
+  return props.categories.findIndex(
+    (category) => String(category.id) === String(normalizedCid)
+  );
 });
 
 const isIndexVisible = (index: number, container: HTMLElement) => {
-  const itemHeight = container.scrollHeight / Math.max(props.categories.length, 1);
+  const itemHeight =
+    container.scrollHeight / Math.max(props.categories.length, 1);
   const top = container.scrollTop;
   const bottom = top + container.clientHeight;
   const itemTop = index * itemHeight;
@@ -61,7 +73,9 @@ watch(
     await nextTick();
 
     const container = listRef.value;
-    const activeEl = container?.querySelector('.link.active') as HTMLElement | null;
+    const activeEl = container?.querySelector(
+      '.link.active'
+    ) as HTMLElement | null;
     if (!container) {
       return;
     }
@@ -69,7 +83,9 @@ watch(
     if (activeEl) {
       const containerRect = container.getBoundingClientRect();
       const itemRect = activeEl.getBoundingClientRect();
-      const visible = itemRect.top >= containerRect.top && itemRect.bottom <= containerRect.bottom;
+      const visible =
+        itemRect.top >= containerRect.top &&
+        itemRect.bottom <= containerRect.bottom;
       if (visible) {
         return;
       }
@@ -80,8 +96,14 @@ watch(
     const visibleByIndex = isIndexVisible(resolvedIndex, container);
 
     if (!visibleByIndex) {
-      const averageItemHeight = container.scrollHeight / Math.max(props.categories.length, 1);
-      const targetScrollTop = Math.max(0, resolvedIndex * averageItemHeight - Math.floor(container.clientHeight / 2) + Math.floor(averageItemHeight / 2));
+      const averageItemHeight =
+        container.scrollHeight / Math.max(props.categories.length, 1);
+      const targetScrollTop = Math.max(
+        0,
+        resolvedIndex * averageItemHeight -
+          Math.floor(container.clientHeight / 2) +
+          Math.floor(averageItemHeight / 2)
+      );
       container.scrollTop = targetScrollTop;
     }
   },

@@ -18,7 +18,15 @@ export interface EditorPersistenceBridgeEditor {
         parseOptions?: { preserveWhitespace?: boolean | 'full' };
       }
     ) => void;
+    setTextSelection: (position: number) => void;
   };
+  view?: {
+    dom: HTMLElement;
+  };
+}
+
+interface SyncIncomingContentOptions {
+  resetSelection?: boolean;
 }
 
 interface UseEditorPersistenceBridgeOptions {
@@ -63,7 +71,9 @@ function debounce<TArgs extends unknown[]>(
   return debounced;
 }
 
-export function useEditorPersistenceBridge(options: UseEditorPersistenceBridgeOptions) {
+export function useEditorPersistenceBridge(
+  options: UseEditorPersistenceBridgeOptions
+) {
   const isInternalUpdate = ref(false);
   const lastEmittedContent = ref('');
   let isDisposed = false;
@@ -74,19 +84,27 @@ export function useEditorPersistenceBridge(options: UseEditorPersistenceBridgeOp
     return Boolean(editorInstance && editorInstance.isDestroyed !== true);
   };
 
-  const debouncedEmitUpdate = debounce((editorInstance: EditorPersistenceBridgeEditor) => {
-    if (isDisposed || !isEditorAvailable(editorInstance)) return;
+  const debouncedEmitUpdate = debounce(
+    (editorInstance: EditorPersistenceBridgeEditor) => {
+      if (isDisposed || !isEditorAvailable(editorInstance)) return;
 
-    try {
-      const markdown = jsonToMarkdown(editorInstance.getJSON());
-      options.emitContentChange(markdown);
-      lastEmittedContent.value = markdownToHtml(markdown, options.workspaceRoot.value);
-    } catch (error) {
-      options.handleError(error, 'jsonToMarkdown on emit');
-    }
-  }, options.debounceMs ?? 150);
+      try {
+        const markdown = jsonToMarkdown(editorInstance.getJSON());
+        options.emitContentChange(markdown);
+        lastEmittedContent.value = markdownToHtml(
+          markdown,
+          options.workspaceRoot.value
+        );
+      } catch (error) {
+        options.handleError(error, 'jsonToMarkdown on emit');
+      }
+    },
+    options.debounceMs ?? 150
+  );
 
-  const handleEditorUpdate = (editorInstance: EditorPersistenceBridgeEditor) => {
+  const handleEditorUpdate = (
+    editorInstance: EditorPersistenceBridgeEditor
+  ) => {
     if (isDisposed || !isEditorAvailable(editorInstance)) return;
 
     isInternalUpdate.value = true;
@@ -110,12 +128,17 @@ export function useEditorPersistenceBridge(options: UseEditorPersistenceBridgeOp
     options.emitContentChange(value);
   };
 
-  const applySourceContentToEditor = (editorInstance?: EditorPersistenceBridgeEditor | null) => {
+  const applySourceContentToEditor = (
+    editorInstance?: EditorPersistenceBridgeEditor | null
+  ) => {
     if (isDisposed || !isEditorAvailable(editorInstance)) return;
 
     try {
       debouncedEmitUpdate.cancel();
-      const html = markdownToHtml(options.sourceContent.value, options.workspaceRoot.value);
+      const html = markdownToHtml(
+        options.sourceContent.value,
+        options.workspaceRoot.value
+      );
       editorInstance.commands.setContent(html || '<p></p>', {
         emitUpdate: false,
         parseOptions: MARKDOWN_EDITOR_PARSE_OPTIONS
@@ -134,13 +157,14 @@ export function useEditorPersistenceBridge(options: UseEditorPersistenceBridgeOp
 
   const syncIncomingContent = (
     newContent: string,
-    editorInstance?: EditorPersistenceBridgeEditor | null
+    editorInstance?: EditorPersistenceBridgeEditor | null,
+    syncOptions: SyncIncomingContentOptions = {}
   ) => {
     if (
       isDisposed ||
       !isEditorAvailable(editorInstance) ||
       isInternalUpdate.value ||
-      lastEmittedContent.value === newContent
+      (lastEmittedContent.value === newContent && !syncOptions.resetSelection)
     ) {
       return;
     }
@@ -154,6 +178,18 @@ export function useEditorPersistenceBridge(options: UseEditorPersistenceBridgeOp
         });
         lastEmittedContent.value = newContent;
         options.updateStats(editorInstance.getText());
+      }
+
+      if (syncOptions.resetSelection) {
+        // setContent 会映射旧选区；切换长文档时旧选区常被裁剪到新文档末尾，
+        // selectionUpdate 随即把滚动容器拉到底部。新文档应从文首打开。
+        editorInstance.commands.setTextSelection(1);
+        nextTick(() => {
+          const editorDom = editorInstance.view?.dom;
+          const scrollContainer =
+            editorDom?.closest<HTMLElement>('.editor-content');
+          if (scrollContainer) scrollContainer.scrollTop = 0;
+        });
       }
     } catch (error) {
       options.handleError(error, 'TipTap content update');

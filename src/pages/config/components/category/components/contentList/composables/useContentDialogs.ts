@@ -6,18 +6,26 @@
 import { ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { useConfigurationStore } from '@/store';
+import { useConfigurationStore, usePluginStore } from '@/store';
 import { 
   addFragment, 
   deleteFragment, 
-  editFragment, 
   getCategories, 
+  getFragmentContent,
   getFragmentList, 
-  getUncategorizedId 
+  getUncategorizedId,
+  convertFragmentType,
+  moveFragmentToCategory
 } from '@/api/fragment';
 import { ErrorHandler, ErrorType } from '@/utils/error-handler';
 import modal from '@/utils/modal';
 import { findBacklinks, updateBacklinks } from '@/utils/wikilink-updater';
+import {
+  convertFragmentContent,
+  requestOpenFragmentTypeConversion,
+  type FragmentType
+} from '@/utils/fragmentTypeConversion';
+import { requestOpenFragmentCategoryMove } from '@/utils/fragmentCategoryMove';
 
 /**
  * 为内容列表添加分类名称
@@ -52,10 +60,14 @@ export interface UseContentDialogsReturn {
   showCategoryDialog: Ref<boolean>;
   /** 显示反向链接更新对话框 */
   showBacklinkUpdateDialog: Ref<boolean>;
+  /** 显示类型转换确认对话框 */
+  showTypeConversionDialog: Ref<boolean>;
   /** 删除目标 */
   deleteTarget: Ref<ContentType | null>;
   /** 更改分类目标 */
   changeCategoryTarget: Ref<ContentType | null>;
+  /** 类型转换的目标类型 */
+  typeConversionTargetType: Ref<FragmentType>;
   /** 选中的分类 ID */
   selectedCategoryId: Ref<number>;
   /** 未分类 ID */
@@ -78,6 +90,12 @@ export interface UseContentDialogsReturn {
   handleChangeCategory: (content: ContentType) => Promise<void>;
   /** 确认更改分类 */
   confirmCategoryChange: (selectedValue: string | number) => Promise<void>;
+  /** 直接移动到指定分类（右键对话框和拖拽共用） */
+  moveContentToCategory: (content: ContentType, categoryId: string | number) => Promise<void>;
+  /** 处理类型转换 */
+  handleConvertType: (content: ContentType, targetType: FragmentType) => void;
+  /** 确认类型转换 */
+  confirmTypeConversion: () => Promise<void>;
 }
 
 /**
@@ -98,6 +116,7 @@ export function useContentDialogs(): UseContentDialogsReturn {
   const route = useRoute();
   const router = useRouter();
   const store = useConfigurationStore();
+  const pluginStore = usePluginStore();
   const { t } = useI18n();
 
   const showTypeSelector = ref<boolean>(false);
@@ -105,8 +124,11 @@ export function useContentDialogs(): UseContentDialogsReturn {
   const showDeleteDialog = ref<boolean>(false);
   const showCategoryDialog = ref<boolean>(false);
   const showBacklinkUpdateDialog = ref<boolean>(false);
+  const showTypeConversionDialog = ref<boolean>(false);
   const deleteTarget = ref<ContentType | null>(null);
   const changeCategoryTarget = ref<ContentType | null>(null);
+  const typeConversionTarget = ref<ContentType | null>(null);
+  const typeConversionTargetType = ref<FragmentType>('note');
   const selectedCategoryId = ref<number>(0);
   const uncategorizedId = ref<number | null>(null);
   const backlinkStats = ref<{ count: number; fragments: Array<{ id: string | number; title: string; occurrences: number }> } | null>(null);
@@ -424,11 +446,10 @@ export function useContentDialogs(): UseContentDialogsReturn {
     if (!changeCategoryTarget.value) return;
     
     try {
-      const actualCategoryId = selectedValue === 0 ? uncategorizedId.value : selectedValue;
+      const actualCategoryId = Number(selectedValue) === 0 ? uncategorizedId.value : selectedValue;
       
-      if (actualCategoryId !== changeCategoryTarget.value.category_id) {
-        let params = Object.assign(changeCategoryTarget.value, { category_id: actualCategoryId });
-        await editFragment(params);
+      if (String(actualCategoryId) !== String(changeCategoryTarget.value.category_id)) {
+        await moveContentToCategory(changeCategoryTarget.value, selectedValue);
         
         modal.success(t('contentItem.changeCategorySuccess'));
         
@@ -453,13 +474,123 @@ export function useContentDialogs(): UseContentDialogsReturn {
     }
   };
 
+  /**
+   * 将片段移动到分类。移动完成后只更新列表缓存，不改写片段类型与正文元数据。
+   */
+  const moveContentToCategory = async (
+    content: ContentType,
+    categoryId: string | number
+  ): Promise<void> => {
+    const moved = await requestOpenFragmentCategoryMove(content.id, categoryId)
+      ?? await moveFragmentToCategory(content.id, categoryId);
+    const normalizedSourceId = String(content.id).replace(/\\/g, '/');
+    const index = store.contents.findIndex(
+      item => String(item.id).replace(/\\/g, '/') === normalizedSourceId
+    );
+
+    if (index !== -1) {
+      store.contents[index] = {
+        ...store.contents[index],
+        ...moved
+      };
+    }
+  };
+
+  /**
+   * 打开类型转换确认对话框
+   */
+  const handleConvertType = (content: ContentType, targetType: FragmentType): void => {
+    if ((content.type || 'code') === targetType) return;
+
+    typeConversionTarget.value = content;
+    typeConversionTargetType.value = targetType;
+    showTypeConversionDialog.value = true;
+  };
+
+  /**
+   * 确认转换类型。当前打开的内容由编辑器页面处理，以免覆盖尚未自动保存的正文；
+   * 其他内容则读取磁盘中的最新版本后转换。
+   */
+  const confirmTypeConversion = async (): Promise<void> => {
+    const target = typeConversionTarget.value;
+    if (!target) return;
+
+    const targetType = typeConversionTargetType.value;
+    showTypeConversionDialog.value = false;
+
+    try {
+      let converted = await requestOpenFragmentTypeConversion(target.id, targetType);
+
+      if (!converted) {
+        const latest = await getFragmentContent(target.id);
+        if (!latest) {
+          throw new Error(`Fragment not found: ${target.id}`);
+        }
+
+        const language = latest.metadata?.language;
+        const convertedContent = convertFragmentContent(
+          latest.content,
+          latest.type || 'code',
+          targetType,
+          typeof language === 'string' ? language : undefined
+        );
+        converted = await convertFragmentType(target.id, targetType, {
+          content: convertedContent
+        });
+      }
+
+      const normalizedTargetId = String(target.id).replace(/\\/g, '/');
+      const index = store.contents.findIndex(
+        item => String(item.id).replace(/\\/g, '/') === normalizedTargetId
+      );
+
+      if (index !== -1) {
+        store.contents[index] = {
+          ...store.contents[index],
+          ...converted
+        };
+      }
+
+      try {
+        if (!pluginStore.initialized) {
+          await pluginStore.initialize();
+        }
+        if (pluginStore.isEnabled('git-sync')) {
+          const { notifyFileEdit } = await import('@/api/gitSync');
+          await notifyFileEdit();
+        }
+      } catch (error) {
+        console.debug('[useContentDialogs] 通知自动同步失败:', error);
+      }
+
+      modal.success(t('category.convertSuccess'));
+    } catch (error) {
+      ErrorHandler.handle(
+        error,
+        {
+          type: ErrorType.API_ERROR,
+          operation: 'confirmTypeConversion',
+          details: { id: target.id, targetType },
+          timestamp: new Date()
+        },
+        {
+          userMessage: t('category.convertFailed')
+        }
+      );
+    } finally {
+      typeConversionTarget.value = null;
+    }
+  };
+
   return {
     showTypeSelector,
     showDeleteDialog,
     showCategoryDialog,
     showBacklinkUpdateDialog,
+    showTypeConversionDialog,
     deleteTarget,
     changeCategoryTarget,
+    typeConversionTargetType,
     selectedCategoryId,
     uncategorizedId,
     backlinkStats,
@@ -470,6 +601,9 @@ export function useContentDialogs(): UseContentDialogsReturn {
     confirmDelete,
     confirmDeleteWithBacklinks,
     handleChangeCategory,
-    confirmCategoryChange
+    confirmCategoryChange,
+    moveContentToCategory,
+    handleConvertType,
+    confirmTypeConversion
   };
 }

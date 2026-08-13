@@ -24,6 +24,7 @@
               :combined-filter="combinedFilter"
               @delete="handleDelete"
               @change-category="handleChangeCategory"
+              @convert-type="handleConvertType"
               @clear-tag-filter="handleClearTagFilter"
             />
           </div>
@@ -89,6 +90,24 @@
       :cancel-text="$t('common.cancel')"
       @confirm="confirmCategoryChange"
     />
+
+    <!-- Fragment Type Conversion Dialog -->
+    <ConfirmDialog
+      v-model="showTypeConversionDialog"
+      :title="$t('category.convertConfirmTitle')"
+      :confirm-text="$t('common.confirm')"
+      :cancel-text="$t('common.cancel')"
+      type="warning"
+      @confirm="confirmTypeConversion"
+    >
+      <div>
+        {{ $t(
+          typeConversionTargetType === 'note'
+            ? 'category.convertToNoteConfirm'
+            : 'category.convertToCodeConfirm'
+        ) }}
+      </div>
+    </ConfirmDialog>
   </main>
 </template>
 
@@ -150,7 +169,9 @@ const {
   showDeleteDialog,
   showCategoryDialog,
   showBacklinkUpdateDialog,
+  showTypeConversionDialog,
   deleteTarget,
+  typeConversionTargetType,
   selectedCategoryId,
   backlinkStats,
   handleAddContent,
@@ -160,7 +181,9 @@ const {
   confirmDelete,
   confirmDeleteWithBacklinks,
   handleChangeCategory,
-  confirmCategoryChange
+  confirmCategoryChange,
+  handleConvertType,
+  confirmTypeConversion
 } = useContentDialogs();
 
 const showFilterPanel = ref<boolean>(false);

@@ -5,8 +5,11 @@ import {
   useEditorPersistenceBridge
 } from './useEditorPersistenceBridge';
 
-const createEditor = (overrides: Partial<EditorPersistenceBridgeEditor> = {}) => {
+const createEditor = (
+  overrides: Partial<EditorPersistenceBridgeEditor> = {}
+) => {
   const setContent = vi.fn();
+  const setTextSelection = vi.fn();
 
   return {
     editor: {
@@ -22,11 +25,13 @@ const createEditor = (overrides: Partial<EditorPersistenceBridgeEditor> = {}) =>
       getHTML: vi.fn(() => '<p>old</p>'),
       getText: vi.fn(() => 'Hello persistence'),
       commands: {
-        setContent
+        setContent,
+        setTextSelection
       },
       ...overrides
     } as EditorPersistenceBridgeEditor,
-    setContent
+    setContent,
+    setTextSelection
   };
 };
 
@@ -80,7 +85,9 @@ describe('useEditorPersistenceBridge', () => {
     await vi.advanceTimersByTimeAsync(10);
     await nextTick();
 
-    expect(bridge.emitContentChange.mock.calls[0][0]).toContain('Hello persistence');
+    expect(bridge.emitContentChange.mock.calls[0][0]).toContain(
+      'Hello persistence'
+    );
     expect(bridge.lastEmittedContent.value).toContain('Hello persistence');
     expect(bridge.isInternalUpdate.value).toBe(false);
   });
@@ -128,9 +135,9 @@ describe('useEditorPersistenceBridge', () => {
 
   it('syncs external content into the editor when it differs from the last emitted value', () => {
     const bridge = createBridge();
-    const { editor, setContent } = createEditor();
+    const { editor, setContent, setTextSelection } = createEditor();
 
-    bridge.syncIncomingContent('<p>new</p>', editor);
+    bridge.syncIncomingContent('<p>new</p>', editor, { resetSelection: true });
 
     expect(setContent).toHaveBeenCalledWith('<p>new</p>', {
       emitUpdate: false,
@@ -138,6 +145,16 @@ describe('useEditorPersistenceBridge', () => {
     });
     expect(bridge.lastEmittedContent.value).toBe('<p>new</p>');
     expect(bridge.updateStats).toHaveBeenCalledWith('Hello persistence');
+    expect(setTextSelection).toHaveBeenCalledWith(1);
+  });
+
+  it('does not reset the selection for an external update within the same document', () => {
+    const bridge = createBridge();
+    const { editor, setTextSelection } = createEditor();
+
+    bridge.syncIncomingContent('<p>new</p>', editor);
+
+    expect(setTextSelection).not.toHaveBeenCalled();
   });
 
   it('skips external sync while an internal update is in progress', () => {

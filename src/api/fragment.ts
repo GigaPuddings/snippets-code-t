@@ -6,6 +6,10 @@ import { cleanupAttachmentsOnDelete, syncAttachmentsOnRename } from '@/plugins/a
 import { applyFilter } from '@/utils/filterEngine';
 import { parseSearchText } from '@/utils/searchParser';
 import { logger } from '@/utils/logger';
+import {
+  buildFragmentTypeConversionUpdate,
+  type ConvertFragmentTypeUpdates
+} from './fragmentTypeConversion';
 
 /**
  * 片段类型
@@ -36,7 +40,7 @@ function markdownFileToContentType(file: MarkdownFile): ContentType {
     title: file.title,
     content: file.content,
     type: file.type as 'code' | 'note', // 后端返回的类型已经是 'code' 或 'note'
-    format: 'markdown',
+    format: file.type === 'note' ? 'markdown' : 'plain',
     category_id: file.categoryId || 0,
     category_name: file.categoryName || '未分类',
     tags: Array.isArray(file.tags) && file.tags.length > 0 ? file.tags : null,
@@ -565,6 +569,73 @@ export async function editFragment(params: EditFragmentParams): Promise<string |
     // 不在此处处理，交由调用方（如 saveContent、useContentDialogs）统一展示，避免重复弹窗
     throw error;
   }
+}
+
+/**
+ * 仅移动片段到目标分类，不重写正文或 Front Matter。
+ *
+ * 分类移动是文件系统操作。若复用 editFragment，列表中的精简数据会参与元数据回写，
+ * 容易覆盖 type、favorite 等仅存在于磁盘中的字段。
+ */
+export async function moveFragmentToCategory(
+  id: number | string,
+  categoryId: number | string | null
+): Promise<ContentType> {
+  const filePath = typeof id === 'string' ? id : String(id);
+  const categories = await markdownApi.getCategories();
+  const normalizedCategoryId = categoryId === null || Number(categoryId) === 0
+    ? 0
+    : Number(categoryId);
+  const targetCategory = normalizedCategoryId === 0
+    ? categories.find(category => category.isSystem || category.name === '未分类')
+    : categories.find(category => Number(category.id) === normalizedCategoryId);
+
+  if (!targetCategory) {
+    throw new Error(`Category not found: ${String(categoryId)}`);
+  }
+
+  const targetCategoryName = targetCategory.name === '未分类' ? '' : targetCategory.name;
+  const newPath = await markdownApi.moveMarkdownFile(filePath, targetCategoryName);
+  const movedFile = await markdownApi.readMarkdownFile(newPath);
+  return markdownFileToContentType(movedFile);
+}
+
+/**
+ * 转换片段类型并保存转换后的正文。
+ *
+ * 与 editFragment 不同，此操作始终先读取磁盘中的最新 Front Matter，避免列表缓存
+ * 覆盖 language、framework、kind、favorite 等未展示字段。
+ *
+ * @param id - 片段文件路径
+ * @param targetType - 目标类型
+ * @param updates - 当前编辑器内尚未保存的正文和元数据；未传入的字段保留磁盘值
+ * @returns 转换后的最新片段
+ */
+export async function convertFragmentType(
+  id: number | string,
+  targetType: FragmentType,
+  updates: ConvertFragmentTypeUpdates = {}
+): Promise<ContentType> {
+  const filePath = typeof id === 'string' ? id : String(id);
+  const currentFile = await markdownApi.readMarkdownFile(filePath);
+  const update = buildFragmentTypeConversionUpdate(currentFile, targetType, updates);
+
+  if (update.metadata.title && update.metadata.title !== currentFile.title) {
+    update.content = await syncAttachmentsOnRename(
+      currentFile.title,
+      update.metadata.title,
+      update.content
+    );
+  }
+
+  const newPath = await markdownApi.updateMarkdownFile(
+    filePath,
+    update.content,
+    update.metadata
+  );
+
+  const updatedFile = await markdownApi.readMarkdownFile(newPath || filePath);
+  return markdownFileToContentType(updatedFile);
 }
 
 /**

@@ -35,6 +35,7 @@ import sqlLang from 'shiki/langs/sql.mjs';
 import yamlLang from 'shiki/langs/yaml.mjs';
 import dockerLang from 'shiki/langs/docker.mjs';
 import dartLang from 'shiki/langs/dart.mjs';
+import tomlLang from 'shiki/langs/toml.mjs';
 import githubDarkDefault from 'shiki/themes/github-dark-default.mjs';
 import githubLightDefault from 'shiki/themes/github-light-default.mjs';
 import CodeBlockHighlightComponent from './CodeBlockHighlightComponent.vue';
@@ -75,6 +76,7 @@ const SHIKI_LANGS = [
   yamlLang,
   dockerLang,
   dartLang,
+  tomlLang,
 ];
 
 const SHIKI_THEME_LIGHT = 'github-light-default';
@@ -84,11 +86,18 @@ const SHIKI_THEME_DARK = 'github-dark-default';
 /** Markdown 围栏语言别名 → 内部语言 key */
 const LANG_ALIASES: Record<string, string> = {
   js: 'javascript',
-  jsx: 'javascript',
+  jsx: 'jsx',
   mjs: 'javascript',
   cjs: 'javascript',
   ts: 'typescript',
-  tsx: 'typescript',
+  tsx: 'tsx',
+  reactjs: 'jsx',
+  'react-js': 'jsx',
+  reacttsx: 'tsx',
+  'react-ts': 'tsx',
+  'tauri-rust': 'rust',
+  'tauri-ts': 'typescript',
+  cargo: 'toml',
   py: 'python',
   rb: 'ruby',
   rs: 'rust',
@@ -145,9 +154,35 @@ function isShikiLanguageLoaded(highlighter: HighlighterCore, language: string): 
 export function resolveCodeBlockLang(languageAttr: string | null | undefined, code: string): string {
   const raw = (languageAttr ?? '').trim().toLowerCase();
   if (raw) {
+    if (raw === 'react') {
+      return looksLikeTypedReact(code) ? 'tsx' : 'jsx';
+    }
+    if (raw === 'tauri') {
+      return detectTauriLanguage(code);
+    }
     return LANG_ALIASES[raw] || raw;
   }
   return detectLanguage(code) || 'plaintext';
+}
+
+function looksLikeTypedReact(code: string): boolean {
+  return /\b(?:interface|type)\s+[A-Z]\w*|\bReact\.(?:FC|ComponentType)<|\b(?:useState|useRef|useMemo|useCallback)<[^>]+>|:\s*(?:string|number|boolean|React\.)\b|\bas\s+const\b/.test(
+    code
+  );
+}
+
+function detectTauriLanguage(code: string): string {
+  if (/^\s*\[(?:package|dependencies|build-dependencies|features)\]/m.test(code)) {
+    return 'toml';
+  }
+  if (
+    /#\[(?:tauri::)?command\]|\btauri::(?:Builder|generate_handler|generate_context)|\buse\s+tauri(?:::{1,2}|\s*;)|\bfn\s+main\s*\(/m.test(
+      code
+    )
+  ) {
+    return 'rust';
+  }
+  return 'typescript';
 }
 
 function getCurrentDarkMode(view?: EditorView): boolean {
@@ -371,6 +406,8 @@ const languageKeywords: Record<string, string[]> = {
   vue: ['template', 'script', 'style', 'export', 'default', 'import', 'from', 'const', 'let', 'var', 'function', 'return', 'if', 'else', 'for', 'while', 'class', 'extends', 'new', 'this', 'async', 'await', 'ref', 'reactive', 'computed', 'watch', 'watchEffect', 'onMounted', 'onUpdated', 'onUnmounted', 'onBeforeMount', 'onBeforeUpdate', 'onBeforeUnmount', 'provide', 'inject', 'defineProps', 'defineEmits', 'defineExpose', 'v-if', 'v-else', 'v-else-if', 'v-for', 'v-on', 'v-bind', 'v-model', 'v-show', 'v-text', 'v-html', 'v-once', 'v-pre', 'v-cloak'],
   dart: ['import', 'library', 'part', 'class', 'abstract', 'mixin', 'extension', 'enum', 'typedef', 'void', 'final', 'const', 'var', 'late', 'required', 'dynamic', 'String', 'int', 'double', 'bool', 'List', 'Map', 'Set', 'Future', 'Stream', 'return', 'if', 'else', 'switch', 'case', 'default', 'for', 'while', 'do', 'break', 'continue', 'try', 'catch', 'finally', 'throw', 'rethrow', 'on', 'is', 'as', 'this', 'super', 'new', 'true', 'false', 'null', 'async', 'await', 'yield', 'with', 'implements', 'extends', 'override', 'Widget', 'StatefulWidget', 'StatelessWidget', 'BuildContext', 'setState'],
   flutter: ['flutter', 'dart', 'clean', 'pub', 'get', 'build', 'apk', 'appbundle', 'ios', 'web', 'windows', 'linux', 'macos', 'run', 'test', 'doctor', 'upgrade', 'analyze', 'gen-l10n', '--release', '--debug', '--profile', '--flavor', '--target', '--dart-define'],
+  jsx: ['const', 'let', 'function', 'return', 'import', 'export', 'default', 'from', 'async', 'await', 'className', 'useState', 'useEffect', 'useMemo', 'useCallback', 'Fragment'],
+  tsx: ['const', 'let', 'function', 'return', 'import', 'export', 'default', 'from', 'async', 'await', 'interface', 'type', 'extends', 'implements', 'as', 'keyof', 'readonly', 'className', 'useState', 'useEffect', 'useMemo', 'useCallback', 'Fragment'],
 };
 
 // 自动语言检测函数
@@ -380,17 +417,29 @@ function detectLanguage(code: string): string | null {
   // 检查是否已有语言标记（必须是完整语言标识，避免把 "cd ..." 误判为 "c"）
   const firstLine = trimmed.split('\n')[0].trim();
   const langMarkerMatch = firstLine.match(
-    /^(javascript|typescript|python|java|c|c\+\+|cpp|c#|csharp|go|rust|php|ruby|swift|html|css|scss|json|xml|sql|bash|shell|vue|jsx|tsx|dart|flutter)\b/i
+    /^(javascript|typescript|python|java|c|c\+\+|cpp|c#|csharp|go|rust|php|ruby|swift|html|css|scss|json|xml|sql|bash|shell|vue|jsx|tsx|react|tauri|dart|flutter)\b/i
   );
   if (langMarkerMatch) {
     const marker = langMarkerMatch[1].toLowerCase();
     if (marker === 'c++' || marker === 'cpp') return 'cpp';
     if (marker === 'c#' || marker === 'csharp') return 'csharp';
+    if (marker === 'react') return looksLikeTypedReact(trimmed) ? 'tsx' : 'jsx';
+    if (marker === 'tauri') return detectTauriLanguage(trimmed);
     return marker;
   }
 
   // 基于代码特征检测
   const patterns: [RegExp, string][] = [
+    // React / JSX / TSX（必须先于普通 TypeScript、JavaScript 和 HTML）
+    [/<[A-Z][\w.]*\b[^>]*>|\bReact\.(?:createElement|Fragment)\b/, looksLikeTypedReact(trimmed) ? 'tsx' : 'jsx'],
+    [/=>\s*\(?\s*<[a-z][\w-]*\b[^>]*>/, looksLikeTypedReact(trimmed) ? 'tsx' : 'jsx'],
+    [/\b(?:useState|useEffect|useMemo|useCallback|useContext)\s*(?:<[^>]+>)?\s*\(/, looksLikeTypedReact(trimmed) ? 'tsx' : 'jsx'],
+
+    // Tauri Rust / Cargo manifest / frontend API
+    [/#\[(?:tauri::)?command\]|\btauri::(?:Builder|generate_handler|generate_context)\b/, 'rust'],
+    [/^\s*\[(?:package|dependencies|build-dependencies)\][\s\S]*\btauri\s*=/m, 'toml'],
+    [/@tauri-apps\/api|\binvoke\s*(?:<[^>]+>)?\s*\(/, 'typescript'],
+
     // TypeScript
     [/:\s*(string|number|boolean|any|void|never|unknown|interface|type|enum)\s*[;=)]/i, 'typescript'],
     [/<\w+(\s*,\s*\w+)*>/, 'typescript'],

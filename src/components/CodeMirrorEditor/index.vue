@@ -6,7 +6,7 @@
       class="editor-content"
       @contextmenu="handleContextMenu"
     ></div>
-    
+
     <!-- 搜索面板 -->
     <SearchPanel
       ref="searchPanelRef"
@@ -26,17 +26,25 @@
       :has-selection="hasCodeSelection"
       @action="handleContextMenuAction"
     />
-    
+
     <div
       class="editor-status"
-      :style="resolvedStatusBackground ? { background: resolvedStatusBackground } : undefined"
+      :style="
+        resolvedStatusBackground
+          ? { background: resolvedStatusBackground }
+          : undefined
+      "
     >
       <div class="editor-status-left">
         <div class="editor-status-item">
-          <span class="editor-status-text">{{ lines }} {{ $t('codeEditor.lines') }}</span>
+          <span class="editor-status-text">
+            {{ lines }} {{ $t('codeEditor.lines') }}
+          </span>
         </div>
         <div class="editor-status-item">
-          <span class="editor-status-text">{{ length }} {{ $t('codeEditor.chars') }}</span>
+          <span class="editor-status-text">
+            {{ length }} {{ $t('codeEditor.chars') }}
+          </span>
         </div>
       </div>
       <div class="editor-status-right">
@@ -89,6 +97,7 @@ interface Props {
   indentWithTab?: boolean;
   tabSize?: number;
   autoDestroy?: boolean;
+  currentFragmentId?: string | number;
 }
 
 defineOptions({
@@ -107,7 +116,8 @@ const props = withDefaults(defineProps<Props>(), {
   disabled: false,
   indentWithTab: true,
   tabSize: 2,
-  autoDestroy: true
+  autoDestroy: true,
+  currentFragmentId: undefined
 });
 
 const { t: translate } = useI18n();
@@ -288,7 +298,9 @@ const detectLanguage = (code: string): string => {
     code.includes('namespace ') ||
     /\b(?:enum|declare|implements|readonly|abstract)\b/.test(code) ||
     /\bimport\s+type\b/.test(code) ||
-    /\b(?:const|let|var)\s+[A-Za-z_$][\w$]*\s*:\s*[A-Za-z_$][\w$<[{|&]*/.test(code) ||
+    /\b(?:const|let|var)\s+[A-Za-z_$][\w$]*\s*:\s*[A-Za-z_$][\w$<[{|&]*/.test(
+      code
+    ) ||
     /\(\s*[A-Za-z_$][\w$]*\s*:\s*[A-Za-z_$][\w$<[{|&]*/.test(code)
   ) {
     return 'typescript';
@@ -301,7 +313,13 @@ const detectLanguage = (code: string): string => {
 // 添加响应式的语言类型
 const detectedLanguage = computed(() => detectLanguage(props.code));
 
-type PrettierParser = 'babel' | 'typescript' | 'vue' | 'html' | 'css' | 'json-stringify';
+type PrettierParser =
+  | 'babel'
+  | 'typescript'
+  | 'vue'
+  | 'html'
+  | 'css'
+  | 'json-stringify';
 
 function getPrettierParser(language: string): PrettierParser | null {
   switch (language) {
@@ -322,7 +340,9 @@ function getPrettierParser(language: string): PrettierParser | null {
   }
 }
 
-const canFormatCode = computed(() => getPrettierParser(detectedLanguage.value) !== null);
+const canFormatCode = computed(
+  () => getPrettierParser(detectedLanguage.value) !== null
+);
 
 // TypeScript 语法是 JavaScript 的超集。对未闭合的片段使用它可以保留
 // JS、TS 与 JSX 的词法高亮，并依赖 Lezer 的错误恢复继续解析后续内容。
@@ -358,11 +378,13 @@ const getExtensions = (): Extension[] => {
     customTheme.value,
     languageCompartment.of(getLanguageExtension(detectedLanguage.value)),
     history(),
-    keymapCompartment.of(keymap.of([
-      ...defaultKeymap,
-      ...historyKeymap,
-      ...(props.indentWithTab ? [indentWithTab] : [])
-    ])),
+    keymapCompartment.of(
+      keymap.of([
+        ...defaultKeymap,
+        ...historyKeymap,
+        ...(props.indentWithTab ? [indentWithTab] : [])
+      ])
+    ),
     tabSizeCompartment.of(EditorState.tabSize.of(props.tabSize)),
     EditorView.editable.of(!props.disabled),
     EditorState.phrases.of({
@@ -388,7 +410,7 @@ const getExtensions = (): Extension[] => {
       }
     })
   ];
-  
+
   return extensions;
 };
 
@@ -417,7 +439,7 @@ onMounted(() => {
       if (props.autofocus) {
         view.focus();
       }
-      
+
       // 添加键盘事件监听器
       const handleKeyDown = (e: KeyboardEvent) => {
         if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
@@ -426,12 +448,16 @@ onMounted(() => {
           openSearch();
         }
 
-        if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'f') {
+        if (
+          (e.ctrlKey || e.metaKey) &&
+          e.shiftKey &&
+          e.key.toLowerCase() === 'f'
+        ) {
           e.preventDefault();
           void formatCode();
         }
       };
-      
+
       view.dom.addEventListener('keydown', handleKeyDown, true);
     });
   }
@@ -459,13 +485,13 @@ const handleSearch = (query: string, matchCase: boolean) => {
   const view = editorViewRef.value;
   const text = view.state.doc.toString();
   const matches: Array<{ from: number; to: number }> = [];
-  
+
   const flags = matchCase ? 'g' : 'gi';
   const searchRegex = new RegExp(
     query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
     flags
   );
-  
+
   let match;
   while ((match = searchRegex.exec(text)) !== null) {
     matches.push({
@@ -473,13 +499,13 @@ const handleSearch = (query: string, matchCase: boolean) => {
       to: match.index + match[0].length
     });
   }
-  
+
   searchMatches.value = matches;
   searchPanelRef.value?.updateMatchInfo(
     matches.length > 0 ? 0 : -1,
     matches.length
   );
-  
+
   if (matches.length > 0) {
     scrollToMatch(0);
   }
@@ -487,7 +513,7 @@ const handleSearch = (query: string, matchCase: boolean) => {
 
 const findNext = () => {
   if (searchMatches.value.length === 0) return;
-  
+
   const currentIndex = getCurrentMatchIndex();
   const nextIndex = (currentIndex + 1) % searchMatches.value.length;
   searchPanelRef.value?.updateMatchInfo(nextIndex, searchMatches.value.length);
@@ -496,47 +522,48 @@ const findNext = () => {
 
 const findPrevious = () => {
   if (searchMatches.value.length === 0) return;
-  
+
   const currentIndex = getCurrentMatchIndex();
-  const prevIndex = currentIndex <= 0 
-    ? searchMatches.value.length - 1 
-    : currentIndex - 1;
+  const prevIndex =
+    currentIndex <= 0 ? searchMatches.value.length - 1 : currentIndex - 1;
   searchPanelRef.value?.updateMatchInfo(prevIndex, searchMatches.value.length);
   scrollToMatch(prevIndex);
 };
 
 const getCurrentMatchIndex = (): number => {
   if (!editorViewRef.value || searchMatches.value.length === 0) return -1;
-  
+
   const selection = editorViewRef.value.state.selection.main;
   const index = searchMatches.value.findIndex(
-    match => match.from === selection.from && match.to === selection.to
+    (match) => match.from === selection.from && match.to === selection.to
   );
   return index >= 0 ? index : 0;
 };
 
 const scrollToMatch = (index: number) => {
-  if (!editorViewRef.value || index < 0 || index >= searchMatches.value.length) return;
-  
+  if (!editorViewRef.value || index < 0 || index >= searchMatches.value.length)
+    return;
+
   const view = editorViewRef.value;
   const match = searchMatches.value[index];
-  
+
   view.dispatch({
     selection: { anchor: match.from, head: match.to },
     scrollIntoView: true
   });
   view.focus();
-  
+
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       const scrollContainer = view.dom as HTMLElement;
       const coords = view.coordsAtPos(match.from);
-      
+
       if (coords) {
         const containerRect = scrollContainer.getBoundingClientRect();
-        const relativeTop = coords.top - containerRect.top + scrollContainer.scrollTop;
+        const relativeTop =
+          coords.top - containerRect.top + scrollContainer.scrollTop;
         const targetScroll = relativeTop - 100;
-        
+
         scrollContainer.scrollTo({
           top: Math.max(0, targetScroll),
           behavior: 'smooth'
@@ -549,7 +576,7 @@ const scrollToMatch = (index: number) => {
 const clearSearchHighlights = () => {
   searchMatches.value = [];
   searchPanelRef.value?.updateMatchInfo(0, 0);
-  
+
   if (editorViewRef.value) {
     editorViewRef.value.dispatch({
       selection: { anchor: editorViewRef.value.state.selection.main.head }
@@ -591,7 +618,10 @@ async function writeToClipboard(text: string): Promise<boolean> {
     await navigator.clipboard.writeText(text);
     return true;
   } catch (error) {
-    modal.msg(`${translate('codeEditor.clipboardFailed')}: ${error instanceof Error ? error.message : String(error)}`, 'error');
+    modal.msg(
+      `${translate('codeEditor.clipboardFailed')}: ${error instanceof Error ? error.message : String(error)}`,
+      'error'
+    );
     return false;
   }
 }
@@ -600,7 +630,10 @@ async function readFromClipboard(): Promise<string | null> {
   try {
     return await navigator.clipboard.readText();
   } catch (error) {
-    modal.msg(`${translate('codeEditor.clipboardFailed')}: ${error instanceof Error ? error.message : String(error)}`, 'error');
+    modal.msg(
+      `${translate('codeEditor.clipboardFailed')}: ${error instanceof Error ? error.message : String(error)}`,
+      'error'
+    );
     return null;
   }
 }
@@ -617,17 +650,24 @@ async function formatCode(): Promise<void> {
   }
 
   try {
-    const [prettier, babel, estree, typescript, html, postcss] = await Promise.all([
-      import('prettier/standalone'),
-      import('prettier/plugins/babel'),
-      import('prettier/plugins/estree'),
-      import('prettier/plugins/typescript'),
-      import('prettier/plugins/html'),
-      import('prettier/plugins/postcss')
-    ]);
+    const [prettier, babel, estree, typescript, html, postcss] =
+      await Promise.all([
+        import('prettier/standalone'),
+        import('prettier/plugins/babel'),
+        import('prettier/plugins/estree'),
+        import('prettier/plugins/typescript'),
+        import('prettier/plugins/html'),
+        import('prettier/plugins/postcss')
+      ]);
     const formatted = await prettier.format(code, {
       parser,
-      plugins: [babel.default, estree.default, typescript.default, html.default, postcss.default],
+      plugins: [
+        babel.default,
+        estree.default,
+        typescript.default,
+        html.default,
+        postcss.default
+      ],
       tabWidth: props.tabSize,
       useTabs: false,
       singleQuote: true
@@ -645,12 +685,23 @@ async function formatCode(): Promise<void> {
       return;
     }
 
-    modal.msg(`${translate('codeEditor.formatFailed')}: ${error instanceof Error ? error.message : String(error)}`, 'error');
+    modal.msg(
+      `${translate('codeEditor.formatFailed')}: ${error instanceof Error ? error.message : String(error)}`,
+      'error'
+    );
   }
 }
 
 async function handleContextMenuAction(
-  action: 'format' | 'undo' | 'redo' | 'cut' | 'copy' | 'paste' | 'copyAll' | 'selectAll'
+  action:
+    | 'format'
+    | 'undo'
+    | 'redo'
+    | 'cut'
+    | 'copy'
+    | 'paste'
+    | 'copyAll'
+    | 'selectAll'
 ): Promise<void> {
   const view = editorViewRef.value;
   if (!view) return;
@@ -673,7 +724,7 @@ async function handleContextMenuAction(
       return;
     case 'cut': {
       const selectedCode = getSelection();
-      if (selectedCode && await writeToClipboard(selectedCode)) {
+      if (selectedCode && (await writeToClipboard(selectedCode))) {
         replaceSelection('');
       }
       return;
@@ -689,19 +740,40 @@ async function handleContextMenuAction(
   }
 }
 
-// 监听代码变化
-watchEffect(() => {
-  const view = editorViewRef.value;
-  if (view && props.code !== view.state.doc.toString()) {
-    view.dispatch({
-      changes: {
-        from: 0,
-        to: view.state.doc.length,
-        insert: props.code
-      }
-    });
+// 监听代码变化。同一个 CodeMirror 实例切换片段时重置选区和滚动；
+// 同一片段内的外部内容更新保留用户当前位置。
+watch(
+  [() => props.code, () => props.currentFragmentId],
+  ([code, fragmentId], [, oldFragmentId]) => {
+    const view = editorViewRef.value;
+    if (!view) return;
+
+    const changedDocument =
+      oldFragmentId !== undefined && fragmentId !== oldFragmentId;
+    if (code !== view.state.doc.toString()) {
+      view.dispatch({
+        changes: {
+          from: 0,
+          to: view.state.doc.length,
+          insert: code
+        },
+        ...(changedDocument
+          ? {
+              selection: { anchor: 0 },
+              scrollIntoView: true
+            }
+          : {})
+      });
+    } else if (changedDocument) {
+      view.dispatch({
+        selection: { anchor: 0 },
+        scrollIntoView: true
+      });
+    }
+
+    if (changedDocument) view.scrollDOM.scrollTop = 0;
   }
-});
+);
 
 // 代码片段在同一编辑器实例中切换时，必须同步替换解析器；只更新状态栏
 // 的语言名称不足以让 CodeMirror 重新进行词法高亮。
@@ -711,21 +783,29 @@ watch(detectedLanguage, (language) => {
   });
 });
 
-watch(() => props.tabSize, (tabSize) => {
-  editorViewRef.value?.dispatch({
-    effects: tabSizeCompartment.reconfigure(EditorState.tabSize.of(tabSize))
-  });
-});
+watch(
+  () => props.tabSize,
+  (tabSize) => {
+    editorViewRef.value?.dispatch({
+      effects: tabSizeCompartment.reconfigure(EditorState.tabSize.of(tabSize))
+    });
+  }
+);
 
-watch(() => props.indentWithTab, (enabled) => {
-  editorViewRef.value?.dispatch({
-    effects: keymapCompartment.reconfigure(keymap.of([
-      ...defaultKeymap,
-      ...historyKeymap,
-      ...(enabled ? [indentWithTab] : [])
-    ]))
-  });
-});
+watch(
+  () => props.indentWithTab,
+  (enabled) => {
+    editorViewRef.value?.dispatch({
+      effects: keymapCompartment.reconfigure(
+        keymap.of([
+          ...defaultKeymap,
+          ...historyKeymap,
+          ...(enabled ? [indentWithTab] : [])
+        ])
+      )
+    });
+  }
+);
 
 onBeforeUnmount(() => {
   if (props.autoDestroy && editorViewRef.value) {

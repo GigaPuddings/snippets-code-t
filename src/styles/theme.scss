@@ -56,6 +56,17 @@
   --code-block-toolbar-bg: rgb(255 255 255 / 88%);
   --code-block-toolbar-border: #d5deea;
   --code-block-selection: rgb(95 116 243 / 18%);
+  --fragment-drag-shadow: 0 18px 46px rgb(39 76 119 / 20%), 0 4px 14px rgb(26 43 63 / 12%);
+  --fragment-drop-shadow: 0 8px 22px rgb(79 96 229 / 14%), inset 0 0 0 1px rgb(95 116 243 / 8%);
+  --markdown-heading: #172033;
+  --markdown-heading-border: #e2e8f1;
+  --markdown-muted: #667085;
+  --markdown-inline-code-bg: #eef2f8;
+  --markdown-inline-code-text: #344054;
+  --markdown-quote-bg: #f5f7ff;
+  --markdown-quote-border: #8b9cf8;
+  --markdown-table-header: #f6f8fc;
+  --markdown-table-row-hover: #f8faff;
 
   // ==================== 状态栏主题变量 ====================
   --statusbar-bg: #F9FAFC;
@@ -227,6 +238,17 @@ html.dark {
   --code-block-toolbar-bg: rgb(30 32 36 / 88%);
   --code-block-toolbar-border: #414854;
   --code-block-selection: rgb(93 109 253 / 28%);
+  --fragment-drag-shadow: 0 22px 52px rgb(0 0 0 / 48%), 0 5px 16px rgb(0 0 0 / 30%);
+  --fragment-drop-shadow: 0 8px 24px rgb(0 0 0 / 28%), inset 0 0 0 1px rgb(125 145 246 / 12%);
+  --markdown-heading: #f0f3f8;
+  --markdown-heading-border: #343a43;
+  --markdown-muted: #9ca3af;
+  --markdown-inline-code-bg: #292d34;
+  --markdown-inline-code-text: #d7dce5;
+  --markdown-quote-bg: #242735;
+  --markdown-quote-border: #7d91f6;
+  --markdown-table-header: #272a30;
+  --markdown-table-row-hover: #25282e;
 
   // ==================== 状态栏深色主题变量 ====================
   --statusbar-bg: #1e1e1e;

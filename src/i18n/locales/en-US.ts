@@ -952,12 +952,12 @@ export default {
     deleteFailed: 'Delete failed',
     convertType: 'Convert Type',
     convertToNote: 'Convert to Note',
-    convertToCode: 'Convert to Code',
+    convertToCode: 'Convert to Snippet',
     convertConfirmTitle: 'Confirm Type Conversion',
     convertToNoteConfirm:
       'Converting code snippet to note will wrap the code in a code block. Continue?',
     convertToCodeConfirm:
-      'Converting note to code snippet will lose all formatting and keep only plain text. Continue?',
+      'Converting a note to a snippet will lose all formatting and keep only plain text. Continue?',
     convertSuccess: 'Type conversion successful',
     convertFailed: 'Type conversion failed',
     unsavedChanges: 'You have unsaved changes. Do you want to save them?',
@@ -1499,6 +1499,10 @@ export default {
 
   // Content Item Context Menu
   contentItem: {
+    move: 'Move',
+    dragHint: 'Drop on a folder to move',
+    dropToMove: 'Move here',
+    currentCategory: 'Current',
     changeCategory: 'Change Category',
     changeCategorySuccess: 'Category changed successfully',
     changeCategoryFailed: 'Failed to change category',

@@ -2,10 +2,15 @@
   <main class="category-container" :style="gridStyle">
     <section
       class="category-page"
-      :class="{ 'category-page--collapsed': layoutStore.effectiveCategoryCollapsed }"
+      :class="{
+        'category-page--collapsed': layoutStore.effectiveCategoryCollapsed
+      }"
     >
       <!-- 折叠态不显示边条/箭头；展开态仅显示内容，无折叠把手 -->
-      <div v-if="!layoutStore.effectiveCategoryCollapsed" class="category-page__content">
+      <div
+        v-if="!layoutStore.effectiveCategoryCollapsed"
+        class="category-page__content"
+      >
         <QuickNav />
         <CategoryHeader
           :sort-order="categorySort"
@@ -16,6 +21,7 @@
           <CategoryListView
             :categories="categories"
             :edit-category-id="store.editCategoryId"
+            @move-content="handleMoveContent"
           />
         </div>
         <CategorySyncStatus />
@@ -52,8 +58,13 @@ import CategoryHeader from './components/CategoryHeader.vue';
 import CategoryListView from './components/CategoryListView.vue';
 import CategorySyncStatus from './components/CategorySyncStatus.vue';
 import { PromptDialog } from '@/components/UI';
-import { addCategory, getCategories } from '@/api/fragment';
+import {
+  addCategory,
+  getCategories,
+  moveFragmentToCategory
+} from '@/api/fragment';
 import modal from '@/utils/modal';
+import { requestOpenFragmentCategoryMove } from '@/utils/fragmentCategoryMove';
 
 const store = useConfigurationStore();
 const layoutStore = useLayoutStore();
@@ -70,15 +81,9 @@ defineOptions({
   name: 'Category'
 });
 
-
-
 // 使用分类管理 Composable
-const {
-  categories,
-  categorySort,
-  loadCategories,
-  handleSort,
-} = useCategoryManagement();
+const { categories, categorySort, loadCategories, handleSort } =
+  useCategoryManagement();
 
 const showAddCategoryDialog = ref(false);
 const newCategoryName = ref('');
@@ -97,7 +102,11 @@ const validateCategoryName = (value: string) => {
   if (invalidCategoryChars.test(value)) {
     return { valid: false, message: t('category.invalidNameChars') };
   }
-  if (store.categories.some(c => c.name.toLowerCase() === value.trim().toLowerCase())) {
+  if (
+    store.categories.some(
+      (c) => c.name.toLowerCase() === value.trim().toLowerCase()
+    )
+  ) {
     return { valid: false, message: t('category.duplicateName') };
   }
   return { valid: true };
@@ -114,6 +123,38 @@ const handleConfirmAddCategory = async (value: string) => {
   } catch (error) {
     console.error('[Category] 创建分类失败:', error);
     modal.error(t('category.createFailed'));
+  }
+};
+
+const handleMoveContent = async (
+  content: ContentType,
+  categoryId: string | number
+): Promise<void> => {
+  try {
+    const moved =
+      (await requestOpenFragmentCategoryMove(content.id, categoryId)) ??
+      (await moveFragmentToCategory(content.id, categoryId));
+    const sourceId = String(content.id).replace(/\\/g, '/');
+    const index = store.contents.findIndex(
+      (item) => String(item.id).replace(/\\/g, '/') === sourceId
+    );
+
+    if (index !== -1) {
+      store.contents[index] = {
+        ...store.contents[index],
+        ...moved
+      };
+    }
+
+    window.dispatchEvent(
+      new CustomEvent('refresh-data', {
+        detail: { source: 'fragment-category-move' }
+      })
+    );
+    modal.success(t('contentItem.changeCategorySuccess'));
+  } catch (error) {
+    console.error('[Category] 拖拽修改分类失败:', error);
+    modal.error(t('contentItem.changeCategoryFailed'));
   }
 };
 

@@ -27,6 +27,7 @@
           :content="item"
           @delete="$emit('delete', item)"
           @changeCategory="$emit('change-category', item)"
+          @convertType="handleConvertType"
         />
       </RecycleScroller>
       <div v-else class="content-empty">
@@ -66,17 +67,26 @@ interface ContentListViewEmits {
   (e: 'delete', content: ContentType): void;
   /** 更改分类 */
   (e: 'change-category', content: ContentType): void;
+  /** 转换内容类型 */
+  (e: 'convert-type', content: ContentType, targetType: 'code' | 'note'): void;
   /** 清除标签筛选 */
   (e: 'clear-tag-filter'): void;
 }
 
 const props = defineProps<ContentListViewProps>();
-defineEmits<ContentListViewEmits>();
+const emit = defineEmits<ContentListViewEmits>();
 
 const route = useRoute();
 const scrollerRef = ref<RecycleScrollerInstance | null>(null);
 // 单元格包含卡片本体与条目间留白，避免虚拟列表把相邻卡片贴在一起。
 const ITEM_SIZE = 66;
+
+function handleConvertType(
+  content: ContentType,
+  targetType: 'code' | 'note'
+): void {
+  emit('convert-type', content, targetType);
+}
 
 /**
  * 检查标签是否在筛选条件中

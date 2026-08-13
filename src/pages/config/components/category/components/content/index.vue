@@ -168,6 +168,7 @@
             ref="codeMirrorEditorRef"
             :key="'code-editor'"
             :code="state.editorContent"
+            :current-fragment-id="state.currentContent?.id"
             :codeStyle="{ height: '100%' }"
             background="var(--editor-surface-bg)"
             gutter-background="var(--editor-surface-bg)"
@@ -213,7 +214,14 @@
 
 <script setup lang="ts">
 import { useConfigurationStore, usePluginStore } from '@/store';
-import { getFragmentContent, editFragment, addFragment, getFragmentList } from '@/api/fragment';
+import {
+  getFragmentContent,
+  editFragment,
+  addFragment,
+  getFragmentList,
+  convertFragmentType,
+  moveFragmentToCategory
+} from '@/api/fragment';
 import { searchMarkdownFiles } from '@/api/markdown';
 import { debounce } from '@/utils';
 import { logger } from '@/utils/logger';
@@ -238,6 +246,15 @@ import {
 } from '@/components/TipTapEditor/utils/markdown';
 import { getWorkspaceRoot } from '@/api/markdown';
 import { syncAttachmentsOnRename, cleanupUnusedAttachments } from '@/plugins/attachments/api';
+import {
+  convertFragmentContent,
+  FRAGMENT_TYPE_CONVERSION_REQUEST_EVENT,
+  type FragmentTypeConversionRequestDetail
+} from '@/utils/fragmentTypeConversion';
+import {
+  FRAGMENT_CATEGORY_MOVE_REQUEST_EVENT,
+  type FragmentCategoryMoveRequestDetail
+} from '@/utils/fragmentCategoryMove';
 
 type GitSyncApi = typeof import('@/api/gitSync');
 
@@ -1095,6 +1112,180 @@ const computeContentHash = (content: string): string => {
   return `${normalized.length}:${hash}`;
 };
 
+/**
+ * 使用当前编辑器内的最新正文执行类型转换，并立即同步本页状态。
+ */
+const handleFragmentTypeConversionRequest = (event: Event): void => {
+  const customEvent = event as CustomEvent<FragmentTypeConversionRequestDetail>;
+  const detail = customEvent.detail;
+
+  if (!state.currentContent ||
+      normalizePathForCompare(state.currentContent.id) !== normalizePathForCompare(detail.id)) {
+    return;
+  }
+
+  const requestedContentId = state.currentContent.id;
+  detail.handled = true;
+  void (async () => {
+    try {
+      debouncedSave.cancel();
+
+      // 等待已经开始的自动保存完成，避免旧类型在转换后被回写。
+      const saveDeadline = Date.now() + 10_000;
+      while (state.isLoading) {
+        if (Date.now() > saveDeadline) {
+          throw new Error('Timed out waiting for the current fragment to save');
+        }
+        await new Promise(resolve => setTimeout(resolve, 20));
+      }
+
+      const currentContentId = state.currentContent?.id ?? requestedContentId;
+      commitTitleChange();
+      debouncedSave.cancel();
+      syncDraftTitleToState();
+      state.isLoading = true;
+      state.isInitializing = true;
+      beginEditorLoading();
+
+      const sourceType = currentEditorType.value || 'code';
+      const language = state.currentContent?.metadata?.language;
+      const convertedContent = convertFragmentContent(
+        state.editorContent,
+        sourceType,
+        detail.targetType,
+        typeof language === 'string' ? language : undefined
+      );
+      const converted = await convertFragmentType(currentContentId, detail.targetType, {
+        title: state.title,
+        content: convertedContent,
+        metadata: state.currentContent?.metadata,
+        tags: state.tags
+      });
+      const newPath = normalizePathForCompare(converted.id) !== normalizePathForCompare(currentContentId)
+        ? String(converted.id)
+        : null;
+
+      state.currentContent = {
+        ...state.currentContent,
+        ...converted,
+        type: detail.targetType,
+        format: detail.targetType === 'note' ? 'markdown' : 'plain'
+      };
+      state.editorContent = convertedContent;
+      state.contentChanged = false;
+      state.lastSavedAt = new Date();
+      state.lastSavedContentHash = computeContentHash(convertedContent);
+      originalTitle.value = converted.title;
+      draftTitle.value = converted.title;
+      titleDirty.value = false;
+
+      const previousIndex = store.contents.findIndex(
+        item => normalizePathForCompare(item.id) === normalizePathForCompare(currentContentId)
+      );
+      if (previousIndex !== -1) {
+        store.contents[previousIndex] = {
+          ...store.contents[previousIndex],
+          ...state.currentContent
+        };
+      }
+
+      if (newPath && newPath !== currentContentId) {
+        const cid = route.params.cid as string | undefined;
+        await router.replace({
+          path: cid
+            ? `/config/category/contentList/${cid}/content/${encodeURIComponent(newPath)}`
+            : `/config/category/contentList/content/${encodeURIComponent(newPath)}`,
+          query: { skipReload: 'true' }
+        });
+      }
+
+      try {
+        await notifyFileEditIfGitSyncEnabled();
+      } catch (error) {
+        console.debug('[Content] 类型转换后通知自动同步失败:', error);
+      }
+
+      await nextTick();
+      state.isInitializing = false;
+      finishMountedEditorLoading();
+      detail.resolve(state.currentContent);
+    } catch (error) {
+      await nextTick();
+      failEditorLoading();
+      detail.reject(error);
+    } finally {
+      state.isLoading = false;
+      state.isInitializing = false;
+    }
+  })();
+};
+
+const handleFragmentCategoryMoveRequest = (event: Event): void => {
+  const detail = (event as CustomEvent<FragmentCategoryMoveRequestDetail>).detail;
+  if (!state.currentContent ||
+      normalizePathForCompare(state.currentContent.id) !== normalizePathForCompare(detail.id)) {
+    return;
+  }
+
+  detail.handled = true;
+  void (async () => {
+    try {
+      debouncedSave.cancel();
+
+      const saveDeadline = Date.now() + 10_000;
+      while (state.isLoading) {
+        if (Date.now() > saveDeadline) {
+          throw new Error('Timed out waiting for the current fragment to save');
+        }
+        await new Promise(resolve => setTimeout(resolve, 20));
+      }
+
+      commitTitleChange();
+      debouncedSave.cancel();
+      syncDraftTitleToState();
+      if (hasUnsavedChanges()) {
+        await performSave({}, { updateRoute: false });
+      }
+
+      if (!state.currentContent) {
+        throw new Error(`Fragment not found: ${String(detail.id)}`);
+      }
+
+      const oldId = state.currentContent.id;
+      const moved = await moveFragmentToCategory(oldId, detail.categoryId);
+      state.currentContent = {
+        ...state.currentContent,
+        ...moved
+      };
+
+      const previousIndex = store.contents.findIndex(
+        item => normalizePathForCompare(item.id) === normalizePathForCompare(oldId)
+      );
+      if (previousIndex !== -1) {
+        store.contents[previousIndex] = {
+          ...store.contents[previousIndex],
+          ...moved
+        };
+      }
+
+      await router.replace({
+        path: `/config/category/contentList/${moved.category_id ?? detail.categoryId}/content/${encodeURIComponent(String(moved.id))}`,
+        query: { skipReload: 'true' }
+      });
+
+      try {
+        await notifyFileEditIfGitSyncEnabled();
+      } catch (error) {
+        console.debug('[Content] 分类移动后通知自动同步失败:', error);
+      }
+
+      detail.resolve(moved);
+    } catch (error) {
+      detail.reject(error);
+    }
+  })();
+};
+
 const applyAiContent = (content: string) => {
   if (currentEditorType.value === 'note') {
     // AI 约定返回 Markdown。不要把渲染后的 HTML 写入 state：那会让后续
@@ -1502,17 +1693,6 @@ const fetchContent = async () => {
             inputElement.select();
           }
         });
-      } else if (parsedContent.metadata && parsedContent.metadata.lastCursorPosition && currentEditorType.value === 'note') {
-        // 如果有保存的光标位置，恢复它
-        nextTick(() => {
-          if (tipTapEditorRef.value) {
-            const editor = tipTapEditorRef.value.getEditor();
-            if (editor && parsedContent.metadata) {
-              editor.commands.focus();
-              editor.commands.setTextSelection(parsedContent.metadata.lastCursorPosition);
-            }
-          }
-        });
       }
     } else {
       resetMissingContentState(fragmentId);
@@ -1774,11 +1954,27 @@ onMounted(async () => {
   window.addEventListener('beforeunload', handleBeforeUnload);
   window.addEventListener('refresh-data', handleRefreshData);
   window.addEventListener('refresh-categories', handleDirsChanged);
+  window.addEventListener(
+    FRAGMENT_CATEGORY_MOVE_REQUEST_EVENT,
+    handleFragmentCategoryMoveRequest
+  );
+  window.addEventListener(
+    FRAGMENT_TYPE_CONVERSION_REQUEST_EVENT,
+    handleFragmentTypeConversionRequest
+  );
 
   onBeforeUnmount(() => {
     window.removeEventListener('beforeunload', handleBeforeUnload);
     window.removeEventListener('refresh-data', handleRefreshData);
     window.removeEventListener('refresh-categories', handleDirsChanged);
+    window.removeEventListener(
+      FRAGMENT_CATEGORY_MOVE_REQUEST_EVENT,
+      handleFragmentCategoryMoveRequest
+    );
+    window.removeEventListener(
+      FRAGMENT_TYPE_CONVERSION_REQUEST_EVENT,
+      handleFragmentTypeConversionRequest
+    );
   });
 
   // 获取工作区根目录（必须在加载内容之前完成）

@@ -515,7 +515,7 @@ pub async fn update_markdown_file(
 
     // 读取当前文件内容，做后端兜底的等价比较（防止前端误触发保存）
     let raw_before = fs_manager.read_markdown_file_content(&path)?;
-    let (_, current_body) = try_parse_front_matter(&raw_before);
+    let (current_frontmatter, current_body) = try_parse_front_matter(&raw_before);
     let incoming_content = content.as_deref().unwrap_or(&current_body);
 
     let current_hash = compute_content_hash(&current_body);
@@ -577,8 +577,13 @@ pub async fn update_markdown_file(
             fragment_type: meta
                 .get("type")
                 .and_then(|v| v.as_str())
-                .unwrap_or("note")
-                .to_string(),
+                .map(|value| value.to_string())
+                .or_else(|| {
+                    current_frontmatter
+                        .as_ref()
+                        .map(|fm| fm.fragment_type.clone())
+                })
+                .unwrap_or_else(|| "note".to_string()),
             language: meta
                 .get("language")
                 .and_then(|v| v.as_str())
