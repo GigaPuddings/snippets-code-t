@@ -246,6 +246,50 @@ function delayedScrollIntoView(editor: Editor): void {
   });
 }
 
+/** 在代码块内直接写入换行，避免 HardBreak 的退出回退和重复按键。 */
+export function insertCodeBlockNewline(editor: Editor): boolean {
+  const { state } = editor;
+  const { selection } = state;
+  const codeBlockDepth = findCodeBlockDepth(selection.$from);
+  if (codeBlockDepth < 0) return false;
+
+  const toDepth = findCodeBlockDepth(selection.$to);
+  if (
+    toDepth !== codeBlockDepth ||
+    selection.$from.before(codeBlockDepth) !== selection.$to.before(toDepth)
+  ) {
+    return true;
+  }
+
+  const insertAt = selection.from;
+  const tr = state.tr.insertText('\n', selection.from, selection.to);
+  tr.setSelection(TextSelection.create(tr.doc, insertAt + 1));
+  editor.view.dispatch(tr.scrollIntoView());
+  return true;
+}
+
+/**
+ * Ctrl/Cmd + Enter 是代码块唯一的显式退出键，并且只允许在最后一行末尾执行。
+ * 代码块内的其他位置也要消费快捷键，防止后续 keymap 意外退出或拆分节点。
+ */
+export function handleCodeBlockExitShortcut(editor: Editor): boolean {
+  const { selection } = editor.state;
+  const codeBlockDepth = findCodeBlockDepth(selection.$from);
+  if (codeBlockDepth < 0) return false;
+
+  const codeBlock = selection.$from.node(codeBlockDepth);
+  const isAtCodeBlockEnd =
+    selection.empty &&
+    selection.$from.parent.type.name === 'codeBlock' &&
+    selection.$from.parentOffset === codeBlock.content.size;
+
+  if (isAtCodeBlockEnd) {
+    editor.commands.exitCode();
+  }
+
+  return true;
+}
+
 /** 处理缩进的核心逻辑（普通文本 + 代码块） */
 function handleIndent(editor: Editor): boolean {
   const state = editor.state;
@@ -501,7 +545,7 @@ export const CustomEnterBehavior = Extension.create({
         const { $from } = this.editor.state.selection;
         const d = findCodeBlockDepth($from);
         if (d >= 0) {
-          return this.editor.commands.insertContent('\n');
+          return insertCodeBlockNewline(this.editor);
         }
         if ($from.parent.type.name === 'heading') {
           return this.editor
@@ -516,6 +560,10 @@ export const CustomEnterBehavior = Extension.create({
         return false;
       },
       'Shift-Enter': () => {
+        const { $from } = this.editor.state.selection;
+        if (findCodeBlockDepth($from) >= 0) {
+          return insertCodeBlockNewline(this.editor);
+        }
         return this.editor.commands.setHardBreak();
       },
 
@@ -524,6 +572,7 @@ export const CustomEnterBehavior = Extension.create({
       },
 
       'Mod-Enter': () => {
+        if (handleCodeBlockExitShortcut(this.editor)) return true;
         if (!this.editor.isActive('table')) return false;
         return this.editor.chain().focus().addRowAfter().run();
       },

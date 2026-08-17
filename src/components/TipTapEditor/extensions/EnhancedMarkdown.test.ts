@@ -90,6 +90,29 @@ describe('createProtectedCodeBlockInputRule', () => {
     expect(transaction.doc.child(0).child(0).type.name).toBe('localImage');
     expect(transaction.doc.child(1).type.name).toBe('codeBlock');
   });
+
+  it('converts a new fence after a previously exited code block', () => {
+    const doc = schema.node('doc', null, [
+      schema.node('codeBlock', null, schema.text('previous')),
+      schema.node('paragraph', null, schema.text('```'))
+    ]);
+    let fenceFrom = -1;
+    doc.descendants((node, pos) => {
+      if (node.type.name === 'paragraph' && node.textContent === '```') {
+        fenceFrom = pos + 1;
+      }
+    });
+
+    const { result, transaction } = runCodeBlockRule(doc, {
+      from: fenceFrom,
+      to: fenceFrom + 3
+    });
+
+    expect(result).toBeUndefined();
+    expect(transaction.doc.child(0).type.name).toBe('codeBlock');
+    expect(transaction.doc.child(0).textContent).toBe('previous');
+    expect(transaction.doc.child(1).type.name).toBe('codeBlock');
+  });
 });
 
 describe('inline Markdown input rules', () => {

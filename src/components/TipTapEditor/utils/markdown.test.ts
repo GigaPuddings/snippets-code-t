@@ -113,7 +113,8 @@ describe('jsonToMarkdown', () => {
       ]
     });
 
-    expect(markdown).toBe('1、段落1\n\n<p></p>\n\n2、段落2\n');
+    expect(markdown).toBe('1、段落1\n\n\n2、段落2\n');
+    expect(markdown).not.toContain('<p>');
     expect(markdownToHtml(markdown)).toBe(
       '<p>1、段落1</p><p></p><p>2、段落2</p>\n'
     );
@@ -136,7 +137,8 @@ describe('jsonToMarkdown', () => {
       ]
     });
 
-    expect(markdown.match(/<p><\/p>/g)).toHaveLength(2);
+    expect(markdown).toBe('上文\n\n\n\n下文\n');
+    expect(markdown).not.toContain('<p>');
     expect(markdownToHtml(markdown)).toBe(
       '<p>上文</p><p></p><p></p><p>下文</p>\n'
     );
@@ -577,7 +579,8 @@ describe('HTML empty paragraph compatibility', () => {
       createTurndownService()
     );
 
-    expect(markdown).toBe('1、段落1\n\n<p></p>\n\n2、段落2');
+    expect(markdown).toBe('1、段落1\n\n\n2、段落2');
+    expect(markdown).not.toContain('<p>');
     expect(markdownToHtml(markdown)).toBe(
       '<p>1、段落1</p><p></p><p>2、段落2</p>\n'
     );
@@ -598,6 +601,16 @@ describe('HTML empty paragraph compatibility', () => {
     expect(html).toBe('<p>1、段落</p><p></p><p>2、段落</p>\n');
     expect(html).not.toContain('<br>');
     expect(html).not.toMatch(/<p>\s+<\/p>/);
+  });
+
+  it('does not interpret consecutive blank code lines as editor paragraphs', () => {
+    const html = markdownToHtml(
+      '```ts\nconst first = 1;\n\n\nconst second = 2;\n```\n\n正文'
+    );
+
+    expect(html).toContain('const first = 1;\n\n\nconst second = 2;');
+    expect(html).toContain('</code></pre>');
+    expect(html).toContain('<p>正文</p>');
   });
 });
 

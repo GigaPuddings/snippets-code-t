@@ -352,39 +352,6 @@ export const EnhancedMarkdown = Extension.create({
         },
       }),
 
-      // ==================== 代码块结束处理 ====================
-      new Plugin({
-        key: new PluginKey('codeBlockExit'),
-        props: {
-          handleTextInput: (view, from, to, text) => {
-            if (text !== '`') {
-              return false;
-            }
-
-            const { state } = view;
-            const { $from } = state.selection;
-
-            if ($from.parent.type.name !== 'codeBlock') {
-              return false;
-            }
-
-            const { doc, tr } = state;
-            const textBefore = doc.textBetween(Math.max(0, from - 4), from, '\n', '\n');
-            log('代码块退出处理: 检测到反引号', { textBefore });
-
-            if (textBefore.endsWith('```')) {
-              tr.delete(from - 3, to);
-              tr.split(from - 3);
-              view.dispatch(tr);
-              log('代码块退出处理: 成功退出代码块');
-              return true;
-            }
-
-            return false;
-          },
-        },
-      }),
-
       // ==================== 引用块退出处理 ====================
       // 注意：Tiptap/ProseMirror 原生支持用方向键退出块级元素，
       // 不需要额外处理。如果需要自定义退出逻辑，请使用 editor.chain().focus().lift() 等命令

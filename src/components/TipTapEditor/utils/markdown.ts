@@ -10,9 +10,8 @@ export const MARKDOWN_EDITOR_PARSE_OPTIONS = {
   preserveWhitespace: 'full' as const
 };
 
-// CommonMark 会折叠段落之间任意数量的空行，无法仅靠 `\n` 区分普通段落
-// 分隔与用户主动插入的空段落。使用标准 Markdown 支持的 raw HTML 保留该结构。
-// 不在标记中放置 <br>：TipTap 会将它解析成 hardBreak，而不是空段落占位符。
+// marked 解析前使用的内部兼容标记。源码模式不再展示该 HTML；用户可见的
+// 连续空行会在解析前临时展开为此标记，旧文件中的标记也仍然可以正常读取。
 const EMPTY_PARAGRAPH_MARKDOWN = '<p></p>';
 
 /**
@@ -25,6 +24,67 @@ function normalizeEditorEmptyParagraphHtml(html: string): string {
     /(?:\r?\n)*<p>[ \t]*(?:<br\s*\/?>[ \t]*)?<\/p>(?:\r?\n)*/gi,
     '<p></p>'
   );
+}
+
+/**
+ * CommonMark 会折叠段落之间多余的空行。源码模式改用连续纯空行表示富文本中的
+ * 空段落：一个普通段落分隔空行保持不变，其后的每个空行对应一个空段落。
+ * 围栏代码块内的空行属于代码内容，必须原样保留。
+ */
+function expandSourceEmptyParagraphs(markdown: string): string {
+  const normalized = markdown.replace(/\r\n?/g, '\n');
+  const lines = normalized.split('\n');
+  if (!lines.some(line => line.trim().length > 0)) return normalized;
+
+  const expanded: string[] = [];
+  let pendingBlankLines = 0;
+  let fenceCharacter = '';
+  let fenceLength = 0;
+
+  const flushBlankLines = () => {
+    if (pendingBlankLines === 0) return;
+
+    expanded.push('');
+    for (let index = 1; index < pendingBlankLines; index += 1) {
+      expanded.push(EMPTY_PARAGRAPH_MARKDOWN, '');
+    }
+    pendingBlankLines = 0;
+  };
+
+  lines.forEach((line) => {
+    if (fenceCharacter) {
+      expanded.push(line);
+      const closingFence = new RegExp(
+        `^ {0,3}${fenceCharacter}{${fenceLength},}[ \\t]*$`
+      );
+      if (closingFence.test(line)) {
+        fenceCharacter = '';
+        fenceLength = 0;
+      }
+      return;
+    }
+
+    if (line.length === 0) {
+      pendingBlankLines += 1;
+      return;
+    }
+
+    flushBlankLines();
+    expanded.push(line);
+
+    const openingFence = line.match(/^ {0,3}(`{3,}|~{3,})/);
+    if (openingFence) {
+      fenceCharacter = openingFence[1][0];
+      fenceLength = openingFence[1].length;
+    }
+  });
+
+  flushBlankLines();
+  return expanded.join('\n');
+}
+
+function emptyParagraphMarkersToSourceWhitespace(markdown: string): string {
+  return markdown.replace(/<p><\/p>(?:\n|$)/g, '');
 }
 
 function escapeHtml(value: string): string {
@@ -162,7 +222,7 @@ function fixPunctuationBeforeStrong(markdown: string): string {
 
 function normalizeMarkdownBeforeParse(markdown: string): string {
   return fixPunctuationBeforeStrong(
-    normalizeLooseInlineMarkdown(markdown)
+    normalizeLooseInlineMarkdown(expandSourceEmptyParagraphs(markdown))
   );
 }
 
@@ -881,6 +941,10 @@ export function htmlToMarkdown(html: string, turndownService: TurndownService): 
   if (!markdown.split(EMPTY_PARAGRAPH_MARKDOWN).join('').trim()) {
     return '';
   }
+
+  // Turndown 内部使用兼容标记保护顶层空段落；写入源码前恢复为连续纯空行，
+  // 避免在源码模式中暴露 <p></p>。
+  markdown = emptyParagraphMarkersToSourceWhitespace(markdown);
   
   // 14. 确保文档开头没有多余空行
   markdown = markdown.replace(/^\n+/, '');
@@ -1162,6 +1226,7 @@ export function jsonToMarkdown(json: any): string {
   
   // 清理多余的空行
   markdown = markdown.replace(/\n{3,}/g, '\n\n');
+  markdown = emptyParagraphMarkersToSourceWhitespace(markdown);
   markdown = markdown.replace(/^\n+/, '');
   markdown = markdown.replace(/\n+$/, '\n');
   

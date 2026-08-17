@@ -5,13 +5,16 @@ import StarterKit from '@tiptap/starter-kit';
 import { describe, expect, it, vi } from 'vitest';
 import {
   continueOrderedListAfterTable,
-  exitBulletListOnMarkerSpace
+  exitBulletListOnMarkerSpace,
+  handleCodeBlockExitShortcut,
+  insertCodeBlockNewline
 } from './CustomEnterBehavior';
 
 const schema = new Schema({
   nodes: {
     doc: { content: 'block+' },
     paragraph: { content: 'inline*', group: 'block' },
+    codeBlock: { content: 'text*', group: 'block', code: true, marks: '' },
     text: { group: 'inline' },
     orderedList: {
       attrs: { start: { default: 1 } },
@@ -47,6 +50,19 @@ function findCursorAtEnd(
   doc.descendants((node, pos) => {
     if (node.type.name === 'paragraph' && node.textContent === text) {
       cursor = pos + 1 + node.content.size;
+    }
+  });
+  return cursor;
+}
+
+function findCodeBlockCursor(
+  doc: ReturnType<typeof schema.node>,
+  offset: number
+): number {
+  let cursor = -1;
+  doc.descendants((node, pos) => {
+    if (node.type.name === 'codeBlock' && cursor < 0) {
+      cursor = pos + 1 + offset;
     }
   });
   return cursor;
@@ -105,6 +121,63 @@ describe('exitBulletListOnMarkerSpace guards', () => {
 
     expect(exitBulletListOnMarkerSpace(editor)).toBe(false);
     expect(editor.state.doc.textContent).toBe('- 列表 2');
+    editor.destroy();
+  });
+});
+
+describe('code block keyboard behavior', () => {
+  it('creates a visible line with one Enter immediately after fence conversion', () => {
+    const doc = schema.node('doc', null, [schema.node('codeBlock')]);
+    const editor = createListEditor(doc, findCodeBlockCursor(doc, 0));
+
+    expect(insertCodeBlockNewline(editor)).toBe(true);
+    expect(editor.state.doc.firstChild?.textContent).toBe('\n');
+    expect(editor.state.selection.$from.parent.type.name).toBe('codeBlock');
+    expect(editor.state.selection.$from.parentOffset).toBe(1);
+    editor.destroy();
+  });
+
+  it('inserts the first newline immediately without leaving the code block', () => {
+    const code = 'const value = 1;';
+    const doc = schema.node('doc', null, [
+      schema.node('codeBlock', null, schema.text(code))
+    ]);
+    const editor = createListEditor(doc, findCodeBlockCursor(doc, code.length));
+
+    expect(insertCodeBlockNewline(editor)).toBe(true);
+    expect(editor.state.doc.firstChild?.textContent).toBe(`${code}\n`);
+    expect(editor.state.selection.$from.parent.type.name).toBe('codeBlock');
+    expect(editor.state.selection.$from.parentOffset).toBe(code.length + 1);
+    editor.destroy();
+  });
+
+  it('exits with Ctrl+Enter only at the final line end', () => {
+    const code = 'first\nsecond';
+    const doc = schema.node('doc', null, [
+      schema.node('codeBlock', null, schema.text(code))
+    ]);
+    const editor = createListEditor(doc, findCodeBlockCursor(doc, code.length));
+
+    expect(handleCodeBlockExitShortcut(editor)).toBe(true);
+    expect(editor.getJSON().content?.map(node => node.type)).toEqual([
+      'codeBlock',
+      'paragraph'
+    ]);
+    expect(editor.state.selection.$from.parent.type.name).toBe('paragraph');
+    editor.destroy();
+  });
+
+  it('consumes Ctrl+Enter without exiting from a non-final position', () => {
+    const code = 'first\nsecond';
+    const doc = schema.node('doc', null, [
+      schema.node('codeBlock', null, schema.text(code))
+    ]);
+    const editor = createListEditor(doc, findCodeBlockCursor(doc, 3));
+
+    expect(handleCodeBlockExitShortcut(editor)).toBe(true);
+    expect(editor.getJSON().content?.map(node => node.type)).toEqual(['codeBlock']);
+    expect(editor.state.doc.firstChild?.textContent).toBe(code);
+    expect(editor.state.selection.$from.parent.type.name).toBe('codeBlock');
     editor.destroy();
   });
 });
