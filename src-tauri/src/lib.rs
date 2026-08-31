@@ -659,6 +659,7 @@ pub fn run() {
             plugins::local_launcher::open_app_file_location_command,    // 打开应用文件位置
             show_hide_window_command,         // 显示隐藏窗口
             window::take_pending_local_ai_prompt, // 领取快速搜索传入的 AI 提示词
+            window::take_pending_local_ai_new_chat, // 领取 AI 聊天新建对话请求
             plugins::shared::open_url,        // 打开书签或搜索 URL
             insert_text_to_last_window,       // 插入文本到上次活动窗口
             get_db_path,                      // 获取数据库路径

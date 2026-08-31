@@ -876,6 +876,7 @@ const currentStreamingMessage = shallowRef<ChatMessage | null>(null);
 let promptTransferReady = false;
 let queuedTransferredPrompt: string | null = null;
 let queuedPromptFromSearch = false;
+let queuedNewChatRequest = false;
 let lastAppliedTransferredPrompt: string | null = null;
 const config = ref<LocalAiConfig | null>(null);
 const modelScan = ref<LocalAiModelScan | null>(null);
@@ -1067,6 +1068,16 @@ const resizeComposerInput = (): void => {
   input.style.overflowY = contentHeight > maxHeight ? 'auto' : 'hidden';
 };
 
+const applyNewChatRequest = (): void => {
+  if (!promptTransferReady || navigationLocked.value) {
+    queuedNewChatRequest = true;
+    return;
+  }
+
+  queuedNewChatRequest = false;
+  createNewChat();
+};
+
 const applyPendingPrompt = (prompt: unknown, fromSearch = false): void => {
   if (typeof prompt !== 'string' || !prompt.trim()) return;
   const normalizedPrompt = prompt.trim();
@@ -1083,6 +1094,7 @@ const applyPendingPrompt = (prompt: unknown, fromSearch = false): void => {
   }
 
   draft.value = normalizedPrompt;
+  queuedNewChatRequest = false;
   localStorage.removeItem(PENDING_LOCAL_AI_PROMPT_MODE_STORAGE_KEY);
   nextTick(() => {
     resizeComposerInput();
@@ -1106,6 +1118,15 @@ const takePendingLocalAiPrompt = async (): Promise<string> => {
   }
 };
 
+const takePendingLocalAiNewChat = async (): Promise<boolean> => {
+  try {
+    return await invoke<boolean>('take_pending_local_ai_new_chat');
+  } catch (error) {
+    logger.warn('[LocalAI] take pending new chat failed', error);
+    return false;
+  }
+};
+
 const handlePendingPromptEvent = (event: Event): void => {
   const eventPrompt = (event as CustomEvent<unknown>).detail;
   void takePendingLocalAiPrompt().then((pendingPrompt) => {
@@ -1126,20 +1147,32 @@ const handlePendingPromptEvent = (event: Event): void => {
     applyPendingPrompt(transferredPrompt, true);
   });
 };
+
+const handleNewChatRequestEvent = (): void => {
+  void takePendingLocalAiNewChat().then((backendNewChat) => {
+    if (!backendNewChat) return;
+    applyNewChatRequest();
+  });
+};
 const flushQueuedTransferredPrompt = (): void => {
   if (
     !promptTransferReady ||
     navigationLocked.value ||
-    !queuedTransferredPrompt
+    (!queuedTransferredPrompt && !queuedNewChatRequest)
   ) {
     return;
   }
 
-  const pendingPrompt = queuedTransferredPrompt;
-  const fromSearch = queuedPromptFromSearch;
-  queuedTransferredPrompt = null;
-  queuedPromptFromSearch = false;
-  applyPendingPrompt(pendingPrompt, fromSearch);
+  if (queuedTransferredPrompt) {
+    const pendingPrompt = queuedTransferredPrompt;
+    const fromSearch = queuedPromptFromSearch;
+    queuedTransferredPrompt = null;
+    queuedPromptFromSearch = false;
+    applyPendingPrompt(pendingPrompt, fromSearch);
+    return;
+  }
+
+  applyNewChatRequest();
 };
 const focusComposer = async (): Promise<void> => {
   await nextTick();
@@ -2258,6 +2291,10 @@ const regenerateMessage = async (messageId: string) => {
 
 onMounted(async () => {
   window.addEventListener('local-ai-prompt-ready', handlePendingPromptEvent);
+  window.addEventListener(
+    'local-ai-new-chat-requested',
+    handleNewChatRequestEvent
+  );
   applyPendingPrompt(
     localStorage.getItem(PENDING_LOCAL_AI_PROMPT_STORAGE_KEY),
     pendingLocalAiPromptRequiresNewChat(localStorage)
@@ -2274,7 +2311,10 @@ onMounted(async () => {
   try {
     await refreshAll();
   } finally {
-    const backendPrompt = await takePendingLocalAiPrompt();
+    const [backendPrompt, backendNewChat] = await Promise.all([
+      takePendingLocalAiPrompt(),
+      takePendingLocalAiNewChat()
+    ]);
     promptTransferReady = true;
     const fromSearch =
       Boolean(backendPrompt) ||
@@ -2286,7 +2326,11 @@ onMounted(async () => {
       localStorage.getItem(PENDING_LOCAL_AI_PROMPT_STORAGE_KEY);
     queuedTransferredPrompt = null;
     queuedPromptFromSearch = false;
-    applyPendingPrompt(pendingPrompt, fromSearch);
+    if (pendingPrompt) {
+      applyPendingPrompt(pendingPrompt, fromSearch);
+    } else if (backendNewChat || queuedNewChatRequest) {
+      applyNewChatRequest();
+    }
   }
   statusTimer = setInterval(() => {
     refreshStatus().catch((error) =>
@@ -2301,8 +2345,13 @@ onUnmounted(() => {
   promptTransferReady = false;
   queuedTransferredPrompt = null;
   queuedPromptFromSearch = false;
+  queuedNewChatRequest = false;
   lastAppliedTransferredPrompt = null;
   window.removeEventListener('local-ai-prompt-ready', handlePendingPromptEvent);
+  window.removeEventListener(
+    'local-ai-new-chat-requested',
+    handleNewChatRequestEvent
+  );
   if (statusTimer) clearInterval(statusTimer);
   if (scrollFrameId !== null) {
     window.cancelAnimationFrame(scrollFrameId);

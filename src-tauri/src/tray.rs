@@ -861,7 +861,8 @@ fn create_or_update_tray(app: &AppHandle, menu: Menu<tauri::Wry>) -> tauri::Resu
                 }
                 "local_ai_chat" | "local_ai_response_status" => {
                     debug!("[托盘菜单] 执行：打开 AI 对话");
-                    crate::window::open_local_ai_chat(None);
+                    let should_start_new_chat = !AI_RESPONDING.load(Ordering::Acquire);
+                    crate::window::open_local_ai_chat_with_new_chat(None, should_start_new_chat);
                 }
                 "plugin_install_status" => {
                     debug!("[托盘菜单] 执行：查看插件安装状态");

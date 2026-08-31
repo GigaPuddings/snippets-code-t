@@ -7,6 +7,7 @@ import { TextSelection } from '@tiptap/pm/state';
 import { Fragment } from '@tiptap/pm/model';
 import type { ResolvedPos } from '@tiptap/pm/model';
 import type { Editor } from '@tiptap/core';
+import { createPairedBraceEnterEdit } from '@/utils/pairedBraceEnter';
 
 const INDENT = '  ';
 
@@ -262,8 +263,52 @@ export function insertCodeBlockNewline(editor: Editor): boolean {
   }
 
   const insertAt = selection.from;
-  const tr = state.tr.insertText('\n', selection.from, selection.to);
-  tr.setSelection(TextSelection.create(tr.doc, insertAt + 1));
+  const codeBlock = selection.$from.node(codeBlockDepth);
+  const contentStart = selection.$from.before(codeBlockDepth) + 1;
+  const offset = selection.from - contentStart;
+  const pairedBraceEdit = selection.empty
+    ? createPairedBraceEnterEdit(codeBlock.textContent, offset, INDENT)
+    : null;
+  const insertText = pairedBraceEdit?.insert ?? '\n';
+  const cursorOffset = pairedBraceEdit?.cursorOffset ?? 1;
+  const tr = state.tr.insertText(insertText, selection.from, selection.to);
+  tr.setSelection(TextSelection.create(tr.doc, insertAt + cursorOffset));
+  editor.view.dispatch(tr.scrollIntoView());
+  return true;
+}
+
+export function insertTextBlockBracePairNewline(editor: Editor): boolean {
+  const { state } = editor;
+  const { selection } = state;
+  const { $from } = selection;
+
+  if (!selection.empty || findCodeBlockDepth($from) >= 0 || !$from.parent.isTextblock) {
+    return false;
+  }
+
+  const textBefore = state.doc.textBetween($from.start(), selection.from, '\n', '\n');
+  const textAfter = state.doc.textBetween(selection.from, $from.end(), '\n', '\n');
+  const pairedBraceEdit = createPairedBraceEnterEdit(
+    textBefore + textAfter,
+    textBefore.length,
+    INDENT
+  );
+
+  if (!pairedBraceEdit) return false;
+
+  const hardBreakType = state.schema.nodes.hardBreak;
+  if (!hardBreakType) return false;
+
+  const innerIndent = pairedBraceEdit.insert.slice(1, pairedBraceEdit.cursorOffset);
+  const trailingIndent = pairedBraceEdit.insert.slice(pairedBraceEdit.cursorOffset + 1);
+  const inlineNodes = [
+    hardBreakType.create(),
+    ...(innerIndent ? [state.schema.text(innerIndent)] : []),
+    hardBreakType.create(),
+    ...(trailingIndent ? [state.schema.text(trailingIndent)] : [])
+  ];
+  const tr = state.tr.insert(selection.from, Fragment.fromArray(inlineNodes));
+  tr.setSelection(TextSelection.create(tr.doc, selection.from + pairedBraceEdit.cursorOffset));
   editor.view.dispatch(tr.scrollIntoView());
   return true;
 }
@@ -553,6 +598,9 @@ export const CustomEnterBehavior = Extension.create({
             .splitBlock({ keepMarks: false })
             .setParagraph()
             .run();
+        }
+        if (insertTextBlockBracePairNewline(this.editor)) {
+          return true;
         }
         if (continueOrderedListAfterTable(this.editor)) {
           return true;

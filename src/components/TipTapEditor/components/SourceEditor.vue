@@ -15,6 +15,8 @@
 </template>
 
 <script setup lang="ts">
+import { createPairedBraceEnterEdit } from '@/utils/pairedBraceEnter';
+
 interface Props {
   content: string;
   dark?: boolean;
@@ -91,11 +93,35 @@ const outdentSelection = (textarea: HTMLTextAreaElement, indentText: string) => 
 };
 
 const handleKeyDown = (event: KeyboardEvent) => {
-  if (!props.indentWithTab || event.key !== 'Tab' || !textareaRef.value) return;
+  if (!textareaRef.value) return;
 
-  event.preventDefault();
   const textarea = textareaRef.value;
   const indentText = ' '.repeat(Math.max(1, props.tabSize));
+
+  if (event.key === 'Enter' && textarea.selectionStart === textarea.selectionEnd) {
+    const start = textarea.selectionStart;
+    const pairedBraceEdit = createPairedBraceEnterEdit(
+      localContent.value,
+      start,
+      indentText
+    );
+
+    if (pairedBraceEdit) {
+      event.preventDefault();
+      updateContentWithSelection(
+        localContent.value.slice(0, start) +
+          pairedBraceEdit.insert +
+          localContent.value.slice(start),
+        start + pairedBraceEdit.cursorOffset,
+        start + pairedBraceEdit.cursorOffset
+      );
+      return;
+    }
+  }
+
+  if (!props.indentWithTab || event.key !== 'Tab') return;
+
+  event.preventDefault();
 
   if (event.shiftKey) {
     outdentSelection(textarea, indentText);

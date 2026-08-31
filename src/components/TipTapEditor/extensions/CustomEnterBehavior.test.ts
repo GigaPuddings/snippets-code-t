@@ -7,13 +7,15 @@ import {
   continueOrderedListAfterTable,
   exitBulletListOnMarkerSpace,
   handleCodeBlockExitShortcut,
-  insertCodeBlockNewline
+  insertCodeBlockNewline,
+  insertTextBlockBracePairNewline
 } from './CustomEnterBehavior';
 
 const schema = new Schema({
   nodes: {
     doc: { content: 'block+' },
     paragraph: { content: 'inline*', group: 'block' },
+    hardBreak: { inline: true, group: 'inline', selectable: false },
     codeBlock: { content: 'text*', group: 'block', code: true, marks: '' },
     text: { group: 'inline' },
     orderedList: {
@@ -148,6 +150,39 @@ describe('code block keyboard behavior', () => {
     expect(editor.state.doc.firstChild?.textContent).toBe(`${code}\n`);
     expect(editor.state.selection.$from.parent.type.name).toBe('codeBlock');
     expect(editor.state.selection.$from.parentOffset).toBe(code.length + 1);
+    editor.destroy();
+  });
+
+  it('auto indents when pressing Enter between paired braces in a code block', () => {
+    const code = '{}';
+    const doc = schema.node('doc', null, [
+      schema.node('codeBlock', null, schema.text(code))
+    ]);
+    const editor = createListEditor(doc, findCodeBlockCursor(doc, 1));
+
+    expect(insertCodeBlockNewline(editor)).toBe(true);
+    expect(editor.state.doc.firstChild?.textContent).toBe('{\n  \n}');
+    expect(editor.state.selection.$from.parent.type.name).toBe('codeBlock');
+    expect(editor.state.selection.$from.parentOffset).toBe(4);
+    editor.destroy();
+  });
+
+  it('auto indents when pressing Enter between paired braces in normal text', () => {
+    const doc = schema.node('doc', null, [
+      schema.node('paragraph', null, schema.text('{}'))
+    ]);
+    const editor = createListEditor(doc, 2);
+
+    expect(insertTextBlockBracePairNewline(editor)).toBe(true);
+    expect(editor.getJSON().content?.[0].content).toEqual([
+      { type: 'text', text: '{' },
+      { type: 'hardBreak' },
+      { type: 'text', text: '  ' },
+      { type: 'hardBreak' },
+      { type: 'text', text: '}' }
+    ]);
+    expect(editor.state.selection.$from.parent.type.name).toBe('paragraph');
+    expect(editor.state.selection.from).toBe(5);
     editor.destroy();
   });
 

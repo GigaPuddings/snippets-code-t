@@ -35,6 +35,7 @@ static STARTUP_CONFIG_READY_LISTENER: LazyLock<Mutex<Option<u32>>> =
 // 可能早于前端监听器注册，因此在进程内保留一份一次性提示词作为可靠兜底。
 static PENDING_LOCAL_AI_PROMPT: LazyLock<Mutex<Option<String>>> =
     LazyLock::new(|| Mutex::new(None));
+static PENDING_LOCAL_AI_NEW_CHAT: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(false));
 
 const SEARCH_WINDOW_IDLE_DESTROY_DELAY_SECS: u64 = 60;
 
@@ -964,15 +965,28 @@ pub fn open_data_manager_settings() {
 }
 
 pub fn open_local_ai_chat(prompt: Option<String>) {
+    open_local_ai_chat_with_new_chat(prompt, true);
+}
+
+pub fn open_local_ai_chat_with_new_chat(prompt: Option<String>, new_chat: bool) {
     let prompt = prompt
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
+    let should_start_new_chat = new_chat || prompt.is_some();
     match PENDING_LOCAL_AI_PROMPT.lock() {
         Ok(mut pending_prompt) => {
             *pending_prompt = prompt.clone();
         }
         Err(error) => {
             warn!("open_local_ai_chat: 保存待发送提示词失败: {}", error);
+        }
+    }
+    match PENDING_LOCAL_AI_NEW_CHAT.lock() {
+        Ok(mut pending_new_chat) => {
+            *pending_new_chat = should_start_new_chat;
+        }
+        Err(error) => {
+            warn!("open_local_ai_chat: 保存新对话请求失败: {}", error);
         }
     }
 
@@ -998,7 +1012,7 @@ pub fn open_local_ai_chat(prompt: Option<String>) {
         Some(Box::new(move |window| {
             let _ = window.emit(
                 "navigate-to-local-ai-chat",
-                serde_json::json!({ "prompt": prompt }),
+                serde_json::json!({ "prompt": prompt, "newChat": should_start_new_chat }),
             );
         })),
     ) {
@@ -1013,6 +1027,19 @@ pub fn take_pending_local_ai_prompt() -> Result<Option<String>, String> {
         .map(|mut pending_prompt| pending_prompt.take())
         .map_err(|error| format!("读取待发送提示词失败: {}", error))?;
     Ok(prompt)
+}
+
+#[tauri::command]
+pub fn take_pending_local_ai_new_chat() -> Result<bool, String> {
+    let requested = PENDING_LOCAL_AI_NEW_CHAT
+        .lock()
+        .map(|mut pending_new_chat| {
+            let requested = *pending_new_chat;
+            *pending_new_chat = false;
+            requested
+        })
+        .map_err(|error| format!("读取待新建 AI 对话请求失败: {}", error))?;
+    Ok(requested)
 }
 
 fn open_config_settings_tab(tab: Option<&'static str>) {

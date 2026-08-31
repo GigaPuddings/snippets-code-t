@@ -708,6 +708,8 @@ export default {
     darkModeHotkeyDesc: 'Set hotkey to toggle system theme',
     wallpaperSwitcherHotkey: 'Wallpaper Switcher Hotkey:',
     wallpaperSwitcherHotkeyDesc: 'Set hotkey to open the wallpaper switcher',
+    local_ai_chatHotkey: 'AI Chat Hotkey:',
+    local_ai_chatHotkeyDesc: 'Set a hotkey to open AI Chat with a new chat',
     pluginHotkeyDesc: 'Set hotkey for the {plugin} plugin',
     register: 'Register',
     pressToSet: 'Press keys to set hotkey',
@@ -2203,9 +2205,13 @@ export default {
       'Leave blank to use the local-ai-llama-runtime resource package',
     chooseModelDir: 'Choose model directory',
     chooseRuntime: 'Choose llama-server.exe',
+    runtimeOverview: 'Runtime Status',
+    runtimeOverviewDesc:
+      'Check runtime, model, service, and resource estimate status',
     serviceControl: 'Service Control',
     serviceControlDesc:
       'Local AI starts on demand and stops automatically after idle time',
+    serviceAddress: 'Service address',
     startService: 'Start Service',
     restartService: 'Restart Service',
     stopService: 'Stop Service',

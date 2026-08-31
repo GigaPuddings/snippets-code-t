@@ -8,6 +8,16 @@
       :style="menuStyle"
       @contextmenu.prevent
     >
+      <div
+        v-if="isCodeBlockActive && !isSourceMode"
+        class="menu-item"
+        @click="formatCodeBlock"
+      >
+        <span>{{ $t('codeEditor.formatCode') }}</span>
+      </div>
+
+      <div v-if="isCodeBlockActive && !isSourceMode" class="menu-divider"></div>
+
       <!-- 新增链接（内部链接） -->
       <div class="menu-item" @click="handleAddLink">
         <svg class="menu-icon" viewBox="0 0 24 24">
@@ -223,6 +233,7 @@
 <script setup lang="ts">
 import type { Editor } from '@tiptap/vue-3';
 import { useI18n } from 'vue-i18n';
+import modal from '@/utils/modal';
 import { useContextMenuCommands } from './composables/useContextMenuCommands';
 import type { SourceEditorExpose } from './types';
 
@@ -280,6 +291,20 @@ const menuStyle = computed(() => ({
 const show = (event: MouseEvent) => {
   event.preventDefault();
   event.stopPropagation();
+
+  if (!isSourceMode.value) {
+    const target = event.target as HTMLElement | null;
+    const editorView = props.editor?.view;
+    const isCodeBlockTarget = target?.closest('.code-block-wrapper, pre, code');
+    const position = editorView?.posAtCoords({
+      left: event.clientX,
+      top: event.clientY
+    });
+
+    if (isCodeBlockTarget && position) {
+      props.editor?.commands.setTextSelection(position.pos);
+    }
+  }
 
   // Editor 实例本身不是 Vue 响应式对象，每次打开菜单时重新读取当前选区状态。
   isCodeBlockActive.value = props.editor?.isActive('codeBlock') ?? false;
@@ -441,6 +466,7 @@ const {
   setParagraph,
   toggleBlockquote,
   insertCodeBlock,
+  formatCodeBlock,
   insertHorizontalRule,
   handleAddLink,
   handleAddExternalLink,
@@ -453,7 +479,8 @@ const {
   getViewMode: () => props.viewMode,
   isMarkdownSyntaxDisabled: () => isMarkdownSyntaxDisabled.value,
   hide,
-  translate: $t
+  translate: $t,
+  notify: modal.msg
 });
 
 const requestInsertTable = () => {

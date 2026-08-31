@@ -79,10 +79,15 @@ import {
 import type { Extension } from '@codemirror/state';
 import type { CreateThemeOptions } from '@uiw/codemirror-themes';
 import { SearchPanel } from '@/components/UI';
+import { createPairedBraceEnterEdit } from '@/utils/pairedBraceEnter';
+import {
+  detectCodeLanguage,
+  formatCodeText,
+  getPrettierParser
+} from '@/utils/codeFormatter';
 import modal from '@/utils/modal';
 import { useI18n } from 'vue-i18n';
 import CodeContextMenu from './components/CodeContextMenu.vue';
-import { formatIncompleteJavaScript } from './utils/formatIncompleteCode';
 
 interface Props {
   codeStyle?: CSSProperties;
@@ -235,110 +240,8 @@ function updateStatusInfo(state: EditorState) {
 }
 
 // 添加语言检测函数
-const detectLanguage = (code: string): string => {
-  // 检查文件头部特征
-  const firstLine = code.trim().split('\n')[0].trim();
-
-  // 检查 Vue 单文件组件
-  if (
-    firstLine.startsWith('<template') ||
-    firstLine.includes('setup lang="ts"') ||
-    firstLine.includes('setup lang="js"')
-  ) {
-    return 'vue';
-  }
-
-  // 检查 HTML
-  if (
-    firstLine.startsWith('<!DOCTYPE') ||
-    firstLine.startsWith('<html') ||
-    /<\w+>/.test(firstLine)
-  ) {
-    return 'html';
-  }
-
-  // 检查 CSS/SCSS/LESS
-  if (
-    firstLine.includes('@import') ||
-    firstLine.includes('@media') ||
-    /[\.\#][a-zA-Z][\w\-]*\s*\{/.test(code)
-  ) {
-    return 'css';
-  }
-
-  // 检查 JSON
-  if (
-    (firstLine.startsWith('{') && code.trim().endsWith('}')) ||
-    (firstLine.startsWith('[') && code.trim().endsWith(']'))
-  ) {
-    try {
-      JSON.parse(code);
-      return 'json';
-    } catch {}
-  }
-
-  // 检查 Java
-  if (
-    code.includes('public class') ||
-    code.includes('private class') ||
-    code.includes('protected class') ||
-    code.includes('package ')
-  ) {
-    return 'java';
-  }
-
-  // 检查 TypeScript。保留对不完整片段的常见语法识别，避免仅因
-  // 片段缺少外层上下文而降级成普通 JavaScript 解析。
-  if (
-    code.includes(': string') ||
-    code.includes(': number') ||
-    code.includes(': boolean') ||
-    code.includes('interface ') ||
-    code.includes('type ') ||
-    code.includes('namespace ') ||
-    /\b(?:enum|declare|implements|readonly|abstract)\b/.test(code) ||
-    /\bimport\s+type\b/.test(code) ||
-    /\b(?:const|let|var)\s+[A-Za-z_$][\w$]*\s*:\s*[A-Za-z_$][\w$<[{|&]*/.test(
-      code
-    ) ||
-    /\(\s*[A-Za-z_$][\w$]*\s*:\s*[A-Za-z_$][\w$<[{|&]*/.test(code)
-  ) {
-    return 'typescript';
-  }
-
-  // 默认返回 JavaScript
-  return 'javascript';
-};
-
 // 添加响应式的语言类型
-const detectedLanguage = computed(() => detectLanguage(props.code));
-
-type PrettierParser =
-  | 'babel'
-  | 'typescript'
-  | 'vue'
-  | 'html'
-  | 'css'
-  | 'json-stringify';
-
-function getPrettierParser(language: string): PrettierParser | null {
-  switch (language) {
-    case 'javascript':
-      return 'babel';
-    case 'typescript':
-      return 'typescript';
-    case 'vue':
-      return 'vue';
-    case 'html':
-      return 'html';
-    case 'css':
-      return 'css';
-    case 'json':
-      return 'json-stringify';
-    default:
-      return null;
-  }
-}
+const detectedLanguage = computed(() => detectCodeLanguage(props.code));
 
 const canFormatCode = computed(
   () => getPrettierParser(detectedLanguage.value) !== null
@@ -370,6 +273,46 @@ const getLanguageExtension = (language: string): Extension => {
   }
 };
 
+const createEditorKeymap = (
+  indentWithTabEnabled: boolean,
+  tabSize: number
+): Extension => {
+  const indentText = ' '.repeat(Math.max(1, tabSize));
+
+  return keymap.of([
+    {
+      key: 'Enter',
+      run: (view: EditorView) => {
+        const selection = view.state.selection.main;
+        if (!selection.empty) return false;
+
+        const pairedBraceEdit = createPairedBraceEnterEdit(
+          view.state.doc.toString(),
+          selection.from,
+          indentText
+        );
+
+        if (!pairedBraceEdit) return false;
+
+        view.dispatch({
+          changes: {
+            from: selection.from,
+            to: selection.to,
+            insert: pairedBraceEdit.insert
+          },
+          selection: { anchor: selection.from + pairedBraceEdit.cursorOffset },
+          scrollIntoView: true,
+          userEvent: 'input'
+        });
+        return true;
+      }
+    },
+    ...defaultKeymap,
+    ...historyKeymap,
+    ...(indentWithTabEnabled ? [indentWithTab] : [])
+  ]);
+};
+
 // 计算Codemirror扩展
 const getExtensions = (): Extension[] => {
   const extensions = [
@@ -378,13 +321,7 @@ const getExtensions = (): Extension[] => {
     customTheme.value,
     languageCompartment.of(getLanguageExtension(detectedLanguage.value)),
     history(),
-    keymapCompartment.of(
-      keymap.of([
-        ...defaultKeymap,
-        ...historyKeymap,
-        ...(props.indentWithTab ? [indentWithTab] : [])
-      ])
-    ),
+    keymapCompartment.of(createEditorKeymap(props.indentWithTab, props.tabSize)),
     tabSizeCompartment.of(EditorState.tabSize.of(props.tabSize)),
     EditorView.editable.of(!props.disabled),
     EditorState.phrases.of({
@@ -643,48 +580,20 @@ async function formatCode(): Promise<void> {
   if (!view || props.disabled) return;
 
   const code = view.state.doc.toString();
-  const parser = getPrettierParser(detectLanguage(code));
-  if (!parser) {
+  const language = detectCodeLanguage(code);
+  if (!getPrettierParser(language)) {
     modal.msg(translate('codeEditor.formatUnsupported'), 'warning');
     return;
   }
 
   try {
-    const [prettier, babel, estree, typescript, html, postcss] =
-      await Promise.all([
-        import('prettier/standalone'),
-        import('prettier/plugins/babel'),
-        import('prettier/plugins/estree'),
-        import('prettier/plugins/typescript'),
-        import('prettier/plugins/html'),
-        import('prettier/plugins/postcss')
-      ]);
-    const formatted = await prettier.format(code, {
-      parser,
-      plugins: [
-        babel.default,
-        estree.default,
-        typescript.default,
-        html.default,
-        postcss.default
-      ],
-      tabWidth: props.tabSize,
-      useTabs: false,
-      singleQuote: true
+    const result = await formatCodeText(code, {
+      language,
+      tabSize: props.tabSize
     });
-
-    if (formatted === code) return;
-
-    replaceDocument(view, formatted);
+    if (result.formatted === code) return;
+    replaceDocument(view, result.formatted);
   } catch (error) {
-    if (parser === 'babel' || parser === 'typescript') {
-      const fallbackFormatted = formatIncompleteJavaScript(code, props.tabSize);
-      if (fallbackFormatted !== code) {
-        replaceDocument(view, fallbackFormatted);
-      }
-      return;
-    }
-
     modal.msg(
       `${translate('codeEditor.formatFailed')}: ${error instanceof Error ? error.message : String(error)}`,
       'error'
@@ -787,7 +696,12 @@ watch(
   () => props.tabSize,
   (tabSize) => {
     editorViewRef.value?.dispatch({
-      effects: tabSizeCompartment.reconfigure(EditorState.tabSize.of(tabSize))
+      effects: [
+        tabSizeCompartment.reconfigure(EditorState.tabSize.of(tabSize)),
+        keymapCompartment.reconfigure(
+          createEditorKeymap(props.indentWithTab, tabSize)
+        )
+      ]
     });
   }
 );
@@ -797,11 +711,7 @@ watch(
   (enabled) => {
     editorViewRef.value?.dispatch({
       effects: keymapCompartment.reconfigure(
-        keymap.of([
-          ...defaultKeymap,
-          ...historyKeymap,
-          ...(enabled ? [indentWithTab] : [])
-        ])
+        createEditorKeymap(enabled, props.tabSize)
       )
     });
   }

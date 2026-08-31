@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
+import { Editor } from '@tiptap/vue-3';
+import StarterKit from '@tiptap/starter-kit';
 import { useContextMenuCommands } from './useContextMenuCommands';
 import type { SourceEditorExpose } from '../types';
 
@@ -167,5 +169,53 @@ describe('useContextMenuCommands', () => {
 
     expect(sourceEditor.focus).toHaveBeenCalledTimes(1);
     expect(sourceEditor.insertText).toHaveBeenCalledWith('plain text');
+  });
+
+  it('formats the active rich-text code block even when markdown syntax is disabled', async () => {
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callback(0);
+      return 0;
+    });
+    const editor = new Editor({
+      extensions: [StarterKit],
+      content: {
+        type: 'doc',
+        content: [
+          {
+            type: 'codeBlock',
+            content: [{ type: 'text', text: 'function test(){return 1;}' }]
+          }
+        ]
+      }
+    });
+    editor.commands.setTextSelection(3);
+
+    const hide = vi.fn();
+    const formatCodeText = vi.fn(async () => ({
+      formatted: 'function test() {\n  return 1;\n}',
+      parser: 'babel' as const,
+      supported: true
+    }));
+    const commands = useContextMenuCommands({
+      getEditor: () => editor,
+      getSourceEditor: () => null,
+      getViewMode: () => 'preview',
+      isMarkdownSyntaxDisabled: () => true,
+      hide,
+      formatCodeText
+    });
+
+    await commands.formatCodeBlock();
+
+    expect(formatCodeText).toHaveBeenCalledWith('function test(){return 1;}', {
+      language: null,
+      tabSize: 2
+    });
+    expect(editor.state.doc.firstChild?.textContent).toBe(
+      'function test() {\n  return 1;\n}'
+    );
+    expect(hide).toHaveBeenCalledTimes(1);
+    editor.destroy();
+    vi.unstubAllGlobals();
   });
 });

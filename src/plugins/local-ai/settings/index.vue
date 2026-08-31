@@ -1,130 +1,91 @@
 <template>
   <div class="settings-panel local-ai-settings-shell">
-    <header class="local-ai-hero panel-card">
-      <div>
-        <h3 class="panel-title">{{ t('localAi.title') }}</h3>
-        <p class="hero-desc">{{ t('localAi.serviceControlDesc') }}</p>
-      </div>
-      <div class="header-actions">
-        <CustomButton size="small" plain @click="openChat">
-          {{ t('localAi.openChat') }}
-        </CustomButton>
-        <CustomButton size="small" :loading="loading" @click="refreshAll">
-          {{ t('plugins.refresh') }}
-        </CustomButton>
+    <header class="panel-header local-ai-header">
+      <div class="local-ai-frame local-ai-header__inner">
+        <div class="local-ai-heading">
+          <h3 class="panel-title">{{ t('localAi.title') }}</h3>
+          <p class="local-ai-desc">{{ t('localAi.serviceControlDesc') }}</p>
+        </div>
+        <div class="header-actions">
+          <CustomButton size="small" plain @click="openChat">
+            {{ t('localAi.openChat') }}
+          </CustomButton>
+          <CustomButton size="small" :loading="loading" @click="refreshAll">
+            {{ t('plugins.refresh') }}
+          </CustomButton>
+        </div>
       </div>
     </header>
 
-    <main v-if="config" class="settings-grid">
-      <aside class="summary-panel panel-card">
-        <div class="status-strip">
-          <div
-            class="status-item"
-            :class="statusToneClass(runtimeStatus?.available ? 'ok' : 'danger')"
-          >
-            <span class="status-dot"></span>
-            <span>{{ runtimeStatusText }}</span>
+    <main v-if="config" class="panel-content local-ai-content">
+      <div class="local-ai-frame">
+        <section class="settings-section">
+          <div class="settings-section__header">
+            <h4>{{ t('localAi.runtimeOverview') }}</h4>
+            <p>{{ t('localAi.runtimeOverviewDesc') }}</p>
           </div>
-          <div
-            class="status-item"
-            :class="statusToneClass(modelReady ? 'ok' : 'danger')"
-          >
-            <span class="status-dot"></span>
-            <span>{{ modelStatusText }}</span>
-          </div>
-          <div
-            class="status-item"
-            :class="
-              statusToneClass(
-                serviceStatus?.healthy
-                  ? 'ok'
-                  : serviceStatus?.running
-                    ? 'warn'
-                    : 'danger'
-              )
-            "
-          >
-            <span class="status-dot"></span>
-            <span>{{ serviceStatusText }}</span>
-          </div>
-        </div>
 
-        <section
-          class="memory-card"
-          :class="statusToneClass(performanceEstimate.level)"
-        >
-          <div class="memory-card__header">
-            <span>{{ t('localAi.estimatedMemory') }}</span>
-            <small>{{ t('localAi.estimateBeta') }}</small>
-          </div>
-          <div class="memory-metrics">
-            <div>
-              <span>GPU</span>
-              <b :class="statusToneClass(performanceEstimate.level)">
-                {{ performanceEstimate.gpuGb }} GB
-              </b>
+          <div class="status-overview">
+            <div class="status-list">
+              <div
+                class="status-item"
+                :class="statusToneClass(runtimeStatusTone)"
+                :title="runtimeStatusText"
+              >
+                <span class="status-dot"></span>
+                <span>{{ runtimeStatusText }}</span>
+              </div>
+              <div
+                class="status-item"
+                :class="statusToneClass(modelStatusTone)"
+                :title="modelStatusText"
+              >
+                <span class="status-dot"></span>
+                <span>{{ modelStatusText }}</span>
+              </div>
+              <div
+                class="status-item"
+                :class="statusToneClass(serviceStatusTone)"
+                :title="serviceStatusText"
+              >
+                <span class="status-dot"></span>
+                <span>{{ serviceStatusText }}</span>
+              </div>
             </div>
-            <div>
-              <span>{{ t('localAi.total') }}</span>
-              <b :class="statusToneClass(performanceEstimate.level)">
-                {{ performanceEstimate.totalGb }} GB
-              </b>
+
+            <div
+              class="memory-summary"
+              :class="statusToneClass(performanceEstimate.level)"
+            >
+              <div class="memory-summary__title">
+                <span>{{ t('localAi.estimatedMemory') }}</span>
+                <small>{{ t('localAi.estimateBeta') }}</small>
+              </div>
+              <div class="memory-summary__metrics">
+                <span>
+                  <span>GPU</span>
+                  <b :class="statusToneClass(performanceEstimate.level)">
+                    {{ performanceEstimate.gpuGb }} GB
+                  </b>
+                </span>
+                <span>
+                  <span>{{ t('localAi.total') }}</span>
+                  <b :class="statusToneClass(performanceEstimate.level)">
+                    {{ performanceEstimate.totalGb }} GB
+                  </b>
+                </span>
+                <span>
+                  <span>{{ t('localAi.bottleneck') }}</span>
+                  <b :class="statusToneClass(performanceEstimate.level)">
+                    {{ performanceEstimate.bottleneck }}
+                  </b>
+                </span>
+              </div>
             </div>
           </div>
-          <div class="bottleneck-row">
-            <span>{{ t('localAi.bottleneck') }}</span>
-            <b :class="statusToneClass(performanceEstimate.level)">
-              {{ performanceEstimate.bottleneck }}
-            </b>
-          </div>
-        </section>
 
-        <section class="summary-card">
-          <div class="summary-card__title">
-            {{ t('localAi.serviceControl') }}
-          </div>
-          <div class="summary-card__desc">
-            {{ t('localAi.serviceControlDesc') }}
-          </div>
-          <div class="service-controls">
-            <CustomButton
-              type="primary"
-              size="small"
-              :loading="starting"
-              :disabled="serviceStatus?.running"
-              @click="startService"
-            >
-              {{ t('localAi.startService') }}
-            </CustomButton>
-            <CustomButton
-              size="small"
-              :loading="restarting"
-              :disabled="!serviceStatus?.running"
-              @click="restartService"
-            >
-              {{ t('localAi.restartService') }}
-            </CustomButton>
-            <CustomButton
-              type="danger"
-              size="small"
-              plain
-              :loading="stopping"
-              :disabled="!serviceStatus?.running"
-              @click="stopService"
-            >
-              {{ t('localAi.stopService') }}
-            </CustomButton>
-          </div>
-          <div class="service-url">{{ serviceStatus?.baseUrl }}</div>
-        </section>
-
-        <section class="summary-card">
-          <div class="summary-card__title">{{ t('localAi.modelRuntime') }}</div>
-          <div class="summary-card__desc">
-            {{ t('localAi.modelRuntimeDesc') }}
-          </div>
-          <div class="summary-meta">
-            <div>
+          <div class="readiness-grid">
+            <div class="readiness-item">
               <span>{{ t('localAi.runtimeReady') }}</span>
               <b :class="yesNoClass(runtimeStatus?.available)">
                 {{
@@ -132,118 +93,176 @@
                 }}
               </b>
             </div>
-            <div>
+            <div class="readiness-item">
               <span>{{ t('localAi.modelReady') }}</span>
               <b :class="yesNoClass(modelReady)">
                 {{ modelReady ? t('common.yes') : t('common.no') }}
               </b>
             </div>
-            <div>
+            <div class="readiness-item">
               <span>{{ t('localAi.mainModelConfigured') }}</span>
               <b :class="yesNoClass(Boolean(selectedModelPath))">
                 {{ selectedModelPath ? t('common.yes') : t('common.no') }}
               </b>
             </div>
-            <div>
+            <div class="readiness-item">
               <span>{{ t('localAi.mmprojConfigured') }}</span>
               <b :class="yesNoClass(Boolean(selectedMmprojPath))">
                 {{ selectedMmprojPath ? t('common.yes') : t('common.no') }}
               </b>
             </div>
-            <div>
+            <div class="readiness-item">
               <span>{{ t('localAi.visionAvailable') }}</span>
               <b :class="yesNoClass(visionReady)">
                 {{ visionReady ? t('common.yes') : t('common.no') }}
               </b>
             </div>
-            <div>
+            <div class="readiness-item">
               <span>{{ t('localAi.serviceHealthy') }}</span>
               <b :class="yesNoClass(Boolean(serviceStatus?.healthy))">
                 {{ serviceStatus?.healthy ? t('common.yes') : t('common.no') }}
               </b>
             </div>
           </div>
-        </section>
-      </aside>
 
-      <section class="form-panel panel-card">
-        <div class="settings-section">
-          <div class="settings-section__header">
-            <div>
-              <h4>{{ t('localAi.modelRuntime') }}</h4>
-              <p>{{ t('localAi.modelRuntimeDesc') }}</p>
+          <div class="setting-row service-setting">
+            <div class="setting-label">
+              <div class="setting-title">{{ t('localAi.serviceControl') }}</div>
+              <div class="setting-desc">
+                {{ t('localAi.serviceControlDesc') }}
+              </div>
             </div>
+            <div class="setting-control service-control">
+              <div class="service-controls">
+                <CustomButton
+                  type="primary"
+                  size="small"
+                  :loading="starting"
+                  :disabled="serviceStatus?.running"
+                  @click="startService"
+                >
+                  {{ t('localAi.startService') }}
+                </CustomButton>
+                <CustomButton
+                  size="small"
+                  :loading="restarting"
+                  :disabled="!serviceStatus?.running"
+                  @click="restartService"
+                >
+                  {{ t('localAi.restartService') }}
+                </CustomButton>
+                <CustomButton
+                  type="danger"
+                  size="small"
+                  plain
+                  :loading="stopping"
+                  :disabled="!serviceStatus?.running"
+                  @click="stopService"
+                >
+                  {{ t('localAi.stopService') }}
+                </CustomButton>
+              </div>
+              <div v-if="serviceStatus?.baseUrl" class="service-url">
+                <span>{{ t('localAi.serviceAddress') }}</span>
+                <code>{{ serviceStatus.baseUrl }}</code>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="settings-section">
+          <div class="settings-section__header">
+            <h4>{{ t('localAi.modelRuntime') }}</h4>
+            <p>{{ t('localAi.modelRuntimeDesc') }}</p>
           </div>
           <div class="field-stack">
-            <label class="field-row" :title="paramHint('modelDir')">
-              <span>{{ t('localAi.modelDir') }}</span>
-              <div class="path-control">
-                <input
-                  v-model="config.modelDir"
-                  class="text-input"
-                  @change="scanModels"
-                />
-                <CustomButton size="small" plain @click="chooseModelDir">
-                  {{ t('common.browse') }}
-                </CustomButton>
+            <div class="setting-row" :title="paramHint('modelDir')">
+              <div class="setting-label">
+                <div class="setting-title">{{ t('localAi.modelDir') }}</div>
+                <div class="setting-desc">{{ paramHint('modelDir') }}</div>
               </div>
-            </label>
-            <label class="field-row" :title="paramHint('mainModel')">
-              <span>{{ t('localAi.mainModel') }}</span>
-              <el-select
-                v-model="selectedModelPath"
-                class="field-select"
-                clearable
-                @change="saveOnly"
-              >
-                <el-option
-                  v-for="path in modelScan?.mainModels ?? []"
-                  :key="path"
-                  :label="fileName(path)"
-                  :value="path"
-                />
-              </el-select>
-            </label>
-            <label class="field-row" :title="paramHint('mmprojModel')">
-              <span>{{ t('localAi.mmprojModel') }}</span>
-              <el-select
-                v-model="selectedMmprojPath"
-                class="field-select"
-                clearable
-                @change="saveOnly"
-              >
-                <el-option
-                  v-for="path in modelScan?.mmprojModels ?? []"
-                  :key="path"
-                  :label="fileName(path)"
-                  :value="path"
-                />
-              </el-select>
-            </label>
-            <label class="field-row" :title="paramHint('runtimePath')">
-              <span>{{ t('localAi.runtimePath') }}</span>
-              <div class="path-control">
-                <input
-                  v-model="config.runtimePath"
-                  class="text-input"
-                  :placeholder="t('localAi.runtimePathPlaceholder')"
-                />
-                <CustomButton size="small" plain @click="chooseRuntime">
-                  {{ t('common.browse') }}
-                </CustomButton>
+              <div class="setting-control">
+                <div class="path-control">
+                  <input
+                    v-model="config.modelDir"
+                    class="setting-input"
+                    @change="scanModels"
+                  />
+                  <CustomButton size="small" plain @click="chooseModelDir">
+                    {{ t('common.browse') }}
+                  </CustomButton>
+                </div>
               </div>
-            </label>
-          </div>
-        </div>
-
-        <div class="settings-section grid-two">
-          <div class="settings-section__header">
-            <div>
-              <h4>{{ t('localAi.inferenceParams') }}</h4>
-              <p>{{ t('localAi.inferenceParamsDesc') }}</p>
+            </div>
+            <div class="setting-row" :title="paramHint('mainModel')">
+              <div class="setting-label">
+                <div class="setting-title">{{ t('localAi.mainModel') }}</div>
+                <div class="setting-desc">{{ paramHint('mainModel') }}</div>
+              </div>
+              <div class="setting-control">
+                <el-select
+                  v-model="selectedModelPath"
+                  class="field-select"
+                  clearable
+                  @change="saveOnly"
+                >
+                  <el-option
+                    v-for="path in modelScan?.mainModels ?? []"
+                    :key="path"
+                    :label="fileName(path)"
+                    :value="path"
+                  />
+                </el-select>
+              </div>
+            </div>
+            <div class="setting-row" :title="paramHint('mmprojModel')">
+              <div class="setting-label">
+                <div class="setting-title">{{ t('localAi.mmprojModel') }}</div>
+                <div class="setting-desc">{{ paramHint('mmprojModel') }}</div>
+              </div>
+              <div class="setting-control">
+                <el-select
+                  v-model="selectedMmprojPath"
+                  class="field-select"
+                  clearable
+                  @change="saveOnly"
+                >
+                  <el-option
+                    v-for="path in modelScan?.mmprojModels ?? []"
+                    :key="path"
+                    :label="fileName(path)"
+                    :value="path"
+                  />
+                </el-select>
+              </div>
+            </div>
+            <div class="setting-row" :title="paramHint('runtimePath')">
+              <div class="setting-label">
+                <div class="setting-title">{{ t('localAi.runtimePath') }}</div>
+                <div class="setting-desc">{{ paramHint('runtimePath') }}</div>
+              </div>
+              <div class="setting-control">
+                <div class="path-control">
+                  <input
+                    v-model="config.runtimePath"
+                    class="setting-input"
+                    :placeholder="t('localAi.runtimePathPlaceholder')"
+                  />
+                  <CustomButton size="small" plain @click="chooseRuntime">
+                    {{ t('common.browse') }}
+                  </CustomButton>
+                </div>
+              </div>
             </div>
           </div>
-          <div class="param-grid">
+        </section>
+
+        <section class="settings-section">
+          <div class="settings-section__header">
+            <h4>{{ t('localAi.inferenceParams') }}</h4>
+            <p>{{ t('localAi.inferenceParamsDesc') }}</p>
+          </div>
+          <div class="parameter-grid">
             <label class="number-field" :title="paramHint('ctxSize')">
               <span>{{ t('localAi.ctxSize') }}</span>
               <el-input-number
@@ -311,46 +330,70 @@
               />
             </label>
           </div>
-        </div>
+        </section>
 
-        <div class="settings-section grid-two">
+        <section class="settings-section">
           <div class="settings-section__header">
-            <div>
-              <h4>{{ t('localAi.acceleration') }}</h4>
-              <p>{{ t('localAi.accelerationDesc') }}</p>
-            </div>
+            <h4>{{ t('localAi.acceleration') }}</h4>
+            <p>{{ t('localAi.accelerationDesc') }}</p>
           </div>
           <div class="switch-grid">
-            <label :title="paramHint('flashAttn')">
-              <span>{{ t('localAi.flashAttn') }}</span>
-              <el-switch v-model="config.flashAttn" />
+            <label class="switch-field" :title="paramHint('flashAttn')">
+              <span class="switch-field__label">
+                {{ t('localAi.flashAttn') }}
+              </span>
+              <CustomSwitch
+                v-model="config.flashAttn"
+                :active-text="t('common.on')"
+                :inactive-text="t('common.off')"
+              />
             </label>
-            <label :title="paramHint('kvOffload')">
-              <span>{{ t('localAi.kvOffload') }}</span>
-              <el-switch v-model="config.kvOffload" />
+            <label class="switch-field" :title="paramHint('kvOffload')">
+              <span class="switch-field__label">
+                {{ t('localAi.kvOffload') }}
+              </span>
+              <CustomSwitch
+                v-model="config.kvOffload"
+                :active-text="t('common.on')"
+                :inactive-text="t('common.off')"
+              />
             </label>
-            <label :title="paramHint('mmap')">
-              <span>{{ t('localAi.mmap') }}</span>
-              <el-switch v-model="config.mmap" />
+            <label class="switch-field" :title="paramHint('mmap')">
+              <span class="switch-field__label">{{ t('localAi.mmap') }}</span>
+              <CustomSwitch
+                v-model="config.mmap"
+                :active-text="t('common.on')"
+                :inactive-text="t('common.off')"
+              />
             </label>
           </div>
-        </div>
+        </section>
 
-        <div class="settings-section grid-two">
+        <section class="settings-section">
           <div class="settings-section__header">
-            <div>
-              <h4>{{ t('localAi.lifecycle') }}</h4>
-              <p>{{ t('localAi.lifecycleDesc') }}</p>
-            </div>
+            <h4>{{ t('localAi.lifecycle') }}</h4>
+            <p>{{ t('localAi.lifecycleDesc') }}</p>
           </div>
           <div class="switch-grid switch-grid--two">
-            <label :title="paramHint('autoStart')">
-              <span>{{ t('localAi.autoStart') }}</span>
-              <el-switch v-model="config.autoStartOnRequest" />
+            <label class="switch-field" :title="paramHint('autoStart')">
+              <span class="switch-field__label">
+                {{ t('localAi.autoStart') }}
+              </span>
+              <CustomSwitch
+                v-model="config.autoStartOnRequest"
+                :active-text="t('common.on')"
+                :inactive-text="t('common.off')"
+              />
             </label>
-            <label :title="paramHint('keepAlive')">
-              <span>{{ t('localAi.keepAlive') }}</span>
-              <el-switch v-model="config.keepAlive" />
+            <label class="switch-field" :title="paramHint('keepAlive')">
+              <span class="switch-field__label">
+                {{ t('localAi.keepAlive') }}
+              </span>
+              <CustomSwitch
+                v-model="config.keepAlive"
+                :active-text="t('common.on')"
+                :inactive-text="t('common.off')"
+              />
             </label>
             <label class="number-field" :title="paramHint('idleTimeout')">
               <span>{{ t('localAi.idleTimeout') }}</span>
@@ -375,16 +418,14 @@
               />
             </label>
           </div>
-        </div>
+        </section>
 
-        <div class="settings-section grid-two">
+        <section class="settings-section">
           <div class="settings-section__header">
-            <div>
-              <h4>{{ t('localAi.generation') }}</h4>
-              <p>{{ t('localAi.generationDesc') }}</p>
-            </div>
+            <h4>{{ t('localAi.generation') }}</h4>
+            <p>{{ t('localAi.generationDesc') }}</p>
           </div>
-          <div class="param-grid param-grid--three">
+          <div class="parameter-grid parameter-grid--three">
             <label class="number-field" :title="paramHint('temperature')">
               <span>{{ t('localAi.temperature') }}</span>
               <el-input-number
@@ -478,12 +519,9 @@
               />
             </label>
           </div>
-        </div>
+        </section>
 
         <div class="settings-footer">
-          <CustomButton type="primary" :loading="saving" @click="saveConfig">
-            {{ t('common.save') }}
-          </CustomButton>
           <span
             v-if="serviceStatus?.commandLine"
             class="command-line"
@@ -491,8 +529,11 @@
           >
             {{ serviceStatus.commandLine }}
           </span>
+          <CustomButton type="primary" :loading="saving" @click="saveConfig">
+            {{ t('common.save') }}
+          </CustomButton>
         </div>
-      </section>
+      </div>
     </main>
   </div>
 </template>
@@ -500,7 +541,7 @@
 <script setup lang="ts">
 import { open } from '@tauri-apps/plugin-dialog';
 import { useI18n } from 'vue-i18n';
-import { CustomButton } from '@/components/UI';
+import { CustomButton, CustomSwitch } from '@/components/UI';
 import modal from '@/utils/modal';
 import { logger } from '@/utils/logger';
 import {
@@ -565,6 +606,22 @@ const serviceStatusText = computed(() => {
   if (serviceStatus.value?.running) return t('localAi.serviceStarting');
   return t('localAi.serviceStopped');
 });
+const runtimeStatusTone = computed(() =>
+  runtimeStatus.value
+    ? runtimeStatus.value.available
+      ? 'ok'
+      : 'danger'
+    : 'muted'
+);
+const modelStatusTone = computed(() =>
+  modelScan.value ? (modelReady.value ? 'ok' : 'danger') : 'muted'
+);
+const serviceStatusTone = computed(() => {
+  if (!serviceStatus.value) return 'muted';
+  if (serviceStatus.value.healthy) return 'ok';
+  if (serviceStatus.value.running) return 'warn';
+  return 'danger';
+});
 const fileName = (path: string): string => path.split(/[\\/]+/).pop() ?? path;
 const modelParamBillions = computed(() => {
   const name = fileName(
@@ -613,7 +670,8 @@ const paramHint = (key: string): string => t(`localAi.paramHints.${key}`);
 const statusToneClass = (tone: string | undefined) => ({
   'tone-ok': tone === 'ok',
   'tone-warn': tone === 'warn',
-  'tone-danger': tone === 'danger'
+  'tone-danger': tone === 'danger',
+  'tone-muted': tone === 'muted' || !tone
 });
 const yesNoClass = (value: unknown) => statusToneClass(value ? 'ok' : 'danger');
 const refreshRuntime = async () => {
@@ -742,50 +800,75 @@ onUnmounted(() => {
 
 <style scoped lang="scss">
 .local-ai-settings-shell {
-  @apply flex h-full min-h-0 w-full max-w-none flex-col gap-3 bg-content p-3;
+  @apply h-full min-h-0 w-full max-w-none bg-panel;
 }
 
-.panel-card {
-  @apply rounded-lg border border-panel bg-panel shadow-sm;
+.local-ai-frame {
+  @apply mx-auto w-full max-w-[1320px];
 }
 
-.local-ai-hero {
-  @apply flex items-center justify-between gap-4 px-4 py-3;
+.local-ai-header {
+  @apply px-2;
 }
 
-.hero-desc {
-  @apply mt-1 text-sm text-panel-text-secondary;
+.local-ai-header__inner {
+  @apply flex items-start justify-between gap-4;
+}
+
+.local-ai-heading {
+  @apply min-w-0;
+}
+
+.local-ai-desc {
+  @apply mt-1 text-sm font-normal leading-5 text-content;
 }
 
 .header-actions {
-  @apply flex items-center gap-2;
+  @apply flex flex-shrink-0 items-center justify-end gap-2;
 }
 
-.settings-grid {
-  @apply grid min-h-0 flex-1 gap-3 overflow-hidden;
-
-  grid-template-columns: 300px minmax(0, 1fr);
+.local-ai-content {
+  @apply px-2 pb-8 pt-5;
 }
 
-.summary-panel,
-.form-panel {
-  @apply min-h-0 overflow-y-auto;
+.settings-section {
+  @apply border-b border-panel pb-7;
 }
 
-.summary-panel {
-  @apply p-4;
+.settings-section + .settings-section {
+  @apply mt-8;
 }
 
-.status-strip {
-  @apply grid gap-2;
+.settings-section__header {
+  @apply mb-4;
+}
+
+.settings-section__header h4 {
+  @apply text-base font-semibold leading-6 text-panel;
+}
+
+.settings-section__header p {
+  @apply mt-1 text-xs leading-5 text-content;
+}
+
+.status-overview {
+  @apply flex flex-wrap items-start justify-between gap-5;
+}
+
+.status-list {
+  @apply flex min-w-0 flex-1 flex-wrap gap-2;
 }
 
 .status-item {
-  @apply flex items-center gap-2 rounded-md border border-panel bg-hover px-3 py-2 text-xs text-panel-text-secondary;
+  @apply inline-flex h-8 max-w-full items-center gap-2 rounded-md border border-panel bg-panel px-3 text-xs font-medium text-panel-text-secondary;
+
+  span:last-child {
+    @apply truncate;
+  }
 }
 
 .status-dot {
-  @apply h-2 w-2 rounded-full bg-orange-400;
+  @apply h-2 w-2 flex-none rounded-full bg-gray-400;
 }
 
 .tone-ok {
@@ -815,37 +898,32 @@ onUnmounted(() => {
   }
 }
 
-.summary-card {
-  @apply mt-4 rounded-md border border-panel bg-hover p-3;
+.tone-muted {
+  @apply border-panel text-panel-text-secondary;
+
+  .status-dot,
+  &.status-dot {
+    @apply bg-gray-400;
+  }
 }
 
-.memory-card {
-  @apply mt-4 rounded-md border border-panel bg-hover p-3;
+.memory-summary {
+  @apply flex min-w-[18rem] max-w-full flex-col gap-2 rounded-md border border-panel bg-transparent px-3 py-2 text-xs;
 }
 
-.memory-card__header,
-.memory-metrics,
-.bottleneck-row {
-  @apply flex items-center justify-between gap-2;
-}
-
-.memory-card__header {
-  @apply text-sm font-semibold text-panel;
+.memory-summary__title {
+  @apply flex items-center gap-2 font-medium text-panel;
 
   small {
-    @apply rounded border border-panel bg-panel px-1.5 py-0.5 text-[10px] font-normal text-panel-text-secondary;
+    @apply rounded border border-panel bg-content px-1.5 py-0.5 text-[10px] font-normal leading-none text-panel-text-secondary;
   }
 }
 
-.memory-metrics {
-  @apply mt-3;
+.memory-summary__metrics {
+  @apply flex flex-wrap gap-x-4 gap-y-1;
 
-  div {
-    @apply flex min-w-0 flex-1 items-center justify-between rounded border border-panel bg-panel px-2 py-1.5 text-xs;
-  }
-
-  span {
-    @apply text-panel-text-secondary;
+  > span {
+    @apply inline-flex min-w-0 items-center gap-1 text-content;
   }
 
   b {
@@ -853,115 +931,118 @@ onUnmounted(() => {
   }
 }
 
-.bottleneck-row {
-  @apply mt-2 rounded border border-panel bg-panel px-2 py-1.5 text-xs;
-
-  span {
-    @apply text-panel-text-secondary;
-  }
-
-  b {
-    @apply text-panel;
-  }
-}
-
-.summary-card__title {
-  @apply text-sm font-medium text-panel;
-}
-
-.summary-card__desc {
-  @apply mt-1 text-xs text-panel-text-secondary;
-}
-
-.summary-meta {
-  @apply mt-3 space-y-2 text-xs;
-
-  div {
-    @apply flex items-center justify-between gap-2 text-panel-text-secondary;
-  }
-
-  b {
-    @apply text-panel;
-  }
-}
-
-.summary-meta b.tone-ok,
-.memory-metrics b.tone-ok,
-.bottleneck-row b.tone-ok {
+.memory-summary b.tone-ok {
   @apply text-green-600 dark:text-green-300;
 }
 
-.summary-meta b.tone-warn,
-.memory-metrics b.tone-warn,
-.bottleneck-row b.tone-warn {
+.memory-summary b.tone-warn {
   @apply text-orange-600 dark:text-orange-300;
 }
 
-.summary-meta b.tone-danger,
-.memory-metrics b.tone-danger,
-.bottleneck-row b.tone-danger {
+.memory-summary b.tone-danger {
   @apply text-red-600 dark:text-red-300;
 }
 
-.form-panel {
-  @apply p-4;
+.readiness-grid {
+  @apply mt-5 grid gap-x-8 border-t border-panel;
+
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.settings-section + .settings-section {
-  @apply mt-4;
+.readiness-item {
+  @apply flex min-h-10 items-center justify-between gap-4 border-b border-panel py-2 text-xs text-content;
+
+  b {
+    @apply flex-none font-medium text-panel;
+  }
 }
 
-.settings-section__header h4 {
-  @apply text-sm font-semibold text-panel;
+.setting-row {
+  @apply flex min-h-16 items-center justify-between gap-8 border-t border-panel py-3.5;
 }
 
-.settings-section__header p {
-  @apply mt-1 text-xs text-panel-text-secondary;
+.setting-row:first-child {
+  @apply border-t-0;
 }
 
-.field-stack,
-.param-grid,
-.switch-grid {
-  @apply mt-3 grid gap-3;
+.service-setting {
+  @apply mt-5;
 }
 
-.field-row,
-.switch-grid label {
-  @apply flex items-center gap-3 text-sm text-panel;
+.setting-label {
+  @apply min-w-0 flex-1;
 }
 
-.number-field {
-  @apply grid min-w-0 items-center gap-2 text-sm text-panel;
-
-  grid-template-columns: minmax(0, 1fr) minmax(4rem, 0.9fr);
+.setting-title {
+  @apply text-sm font-medium leading-5 text-panel;
 }
 
-.field-row span,
-.switch-grid span {
-  @apply min-w-14 truncate text-panel-text-secondary;
+.setting-desc {
+  @apply mt-1 text-xs leading-5 text-content;
 }
 
-.number-field > span {
-  @apply min-w-0 truncate text-panel-text-secondary;
+.setting-control {
+  @apply flex min-w-0 flex-[0_1_600px] items-center justify-end gap-2;
+}
+
+.service-control {
+  @apply flex-col items-end gap-2;
+}
+
+.service-controls {
+  @apply flex flex-wrap items-center justify-end gap-2;
+}
+
+.service-url {
+  @apply flex max-w-full items-center gap-1.5 text-xs text-content;
+
+  code {
+    @apply min-w-0 truncate rounded bg-content px-1.5 py-0.5 font-mono text-[11px] text-panel;
+  }
+}
+
+.field-stack {
+  @apply grid;
 }
 
 .path-control {
-  @apply flex min-w-0 flex-1 items-center gap-2;
+  @apply flex w-full min-w-0 items-center gap-2;
+
+  .custom-button {
+    @apply flex-none;
+  }
 }
 
-.text-input {
-  @apply h-8 min-w-0 flex-1 rounded border border-panel bg-hover px-2 text-xs text-panel outline-none;
+.setting-input {
+  @apply h-9 min-w-0 flex-1 rounded-md border border-panel bg-content px-3 text-sm text-panel outline-none transition-colors duration-150 placeholder:text-panel-text-secondary;
+}
+
+.setting-input:hover {
+  border-color: var(--el-color-primary-light-3);
+}
+
+.setting-input:focus {
+  border-color: var(--el-color-primary);
+}
+
+.setting-input:disabled {
+  @apply cursor-not-allowed opacity-60;
 }
 
 .field-select {
-  @apply w-full mr-[58px];
+  @apply w-full;
 }
 
-.param-grid {
+.parameter-grid,
+.switch-grid {
+  @apply grid gap-x-8 gap-y-0;
+}
+
+.parameter-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.param-grid--three {
+.parameter-grid--three {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
@@ -973,21 +1054,23 @@ onUnmounted(() => {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.service-controls {
-  @apply mt-3 flex flex-wrap gap-2;
+.number-field,
+.switch-field {
+  @apply flex min-h-12 min-w-0 items-center justify-between gap-4 border-t border-panel py-3 text-sm;
 }
 
-.service-url {
-  @apply mt-2 truncate text-xs text-panel-text-secondary;
+.number-field > span,
+.switch-field__label {
+  @apply min-w-0 truncate text-sm font-medium text-panel;
 }
 
-.settings-footer {
-  @apply mt-5 flex items-center justify-end gap-3 border-t border-panel bg-panel pt-3;
+.switch-field :deep(.custom-switch) {
+  @apply flex-none;
 }
 
 :deep(.el-input-number) {
-  width: 100%;
-  min-width: 0;
+  width: 9rem;
+  min-width: 7rem;
 }
 
 :deep(.el-input-number__decrease),
@@ -995,13 +1078,32 @@ onUnmounted(() => {
   display: none;
 }
 
-:deep(.el-input-number.is-without-controls .el-input__wrapper) {
-  padding-right: 4px;
-  padding-left: 4px;
+:deep(.el-input-number .el-input__wrapper),
+:deep(.field-select .el-select__wrapper) {
+  min-height: 36px;
+  background-color: var(--categories-content-bg);
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px var(--categories-border-color) inset;
+  transition:
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
-// Keep the actual input free of framework padding so five-digit values remain
-// visible in the default-width three-column parameter grid.
+:deep(.el-input-number .el-input__wrapper:hover),
+:deep(.field-select .el-select__wrapper:hover) {
+  box-shadow: 0 0 0 1px var(--el-color-primary-light-3) inset;
+}
+
+:deep(.el-input-number .el-input__wrapper.is-focus),
+:deep(.field-select .el-select__wrapper.is-focused) {
+  box-shadow: 0 0 0 1px var(--el-color-primary) inset;
+}
+
+:deep(.el-input-number.is-without-controls .el-input__wrapper) {
+  padding-right: 8px;
+  padding-left: 8px;
+}
+
 :deep(.el-input-number .el-input__inner) {
   min-width: 0;
   padding-right: 0;
@@ -1009,26 +1111,77 @@ onUnmounted(() => {
   text-align: center;
 }
 
+:deep(.el-input.is-disabled .el-input__wrapper),
+:deep(.el-select.is-disabled .el-select__wrapper) {
+  opacity: 0.6;
+}
+
+.settings-footer {
+  @apply mt-6 flex items-center justify-end gap-3 border-t border-panel pt-4;
+}
+
 .command-line {
   @apply min-w-0 flex-1 truncate text-xs text-panel-text-secondary;
 }
 
-@media (width <= 1100px) {
-  .settings-grid {
-    grid-template-columns: 1fr;
+@media (width <= 1180px) {
+  .setting-row {
+    @apply flex-col items-stretch gap-3;
+  }
+
+  .setting-control {
+    @apply w-full flex-none justify-start;
+  }
+
+  .service-control {
+    @apply items-start;
+  }
+
+  .service-controls {
+    @apply justify-start;
+  }
+
+  .readiness-grid,
+  .parameter-grid,
+  .parameter-grid--three,
+  .switch-grid,
+  .switch-grid--two {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (width <= 760px) {
-  .param-grid,
-  .param-grid--three,
+  .local-ai-header__inner {
+    @apply flex-col items-stretch gap-3;
+  }
+
+  .header-actions {
+    @apply justify-start;
+  }
+
+  .status-overview {
+    @apply flex-col;
+  }
+
+  .memory-summary {
+    @apply min-w-0;
+  }
+
+  .readiness-grid,
+  .parameter-grid,
+  .parameter-grid--three,
   .switch-grid,
   .switch-grid--two {
     grid-template-columns: 1fr;
   }
 
-  .field-row {
-    @apply flex-col items-stretch;
+  .number-field,
+  .switch-field {
+    @apply gap-3;
+  }
+
+  :deep(.el-input-number) {
+    width: 8.5rem;
   }
 }
 </style>

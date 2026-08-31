@@ -1,9 +1,15 @@
 import type { Editor } from '@tiptap/vue-3';
+import type { ResolvedPos } from '@tiptap/pm/model';
+import { TextSelection } from '@tiptap/pm/state';
+import { formatCodeText } from '@/utils/codeFormatter';
 import { toggleCodeBlockForSelection, toggleListForSelection } from '../utils/markdownCommands';
 import type { SourceEditorExpose, ViewMode } from '../types';
 
 type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
 type ClipboardReader = Pick<Clipboard, 'readText'>;
+type NotifyType = 'success' | 'warning' | 'error' | 'info';
+type Notify = (message: string, type?: NotifyType) => void;
+type CodeFormatter = typeof formatCodeText;
 
 interface UseContextMenuCommandsOptions {
   getEditor: () => Editor | null | undefined;
@@ -15,9 +21,18 @@ interface UseContextMenuCommandsOptions {
   translate?: (key: string) => string;
   execCommand?: (commandId: string) => boolean;
   clipboard?: ClipboardReader;
+  notify?: Notify;
+  formatCodeText?: CodeFormatter;
 }
 
 const isSourceMode = (options: UseContextMenuCommandsOptions) => options.getViewMode() === 'source';
+
+function findCodeBlockDepth($pos: ResolvedPos): number {
+  for (let depth = $pos.depth; depth > 0; depth--) {
+    if ($pos.node(depth).type.name === 'codeBlock') return depth;
+  }
+  return -1;
+}
 
 const runMarkdownCommand = (
   options: UseContextMenuCommandsOptions,
@@ -81,6 +96,8 @@ export function useContextMenuCommands(options: UseContextMenuCommandsOptions) {
   const promptUrl = options.promptUrl ?? ((message, defaultValue) => window.prompt(message, defaultValue));
   const execCommand = options.execCommand ?? ((commandId: string) => document.execCommand(commandId));
   const clipboard = options.clipboard ?? navigator.clipboard;
+  const notify = options.notify ?? (() => undefined);
+  const formatter = options.formatCodeText ?? formatCodeText;
 
   const toggleBold = () => runMarkdownCommand(
     options,
@@ -156,6 +173,60 @@ export function useContextMenuCommands(options: UseContextMenuCommandsOptions) {
     },
     editor => toggleCodeBlockForSelection(editor)
   );
+
+  const formatCodeBlock = async () => {
+    const editor = options.getEditor();
+    if (!editor || isSourceMode(options)) {
+      hide();
+      return;
+    }
+
+    const { state } = editor;
+    const { selection } = state;
+    const codeBlockDepth = findCodeBlockDepth(selection.$from);
+
+    if (codeBlockDepth < 0) {
+      hide();
+      return;
+    }
+
+    const codeBlock = selection.$from.node(codeBlockDepth);
+    const codeBlockPos = selection.$from.before(codeBlockDepth);
+    const contentStart = codeBlockPos + 1;
+    const contentEnd = codeBlockPos + codeBlock.nodeSize - 1;
+    const code = codeBlock.textContent;
+
+    try {
+      const result = await formatter(code, {
+        language: codeBlock.attrs.language as string | null,
+        tabSize: 2
+      });
+
+      if (!result.supported) {
+        notify(translate('codeEditor.formatUnsupported'), 'warning');
+        hide();
+        return;
+      }
+
+      if (result.formatted !== code) {
+        const oldOffset = selection.from - contentStart;
+        const nextOffset = Math.min(Math.max(0, oldOffset), result.formatted.length);
+        const tr = state.tr.insertText(result.formatted, contentStart, contentEnd);
+        tr.setSelection(TextSelection.create(tr.doc, contentStart + nextOffset));
+        editor.view.dispatch(tr.scrollIntoView());
+      }
+    } catch (error) {
+      notify(
+        `${translate('codeEditor.formatFailed')}: ${error instanceof Error ? error.message : String(error)}`,
+        'error'
+      );
+    } finally {
+      try {
+        editor.commands.focus();
+      } catch {}
+      hide();
+    }
+  };
 
   const insertHorizontalRule = () => runMarkdownCommand(
     options,
@@ -263,6 +334,7 @@ export function useContextMenuCommands(options: UseContextMenuCommandsOptions) {
     setParagraph,
     toggleBlockquote,
     insertCodeBlock,
+    formatCodeBlock,
     insertHorizontalRule,
     handleAddLink,
     handleAddExternalLink,

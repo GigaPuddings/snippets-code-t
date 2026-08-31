@@ -11,7 +11,10 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { logger } from '@/utils/logger';
 import { useRouter } from 'vue-router';
 import type { ConfigContentNavigationPayload } from '@/pages/search/composables/openConfigContent';
-import { PENDING_LOCAL_AI_PROMPT_STORAGE_KEY } from '@/plugins/local-ai/promptTransfer';
+import {
+  markPendingLocalAiPromptForNewChat,
+  PENDING_LOCAL_AI_PROMPT_STORAGE_KEY
+} from '@/plugins/local-ai/promptTransfer';
 
 const store = useConfigurationStore();
 const router = useRouter();
@@ -21,20 +24,26 @@ let unlistenLocalAiNavigation: UnlistenFn | null = null;
 
 interface LocalAiNavigationPayload {
   prompt?: string;
+  newChat?: boolean;
 }
 
 const normalizeLocalAiPrompt = (value: unknown): string =>
   typeof value === 'string' ? value.trim() : '';
 
 const navigateToLocalAiChat = async (
-  fallbackPrompt?: unknown,
+  payload?: LocalAiNavigationPayload,
   forceNavigation = false
 ): Promise<void> => {
-  const prompt = normalizeLocalAiPrompt(fallbackPrompt);
-  if (!forceNavigation && !prompt) return;
+  const prompt = normalizeLocalAiPrompt(payload?.prompt);
+  const newChat = payload?.newChat === true;
+  if (!forceNavigation && !prompt && !newChat) return;
 
   if (prompt) {
-    localStorage.setItem(PENDING_LOCAL_AI_PROMPT_STORAGE_KEY, prompt);
+    if (newChat) {
+      markPendingLocalAiPromptForNewChat(localStorage, prompt);
+    } else {
+      localStorage.setItem(PENDING_LOCAL_AI_PROMPT_STORAGE_KEY, prompt);
+    }
   }
   await router.push('/config/local-ai/chat');
   await nextTick();
@@ -42,6 +51,8 @@ const navigateToLocalAiChat = async (
     window.dispatchEvent(
       new CustomEvent('local-ai-prompt-ready', { detail: prompt })
     );
+  } else if (newChat) {
+    window.dispatchEvent(new CustomEvent('local-ai-new-chat-requested'));
   }
 };
 
@@ -79,7 +90,7 @@ onMounted(async () => {
     unlistenLocalAiNavigation = await listen<LocalAiNavigationPayload>(
       'navigate-to-local-ai-chat',
       ({ payload }) => {
-        void navigateToLocalAiChat(payload?.prompt, true);
+        void navigateToLocalAiChat(payload, true);
       }
     );
   }
