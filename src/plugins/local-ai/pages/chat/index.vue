@@ -739,6 +739,7 @@
 import type { ObjectDirective } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { invoke } from '@tauri-apps/api/core';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import {
   Brain,
   Copy,
@@ -878,6 +879,7 @@ let queuedTransferredPrompt: string | null = null;
 let queuedPromptFromSearch = false;
 let queuedNewChatRequest = false;
 let lastAppliedTransferredPrompt: string | null = null;
+let unlistenFocusChanged: (() => void) | null = null;
 const config = ref<LocalAiConfig | null>(null);
 const modelScan = ref<LocalAiModelScan | null>(null);
 const selectedChatModelPath = ref('');
@@ -2308,6 +2310,25 @@ onMounted(async () => {
   window.addEventListener('pointerup', finishMessagePointerScroll);
   window.addEventListener('pointercancel', finishMessagePointerScroll);
   window.addEventListener('keydown', handleGlobalKeydown);
+
+  // 当窗口从隐藏/最小化恢复或获得焦点时，navigate-to-local-ai-chat
+  // 事件可能已在 webview 恢复前发出并丢失。通过焦点事件兜底检查
+  // 后端是否有 pending 的新对话请求，确保快捷键和托盘菜单行为一致。
+  try {
+    const currentWindow = getCurrentWindow();
+    unlistenFocusChanged = await currentWindow.onFocusChanged(
+      ({ payload: focused }) => {
+        if (!focused || !promptTransferReady) return;
+        void takePendingLocalAiNewChat().then((backendNewChat) => {
+          if (backendNewChat) {
+            applyNewChatRequest();
+          }
+        });
+      }
+    );
+  } catch (error) {
+    logger.warn('[LocalAI] focus change listener failed', error);
+  }
   try {
     await refreshAll();
   } finally {
@@ -2352,6 +2373,10 @@ onUnmounted(() => {
     'local-ai-new-chat-requested',
     handleNewChatRequestEvent
   );
+  if (unlistenFocusChanged) {
+    unlistenFocusChanged();
+    unlistenFocusChanged = null;
+  }
   if (statusTimer) clearInterval(statusTimer);
   if (scrollFrameId !== null) {
     window.cancelAnimationFrame(scrollFrameId);
