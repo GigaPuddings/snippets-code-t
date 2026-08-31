@@ -836,11 +836,15 @@ onUnmounted(() => {
 }
 
 .settings-section + .settings-section {
-  @apply mt-8;
+  @apply mt-5 pb-5;
 }
 
 .settings-section__header {
   @apply mb-4;
+}
+
+.settings-section + .settings-section .settings-section__header {
+  @apply mb-2.5;
 }
 
 .settings-section__header h4 {
@@ -1005,6 +1009,20 @@ onUnmounted(() => {
   @apply grid;
 }
 
+.field-stack .setting-row {
+  @apply min-h-14 gap-6 py-2.5;
+}
+
+.field-stack .setting-desc {
+  @apply mt-0.5 leading-4;
+}
+
+.field-stack .setting-control {
+  flex: 0 1 460px;
+  width: min(100%, 460px);
+  max-width: 460px;
+}
+
 .path-control {
   @apply flex w-full min-w-0 items-center gap-2;
 
@@ -1014,7 +1032,7 @@ onUnmounted(() => {
 }
 
 .setting-input {
-  @apply h-9 min-w-0 flex-1 rounded-md border border-panel bg-content px-3 text-sm text-panel outline-none transition-colors duration-150 placeholder:text-panel-text-secondary;
+  @apply h-8 min-w-0 flex-1 rounded-md border border-panel bg-content px-3 text-sm text-panel outline-none transition-colors duration-150 placeholder:text-panel-text-secondary;
 }
 
 .setting-input:hover {
@@ -1056,7 +1074,7 @@ onUnmounted(() => {
 
 .number-field,
 .switch-field {
-  @apply flex min-h-12 min-w-0 items-center justify-between gap-4 border-t border-panel py-3 text-sm;
+  @apply flex min-h-10 min-w-0 items-center justify-between gap-4 border-t border-panel py-2 text-sm;
 }
 
 .number-field > span,
@@ -1069,8 +1087,8 @@ onUnmounted(() => {
 }
 
 :deep(.el-input-number) {
-  width: 9rem;
-  min-width: 7rem;
+  width: 7.5rem;
+  min-width: 6.5rem;
 }
 
 :deep(.el-input-number__decrease),
@@ -1080,7 +1098,7 @@ onUnmounted(() => {
 
 :deep(.el-input-number .el-input__wrapper),
 :deep(.field-select .el-select__wrapper) {
-  min-height: 36px;
+  min-height: 32px;
   background-color: var(--categories-content-bg);
   border-radius: 6px;
   box-shadow: 0 0 0 1px var(--categories-border-color) inset;
@@ -1133,6 +1151,10 @@ onUnmounted(() => {
     @apply w-full flex-none justify-start;
   }
 
+  .field-stack .setting-control {
+    @apply flex-none;
+  }
+
   .service-control {
     @apply items-start;
   }
@@ -1167,6 +1189,10 @@ onUnmounted(() => {
     @apply min-w-0;
   }
 
+  .field-stack .setting-control {
+    @apply max-w-none;
+  }
+
   .readiness-grid,
   .parameter-grid,
   .parameter-grid--three,
@@ -1181,7 +1207,7 @@ onUnmounted(() => {
   }
 
   :deep(.el-input-number) {
-    width: 8.5rem;
+    width: 7.5rem;
   }
 }
 </style>
