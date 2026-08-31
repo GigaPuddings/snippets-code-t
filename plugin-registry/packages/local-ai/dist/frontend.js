@@ -734,7 +734,7 @@ const Bl = Ye("brain", !0, function(e) {
     "stroke-linecap": e.strokeLinecap,
     "stroke-linejoin": e.strokeLinejoin
   }, null)]);
-}), wA = (e) => {
+}), _A = (e) => {
   e.registerRoute({
     target: "config",
     path: "local-ai/chat",
@@ -744,7 +744,7 @@ const Bl = Ye("brain", !0, function(e) {
     id: "localAi",
     labelKey: "localAi.title",
     icon: Mc,
-    component: nf(() => Promise.resolve().then(() => gA))
+    component: nf(() => Promise.resolve().then(() => bA))
   });
 }, Pc = Symbol(), _s = "el", Pf = "is-", bo = (e, t, n, o, s) => {
   let r = `${e}-${t}`;
@@ -13091,7 +13091,10 @@ ${e}
 }, $T = { class: "local-ai-frame" }, RT = { class: "settings-section" }, MT = { class: "settings-section__header" }, PT = { class: "status-overview" }, NT = { class: "status-list" }, DT = ["title"], zT = ["title"], BT = ["title"], FT = { class: "memory-summary__title" }, jT = { class: "memory-summary__metrics" }, VT = { class: "readiness-grid" }, HT = { class: "readiness-item" }, WT = { class: "readiness-item" }, UT = { class: "readiness-item" }, GT = { class: "readiness-item" }, KT = { class: "readiness-item" }, qT = { class: "readiness-item" }, ZT = { class: "setting-row service-setting" }, YT = { class: "setting-label" }, XT = { class: "setting-title" }, QT = { class: "setting-desc" }, JT = { class: "setting-control service-control" }, eS = { class: "service-controls" }, tS = {
   key: 0,
   class: "service-url"
-}, nS = { class: "settings-section" }, oS = { class: "settings-section__header" }, sS = { class: "field-stack" }, rS = ["title"], aS = { class: "setting-label" }, lS = { class: "setting-title" }, iS = { class: "setting-desc" }, cS = { class: "setting-control" }, uS = { class: "path-control" }, dS = ["title"], fS = { class: "setting-label" }, pS = { class: "setting-title" }, mS = { class: "setting-desc" }, hS = { class: "setting-control" }, gS = ["title"], vS = { class: "setting-label" }, bS = { class: "setting-title" }, yS = { class: "setting-desc" }, wS = { class: "setting-control" }, kS = ["title"], _S = { class: "setting-label" }, TS = { class: "setting-title" }, SS = { class: "setting-desc" }, AS = { class: "setting-control" }, CS = { class: "path-control" }, ES = ["placeholder"], xS = { class: "settings-section" }, LS = { class: "settings-section__header" }, IS = { class: "parameter-grid" }, OS = ["title"], $S = ["title"], RS = ["title"], MS = ["title"], PS = ["title"], NS = ["title"], DS = { class: "settings-section" }, zS = { class: "settings-section__header" }, BS = { class: "switch-grid" }, FS = ["title"], jS = { class: "switch-field__label" }, VS = ["title"], HS = { class: "switch-field__label" }, WS = ["title"], US = { class: "switch-field__label" }, GS = { class: "settings-section" }, KS = { class: "settings-section__header" }, qS = { class: "switch-grid switch-grid--two" }, ZS = ["title"], YS = { class: "switch-field__label" }, XS = ["title"], QS = { class: "switch-field__label" }, JS = ["title"], eA = ["title"], tA = { class: "settings-section" }, nA = { class: "settings-section__header" }, oA = { class: "parameter-grid parameter-grid--three" }, sA = ["title"], rA = ["title"], aA = ["title"], lA = ["title"], iA = ["title"], cA = ["title"], uA = ["title"], dA = ["title"], fA = { class: "settings-footer" }, pA = ["title"], mA = /* @__PURE__ */ oe({
+}, nS = { class: "settings-section" }, oS = { class: "settings-section__header" }, sS = { class: "field-stack" }, rS = ["title"], aS = { class: "setting-label" }, lS = { class: "setting-title" }, iS = { class: "setting-desc" }, cS = { class: "setting-control" }, uS = { class: "path-control" }, dS = { class: "model-pair-grid" }, fS = ["title"], pS = { class: "setting-label" }, mS = { class: "setting-title" }, hS = { class: "setting-desc" }, gS = { class: "setting-control" }, vS = ["title"], bS = { class: "setting-label" }, yS = { class: "setting-title" }, wS = { class: "setting-desc" }, kS = { class: "setting-control" }, _S = ["title"], TS = { class: "setting-label" }, SS = { class: "setting-title" }, AS = { class: "setting-desc" }, CS = { class: "setting-control" }, ES = { class: "path-control" }, xS = ["placeholder"], LS = { class: "settings-section" }, IS = { class: "settings-section__header" }, OS = { class: "parameter-grid" }, $S = ["title"], RS = ["title"], MS = ["title"], PS = ["title"], NS = ["title"], DS = ["title"], zS = { class: "settings-section" }, BS = { class: "settings-section__header" }, FS = { class: "switch-grid" }, jS = ["title"], VS = { class: "switch-field__label" }, HS = ["title"], WS = { class: "switch-field__label" }, US = ["title"], GS = { class: "switch-field__label" }, KS = { class: "settings-section" }, qS = { class: "settings-section__header" }, ZS = { class: "switch-grid switch-grid--two" }, YS = ["title"], XS = { class: "switch-field__label" }, QS = ["title"], JS = { class: "switch-field__label" }, eA = ["title"], tA = ["title"], nA = { class: "settings-section" }, oA = { class: "settings-section__header" }, sA = { class: "parameter-grid parameter-grid--three" }, rA = ["title"], aA = ["title"], lA = ["title"], iA = ["title"], cA = ["title"], uA = ["title"], dA = ["title"], fA = ["title"], pA = {
+  key: 1,
+  class: "local-ai-save-bar"
+}, mA = { class: "local-ai-frame settings-footer" }, hA = ["title"], gA = /* @__PURE__ */ oe({
   name: "LocalAiSettings",
   __name: "index",
   setup(e) {
@@ -13716,125 +13719,127 @@ ${e}
                     ])
                   ])
                 ], 8, rS),
-                f("div", {
-                  class: "setting-row",
-                  title: F("mainModel")
-                }, [
-                  f("div", fS, [
-                    f(
-                      "div",
-                      pS,
-                      E(l(t)("localAi.mainModel")),
-                      1
-                      /* TEXT */
-                    ),
-                    f(
-                      "div",
-                      mS,
-                      E(F("mainModel")),
-                      1
-                      /* TEXT */
-                    )
-                  ]),
-                  f("div", hS, [
-                    _(Ie, {
-                      modelValue: l(h),
-                      "onUpdate:modelValue": U[1] || (U[1] = (X) => Qt(h) ? h.value = X : null),
-                      class: "field-select",
-                      clearable: "",
-                      onChange: V
-                    }, {
-                      default: J(() => [
-                        (S(!0), D(
-                          at,
-                          null,
-                          Cn(l(r)?.mainModels ?? [], (X) => (S(), se(me, {
-                            key: X,
-                            label: O(X),
-                            value: X
-                          }, null, 8, ["label", "value"]))),
-                          128
-                          /* KEYED_FRAGMENT */
-                        ))
-                      ]),
-                      _: 1
-                      /* STABLE */
-                    }, 8, ["modelValue"])
-                  ])
-                ], 8, dS),
-                f("div", {
-                  class: "setting-row",
-                  title: F("mmprojModel")
-                }, [
-                  f("div", vS, [
-                    f(
-                      "div",
-                      bS,
-                      E(l(t)("localAi.mmprojModel")),
-                      1
-                      /* TEXT */
-                    ),
-                    f(
-                      "div",
-                      yS,
-                      E(F("mmprojModel")),
-                      1
-                      /* TEXT */
-                    )
-                  ]),
-                  f("div", wS, [
-                    _(Ie, {
-                      modelValue: l(b),
-                      "onUpdate:modelValue": U[2] || (U[2] = (X) => Qt(b) ? b.value = X : null),
-                      class: "field-select",
-                      clearable: "",
-                      onChange: V
-                    }, {
-                      default: J(() => [
-                        (S(!0), D(
-                          at,
-                          null,
-                          Cn(l(r)?.mmprojModels ?? [], (X) => (S(), se(me, {
-                            key: X,
-                            label: O(X),
-                            value: X
-                          }, null, 8, ["label", "value"]))),
-                          128
-                          /* KEYED_FRAGMENT */
-                        ))
-                      ]),
-                      _: 1
-                      /* STABLE */
-                    }, 8, ["modelValue"])
-                  ])
-                ], 8, gS),
+                f("div", dS, [
+                  f("div", {
+                    class: "setting-row",
+                    title: F("mainModel")
+                  }, [
+                    f("div", pS, [
+                      f(
+                        "div",
+                        mS,
+                        E(l(t)("localAi.mainModel")),
+                        1
+                        /* TEXT */
+                      ),
+                      f(
+                        "div",
+                        hS,
+                        E(F("mainModel")),
+                        1
+                        /* TEXT */
+                      )
+                    ]),
+                    f("div", gS, [
+                      _(Ie, {
+                        modelValue: l(h),
+                        "onUpdate:modelValue": U[1] || (U[1] = (X) => Qt(h) ? h.value = X : null),
+                        class: "field-select",
+                        clearable: "",
+                        onChange: V
+                      }, {
+                        default: J(() => [
+                          (S(!0), D(
+                            at,
+                            null,
+                            Cn(l(r)?.mainModels ?? [], (X) => (S(), se(me, {
+                              key: X,
+                              label: O(X),
+                              value: X
+                            }, null, 8, ["label", "value"]))),
+                            128
+                            /* KEYED_FRAGMENT */
+                          ))
+                        ]),
+                        _: 1
+                        /* STABLE */
+                      }, 8, ["modelValue"])
+                    ])
+                  ], 8, fS),
+                  f("div", {
+                    class: "setting-row",
+                    title: F("mmprojModel")
+                  }, [
+                    f("div", bS, [
+                      f(
+                        "div",
+                        yS,
+                        E(l(t)("localAi.mmprojModel")),
+                        1
+                        /* TEXT */
+                      ),
+                      f(
+                        "div",
+                        wS,
+                        E(F("mmprojModel")),
+                        1
+                        /* TEXT */
+                      )
+                    ]),
+                    f("div", kS, [
+                      _(Ie, {
+                        modelValue: l(b),
+                        "onUpdate:modelValue": U[2] || (U[2] = (X) => Qt(b) ? b.value = X : null),
+                        class: "field-select",
+                        clearable: "",
+                        onChange: V
+                      }, {
+                        default: J(() => [
+                          (S(!0), D(
+                            at,
+                            null,
+                            Cn(l(r)?.mmprojModels ?? [], (X) => (S(), se(me, {
+                              key: X,
+                              label: O(X),
+                              value: X
+                            }, null, 8, ["label", "value"]))),
+                            128
+                            /* KEYED_FRAGMENT */
+                          ))
+                        ]),
+                        _: 1
+                        /* STABLE */
+                      }, 8, ["modelValue"])
+                    ])
+                  ], 8, vS)
+                ]),
                 f("div", {
                   class: "setting-row",
                   title: F("runtimePath")
                 }, [
-                  f("div", _S, [
+                  f("div", TS, [
                     f(
                       "div",
-                      TS,
+                      SS,
                       E(l(t)("localAi.runtimePath")),
                       1
                       /* TEXT */
                     ),
                     f(
                       "div",
-                      SS,
+                      AS,
                       E(F("runtimePath")),
                       1
                       /* TEXT */
                     )
                   ]),
-                  f("div", AS, [
-                    f("div", CS, [
+                  f("div", CS, [
+                    f("div", ES, [
                       lt(f("input", {
                         "onUpdate:modelValue": U[3] || (U[3] = (X) => l(n).runtimePath = X),
                         class: "setting-input",
                         placeholder: l(t)("localAi.runtimePathPlaceholder")
-                      }, null, 8, ES), [
+                      }, null, 8, xS), [
                         [xs, l(n).runtimePath]
                       ]),
                       _(l(Xt), {
@@ -13854,11 +13859,11 @@ ${e}
                       })
                     ])
                   ])
-                ], 8, kS)
+                ], 8, _S)
               ])
             ]),
-            f("section", xS, [
-              f("div", LS, [
+            f("section", LS, [
+              f("div", IS, [
                 f(
                   "h4",
                   null,
@@ -13874,7 +13879,7 @@ ${e}
                   /* TEXT */
                 )
               ]),
-              f("div", IS, [
+              f("div", OS, [
                 f("label", {
                   class: "number-field",
                   title: F("ctxSize")
@@ -13895,7 +13900,7 @@ ${e}
                     step: 512,
                     size: "small"
                   }, null, 8, ["modelValue"])
-                ], 8, OS),
+                ], 8, $S),
                 f("label", {
                   class: "number-field",
                   title: F("gpuLayers")
@@ -13916,7 +13921,7 @@ ${e}
                     step: 1,
                     size: "small"
                   }, null, 8, ["modelValue"])
-                ], 8, $S),
+                ], 8, RS),
                 f("label", {
                   class: "number-field",
                   title: F("threads")
@@ -13937,7 +13942,7 @@ ${e}
                     step: 1,
                     size: "small"
                   }, null, 8, ["modelValue"])
-                ], 8, RS),
+                ], 8, MS),
                 f("label", {
                   class: "number-field",
                   title: F("batchSize")
@@ -13958,7 +13963,7 @@ ${e}
                     step: 32,
                     size: "small"
                   }, null, 8, ["modelValue"])
-                ], 8, MS),
+                ], 8, PS),
                 f("label", {
                   class: "number-field",
                   title: F("ubatchSize")
@@ -13979,7 +13984,7 @@ ${e}
                     step: 16,
                     size: "small"
                   }, null, 8, ["modelValue"])
-                ], 8, PS),
+                ], 8, NS),
                 f("label", {
                   class: "number-field",
                   title: F("mainGpu")
@@ -14000,11 +14005,11 @@ ${e}
                     step: 1,
                     size: "small"
                   }, null, 8, ["modelValue"])
-                ], 8, NS)
+                ], 8, DS)
               ])
             ]),
-            f("section", DS, [
-              f("div", zS, [
+            f("section", zS, [
+              f("div", BS, [
                 f(
                   "h4",
                   null,
@@ -14020,14 +14025,14 @@ ${e}
                   /* TEXT */
                 )
               ]),
-              f("div", BS, [
+              f("div", FS, [
                 f("label", {
                   class: "switch-field",
                   title: F("flashAttn")
                 }, [
                   f(
                     "span",
-                    jS,
+                    VS,
                     E(l(t)("localAi.flashAttn")),
                     1
                     /* TEXT */
@@ -14038,14 +14043,14 @@ ${e}
                     "active-text": l(t)("common.on"),
                     "inactive-text": l(t)("common.off")
                   }, null, 8, ["modelValue", "active-text", "inactive-text"])
-                ], 8, FS),
+                ], 8, jS),
                 f("label", {
                   class: "switch-field",
                   title: F("kvOffload")
                 }, [
                   f(
                     "span",
-                    HS,
+                    WS,
                     E(l(t)("localAi.kvOffload")),
                     1
                     /* TEXT */
@@ -14056,14 +14061,14 @@ ${e}
                     "active-text": l(t)("common.on"),
                     "inactive-text": l(t)("common.off")
                   }, null, 8, ["modelValue", "active-text", "inactive-text"])
-                ], 8, VS),
+                ], 8, HS),
                 f("label", {
                   class: "switch-field",
                   title: F("mmap")
                 }, [
                   f(
                     "span",
-                    US,
+                    GS,
                     E(l(t)("localAi.mmap")),
                     1
                     /* TEXT */
@@ -14074,11 +14079,11 @@ ${e}
                     "active-text": l(t)("common.on"),
                     "inactive-text": l(t)("common.off")
                   }, null, 8, ["modelValue", "active-text", "inactive-text"])
-                ], 8, WS)
+                ], 8, US)
               ])
             ]),
-            f("section", GS, [
-              f("div", KS, [
+            f("section", KS, [
+              f("div", qS, [
                 f(
                   "h4",
                   null,
@@ -14094,14 +14099,14 @@ ${e}
                   /* TEXT */
                 )
               ]),
-              f("div", qS, [
+              f("div", ZS, [
                 f("label", {
                   class: "switch-field",
                   title: F("autoStart")
                 }, [
                   f(
                     "span",
-                    YS,
+                    XS,
                     E(l(t)("localAi.autoStart")),
                     1
                     /* TEXT */
@@ -14112,14 +14117,14 @@ ${e}
                     "active-text": l(t)("common.on"),
                     "inactive-text": l(t)("common.off")
                   }, null, 8, ["modelValue", "active-text", "inactive-text"])
-                ], 8, ZS),
+                ], 8, YS),
                 f("label", {
                   class: "switch-field",
                   title: F("keepAlive")
                 }, [
                   f(
                     "span",
-                    QS,
+                    JS,
                     E(l(t)("localAi.keepAlive")),
                     1
                     /* TEXT */
@@ -14130,7 +14135,7 @@ ${e}
                     "active-text": l(t)("common.on"),
                     "inactive-text": l(t)("common.off")
                   }, null, 8, ["modelValue", "active-text", "inactive-text"])
-                ], 8, XS),
+                ], 8, QS),
                 f("label", {
                   class: "number-field",
                   title: F("idleTimeout")
@@ -14151,7 +14156,7 @@ ${e}
                     step: 1,
                     size: "small"
                   }, null, 8, ["modelValue"])
-                ], 8, JS),
+                ], 8, eA),
                 f("label", {
                   class: "number-field",
                   title: F("requestTimeout")
@@ -14172,11 +14177,11 @@ ${e}
                     step: 30,
                     size: "small"
                   }, null, 8, ["modelValue"])
-                ], 8, eA)
+                ], 8, tA)
               ])
             ]),
-            f("section", tA, [
-              f("div", nA, [
+            f("section", nA, [
+              f("div", oA, [
                 f(
                   "h4",
                   null,
@@ -14192,7 +14197,7 @@ ${e}
                   /* TEXT */
                 )
               ]),
-              f("div", oA, [
+              f("div", sA, [
                 f("label", {
                   class: "number-field",
                   title: F("temperature")
@@ -14214,7 +14219,7 @@ ${e}
                     precision: 1,
                     size: "small"
                   }, null, 8, ["modelValue"])
-                ], 8, sA),
+                ], 8, rA),
                 f("label", {
                   class: "number-field",
                   title: F("topP")
@@ -14236,7 +14241,7 @@ ${e}
                     precision: 2,
                     size: "small"
                   }, null, 8, ["modelValue"])
-                ], 8, rA),
+                ], 8, aA),
                 f("label", {
                   class: "number-field",
                   title: F("topK")
@@ -14257,7 +14262,7 @@ ${e}
                     step: 1,
                     size: "small"
                   }, null, 8, ["modelValue"])
-                ], 8, aA),
+                ], 8, lA),
                 f("label", {
                   class: "number-field",
                   title: F("minP")
@@ -14279,7 +14284,7 @@ ${e}
                     precision: 2,
                     size: "small"
                   }, null, 8, ["modelValue"])
-                ], 8, lA),
+                ], 8, iA),
                 f("label", {
                   class: "number-field",
                   title: F("repeatPenalty")
@@ -14301,7 +14306,7 @@ ${e}
                     precision: 2,
                     size: "small"
                   }, null, 8, ["modelValue"])
-                ], 8, iA),
+                ], 8, cA),
                 f("label", {
                   class: "number-field",
                   title: F("repeatLastN")
@@ -14322,7 +14327,7 @@ ${e}
                     step: 32,
                     size: "small"
                   }, null, 8, ["modelValue"])
-                ], 8, cA),
+                ], 8, uA),
                 f("label", {
                   class: "number-field",
                   title: F("maxTokens")
@@ -14343,7 +14348,7 @@ ${e}
                     step: 64,
                     size: "small"
                   }, null, 8, ["modelValue"])
-                ], 8, uA),
+                ], 8, dA),
                 f("label", {
                   class: "number-field",
                   title: F("port")
@@ -14364,41 +14369,43 @@ ${e}
                     step: 1,
                     size: "small"
                   }, null, 8, ["modelValue"])
-                ], 8, dA)
+                ], 8, fA)
               ])
-            ]),
-            f("div", fA, [
-              l(s)?.commandLine ? (S(), D("span", {
-                key: 0,
-                class: "command-line",
-                title: l(s).commandLine
-              }, E(l(s).commandLine), 9, pA)) : Y("v-if", !0),
-              _(l(Xt), {
-                type: "primary",
-                loading: l(i),
-                onClick: B
-              }, {
-                default: J(() => [
-                  pt(
-                    E(l(t)("common.save")),
-                    1
-                    /* TEXT */
-                  )
-                ]),
-                _: 1
-                /* STABLE */
-              }, 8, ["loading"])
             ])
+          ])
+        ])) : Y("v-if", !0),
+        l(n) ? (S(), D("footer", pA, [
+          f("div", mA, [
+            l(s)?.commandLine ? (S(), D("span", {
+              key: 0,
+              class: "command-line",
+              title: l(s).commandLine
+            }, E(l(s).commandLine), 9, hA)) : Y("v-if", !0),
+            _(l(Xt), {
+              type: "primary",
+              loading: l(i),
+              onClick: B
+            }, {
+              default: J(() => [
+                pt(
+                  E(l(t)("common.save")),
+                  1
+                  /* TEXT */
+                )
+              ]),
+              _: 1
+              /* STABLE */
+            }, 8, ["loading"])
           ])
         ])) : Y("v-if", !0)
       ]);
     };
   }
-}), hA = /* @__PURE__ */ Io(mA, [["__scopeId", "data-v-08107016"]]), gA = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+}), vA = /* @__PURE__ */ Io(gA, [["__scopeId", "data-v-66dbd72c"]]), bA = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  default: hA
+  default: vA
 }, Symbol.toStringTag, { value: "Module" }));
 export {
-  wA as activate,
-  wA as default
+  _A as activate,
+  _A as default
 };

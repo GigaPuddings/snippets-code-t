@@ -194,46 +194,50 @@
                 </div>
               </div>
             </div>
-            <div class="setting-row" :title="paramHint('mainModel')">
-              <div class="setting-label">
-                <div class="setting-title">{{ t('localAi.mainModel') }}</div>
-                <div class="setting-desc">{{ paramHint('mainModel') }}</div>
+            <div class="model-pair-grid">
+              <div class="setting-row" :title="paramHint('mainModel')">
+                <div class="setting-label">
+                  <div class="setting-title">{{ t('localAi.mainModel') }}</div>
+                  <div class="setting-desc">{{ paramHint('mainModel') }}</div>
+                </div>
+                <div class="setting-control">
+                  <el-select
+                    v-model="selectedModelPath"
+                    class="field-select"
+                    clearable
+                    @change="saveOnly"
+                  >
+                    <el-option
+                      v-for="path in modelScan?.mainModels ?? []"
+                      :key="path"
+                      :label="fileName(path)"
+                      :value="path"
+                    />
+                  </el-select>
+                </div>
               </div>
-              <div class="setting-control">
-                <el-select
-                  v-model="selectedModelPath"
-                  class="field-select"
-                  clearable
-                  @change="saveOnly"
-                >
-                  <el-option
-                    v-for="path in modelScan?.mainModels ?? []"
-                    :key="path"
-                    :label="fileName(path)"
-                    :value="path"
-                  />
-                </el-select>
-              </div>
-            </div>
-            <div class="setting-row" :title="paramHint('mmprojModel')">
-              <div class="setting-label">
-                <div class="setting-title">{{ t('localAi.mmprojModel') }}</div>
-                <div class="setting-desc">{{ paramHint('mmprojModel') }}</div>
-              </div>
-              <div class="setting-control">
-                <el-select
-                  v-model="selectedMmprojPath"
-                  class="field-select"
-                  clearable
-                  @change="saveOnly"
-                >
-                  <el-option
-                    v-for="path in modelScan?.mmprojModels ?? []"
-                    :key="path"
-                    :label="fileName(path)"
-                    :value="path"
-                  />
-                </el-select>
+              <div class="setting-row" :title="paramHint('mmprojModel')">
+                <div class="setting-label">
+                  <div class="setting-title">
+                    {{ t('localAi.mmprojModel') }}
+                  </div>
+                  <div class="setting-desc">{{ paramHint('mmprojModel') }}</div>
+                </div>
+                <div class="setting-control">
+                  <el-select
+                    v-model="selectedMmprojPath"
+                    class="field-select"
+                    clearable
+                    @change="saveOnly"
+                  >
+                    <el-option
+                      v-for="path in modelScan?.mmprojModels ?? []"
+                      :key="path"
+                      :label="fileName(path)"
+                      :value="path"
+                    />
+                  </el-select>
+                </div>
               </div>
             </div>
             <div class="setting-row" :title="paramHint('runtimePath')">
@@ -520,21 +524,23 @@
             </label>
           </div>
         </section>
-
-        <div class="settings-footer">
-          <span
-            v-if="serviceStatus?.commandLine"
-            class="command-line"
-            :title="serviceStatus.commandLine"
-          >
-            {{ serviceStatus.commandLine }}
-          </span>
-          <CustomButton type="primary" :loading="saving" @click="saveConfig">
-            {{ t('common.save') }}
-          </CustomButton>
-        </div>
       </div>
     </main>
+
+    <footer v-if="config" class="local-ai-save-bar">
+      <div class="local-ai-frame settings-footer">
+        <span
+          v-if="serviceStatus?.commandLine"
+          class="command-line"
+          :title="serviceStatus.commandLine"
+        >
+          {{ serviceStatus.commandLine }}
+        </span>
+        <CustomButton type="primary" :loading="saving" @click="saveConfig">
+          {{ t('common.save') }}
+        </CustomButton>
+      </div>
+    </footer>
   </div>
 </template>
 
@@ -828,7 +834,7 @@ onUnmounted(() => {
 }
 
 .local-ai-content {
-  @apply px-2 pb-8 pt-5;
+  @apply px-2 pb-5 pt-5;
 }
 
 .settings-section {
@@ -957,8 +963,16 @@ onUnmounted(() => {
   @apply flex min-h-10 items-center justify-between gap-4 border-b border-panel py-2 text-xs text-content;
 
   b {
-    @apply flex-none font-medium text-panel;
+    @apply inline-flex min-w-6 flex-none items-center justify-center rounded border px-1.5 py-0.5 text-[11px] font-semibold leading-4;
   }
+}
+
+.readiness-item b.tone-ok {
+  @apply border-green-500/25 bg-green-500/10 text-green-600 dark:text-green-300;
+}
+
+.readiness-item b.tone-danger {
+  @apply border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-300;
 }
 
 .setting-row {
@@ -1021,6 +1035,22 @@ onUnmounted(() => {
   flex: 0 1 460px;
   width: min(100%, 460px);
   max-width: 460px;
+}
+
+.model-pair-grid {
+  @apply grid gap-x-8 border-t border-panel;
+
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.model-pair-grid .setting-row {
+  @apply gap-4 border-t-0;
+}
+
+.model-pair-grid .setting-control {
+  flex: 0 1 17.5rem;
+  width: min(100%, 17.5rem);
+  max-width: 17.5rem;
 }
 
 .path-control {
@@ -1134,8 +1164,12 @@ onUnmounted(() => {
   opacity: 0.6;
 }
 
+.local-ai-save-bar {
+  @apply z-10 flex-none border-t border-panel bg-panel px-2 py-3;
+}
+
 .settings-footer {
-  @apply mt-6 flex items-center justify-end gap-3 border-t border-panel pt-4;
+  @apply flex min-h-8 items-center justify-end gap-3;
 }
 
 .command-line {
@@ -1164,6 +1198,7 @@ onUnmounted(() => {
   }
 
   .readiness-grid,
+  .model-pair-grid,
   .parameter-grid,
   .parameter-grid--three,
   .switch-grid,
@@ -1191,6 +1226,14 @@ onUnmounted(() => {
 
   .field-stack .setting-control {
     @apply max-w-none;
+  }
+
+  .model-pair-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .model-pair-grid .setting-control {
+    @apply w-full max-w-none;
   }
 
   .readiness-grid,
