@@ -739,7 +739,6 @@
 import type { ObjectDirective } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { invoke } from '@tauri-apps/api/core';
-import { getCurrentWindow } from '@tauri-apps/api/window';
 import {
   Brain,
   Copy,
@@ -829,6 +828,9 @@ import {
   normalizeEnhancedPrompt
 } from './promptEnhancement';
 import {
+  clearPendingLocalAiNewChat,
+  hasPendingLocalAiNewChat,
+  markPendingLocalAiNewChat,
   markPendingLocalAiPromptForNewChat,
   pendingLocalAiPromptRequiresNewChat,
   PENDING_LOCAL_AI_PROMPT_MODE_STORAGE_KEY,
@@ -879,7 +881,6 @@ let queuedTransferredPrompt: string | null = null;
 let queuedPromptFromSearch = false;
 let queuedNewChatRequest = false;
 let lastAppliedTransferredPrompt: string | null = null;
-let unlistenFocusChanged: (() => void) | null = null;
 const config = ref<LocalAiConfig | null>(null);
 const modelScan = ref<LocalAiModelScan | null>(null);
 const selectedChatModelPath = ref('');
@@ -1122,7 +1123,10 @@ const takePendingLocalAiPrompt = async (): Promise<string> => {
 
 const takePendingLocalAiNewChat = async (): Promise<boolean> => {
   try {
-    return await invoke<boolean>('take_pending_local_ai_new_chat');
+    const requested = await invoke<boolean>('take_pending_local_ai_new_chat');
+    // 插件路由初始化会重挂载组件，先镜像一次性请求供稳定实例恢复。
+    if (requested) markPendingLocalAiNewChat(localStorage);
+    return requested;
   } catch (error) {
     logger.warn('[LocalAI] take pending new chat failed', error);
     return false;
@@ -1474,6 +1478,7 @@ const ensureActiveHistory = () => {
 };
 const openHistory = (id: string) => {
   if (navigationLocked.value) return;
+  clearPendingLocalAiNewChat(localStorage);
   if (activeHistoryId.value !== id) {
     draft.value = '';
     attachments.value = [];
@@ -2310,25 +2315,6 @@ onMounted(async () => {
   window.addEventListener('pointerup', finishMessagePointerScroll);
   window.addEventListener('pointercancel', finishMessagePointerScroll);
   window.addEventListener('keydown', handleGlobalKeydown);
-
-  // 当窗口从隐藏/最小化恢复或获得焦点时，navigate-to-local-ai-chat
-  // 事件可能已在 webview 恢复前发出并丢失。通过焦点事件兜底检查
-  // 后端是否有 pending 的新对话请求，确保快捷键和托盘菜单行为一致。
-  try {
-    const currentWindow = getCurrentWindow();
-    unlistenFocusChanged = await currentWindow.onFocusChanged(
-      ({ payload: focused }) => {
-        if (!focused || !promptTransferReady) return;
-        void takePendingLocalAiNewChat().then((backendNewChat) => {
-          if (backendNewChat) {
-            applyNewChatRequest();
-          }
-        });
-      }
-    );
-  } catch (error) {
-    logger.warn('[LocalAI] focus change listener failed', error);
-  }
   try {
     await refreshAll();
   } finally {
@@ -2349,7 +2335,11 @@ onMounted(async () => {
     queuedPromptFromSearch = false;
     if (pendingPrompt) {
       applyPendingPrompt(pendingPrompt, fromSearch);
-    } else if (backendNewChat || queuedNewChatRequest) {
+    } else if (
+      backendNewChat ||
+      queuedNewChatRequest ||
+      hasPendingLocalAiNewChat(localStorage)
+    ) {
       applyNewChatRequest();
     }
   }
@@ -2373,10 +2363,6 @@ onUnmounted(() => {
     'local-ai-new-chat-requested',
     handleNewChatRequestEvent
   );
-  if (unlistenFocusChanged) {
-    unlistenFocusChanged();
-    unlistenFocusChanged = null;
-  }
   if (statusTimer) clearInterval(statusTimer);
   if (scrollFrameId !== null) {
     window.cancelAnimationFrame(scrollFrameId);
