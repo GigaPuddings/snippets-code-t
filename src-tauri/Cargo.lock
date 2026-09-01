@@ -6286,6 +6286,7 @@ dependencies = [
  "log",
  "lopdf",
  "lru",
+ "minisign-verify",
  "notify",
  "once_cell",
  "pathdiff",

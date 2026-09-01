@@ -155,8 +155,8 @@ fn handle_plugin_tray_menu_click(app: &AppHandle, menu_id: &str) -> bool {
     true
 }
 
-pub fn exit_app_now(app: &AppHandle) -> ! {
-    info!("[托盘菜单] 用户选择退出程序");
+pub fn prepare_app_for_process_exit(app: &AppHandle, reason: &str) {
+    info!("[退出] 正在准备退出程序: {}", reason);
     APP_EXITING.store(true, Ordering::Release);
     crate::plugins::system_theme::stop_scheduler();
     crate::plugins::local_ai::stop_service_now();
@@ -168,6 +168,11 @@ pub fn exit_app_now(app: &AppHandle) -> ! {
         let _ = app.remove_tray_by_id("tray");
     }
     app.cleanup_before_exit();
+}
+
+pub fn exit_app_now(app: &AppHandle) -> ! {
+    info!("[托盘菜单] 用户选择退出程序");
+    prepare_app_for_process_exit(app, "user_quit");
     std::process::exit(0);
 }
 

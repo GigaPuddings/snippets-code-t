@@ -35,7 +35,9 @@ use crate::db::{
 };
 use crate::plugins::system_theme as dark_mode;
 use crate::update::{
-    check_update, check_update_manually, get_update_info, get_update_status, perform_update,
+    check_update, check_update_manually, download_update_installer, get_update_info,
+    get_update_installer_cache_status, get_update_status, install_cached_update, perform_update,
+    set_update_install_on_restart,
 };
 use crate::window::{
     close_setup_window, create_setup_window, frontend_log, get_scan_progress_state,
@@ -223,6 +225,24 @@ pub fn run() {
 
             let is_auto_start = is_auto_start_launch(app.handle());
             let is_update_restart = update::consume_update_restart_pending(app.handle());
+            let should_auto_install_update =
+                update::is_update_install_on_restart_enabled(app.handle());
+            if should_auto_install_update {
+                let app_handle_update_install = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Err(error) =
+                        update::install_cached_update_on_restart(app_handle_update_install.clone())
+                            .await
+                    {
+                        log::warn!("[Updater] 下次启动自动安装失败: {}", error);
+                        let _ = crate::json_config::set_app_config_value(
+                            &app_handle_update_install,
+                            "update_install_on_restart",
+                            false,
+                        );
+                    }
+                });
+            }
 
             // 初始化 Markdown 运行时状态。即使暂未配置工作区，命令状态也必须存在，
             // 否则前端请求分类/文件列表时会触发 Tauri 的 state not managed 错误。
@@ -620,7 +640,10 @@ pub fn run() {
             if !is_auto_start {
                 let app_handle_startup = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
-                    let startup_delay = if is_update_restart {
+                    let startup_delay = if should_auto_install_update {
+                        info!("[Startup] update install scheduled; delaying foreground windows");
+                        2_000
+                    } else if is_update_restart {
                         info!(
                             "[Startup] post-update restart detected; delaying foreground windows by {}ms",
                             POST_UPDATE_STARTUP_DELAY_MILLIS
@@ -679,6 +702,10 @@ pub fn run() {
             plugins::todo::remind_notification_window,       // 提醒通知窗口
             get_update_status,                // 获取更新状态
             get_update_info,                  // 获取更新信息
+            get_update_installer_cache_status, // 获取更新安装包缓存状态
+            download_update_installer,        // 下载并缓存更新安装包
+            install_cached_update,            // 安装已缓存的更新安装包
+            set_update_install_on_restart,    // 设置下次启动自动安装
             perform_update,                   // 执行更新
             check_update_manually,            // 手动检查更新
             fetch_favicon,                    // 获取网站favicon

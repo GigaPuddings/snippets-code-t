@@ -7,7 +7,12 @@
         </div>
         <h2 class="title">{{ $t('update.title') }}</h2>
       </div>
-      <button class="close-button" type="button" aria-label="Close" @click="handleCancel">
+      <button
+        class="close-button"
+        type="button"
+        aria-label="Close"
+        @click="handleCancel"
+      >
         <svg
           xmlns="http://www.w3.org/2000/svg"
           width="20"
@@ -28,16 +33,25 @@
     <div class="update-content">
       <div class="info-section">
         <div class="version-summary">
-          <div class="new-version">{{ formatVersionLabel(update.newVersion) }}</div>
+          <div class="new-version">
+            {{ formatVersionLabel(update.newVersion) }}
+          </div>
           <p class="version-copy">
             {{ $t('update.currentVersion') }}
-            {{ formatVersionLabel(update.appVersion) }} → {{ $t('update.newVersion') }}
+            {{ formatVersionLabel(update.appVersion) }} →
+            {{ $t('update.newVersion') }}
             {{ formatVersionLabel(update.newVersion) }}
           </p>
-          <p class="release-date">{{ $t('update.releaseDate') }}{{ update.releaseDate }}</p>
+          <p class="release-date">
+            {{ $t('update.releaseDate') }}{{ update.releaseDate }}
+          </p>
         </div>
 
-        <div v-if="!update.downloading" class="status-banner" :class="{ error: update.error }">
+        <div
+          v-if="!update.downloading && !update.installing"
+          class="status-banner"
+          :class="{ error: update.error }"
+        >
           <svg
             v-if="!update.error"
             xmlns="http://www.w3.org/2000/svg"
@@ -73,7 +87,10 @@
           </span>
         </div>
 
-        <div v-if="update.downloading" class="download-progress">
+        <div
+          v-if="update.downloading || update.installing"
+          class="download-progress"
+        >
           <div class="progress-status">
             <div
               class="status-icon"
@@ -138,7 +155,10 @@
               </span>
             </div>
           </div>
-          <div v-if="!update.error" class="progress-wrapper">
+          <div
+            v-if="update.downloading && !update.error"
+            class="progress-wrapper"
+          >
             <el-progress
               :stroke-width="8"
               :percentage="update.progress"
@@ -179,9 +199,14 @@
         <div class="release-notes">
           <div class="notes-heading">
             <div class="notes-title">{{ $t('update.releaseNotes') }}</div>
-            <div v-if="update.releaseDate" class="notes-date">{{ update.releaseDate }}</div>
+            <div v-if="update.releaseDate" class="notes-date">
+              {{ update.releaseDate }}
+            </div>
           </div>
-          <el-scrollbar class="notes-scrollbar" :view-style="{ height: '100%' }">
+          <el-scrollbar
+            class="notes-scrollbar"
+            :view-style="{ height: '100%' }"
+          >
             <div class="notes-content" v-html="update.releaseNotes"></div>
           </el-scrollbar>
         </div>
@@ -189,37 +214,81 @@
     </div>
 
     <div class="footer">
-      <el-button
-        @click="handleCancel"
-        v-if="!update.downloading || update.error"
-        class="action-button cancel-button"
+      <template
+        v-if="
+          update.downloadComplete && !update.downloading && !update.installing
+        "
       >
-        {{ update.error ? $t('update.close') : $t('update.updateLater') }}
-      </el-button>
-      <el-button
-        type="primary"
-        @click="handleUpdate"
-        v-if="!update.downloading || update.error"
-        class="action-button update-button"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
+        <el-button
+          @click="handleInstallLater"
+          class="action-button cancel-button"
         >
-          <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
-          <path d="M3 21v-5h5" />
-          <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
-          <path d="M16 8h5V3" />
-        </svg>
-        {{ update.error && update.downloadComplete ? $t('update.retryInstall') : $t('update.updateNow') }}
-      </el-button>
+          {{ $t('update.installLater') }}
+        </el-button>
+        <el-button
+          @click="handleInstallOnNextRestart"
+          class="action-button deferred-button"
+          :disabled="update.installScheduledOnRestart"
+        >
+          {{ $t('update.installOnNextRestart') }}
+        </el-button>
+        <el-button
+          type="primary"
+          @click="handleInstallNow"
+          class="action-button update-button"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          {{
+            update.error ? $t('update.retryInstall') : $t('update.installNow')
+          }}
+        </el-button>
+      </template>
+      <template v-else-if="!update.downloading && !update.installing">
+        <el-button @click="handleCancel" class="action-button cancel-button">
+          {{ update.error ? $t('update.close') : $t('update.updateLater') }}
+        </el-button>
+        <el-button
+          type="primary"
+          @click="handleDownload"
+          class="action-button update-button"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+            <path d="M3 21v-5h5" />
+            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+            <path d="M16 8h5V3" />
+          </svg>
+          {{
+            update.error
+              ? $t('update.retryDownload')
+              : $t('update.downloadUpdate')
+          }}
+        </el-button>
+      </template>
     </div>
   </div>
 </template>
@@ -228,7 +297,6 @@
 import { appVersion, initEnv, getAppWindow } from '@/utils/env';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, emit } from '@tauri-apps/api/event';
-import { relaunch } from '@tauri-apps/plugin-process';
 import { useI18n } from 'vue-i18n';
 import { formatBytes, formatPercentage } from '@/utils/format';
 import { markdownToHtml } from '@/components/TipTapEditor/utils/markdown';
@@ -243,10 +311,27 @@ interface UpdateInfo {
   pub_date: string;
 }
 
+interface UpdateInstallerCacheStatus {
+  cached: boolean;
+  installOnRestart: boolean;
+}
+
+type DownloadProgressEventName = 'Started' | 'Progress' | 'Finished';
+
+interface DownloadProgressPayload {
+  event: DownloadProgressEventName;
+  data: {
+    chunk_length?: number | null;
+    content_length?: number | null;
+    total_downloaded: number;
+  };
+}
+
 const { t } = useI18n();
 
 const update = reactive({
   downloading: false,
+  installing: false,
   progress: 0,
   statusText: '',
   appVersion: '',
@@ -255,10 +340,19 @@ const update = reactive({
   releaseNotes: '',
   contentLength: 0,
   error: '',
-  downloadComplete: false
+  downloadComplete: false,
+  installScheduledOnRestart: false
 });
 
-const formatVersionLabel = (version: string) => {
+const unlistenFns: Array<() => void> = [];
+
+onUnmounted(() => {
+  unlistenFns.forEach((unlisten) => {
+    unlisten();
+  });
+});
+
+const formatVersionLabel = (version: string): string => {
   if (!version) {
     return 'v--';
   }
@@ -266,17 +360,25 @@ const formatVersionLabel = (version: string) => {
   return version.startsWith('v') ? version : `v${version}`;
 };
 
-const readyText = computed(() => {
+const readyText = computed<string>(() => {
   const version = formatVersionLabel(update.newVersion);
 
-  if (t('update.readyToRestart') !== 'update.readyToRestart') {
-    return t('update.readyToRestart', { version });
+  if (update.installScheduledOnRestart) {
+    return t('update.installScheduledOnRestart');
   }
 
-  return `${version} 已就绪，重启后生效。`;
+  if (update.downloadComplete) {
+    return t('update.cachedInstallerReady');
+  }
+
+  if (t('update.readyToDownload') !== 'update.readyToDownload') {
+    return t('update.readyToDownload', { version });
+  }
+
+  return `${version} 可下载。`;
 });
 
-const progressFormat = (percentage: number) => {
+const progressFormat = (percentage: number): string => {
   return update.downloading ? formatPercentage(percentage) : '';
 };
 
@@ -284,7 +386,71 @@ dayjs.extend(utc);
 dayjs.extend(timezone);
 dayjs.tz.setDefault('Asia/Shanghai');
 
-onMounted(async () => {
+const loadCachedInstallerStatus = async (): Promise<void> => {
+  try {
+    const cacheStatus = await invoke<UpdateInstallerCacheStatus>(
+      'get_update_installer_cache_status'
+    );
+    if (cacheStatus.cached) {
+      update.progress = 100;
+      update.downloadComplete = true;
+      update.installScheduledOnRestart = cacheStatus.installOnRestart;
+      update.statusText = cacheStatus.installOnRestart
+        ? t('update.installScheduledOnRestart')
+        : t('update.downloadComplete');
+    }
+  } catch (error) {
+    logger.warn('Failed to get update installer cache status:', error);
+  }
+};
+
+const setupDownloadListeners = async (): Promise<void> => {
+  const unListenProgress = await listen<DownloadProgressPayload>(
+    'download-progress',
+    (event) => {
+      const { event: eventType, data } = event.payload;
+
+      switch (eventType) {
+        case 'Started':
+          update.contentLength = data.content_length || 0;
+          update.statusText =
+            update.contentLength > 0
+              ? `${t('update.startDownload')} (${formatBytes(update.contentLength)})`
+              : t('update.startDownload');
+          break;
+        case 'Progress':
+          if (data.content_length && data.content_length > 0) {
+            const progress = Math.min(
+              Math.round((data.total_downloaded / data.content_length) * 100),
+              100
+            );
+            update.progress = progress;
+            update.statusText = `${t('update.downloading')}: ${formatBytes(data.total_downloaded)} / ${formatBytes(data.content_length)}`;
+          }
+          break;
+        case 'Finished':
+          update.progress = 100;
+          update.downloadComplete = true;
+          update.downloading = false;
+          update.installScheduledOnRestart = false;
+          update.statusText = t('update.downloadComplete');
+          break;
+      }
+    }
+  );
+
+  const unListenFinished = await listen('download-finished', () => {
+    update.downloading = false;
+    update.downloadComplete = true;
+    update.progress = 100;
+    update.installScheduledOnRestart = false;
+    update.statusText = t('update.downloadComplete');
+  });
+
+  unlistenFns.push(unListenProgress, unListenFinished);
+};
+
+onMounted(async (): Promise<void> => {
   await initEnv();
   update.appVersion = appVersion;
   const updateInfo: UpdateInfo = await invoke('get_update_info');
@@ -298,85 +464,106 @@ onMounted(async () => {
       : 'Unknown';
   }
 
+  await loadCachedInstallerStatus();
   await emit('update-ready');
-
-  const unListenProgress = await listen('download-progress', (event: any) => {
-    const { event: eventType, data } = event.payload;
-
-    switch (eventType) {
-      case 'Started':
-        update.contentLength = data.content_length || 0;
-        update.statusText = `${t('update.startDownload')} (${formatBytes(data.content_length || 0)})`;
-        break;
-      case 'Progress':
-        if (data.content_length > 0) {
-          const progress = Math.min(
-            Math.round((data.total_downloaded / data.content_length) * 100),
-            100
-          );
-          update.progress = progress;
-          update.statusText = `${t('update.downloading')}: ${formatBytes(data.total_downloaded)} / ${formatBytes(data.content_length)}`;
-        }
-        break;
-      case 'Finished':
-        update.progress = 100;
-        update.downloadComplete = true;
-        update.statusText = t('update.downloadComplete');
-        break;
-    }
-  });
-
-  const unListenFinished = await listen('download-finished', () => {
-    update.statusText = t('update.installing');
-  });
-
-  onUnmounted(() => {
-    unListenProgress();
-    unListenFinished();
-  });
-
+  await setupDownloadListeners();
   nextTick(() => {
     emit('update-ready');
   });
 });
 
-const handleUpdate = async () => {
+const toErrorMessage = (error: unknown, fallback: string): string => {
+  if (typeof error === 'string') {
+    return error;
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return fallback;
+};
+
+const handleDownload = async (): Promise<void> => {
   try {
     if (update.error) {
       update.error = '';
       update.progress = 0;
       update.downloadComplete = false;
+      update.installScheduledOnRestart = false;
     }
 
     update.downloading = true;
+    update.installing = false;
     update.statusText = t('update.preparing');
 
-    await invoke('perform_update');
+    await invoke('download_update_installer');
 
-    update.statusText = t('update.installSuccess');
-
-    setTimeout(async () => {
-      await relaunch();
-    }, 2000);
-  } catch (error: any) {
+    update.downloading = false;
+    update.progress = 100;
+    update.downloadComplete = true;
+    update.statusText = t('update.downloadComplete');
+  } catch (error: unknown) {
     logger.error('Update failed:', error);
 
-    const errorMsg = typeof error === 'string' ? error : error.message || 'Update failed';
+    const errorMsg = toErrorMessage(error, 'Update failed');
     update.error = errorMsg;
-
-    if (update.downloadComplete) {
-      update.statusText = t('update.installFailed');
-    } else {
-      update.statusText = t('update.downloadFailed');
-      update.downloading = false;
-    }
+    update.statusText = t('update.downloadFailed');
+    update.downloading = false;
+    update.downloadComplete = false;
+    update.installScheduledOnRestart = false;
   }
 };
 
-const handleCancel = () => {
+const handleInstallNow = async (): Promise<void> => {
+  try {
+    update.error = '';
+    update.downloading = false;
+    update.installing = true;
+    update.statusText = t('update.installing');
+
+    await invoke('install_cached_update');
+
+    update.statusText = t('update.installSuccess');
+  } catch (error: unknown) {
+    logger.error('Install update failed:', error);
+
+    const errorMsg = toErrorMessage(error, 'Install failed');
+    update.error = errorMsg;
+    update.installing = false;
+    update.downloadComplete = true;
+    update.statusText = t('update.installFailed');
+  }
+};
+
+const handleInstallLater = async (): Promise<void> => {
+  try {
+    await invoke('set_update_install_on_restart', { enabled: false });
+  } catch (error) {
+    logger.warn('Failed to clear scheduled update install:', error);
+  }
+  handleCancel();
+};
+
+const handleInstallOnNextRestart = async (): Promise<void> => {
+  try {
+    update.error = '';
+    await invoke('set_update_install_on_restart', { enabled: true });
+    update.installScheduledOnRestart = true;
+    update.statusText = t('update.installScheduledOnRestart');
+  } catch (error: unknown) {
+    logger.error('Failed to schedule update install:', error);
+
+    const errorMsg = toErrorMessage(error, 'Schedule failed');
+    update.error = errorMsg;
+    update.installScheduledOnRestart = false;
+  }
+};
+
+function handleCancel(): void {
   const window = getAppWindow('update');
   window.close();
-};
+}
 </script>
 
 <style scoped lang="scss">
@@ -384,7 +571,11 @@ const handleCancel = () => {
   @apply w-full h-full bg-panel flex flex-col box-border border rounded-xl border-panel overflow-hidden;
 
   --update-bg: var(--panel-bg, #fbfcff);
-  --update-header-bg: linear-gradient(180deg, rgb(255 255 255 / 96%), rgb(248 250 252 / 90%));
+  --update-header-bg: linear-gradient(
+    180deg,
+    rgb(255 255 255 / 96%),
+    rgb(248 250 252 / 90%)
+  );
   --update-footer-bg: rgb(248 250 252 / 92%);
   --update-card-bg: rgb(255 255 255 / 72%);
   --update-soft-bg: rgb(248 250 252 / 72%);
@@ -690,7 +881,11 @@ const handleCancel = () => {
           }
 
           :deep(.el-progress-bar__inner) {
-            background: linear-gradient(90deg, var(--el-color-primary), #2fb7ad);
+            background: linear-gradient(
+              90deg,
+              var(--el-color-primary),
+              #2fb7ad
+            );
             border-radius: 999px;
             box-shadow: 0 6px 14px rgb(59 130 246 / 24%);
             transition: width 0.3s ease-in-out;
@@ -731,14 +926,15 @@ const handleCancel = () => {
         .error-content {
           @apply text-xs text-red-600 leading-relaxed m-0 font-normal whitespace-pre-wrap;
 
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI',
+            'Microsoft YaHei', sans-serif;
         }
       }
     }
   }
 
   .footer {
-    @apply w-full flex items-center justify-end gap-3 px-6 py-3 flex-shrink-0;
+    @apply w-full flex items-center justify-end gap-3 px-6 py-3 flex-shrink-0 flex-wrap;
 
     background: var(--update-footer-bg);
     border-top: 1px solid var(--update-border);
@@ -769,6 +965,10 @@ const handleCancel = () => {
           @apply flex items-center gap-2;
         }
       }
+
+      &.deferred-button {
+        @apply min-w-[152px];
+      }
     }
   }
 }
@@ -776,7 +976,11 @@ const handleCancel = () => {
 :global(html.dark .update-container),
 :global(.dark .update-container) {
   --update-bg: var(--panel-bg, #1e1e1e);
-  --update-header-bg: linear-gradient(180deg, rgb(42 42 42 / 96%), rgb(32 32 32 / 92%));
+  --update-header-bg: linear-gradient(
+    180deg,
+    rgb(42 42 42 / 96%),
+    rgb(32 32 32 / 92%)
+  );
   --update-footer-bg: rgb(32 32 32 / 94%);
   --update-card-bg: rgb(36 36 36 / 96%);
   --update-soft-bg: rgb(42 42 42 / 92%);
