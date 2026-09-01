@@ -150,8 +150,8 @@
   --chat-send-bg: #111827;
   --chat-send-hover: #020617;
   --chat-send-text: #fff;
-  --chat-send-disabled-bg: #eef2f7;
-  --chat-send-disabled-text: #7c8799;
+  --chat-send-disabled-bg: var(--el-color-primary);
+  --chat-send-disabled-text: #fff;
   --chat-primary-soft: rgb(95 116 243 / 12%);
   --chat-neon-text: #4f46e5;
   --chat-neon-glow: rgb(79 70 229 / 34%);
@@ -332,8 +332,8 @@ html.dark {
   --chat-send-bg: #e5e7eb;
   --chat-send-hover: #fff;
   --chat-send-text: #111827;
-  --chat-send-disabled-bg: #2a2a2a;
-  --chat-send-disabled-text: #6b7280;
+  --chat-send-disabled-bg: var(--el-color-primary);
+  --chat-send-disabled-text: #fff;
   --chat-primary-soft: rgb(93 109 253 / 15%);
   --chat-neon-text: #67e8f9;
   --chat-neon-glow: rgb(103 232 249 / 52%);
