@@ -1947,26 +1947,18 @@ pub fn emit_scan_progress_for(
     let (should_emit, should_update_tray) = {
         let mut states = PROGRESS_STATES.lock().unwrap();
         let state = states.entry(owner.to_string()).or_default();
-        let previous_emit_bucket = if state.total > 0 {
-            state.current.saturating_mul(50) / state.total
-        } else {
-            0
-        };
-        let next_emit_bucket = if total > 0 {
-            current.saturating_mul(50) / total
-        } else {
-            0
-        };
-        let previous_tray_bucket = if state.total > 0 {
-            state.current.saturating_mul(10) / state.total
-        } else {
-            0
-        };
-        let next_tray_bucket = if total > 0 {
-            current.saturating_mul(10) / total
-        } else {
-            0
-        };
+        let previous_emit_bucket = state
+            .current
+            .saturating_mul(50)
+            .checked_div(state.total)
+            .unwrap_or(0);
+        let next_emit_bucket = current.saturating_mul(50).checked_div(total).unwrap_or(0);
+        let previous_tray_bucket = state
+            .current
+            .saturating_mul(10)
+            .checked_div(state.total)
+            .unwrap_or(0);
+        let next_tray_bucket = current.saturating_mul(10).checked_div(total).unwrap_or(0);
         let context_changed = state.completed
             || state.owner != owner
             || state.task != task
@@ -2200,7 +2192,9 @@ fn capture_screen_gdi_optimized() -> Result<(Vec<u8>, i32, i32), String> {
         // JPEG 最终只需要 RGB，直接从 GDI 的 BGRA 转换，避免先生成 RGBA
         // 再为编码器复制一份 RGB 的全屏缓冲区。
         let rgb_buffer: Vec<u8> = buffer
-            .chunks_exact(4)
+            .as_chunks::<4>()
+            .0
+            .iter()
             .flat_map(|chunk| [chunk[2], chunk[1], chunk[0]])
             .collect();
 

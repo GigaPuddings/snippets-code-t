@@ -561,24 +561,22 @@ fn audio_level_from_samples(buffer: &[u8], sample_format: &str) -> f32 {
 
     match sample_format {
         "f32le" => {
-            for chunk in buffer.chunks_exact(4) {
-                let sample =
-                    f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]).clamp(-1.0, 1.0);
+            for chunk in buffer.as_chunks::<4>().0 {
+                let sample = f32::from_le_bytes(*chunk).clamp(-1.0, 1.0);
                 sum += (sample as f64) * (sample as f64);
                 count += 1;
             }
         }
         "s16le" => {
-            for chunk in buffer.chunks_exact(2) {
-                let sample = i16::from_le_bytes([chunk[0], chunk[1]]) as f32 / i16::MAX as f32;
+            for chunk in buffer.as_chunks::<2>().0 {
+                let sample = i16::from_le_bytes(*chunk) as f32 / i16::MAX as f32;
                 sum += (sample as f64) * (sample as f64);
                 count += 1;
             }
         }
         "s32le" => {
-            for chunk in buffer.chunks_exact(4) {
-                let sample = i32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]) as f32
-                    / i32::MAX as f32;
+            for chunk in buffer.as_chunks::<4>().0 {
+                let sample = i32::from_le_bytes(*chunk) as f32 / i32::MAX as f32;
                 sum += (sample as f64) * (sample as f64);
                 count += 1;
             }
@@ -2616,7 +2614,7 @@ pub fn screen_recorder_export_recording(
                 trimmed_duration_ms,
                 session.segments.len(),
                 session.audio_device.is_some(),
-                &session.audio_device
+                session.audio_device
             ),
         );
         let concat_path = write_concat_file(&session, &ffmpeg.path)?;
