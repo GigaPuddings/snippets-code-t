@@ -14,31 +14,18 @@
   "category": "appearance",
   "enabledByDefault": true,
   "capabilities": {
-    "routeNames": [
-      "WallpaperSwitcher"
-    ],
-    "windows": [
-      "wallpaper_switcher"
-    ],
-    "hotkeys": [
-      "wallpaper_switcher"
-    ],
-    "trayItems": [
-      "wallpaper_switch_next",
-      "wallpaper_switcher"
-    ]
+    "routeNames": ["WallpaperSwitcher"],
+    "windows": ["wallpaper_switcher"],
+    "hotkeys": ["wallpaper_switcher"],
+    "trayItems": ["wallpaper_switch_next", "wallpaper_switcher"]
   },
-  "permissions": [
-    "command:*"
-  ],
+  "permissions": ["command:*"],
   "compatibleAppVersion": ">=2.1.50",
   "minAppVersion": "2.1.50",
   "repository": "https://github.com/GigaPuddings/snippets-code-plugin-wallpaper-switcher",
   "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-wallpaper-switcher/releases/tag/2.0.84",
   "entry": {
     "frontend": "dist/frontend.js",
-    "styles": [
-      "dist/assets/runtime-entry-CXjCdDTm.css"
-    ]
+    "styles": ["dist/assets/runtime-entry-CXjCdDTm.css"]
   }
 }

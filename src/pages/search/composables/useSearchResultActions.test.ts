@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
-import { canCopySearchResultSnippet, useSearchResultActions } from './useSearchResultActions';
+import {
+  canCopySearchResultSnippet,
+  useSearchResultActions
+} from './useSearchResultActions';
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn()
@@ -26,27 +29,33 @@ describe('useSearchResultActions', () => {
   });
 
   it('allows quick copy for code snippets only', () => {
-    expect(canCopySearchResultSnippet({
-      id: 1,
-      title: 'snippet',
-      content: 'const a = 1',
-      type: 'code'
-    })).toBe(true);
+    expect(
+      canCopySearchResultSnippet({
+        id: 1,
+        title: 'snippet',
+        content: 'const a = 1',
+        type: 'code'
+      })
+    ).toBe(true);
 
-    expect(canCopySearchResultSnippet({
-      id: 2,
-      title: 'note',
-      content: 'notes',
-      type: 'note'
-    })).toBe(false);
+    expect(
+      canCopySearchResultSnippet({
+        id: 2,
+        title: 'note',
+        content: 'notes',
+        type: 'note'
+      })
+    ).toBe(false);
 
-    expect(canCopySearchResultSnippet({
-      id: 3,
-      title: 'file',
-      content: 'C:/tmp/a.ts',
-      type: 'code',
-      summarize: 'file'
-    })).toBe(false);
+    expect(
+      canCopySearchResultSnippet({
+        id: 3,
+        title: 'file',
+        content: 'C:/tmp/a.ts',
+        type: 'code',
+        summarize: 'file'
+      })
+    ).toBe(false);
   });
 
   it('copies raw snippet content to clipboard', async () => {
@@ -145,7 +154,10 @@ describe('useSearchResultActions', () => {
     expect(invoke).toHaveBeenCalledWith('insert_text_to_last_window', {
       text: 'const a = 1'
     });
-    expect(invoke).not.toHaveBeenCalledWith('show_hide_window_command', expect.anything());
+    expect(invoke).not.toHaveBeenCalledWith(
+      'show_hide_window_command',
+      expect.anything()
+    );
   });
 
   it('opens desktop files with the default app instead of the URL opener', async () => {

@@ -2,58 +2,60 @@
  * 懒加载模块管理器
  * 延迟加载非关键功能模块
  */
-import * as offlineTranslator from '@/plugins/translation/utils/offlineTranslator'
+import * as offlineTranslator from '@/plugins/translation/utils/offlineTranslator';
 
 export class LazyLoader {
-  private static loadedModules = new Map<string, any>()
-  private static loadingPromises = new Map<string, Promise<any>>()
+  private static loadedModules = new Map<string, any>();
+  private static loadingPromises = new Map<string, Promise<any>>();
 
   /**
    * 懒加载 OCR 模块
    */
   static async loadOCR() {
-    const moduleKey = 'ocr'
-    
+    const moduleKey = 'ocr';
+
     if (this.loadedModules.has(moduleKey)) {
-      return this.loadedModules.get(moduleKey)
+      return this.loadedModules.get(moduleKey);
     }
 
     if (this.loadingPromises.has(moduleKey)) {
-      return this.loadingPromises.get(moduleKey)
+      return this.loadingPromises.get(moduleKey);
     }
 
-    const loadPromise = import('@/plugins/screenshot/utils/ocr').then(module => {
-      this.loadedModules.set(moduleKey, module)
-      this.loadingPromises.delete(moduleKey)
-      return module
-    })
+    const loadPromise = import('@/plugins/screenshot/utils/ocr').then(
+      (module) => {
+        this.loadedModules.set(moduleKey, module);
+        this.loadingPromises.delete(moduleKey);
+        return module;
+      }
+    );
 
-    this.loadingPromises.set(moduleKey, loadPromise)
-    return loadPromise
+    this.loadingPromises.set(moduleKey, loadPromise);
+    return loadPromise;
   }
 
   /**
    * 懒加载离线翻译模块
    */
   static async loadOfflineTranslator() {
-    const moduleKey = 'offlineTranslator'
-    
+    const moduleKey = 'offlineTranslator';
+
     if (this.loadedModules.has(moduleKey)) {
-      return this.loadedModules.get(moduleKey)
+      return this.loadedModules.get(moduleKey);
     }
 
     if (this.loadingPromises.has(moduleKey)) {
-      return this.loadingPromises.get(moduleKey)
+      return this.loadingPromises.get(moduleKey);
     }
 
-    const loadPromise = Promise.resolve(offlineTranslator).then(module => {
-      this.loadedModules.set(moduleKey, module)
-      this.loadingPromises.delete(moduleKey)
-      return module
-    })
+    const loadPromise = Promise.resolve(offlineTranslator).then((module) => {
+      this.loadedModules.set(moduleKey, module);
+      this.loadingPromises.delete(moduleKey);
+      return module;
+    });
 
-    this.loadingPromises.set(moduleKey, loadPromise)
-    return loadPromise
+    this.loadingPromises.set(moduleKey, loadPromise);
+    return loadPromise;
   }
 
   /**
@@ -61,17 +63,20 @@ export class LazyLoader {
    */
   static preloadModules() {
     if ('requestIdleCallback' in window) {
-      requestIdleCallback(() => {
-        // 在浏览器空闲时预加载
-        this.loadOCR().catch(() => {})
-        this.loadOfflineTranslator().catch(() => {})
-      }, { timeout: 2000 })
+      requestIdleCallback(
+        () => {
+          // 在浏览器空闲时预加载
+          this.loadOCR().catch(() => {});
+          this.loadOfflineTranslator().catch(() => {});
+        },
+        { timeout: 2000 }
+      );
     } else {
       // 降级方案：延迟加载
       setTimeout(() => {
-        this.loadOCR().catch(() => {})
-        this.loadOfflineTranslator().catch(() => {})
-      }, 1000)
+        this.loadOCR().catch(() => {});
+        this.loadOfflineTranslator().catch(() => {});
+      }, 1000);
     }
   }
 
@@ -79,8 +84,8 @@ export class LazyLoader {
    * 清除已加载的模块
    */
   static clear() {
-    this.loadedModules.clear()
-    this.loadingPromises.clear()
+    this.loadedModules.clear();
+    this.loadingPromises.clear();
   }
 
   /**
@@ -90,6 +95,6 @@ export class LazyLoader {
     return {
       loaded: Array.from(this.loadedModules.keys()),
       loading: Array.from(this.loadingPromises.keys())
-    }
+    };
   }
 }

@@ -6,7 +6,10 @@ export const activate = (context: PluginFrontendRuntimeContext): void => {
   context.registerSearchProvider({
     source: 'desktop-files',
     async search(query) {
-      const desktopFileResults = await context.api.invoke<ContentType[]>('search_desktop_files', { query });
+      const desktopFileResults = await context.api.invoke<ContentType[]>(
+        'search_desktop_files',
+        { query }
+      );
 
       return [
         {
@@ -19,4 +22,3 @@ export const activate = (context: PluginFrontendRuntimeContext): void => {
     }
   });
 };
-

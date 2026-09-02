@@ -24,7 +24,11 @@
               :strokeWidth="3"
             />
             <check-one
-              v-else-if="syncState === 'synced' || syncState === 'idle' || syncState === 'disabled'"
+              v-else-if="
+                syncState === 'synced' ||
+                syncState === 'idle' ||
+                syncState === 'disabled'
+              "
               theme="outline"
               size="24"
               :strokeWidth="3"
@@ -51,10 +55,19 @@
                 {{ $t('settings.gitSync.status.syncing') }}
               </template>
               <template v-else-if="syncState === 'has_changes'">
-                <span class="pending-count">{{ pendingFilesCount }} {{ $t('settings.gitSync.status.pendingFiles') }}</span>
+                <span class="pending-count">
+                  {{ pendingFilesCount }}
+                  {{ $t('settings.gitSync.status.pendingFiles') }}
+                </span>
               </template>
-              <template v-else-if="syncState === 'synced' || syncState === 'idle'">
-                {{ formattedLastSyncTime ? `${$t('settings.gitSync.status.lastSync')}: ${formattedLastSyncTime}` : $t('settings.gitSync.status.waitingSync') }}
+              <template
+                v-else-if="syncState === 'synced' || syncState === 'idle'"
+              >
+                {{
+                  formattedLastSyncTime
+                    ? `${$t('settings.gitSync.status.lastSync')}: ${formattedLastSyncTime}`
+                    : $t('settings.gitSync.status.waitingSync')
+                }}
               </template>
               <template v-else-if="syncState === 'error'">
                 {{ $t('settings.gitSync.status.error') }}
@@ -68,10 +81,12 @@
 
         <!-- 右侧：待同步文件列表（仅在有变更时显示） -->
         <template v-if="syncState === 'has_changes' && pendingFilesCount > 0">
-          <div class="sync-status-panel__divider" />
+          <div class="sync-status-panel__divider"></div>
           <div class="sync-status-panel__right">
             <div class="sync-pending-files-header">
-              {{ $t('settings.gitSync.status.pendingFilesTitle') }} ({{ pendingFilesCount }})
+              {{ $t('settings.gitSync.status.pendingFilesTitle') }} ({{
+                pendingFilesCount
+              }})
             </div>
             <div class="sync-pending-files-list">
               <div
@@ -90,7 +105,9 @@
         <div class="contribution-head">
           <div class="contribution-summary">
             <div class="summarize-label-title">{{ contributionTotalText }}</div>
-            <div class="summarize-label-desc">{{ $t('settings.gitSync.contribution.desc') }}</div>
+            <div class="summarize-label-desc">
+              {{ $t('settings.gitSync.contribution.desc') }}
+            </div>
           </div>
           <div class="contribution-actions">
             <button
@@ -107,37 +124,60 @@
           </div>
         </div>
 
-        <div v-if="isLoadingContribution && !contributionActivity" class="contribution-empty">
+        <div
+          v-if="isLoadingContribution && !contributionActivity"
+          class="contribution-empty"
+        >
           {{ $t('settings.gitSync.contribution.loading') }}
         </div>
         <div v-else-if="!contributionActivity" class="contribution-empty">
           {{ $t('settings.gitSync.contribution.empty') }}
         </div>
-        <div v-else class="contribution-board" :aria-label="$t('settings.gitSync.contribution.title')">
+        <div
+          v-else
+          class="contribution-board"
+          :aria-label="$t('settings.gitSync.contribution.title')"
+        >
           <div
             class="contribution-months"
-            :style="{ gridTemplateColumns: `repeat(${contributionWeeks.length}, minmax(0, 1fr))` }"
+            :style="{
+              gridTemplateColumns: `repeat(${contributionWeeks.length}, minmax(0, 1fr))`
+            }"
           >
-            <span v-for="(label, index) in contributionMonthLabels" :key="`${label}-${index}`">
+            <span
+              v-for="(label, index) in contributionMonthLabels"
+              :key="`${label}-${index}`"
+            >
               {{ label }}
             </span>
           </div>
           <div class="contribution-body">
             <div class="contribution-weekdays" aria-hidden="true">
-              <span v-for="(label, index) in contributionWeekdayLabels" :key="index">{{ label }}</span>
+              <span
+                v-for="(label, index) in contributionWeekdayLabels"
+                :key="index"
+              >
+                {{ label }}
+              </span>
             </div>
             <div
               class="contribution-weeks"
-              :style="{ gridTemplateColumns: `repeat(${contributionWeeks.length}, minmax(0, 1fr))` }"
+              :style="{
+                gridTemplateColumns: `repeat(${contributionWeeks.length}, minmax(0, 1fr))`
+              }"
             >
-              <div v-for="(week, weekIndex) in contributionWeeks" :key="weekIndex" class="contribution-week">
+              <div
+                v-for="(week, weekIndex) in contributionWeeks"
+                :key="weekIndex"
+                class="contribution-week"
+              >
                 <span
                   v-for="(day, dayIndex) in week"
                   :key="day?.date || `empty-${weekIndex}-${dayIndex}`"
                   class="contribution-day"
                   :class="getContributionDayClass(day)"
                   :title="day ? getContributionDayTitle(day) : ''"
-                />
+                ></span>
               </div>
             </div>
           </div>
@@ -150,7 +190,7 @@
                 :key="level"
                 class="contribution-day contribution-day--legend"
                 :class="`contribution-day--level-${level}`"
-              />
+              ></i>
               {{ $t('settings.gitSync.contribution.more') }}
             </span>
           </div>
@@ -165,25 +205,34 @@
       <!-- 启用 Git 同步 -->
       <section class="summarize-section">
         <div class="summarize-label">
-          <div class="summarize-label-title">{{ $t('settings.gitSync.enabled') }}</div>
-          <div class="summarize-label-desc">{{ $t('settings.gitSync.enabledDesc') }}</div>
+          <div class="summarize-label-title">
+            {{ $t('settings.gitSync.enabled') }}
+          </div>
+          <div class="summarize-label-desc">
+            {{ $t('settings.gitSync.enabledDesc') }}
+          </div>
         </div>
         <div class="summarize-input-wrapper">
-          <CustomSwitch 
-            v-model="gitSettings.enabled" 
-            :active-text="$t('common.on')" 
+          <CustomSwitch
+            v-model="gitSettings.enabled"
+            :active-text="$t('common.on')"
             :inactive-text="$t('common.off')"
             :disabled="isSaving"
-            @change="handleEnabledChange" 
+            @change="handleEnabledChange"
           />
         </div>
       </section>
 
       <!-- 同步选项（Git 必要配置在个人中心填写，此处仅保留开关与同步操作） -->
       <template v-if="gitSettings.enabled">
-        <section v-if="gitStatus?.available_branches?.length" class="summarize-section">
+        <section
+          v-if="gitStatus?.available_branches?.length"
+          class="summarize-section"
+        >
           <div class="summarize-label">
-            <div class="summarize-label-title">{{ $t('settings.gitSync.branch.title') }}</div>
+            <div class="summarize-label-title">
+              {{ $t('settings.gitSync.branch.title') }}
+            </div>
             <div class="summarize-label-desc">
               {{ $t('settings.gitSync.branch.desc') }}
             </div>
@@ -208,16 +257,20 @@
         <!-- 启动时自动拉取 -->
         <section class="summarize-section">
           <div class="summarize-label">
-            <div class="summarize-label-title">{{ $t('settings.gitSync.pullOnStart') }}</div>
-            <div class="summarize-label-desc">{{ $t('settings.gitSync.pullOnStartDesc') }}</div>
+            <div class="summarize-label-title">
+              {{ $t('settings.gitSync.pullOnStart') }}
+            </div>
+            <div class="summarize-label-desc">
+              {{ $t('settings.gitSync.pullOnStartDesc') }}
+            </div>
           </div>
           <div class="summarize-input-wrapper">
-            <CustomSwitch 
-              v-model="gitSettings.pull_on_start" 
-              :active-text="$t('common.on')" 
+            <CustomSwitch
+              v-model="gitSettings.pull_on_start"
+              :active-text="$t('common.on')"
               :inactive-text="$t('common.off')"
               :disabled="isSaving"
-              @change="handlePullOnStartChange" 
+              @change="handlePullOnStartChange"
             />
           </div>
         </section>
@@ -225,36 +278,49 @@
         <!-- 自动同步 -->
         <section class="summarize-section">
           <div class="summarize-label">
-            <div class="summarize-label-title">{{ $t('settings.gitSync.autoSync') }}</div>
-            <div class="summarize-label-desc">{{ $t('settings.gitSync.autoSyncDesc') }}</div>
+            <div class="summarize-label-title">
+              {{ $t('settings.gitSync.autoSync') }}
+            </div>
+            <div class="summarize-label-desc">
+              {{ $t('settings.gitSync.autoSyncDesc') }}
+            </div>
           </div>
           <div class="summarize-input-wrapper">
-            <CustomSwitch 
-              v-model="gitSettings.auto_sync" 
-              :active-text="$t('common.on')" 
+            <CustomSwitch
+              v-model="gitSettings.auto_sync"
+              :active-text="$t('common.on')"
               :inactive-text="$t('common.off')"
               :disabled="isSaving"
-              @change="handleAutoSyncChange" 
+              @change="handleAutoSyncChange"
             />
           </div>
         </section>
 
         <!-- 自动同步延迟（仅在启用自动同步时显示） -->
-        <section v-if="gitSettings.auto_sync" class="summarize-section transparent-input">
+        <section
+          v-if="gitSettings.auto_sync"
+          class="summarize-section transparent-input"
+        >
           <div class="summarize-label">
-            <div class="summarize-label-title">{{ $t('settings.gitSync.autoSyncDelay') }}</div>
-            <div class="summarize-label-desc">{{ $t('settings.gitSync.autoSyncDelayDesc') }}</div>
+            <div class="summarize-label-title">
+              {{ $t('settings.gitSync.autoSyncDelay') }}
+            </div>
+            <div class="summarize-label-desc">
+              {{ $t('settings.gitSync.autoSyncDelayDesc') }}
+            </div>
           </div>
           <div class="summarize-input-wrapper">
-            <el-input-number 
-              v-model="gitSettings.auto_sync_delay" 
-              :min="1" 
+            <el-input-number
+              v-model="gitSettings.auto_sync_delay"
+              :min="1"
               :max="60"
               :disabled="isSaving"
               @change="handleAutoSyncDelayChange"
               class="!w-32"
             />
-            <span class="ml-2 text-sm text-panel">{{ $t('settings.gitSync.minutes') }}</span>
+            <span class="ml-2 text-sm text-panel">
+              {{ $t('settings.gitSync.minutes') }}
+            </span>
           </div>
         </section>
 
@@ -266,21 +332,25 @@
         <!-- 手动同步按钮 -->
         <section class="summarize-section">
           <div class="summarize-label">
-            <div class="summarize-label-title">{{ $t('settings.gitSync.manualSync') }}</div>
-            <div class="summarize-label-desc">{{ $t('settings.gitSync.manualSyncDesc') }}</div>
+            <div class="summarize-label-title">
+              {{ $t('settings.gitSync.manualSync') }}
+            </div>
+            <div class="summarize-label-desc">
+              {{ $t('settings.gitSync.manualSyncDesc') }}
+            </div>
           </div>
           <div class="summarize-input-wrapper flex gap-2">
-            <CustomButton 
-              type="primary" 
-              size="small" 
+            <CustomButton
+              type="primary"
+              size="small"
               :loading="isPulling"
               @click="handlePull"
             >
               {{ $t('settings.gitSync.pull') }}
             </CustomButton>
-            <CustomButton 
-              type="primary" 
-              size="small" 
+            <CustomButton
+              type="primary"
+              size="small"
               :loading="isPushing"
               @click="handlePush"
             >
@@ -292,21 +362,42 @@
         <section class="git-records-section">
           <div class="git-records-head">
             <div>
-              <div class="summarize-label-title">{{ $t('settings.gitSync.records.title') }}</div>
-              <div class="summarize-label-desc">{{ $t('settings.gitSync.records.desc') }}</div>
+              <div class="summarize-label-title">
+                {{ $t('settings.gitSync.records.title') }}
+              </div>
+              <div class="summarize-label-desc">
+                {{ $t('settings.gitSync.records.desc') }}
+              </div>
             </div>
-            <CustomButton size="small" :loading="isLoadingRecords" @click="loadGitRecords">
+            <CustomButton
+              size="small"
+              :loading="isLoadingRecords"
+              @click="loadGitRecords"
+            >
               {{ $t('settings.gitSync.records.refresh') }}
             </CustomButton>
           </div>
 
           <div v-if="gitRecords.length" class="git-records-list">
-            <div v-for="record in gitRecords" :key="record.commit_hash" class="git-record-item">
+            <div
+              v-for="record in gitRecords"
+              :key="record.commit_hash"
+              class="git-record-item"
+            >
               <div class="git-record-main">
-                <span class="git-record-state" :class="{ synced: record.synced }">
-                  {{ record.synced ? $t('settings.gitSync.records.synced') : $t('settings.gitSync.records.pendingPush') }}
+                <span
+                  class="git-record-state"
+                  :class="{ synced: record.synced }"
+                >
+                  {{
+                    record.synced
+                      ? $t('settings.gitSync.records.synced')
+                      : $t('settings.gitSync.records.pendingPush')
+                  }}
                 </span>
-                <span class="git-record-message" :title="record.message">{{ record.message }}</span>
+                <span class="git-record-message" :title="record.message">
+                  {{ record.message }}
+                </span>
                 <span class="git-record-time">{{ record.time }}</span>
               </div>
               <div class="git-record-meta">
@@ -332,12 +423,18 @@
             </div>
           </div>
           <div v-else class="git-records-empty">
-            {{ isLoadingRecords ? $t('settings.gitSync.records.loading') : (gitRecordsLoaded ? $t('settings.gitSync.records.empty') : $t('settings.gitSync.records.loadHint')) }}
+            {{
+              isLoadingRecords
+                ? $t('settings.gitSync.records.loading')
+                : gitRecordsLoaded
+                  ? $t('settings.gitSync.records.empty')
+                  : $t('settings.gitSync.records.loadHint')
+            }}
           </div>
         </section>
       </template>
     </main>
-    
+
     <!-- 自定义确认框 -->
     <ConfirmChoiceDialog
       v-model="pullConfirmVisible"
@@ -393,12 +490,33 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import { Loading, CheckOne, Attention, CloseSmall } from '@icon-park/vue-next';
-import { CustomButton, CustomSwitch, SelectConfirmDialog } from '@/components/UI';
+import {
+  CustomButton,
+  CustomSwitch,
+  SelectConfirmDialog
+} from '@/components/UI';
 import ConfirmChoiceDialog from '@/components/UI/ConfirmChoiceDialog.vue';
 import { getGitSettings, updateGitSettings } from '@/api/appConfig';
 import { useGitStatus } from '@/plugins/git-sync/useGitStatus';
-import { gitPull, gitPush, getGitContributionActivity, getGitRecords, removeUntrackedFile, restoreGitRecordFile, startAutoSync, stopAutoSync, switchGitBranch } from '@/plugins/git-sync/api';
-import type { BranchSelection, GitContributionActivity, GitContributionDay, GitRecord, GitRecordFile, PullResult } from '@/plugins/git-sync/api';
+import {
+  gitPull,
+  gitPush,
+  getGitContributionActivity,
+  getGitRecords,
+  removeUntrackedFile,
+  restoreGitRecordFile,
+  startAutoSync,
+  stopAutoSync,
+  switchGitBranch
+} from '@/plugins/git-sync/api';
+import type {
+  BranchSelection,
+  GitContributionActivity,
+  GitContributionDay,
+  GitRecord,
+  GitRecordFile,
+  PullResult
+} from '@/plugins/git-sync/api';
 import type { GitSettings } from '@/types/models';
 import modal from '@/utils/modal';
 import { analyzeGitError, getErrorTypeIcon } from '@/utils/git-error';
@@ -468,7 +586,9 @@ const pullConfirmOptions = ref({
   secondaryText: '',
   type: 'info' as const
 });
-let pullConfirmResolve: ((v: 'primary' | 'secondary' | 'close') => void) | null = null;
+let pullConfirmResolve:
+  | ((v: 'primary' | 'secondary' | 'close') => void)
+  | null = null;
 const branchSelectVisible = ref(false);
 const branchSelection = ref<BranchSelection | null>(null);
 const selectedBranch = ref('main');
@@ -479,18 +599,19 @@ const gitRecords = ref<GitRecord[]>([]);
 const isLoadingRecords = ref(false);
 const gitRecordsLoaded = ref(false);
 const restoreConfirmVisible = ref(false);
-const pendingRestore = ref<{ record: GitRecord; file: GitRecordFile } | null>(null);
+const pendingRestore = ref<{ record: GitRecord; file: GitRecordFile } | null>(
+  null
+);
 const contributionActivity = ref<GitContributionActivity | null>(null);
 const selectedContributionYear = ref(new Date().getFullYear());
 const isLoadingContribution = ref(false);
 
 type ContributionCell = GitContributionDay | null;
 
-const getBranchLabel = (branch: string) => (
+const getBranchLabel = (branch: string) =>
   branch === 'main'
     ? t('settings.gitSync.branch.mainLabel', { branch })
-    : branch
-);
+    : branch;
 
 const branchSelectOptions = computed(() => {
   const branches = branchSelection.value?.available_branches?.length
@@ -503,17 +624,23 @@ const branchSelectOptions = computed(() => {
 });
 
 const branchSelectMessage = computed(() => {
-  if (!branchSelection.value) return t('settings.gitSync.branch.selectMessageEmpty');
+  if (!branchSelection.value)
+    return t('settings.gitSync.branch.selectMessageEmpty');
   return t('settings.gitSync.branch.selectMessage', {
-    current: branchSelection.value.current_branch || t('settings.gitSync.status.unknown'),
+    current:
+      branchSelection.value.current_branch ||
+      t('settings.gitSync.status.unknown'),
     recommended: branchSelection.value.recommended_branch
   });
 });
 
 const branchOverwriteMessage = computed(() => {
-  const files = pendingUntrackedFiles.value.map((file) => `- ${file}`).join('\n');
+  const files = pendingUntrackedFiles.value
+    .map((file) => `- ${file}`)
+    .join('\n');
   return t('settings.gitSync.branch.overwriteMessage', {
-    branch: pendingBranchSwitch.value || t('settings.gitSync.branch.targetBranch'),
+    branch:
+      pendingBranchSwitch.value || t('settings.gitSync.branch.targetBranch'),
     files
   });
 });
@@ -541,7 +668,9 @@ const contributionTotalText = computed(() => {
   if (!activity) return t('settings.gitSync.contribution.title');
 
   if (activity.year === activity.current_year) {
-    return t('settings.gitSync.contribution.totalLastYear', { count: activity.total });
+    return t('settings.gitSync.contribution.totalLastYear', {
+      count: activity.total
+    });
   }
 
   return t('settings.gitSync.contribution.totalYear', {
@@ -611,15 +740,15 @@ const showFriendlyError = (error: unknown) => {
   const errorInfo = analyzeGitError(error);
   const icon = getErrorTypeIcon(errorInfo.type);
   const errorMsg = String(error).replace(/^Error:\s*/, '');
-  
+
   // 构建友好消息
   let friendlyMsg = `${icon} ${errorInfo.title}\n\n${errorInfo.message}`;
   if (errorMsg && !errorInfo.message.includes(errorMsg)) {
     friendlyMsg += `\n\n${t('settings.gitSync.errorDetails', { details: `${errorMsg.slice(0, 100)}${errorMsg.length > 100 ? '...' : ''}` })}`;
   }
-  
+
   modal.msg(friendlyMsg, 'error', 'top-right');
-  
+
   // 同时在控制台输出详细建议
   console.group(`🔧 Git 错误解决建议 - ${errorInfo.title}`);
   console.log(errorMsg);
@@ -671,14 +800,21 @@ const extractUntrackedFilesFromError = (error: unknown): string[] => {
   return fileBlock
     .split(/\r?\n/)
     .map((line) => line.trim())
-    .filter((line) => line && !line.startsWith('Please ') && !line.startsWith('Aborting'));
+    .filter(
+      (line) =>
+        line && !line.startsWith('Please ') && !line.startsWith('Aborting')
+    );
 };
 
 const switchBranchWithPrompt = async (branch: string) => {
   try {
     await switchGitBranch(branch);
     await refreshStatus();
-    modal.msg(t('settings.gitSync.branch.switched', { branch }), 'success', 'bottom-right');
+    modal.msg(
+      t('settings.gitSync.branch.switched', { branch }),
+      'success',
+      'bottom-right'
+    );
     return true;
   } catch (error) {
     const untrackedFiles = extractUntrackedFilesFromError(error);
@@ -724,7 +860,11 @@ const handleBranchOverwriteConfirm = async () => {
     pendingBranchSwitch.value = '';
     await switchGitBranch(branch);
     await refreshStatus();
-    modal.msg(t('settings.gitSync.branch.switched', { branch }), 'success', 'bottom-right');
+    modal.msg(
+      t('settings.gitSync.branch.switched', { branch }),
+      'success',
+      'bottom-right'
+    );
   } catch (error) {
     logger.error('[GitSync] 处理未跟踪文件后切换分支失败', error);
     showFriendlyError(error);
@@ -743,9 +883,17 @@ const processPullResult = (result: PullResult) => {
     if (result.has_conflicts) {
       logger.info('[GitSync] Pull 检测到冲突，由全局对话框处理');
     } else if (result.files_updated === 0) {
-      modal.msg(t('settings.gitSync.alreadyUpToDate'), 'success', 'bottom-right');
+      modal.msg(
+        t('settings.gitSync.alreadyUpToDate'),
+        'success',
+        'bottom-right'
+      );
     } else {
-      modal.msg(t('settings.gitSync.pullSuccess', { count: result.files_updated }), 'success', 'bottom-right');
+      modal.msg(
+        t('settings.gitSync.pullSuccess', { count: result.files_updated }),
+        'success',
+        'bottom-right'
+      );
     }
   } else {
     modal.msg(t('settings.gitSync.pullFailed'), 'error', 'top-right');
@@ -765,7 +913,9 @@ const loadGitRecords = async () => {
   }
 };
 
-const loadContributionActivity = async (year = selectedContributionYear.value) => {
+const loadContributionActivity = async (
+  year = selectedContributionYear.value
+) => {
   isLoadingContribution.value = true;
   try {
     const activity = await getGitContributionActivity(year);
@@ -785,7 +935,8 @@ const refreshContributionIfEnabled = async () => {
 };
 
 const handleContributionYearChange = (year: number) => {
-  if (year === selectedContributionYear.value || isLoadingContribution.value) return;
+  if (year === selectedContributionYear.value || isLoadingContribution.value)
+    return;
   selectedContributionYear.value = year;
   void loadContributionActivity(year);
 };
@@ -796,9 +947,12 @@ function parseContributionDate(date: string): Date {
 }
 
 function formatContributionMonth(date: string): string {
-  const formatter = new Intl.DateTimeFormat(locale.value.startsWith('zh') ? 'zh-CN' : 'en-US', {
-    month: 'short'
-  });
+  const formatter = new Intl.DateTimeFormat(
+    locale.value.startsWith('zh') ? 'zh-CN' : 'en-US',
+    {
+      month: 'short'
+    }
+  );
   return formatter.format(parseContributionDate(date));
 }
 
@@ -821,7 +975,10 @@ function getContributionDayTitle(day: GitContributionDay): string {
   });
 }
 
-const requestRestoreGitRecordFile = (record: GitRecord, file: GitRecordFile) => {
+const requestRestoreGitRecordFile = (
+  record: GitRecord,
+  file: GitRecordFile
+) => {
   pendingRestore.value = { record, file };
   restoreConfirmVisible.value = true;
 };
@@ -831,8 +988,15 @@ const handleRestoreConfirm = async () => {
   if (!target) return;
 
   try {
-    await restoreGitRecordFile(target.record.commit_hash, target.file.file_path);
-    modal.msg(t('settings.gitSync.records.restored'), 'success', 'bottom-right');
+    await restoreGitRecordFile(
+      target.record.commit_hash,
+      target.file.file_path
+    );
+    modal.msg(
+      t('settings.gitSync.records.restored'),
+      'success',
+      'bottom-right'
+    );
     pendingRestore.value = null;
     await refreshStatus();
     await refreshContributionIfEnabled();
@@ -864,11 +1028,12 @@ const saveSettings = async () => {
   }
 };
 
-const hasRequiredGitSyncConfiguration = (settings: GitSettings) => Boolean(
-  settings.user_name?.trim()
-  && settings.user_email?.trim()
-  && settings.remote_url?.trim()
-);
+const hasRequiredGitSyncConfiguration = (settings: GitSettings) =>
+  Boolean(
+    settings.user_name?.trim() &&
+      settings.user_email?.trim() &&
+      settings.remote_url?.trim()
+  );
 
 // 启用/禁用 Git 同步
 const handleEnabledChange = async (value: boolean) => {
@@ -878,7 +1043,11 @@ const handleEnabledChange = async (value: boolean) => {
       const latestSettings = await getGitSettings();
       if (!hasRequiredGitSyncConfiguration(latestSettings)) {
         gitSettings.value.enabled = false;
-        modal.msg(t('settings.gitSync.configureBeforeEnable'), 'warning', 'bottom-right');
+        modal.msg(
+          t('settings.gitSync.configureBeforeEnable'),
+          'warning',
+          'bottom-right'
+        );
         return;
       }
       gitSettings.value.user_name = latestSettings.user_name;
@@ -887,7 +1056,13 @@ const handleEnabledChange = async (value: boolean) => {
     }
 
     await saveSettings();
-    modal.msg(value ? t('settings.gitSync.enabledSuccess') : t('settings.gitSync.disabledSuccess'), 'success', 'bottom-right');
+    modal.msg(
+      value
+        ? t('settings.gitSync.enabledSuccess')
+        : t('settings.gitSync.disabledSuccess'),
+      'success',
+      'bottom-right'
+    );
     if (value) {
       await refreshContributionIfEnabled();
     }
@@ -904,7 +1079,13 @@ const handlePullOnStartChange = async (value: boolean) => {
   isSaving.value = true;
   try {
     await saveSettings();
-    modal.msg(value ? t('settings.gitSync.pullOnStartEnabled') : t('settings.gitSync.pullOnStartDisabled'), 'success', 'bottom-right');
+    modal.msg(
+      value
+        ? t('settings.gitSync.pullOnStartEnabled')
+        : t('settings.gitSync.pullOnStartDisabled'),
+      'success',
+      'bottom-right'
+    );
   } catch (error) {
     modal.msg(t('settings.gitSync.saveFailed'), 'error', 'top-right');
     gitSettings.value.pull_on_start = !value;
@@ -924,7 +1105,13 @@ const handleAutoSyncChange = async (value: boolean) => {
     } else {
       await stopAutoSync();
     }
-    modal.msg(value ? t('settings.gitSync.autoSyncEnabled') : t('settings.gitSync.autoSyncDisabled'), 'success', 'bottom-right');
+    modal.msg(
+      value
+        ? t('settings.gitSync.autoSyncEnabled')
+        : t('settings.gitSync.autoSyncDisabled'),
+      'success',
+      'bottom-right'
+    );
   } catch (error) {
     modal.msg(t('settings.gitSync.saveFailed'), 'error', 'top-right');
     gitSettings.value.auto_sync = !value;
@@ -991,7 +1178,11 @@ const handlePush = async () => {
   try {
     const result = await gitPush('Manual sync');
     if (result.success) {
-      modal.msg(t('settings.gitSync.pushSuccess', { count: result.files_pushed }), 'success', 'bottom-right');
+      modal.msg(
+        t('settings.gitSync.pushSuccess', { count: result.files_pushed }),
+        'success',
+        'bottom-right'
+      );
       await refreshContributionIfEnabled();
     } else {
       modal.msg(t('settings.gitSync.pushFailed'), 'error', 'top-right');

@@ -28,11 +28,15 @@ const createHost = (): GitSyncRuntimeHost => ({
   autoSyncWindowListeners: null
 });
 
-const createFacade = (overrides: {
-  enabled?: boolean;
-  setupHost?: (deps: SetupGitRuntimeHostControllerDeps) => Promise<GitSyncRuntimeHost>;
-  cleanupHost?: () => Promise<void>;
-} = {}) => {
+const createFacade = (
+  overrides: {
+    enabled?: boolean;
+    setupHost?: (
+      deps: SetupGitRuntimeHostControllerDeps
+    ) => Promise<GitSyncRuntimeHost>;
+    cleanupHost?: () => Promise<void>;
+  } = {}
+) => {
   const logger = {
     info: vi.fn(),
     error: vi.fn()
@@ -61,7 +65,9 @@ const createFacade = (overrides: {
 describe('useGitSyncRuntimeFacade', () => {
   it('sets up enabled git runtime with state callbacks', async () => {
     const host = createHost();
-    const setupHost = vi.fn(async (_deps: SetupGitRuntimeHostControllerDeps) => host);
+    const setupHost = vi.fn(
+      async (_deps: SetupGitRuntimeHostControllerDeps) => host
+    );
     const { facade } = createFacade({ setupHost });
 
     await facade.setup({ shouldInit: true });
@@ -78,7 +84,9 @@ describe('useGitSyncRuntimeFacade', () => {
   });
 
   it('skips setup when git sync plugin is disabled', async () => {
-    const setupHost = vi.fn(async (_deps: SetupGitRuntimeHostControllerDeps) => createHost());
+    const setupHost = vi.fn(async (_deps: SetupGitRuntimeHostControllerDeps) =>
+      createHost()
+    );
     const { facade, logger } = createFacade({
       enabled: false,
       setupHost
@@ -88,15 +96,20 @@ describe('useGitSyncRuntimeFacade', () => {
 
     expect(setupHost).not.toHaveBeenCalled();
     expect(facade.ready.value).toBe(false);
-    expect(logger.info).toHaveBeenCalledWith('[Config] Git 同步插件未启用，跳过 Git 事件监听和自动同步初始化');
+    expect(logger.info).toHaveBeenCalledWith(
+      '[Config] Git 同步插件未启用，跳过 Git 事件监听和自动同步初始化'
+    );
   });
 
   it('restores persisted conflict dialog state', () => {
     const storage = createStorage();
-    storage.setItem('git-conflict-state', JSON.stringify({
-      conflictFiles: ['persisted.md'],
-      timestamp: Date.now()
-    }));
+    storage.setItem(
+      'git-conflict-state',
+      JSON.stringify({
+        conflictFiles: ['persisted.md'],
+        timestamp: Date.now()
+      })
+    );
     const facade = useGitSyncRuntimeFacade({
       t,
       modalMsg: vi.fn(),
@@ -107,7 +120,9 @@ describe('useGitSyncRuntimeFacade', () => {
         logger: { info: vi.fn() }
       },
       hostControllerDeps: {
-        setupHost: vi.fn(async (_deps: SetupGitRuntimeHostControllerDeps) => createHost())
+        setupHost: vi.fn(async (_deps: SetupGitRuntimeHostControllerDeps) =>
+          createHost()
+        )
       }
     });
 
@@ -118,11 +133,16 @@ describe('useGitSyncRuntimeFacade', () => {
 
   it('sets up runtime and restores persisted conflict state through one entry', async () => {
     const storage = createStorage();
-    storage.setItem('git-conflict-state', JSON.stringify({
-      conflictFiles: ['persisted.md'],
-      timestamp: Date.now()
-    }));
-    const setupHost = vi.fn(async (_deps: SetupGitRuntimeHostControllerDeps) => createHost());
+    storage.setItem(
+      'git-conflict-state',
+      JSON.stringify({
+        conflictFiles: ['persisted.md'],
+        timestamp: Date.now()
+      })
+    );
+    const setupHost = vi.fn(async (_deps: SetupGitRuntimeHostControllerDeps) =>
+      createHost()
+    );
     const facade = useGitSyncRuntimeFacade({
       t,
       modalMsg: vi.fn(),
@@ -137,7 +157,9 @@ describe('useGitSyncRuntimeFacade', () => {
       }
     });
 
-    await expect(facade.setupAndRestore({ shouldInit: true })).resolves.toBe(true);
+    await expect(facade.setupAndRestore({ shouldInit: true })).resolves.toBe(
+      true
+    );
 
     expect(setupHost).toHaveBeenCalled();
     expect(facade.ready.value).toBe(true);
@@ -148,7 +170,9 @@ describe('useGitSyncRuntimeFacade', () => {
     const host = createHost();
     const cleanupHost = vi.fn(async () => undefined);
     const { facade } = createFacade({
-      setupHost: vi.fn(async (_deps: SetupGitRuntimeHostControllerDeps) => host),
+      setupHost: vi.fn(
+        async (_deps: SetupGitRuntimeHostControllerDeps) => host
+      ),
       cleanupHost
     });
 

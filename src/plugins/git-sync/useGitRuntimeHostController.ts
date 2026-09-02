@@ -48,7 +48,9 @@ export interface GitRuntimeHostControllerDeps {
   cleanupHost?: typeof cleanupConfiguredGitSyncRuntimeHost;
 }
 
-export function useGitRuntimeHostController(deps: GitRuntimeHostControllerDeps = {}) {
+export function useGitRuntimeHostController(
+  deps: GitRuntimeHostControllerDeps = {}
+) {
   const logger = deps.logger ?? defaultLogger;
   const setupHost = deps.setupHost ?? setupConfiguredGitSyncRuntimeHost;
   const cleanupHost = deps.cleanupHost ?? cleanupConfiguredGitSyncRuntimeHost;
@@ -64,25 +66,29 @@ export function useGitRuntimeHostController(deps: GitRuntimeHostControllerDeps =
     logger.info('[GitSync] runtime host 已设置');
   };
 
-  const setupWithState = async (setupDeps: SetupGitRuntimeHostControllerWithStateDeps) => setup({
-    t: setupDeps.t,
-    shouldInit: setupDeps.shouldInit,
-    isConflictDialogVisible: () => setupDeps.state.dialogs.showConflictDialog.value,
-    onConflictDetected: ({ conflictFiles, untrackedFiles }) => {
-      setupDeps.state.dialogs.setConflictFiles({
-        conflictFiles,
-        untrackedFiles
-      });
-    },
-    onRepoNotFound: ({ remoteUrl, operation }) => {
-      setupDeps.state.repoNotFound.open({
-        remoteUrl,
-        operation
-      });
-    },
-    autoSyncWindow: setupDeps.autoSyncWindow,
-    isPluginEnabled: setupDeps.isPluginEnabled
-  });
+  const setupWithState = async (
+    setupDeps: SetupGitRuntimeHostControllerWithStateDeps
+  ) =>
+    setup({
+      t: setupDeps.t,
+      shouldInit: setupDeps.shouldInit,
+      isConflictDialogVisible: () =>
+        setupDeps.state.dialogs.showConflictDialog.value,
+      onConflictDetected: ({ conflictFiles, untrackedFiles }) => {
+        setupDeps.state.dialogs.setConflictFiles({
+          conflictFiles,
+          untrackedFiles
+        });
+      },
+      onRepoNotFound: ({ remoteUrl, operation }) => {
+        setupDeps.state.repoNotFound.open({
+          remoteUrl,
+          operation
+        });
+      },
+      autoSyncWindow: setupDeps.autoSyncWindow,
+      isPluginEnabled: setupDeps.isPluginEnabled
+    });
 
   const cleanup = async (isPluginEnabled?: () => boolean) => {
     if (!host.value) return;
@@ -110,4 +116,6 @@ export function useGitRuntimeHostController(deps: GitRuntimeHostControllerDeps =
   };
 }
 
-export type GitRuntimeHostController = ReturnType<typeof useGitRuntimeHostController>;
+export type GitRuntimeHostController = ReturnType<
+  typeof useGitRuntimeHostController
+>;

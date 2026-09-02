@@ -14,13 +14,9 @@
   "category": "search",
   "enabledByDefault": true,
   "capabilities": {
-    "searchSources": [
-      "quick-tools"
-    ]
+    "searchSources": ["quick-tools"]
   },
-  "permissions": [
-    "network:https://api.frankfurter.dev"
-  ],
+  "permissions": ["network:https://api.frankfurter.dev"],
   "compatibleAppVersion": ">=2.0.2",
   "entry": {
     "frontend": "dist/frontend.js"

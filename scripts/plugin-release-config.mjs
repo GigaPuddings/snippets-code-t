@@ -3,7 +3,10 @@ import { fileURLToPath } from 'node:url';
 
 export const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 export const OWNER = 'GigaPuddings';
-export const MARKETPLACE_PATH = resolve(ROOT, 'plugin-registry/marketplace/marketplace.json');
+export const MARKETPLACE_PATH = resolve(
+  ROOT,
+  'plugin-registry/marketplace/marketplace.json'
+);
 
 export const pluginRepositories = [
   {
@@ -90,7 +93,8 @@ export const pluginRepositories = [
     kind: 'resource',
     requiresExplicitResource: true,
     includeFlag: 'includeLocalAiLlamaRuntime',
-    includeFlagName: '--include-local-ai-llama-runtime'
+    includeFlagName: '--include-local-ai-llama-runtime',
+    releaseAssetName: 'local-ai-llama-runtime-{version}.zip'
   },
   {
     id: 'screenshot-rapidocr',

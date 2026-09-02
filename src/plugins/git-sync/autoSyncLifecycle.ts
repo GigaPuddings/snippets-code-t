@@ -70,12 +70,8 @@ export async function startAutoSyncForVisibleWindow(
 export async function stopAutoSyncForHiddenWindow(
   deps: GitAutoSyncLifecycleDeps = {}
 ): Promise<boolean> {
-  const {
-    isPluginEnabled,
-    getAutoSyncStatus,
-    stopAutoSync,
-    logger
-  } = resolveDeps(deps);
+  const { isPluginEnabled, getAutoSyncStatus, stopAutoSync, logger } =
+    resolveDeps(deps);
 
   if (!isPluginEnabled()) {
     return false;

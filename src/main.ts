@@ -12,11 +12,11 @@ setupGlobalDeveloperDiagnostics();
 async function initApp() {
   // 创建Vue应用实例
   const app = createApp(App);
-  
+
   // 创建并配置Pinia
   const pinia = createPinia();
   pinia.use(piniaPluginPersistedstate);
-  
+
   app.use(pinia);
   app.use(router);
   app.use(i18n);
@@ -30,7 +30,7 @@ async function initApp() {
   ];
 
   const { initTheme } = await import('@/utils/theme-sync');
-  
+
   try {
     await Promise.all(stylePromises);
     initTheme();

@@ -14,19 +14,13 @@
   "category": "sync",
   "enabledByDefault": true,
   "capabilities": {
-    "settingsTabs": [
-      "gitSync"
-    ]
+    "settingsTabs": ["gitSync"]
   },
-  "permissions": [
-    "command:*"
-  ],
+  "permissions": ["command:*"],
   "compatibleAppVersion": ">=2.1.40",
   "entry": {
     "frontend": "dist/frontend.js",
-    "styles": [
-      "dist/assets/runtime-entry-BuvjcP4w.css"
-    ]
+    "styles": ["dist/assets/runtime-entry-BuvjcP4w.css"]
   },
   "minAppVersion": "2.1.40",
   "repository": "https://github.com/GigaPuddings/snippets-code-plugin-git-sync",

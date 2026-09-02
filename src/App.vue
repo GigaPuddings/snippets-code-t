@@ -3,8 +3,15 @@
 </template>
 
 <script setup lang="ts">
-import { setupBaseEventListeners, cleanupBaseEventListeners, type BaseEventListeners } from '@/utils/app-init';
-import { closeWindowByLabel, shouldCloseWindowOnEscape } from '@/utils/window-shortcuts';
+import {
+  setupBaseEventListeners,
+  cleanupBaseEventListeners,
+  type BaseEventListeners
+} from '@/utils/app-init';
+import {
+  closeWindowByLabel,
+  shouldCloseWindowOnEscape
+} from '@/utils/window-shortcuts';
 import { logger } from './utils/logger';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
@@ -17,11 +24,11 @@ function handleGlobalEscape(event: KeyboardEvent) {
   if (!shouldCloseWindowOnEscape(label)) return;
 
   const target = event.target as HTMLElement | null;
-  const isTextInput = !!target && (
-    target.tagName === 'INPUT' ||
-    target.tagName === 'TEXTAREA' ||
-    target.isContentEditable
-  );
+  const isTextInput =
+    !!target &&
+    (target.tagName === 'INPUT' ||
+      target.tagName === 'TEXTAREA' ||
+      target.isContentEditable);
 
   if (isTextInput) {
     event.preventDefault();

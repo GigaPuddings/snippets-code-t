@@ -3,7 +3,13 @@
  * 用于运行时类型检查和验证
  */
 
-import type { Fragment, Category, SearchEngine, App, Bookmark } from '@/types/database';
+import type {
+  Fragment,
+  Category,
+  SearchEngine,
+  App,
+  Bookmark
+} from '@/types/database';
 import type { ContentType, ApiResponse } from '@/types';
 
 /**
@@ -47,10 +53,7 @@ export function isCategory(value: unknown): value is Category {
 
   const category = value as Partial<Category>;
 
-  return (
-    typeof category.id === 'number' &&
-    typeof category.name === 'string'
-  );
+  return typeof category.id === 'number' && typeof category.name === 'string';
 }
 
 /**
@@ -144,7 +147,9 @@ export function isBookmark(value: unknown): value is Bookmark {
  * @returns 是否为字符串数组
  */
 export function isStringArray(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((item) => typeof item === 'string');
+  return (
+    Array.isArray(value) && value.every((item) => typeof item === 'string')
+  );
 }
 
 /**
@@ -153,5 +158,7 @@ export function isStringArray(value: unknown): value is string[] {
  * @returns 是否为数字数组
  */
 export function isNumberArray(value: unknown): value is number[] {
-  return Array.isArray(value) && value.every((item) => typeof item === 'number');
+  return (
+    Array.isArray(value) && value.every((item) => typeof item === 'number')
+  );
 }

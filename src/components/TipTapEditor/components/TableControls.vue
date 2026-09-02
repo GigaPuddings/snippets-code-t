@@ -17,10 +17,46 @@
           @click="toggleGridPicker"
         >
           <svg viewBox="0 0 24 24" aria-hidden="true">
-            <rect x="4" y="4" width="7" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="1.8" />
-            <rect x="13" y="4" width="7" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="1.8" />
-            <rect x="4" y="13" width="7" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="1.8" />
-            <rect x="13" y="13" width="7" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="1.8" />
+            <rect
+              x="4"
+              y="4"
+              width="7"
+              height="7"
+              rx="1"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+            />
+            <rect
+              x="13"
+              y="4"
+              width="7"
+              height="7"
+              rx="1"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+            />
+            <rect
+              x="4"
+              y="13"
+              width="7"
+              height="7"
+              rx="1"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+            />
+            <rect
+              x="13"
+              y="13"
+              width="7"
+              height="7"
+              rx="1"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+            />
           </svg>
         </button>
         <TableGridPicker
@@ -54,7 +90,10 @@
           @click="toggleMoreMenu"
         >
           <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path fill="currentColor" d="M12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4m0 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4m0 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z" />
+            <path
+              fill="currentColor"
+              d="M12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4m0 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4m0 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z"
+            />
           </svg>
         </button>
         <button
@@ -64,7 +103,14 @@
           @click="deleteTable"
         >
           <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M5 7h14M9 7V4h6v3m2 0-1 13H8L7 7m4 4v6m3-6v6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+            <path
+              d="M5 7h14M9 7V4h6v3m2 0-1 13H8L7 7m4 4v6m3-6v6"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
           </svg>
         </button>
 
@@ -109,8 +155,13 @@ import {
   type TableInfo
 } from '../utils/tableCommands';
 
-type TableCommand = 'addRowBefore' | 'addRowAfter' | 'deleteRow' |
-  'addColumnBefore' | 'addColumnAfter' | 'deleteColumn';
+type TableCommand =
+  | 'addRowBefore'
+  | 'addRowAfter'
+  | 'deleteRow'
+  | 'addColumnBefore'
+  | 'addColumnAfter'
+  | 'deleteColumn';
 type Alignment = 'left' | 'center' | 'right';
 
 interface Props {
@@ -140,9 +191,21 @@ let frameId: number | null = null;
 let boundEditor: Editor | null = null;
 
 const alignments = [
-  { value: 'left' as const, label: 'contextMenu.alignLeft', path: 'M3 4h14v2H3V4m0 4h10v2H3V8m0 4h14v2H3v-2m0 4h10v2H3v-2m0 4h14v2H3v-2Z' },
-  { value: 'center' as const, label: 'contextMenu.alignCenter', path: 'M5 4h14v2H5V4m2 4h10v2H7V8m-2 4h14v2H5v-2m2 4h10v2H7v-2m-2 4h14v2H5v-2Z' },
-  { value: 'right' as const, label: 'contextMenu.alignRight', path: 'M7 4h14v2H7V4m4 4h10v2H11V8m-4 4h14v2H7v-2m4 4h10v2H11v-2m-4 4h14v2H7v-2Z' }
+  {
+    value: 'left' as const,
+    label: 'contextMenu.alignLeft',
+    path: 'M3 4h14v2H3V4m0 4h10v2H3V8m0 4h14v2H3v-2m0 4h10v2H3v-2m0 4h14v2H3v-2Z'
+  },
+  {
+    value: 'center' as const,
+    label: 'contextMenu.alignCenter',
+    path: 'M5 4h14v2H5V4m2 4h10v2H7V8m-2 4h14v2H5v-2m2 4h10v2H7v-2m-2 4h14v2H5v-2Z'
+  },
+  {
+    value: 'right' as const,
+    label: 'contextMenu.alignRight',
+    path: 'M7 4h14v2H7V4m4 4h10v2H11V8m-4 4h14v2H7v-2m4 4h10v2H11v-2m-4 4h14v2H7v-2Z'
+  }
 ];
 
 const controlsStyle = computed(() => ({
@@ -171,8 +234,12 @@ const updatePosition = () => {
   }
 
   const nodeDom = editor.view.nodeDOM(info.tablePos);
-  const element = nodeDom instanceof HTMLElement ? nodeDom : nodeDom?.parentElement;
-  const table = element instanceof HTMLTableElement ? element : element?.querySelector('table');
+  const element =
+    nodeDom instanceof HTMLElement ? nodeDom : nodeDom?.parentElement;
+  const table =
+    element instanceof HTMLTableElement
+      ? element
+      : element?.querySelector('table');
   if (!table) {
     visible.value = false;
     return;
@@ -180,12 +247,19 @@ const updatePosition = () => {
 
   const rect = table.getBoundingClientRect();
   const padding = 8;
-  const width = Math.max(180, Math.min(rect.width, window.innerWidth - padding * 2));
-  const left = Math.min(Math.max(padding, rect.left), window.innerWidth - width - padding);
+  const width = Math.max(
+    180,
+    Math.min(rect.width, window.innerWidth - padding * 2)
+  );
+  const left = Math.min(
+    Math.max(padding, rect.left),
+    window.innerWidth - width - padding
+  );
   const toolbarHeight = 28;
-  const top = rect.top - toolbarHeight - 2 >= padding
-    ? rect.top - toolbarHeight - 2
-    : Math.min(window.innerHeight - toolbarHeight - padding, rect.top + 6);
+  const top =
+    rect.top - toolbarHeight - 2 >= padding
+      ? rect.top - toolbarHeight - 2
+      : Math.min(window.innerHeight - toolbarHeight - padding, rect.top + 6);
   position.value = { left, top, width };
 };
 
@@ -285,6 +359,7 @@ onBeforeUnmount(() => {
 
 .table-controls__group {
   @apply relative flex items-center overflow-visible pointer-events-auto;
+
   height: 28px;
   color: var(--editor-text);
 }
@@ -295,6 +370,7 @@ onBeforeUnmount(() => {
 
 .table-controls__button {
   @apply flex h-7 w-7 items-center justify-center rounded-sm border border-transparent bg-transparent transition-colors;
+
   color: var(--editor-text-secondary);
 
   svg {
@@ -315,6 +391,7 @@ onBeforeUnmount(() => {
 
 .table-controls__menu {
   @apply absolute right-0 top-8 z-10 w-52 overflow-hidden rounded-md border py-1 shadow-lg;
+
   color: var(--editor-text);
   background: var(--panel-bg);
   border-color: var(--panel-border);
@@ -338,6 +415,7 @@ onBeforeUnmount(() => {
 
 .table-controls__divider {
   @apply my-1 border-t;
+
   border-color: var(--panel-border);
 }
 </style>

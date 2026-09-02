@@ -48,21 +48,64 @@ const FILE_ICON_TEXT_MAP: Record<string, string> = {
   svg: 'SVG'
 };
 
-const TEXT_FILE_EXTENSIONS = new Set(['txt', 'log', 'md', 'markdown', 'csv', 'ini', 'env', 'toml']);
+const TEXT_FILE_EXTENSIONS = new Set([
+  'txt',
+  'log',
+  'md',
+  'markdown',
+  'csv',
+  'ini',
+  'env',
+  'toml'
+]);
 const STRUCTURED_FILE_EXTENSIONS = new Set(['json', 'yml', 'yaml', 'xml']);
 const WEB_FILE_EXTENSIONS = new Set(['html', 'htm']);
-const CODE_FILE_EXTENSIONS = new Set(['js', 'ts', 'tsx', 'jsx', 'vue', 'css', 'scss', 'less', 'py', 'rs', 'go', 'java', 'c', 'cc', 'cpp', 'h', 'hpp', 'sql', 'sh', 'bash']);
-const MEDIA_FILE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg']);
+const CODE_FILE_EXTENSIONS = new Set([
+  'js',
+  'ts',
+  'tsx',
+  'jsx',
+  'vue',
+  'css',
+  'scss',
+  'less',
+  'py',
+  'rs',
+  'go',
+  'java',
+  'c',
+  'cc',
+  'cpp',
+  'h',
+  'hpp',
+  'sql',
+  'sh',
+  'bash'
+]);
+const MEDIA_FILE_EXTENSIONS = new Set([
+  'png',
+  'jpg',
+  'jpeg',
+  'gif',
+  'webp',
+  'bmp',
+  'svg'
+]);
 
 export const getRawSearchResultId = (item: ContentType): string => {
   const rawId = (item.metadata as Record<string, unknown> | null)?.raw_id;
   return String(rawId ?? item.id);
 };
 
-export function useSearchResultDisplay(searchQuery: () => string | undefined, t: ComposerTranslation) {
-  const getDefaultTitle = (item: ContentType): string => item.title || item.content.split('/')[2] || item.content;
+export function useSearchResultDisplay(
+  searchQuery: () => string | undefined,
+  t: ComposerTranslation
+) {
+  const getDefaultTitle = (item: ContentType): string =>
+    item.title || item.content.split('/')[2] || item.content;
 
-  const isSingleWordText = (text: string): boolean => !/[\s\-_/|.,:;()[\]{}]/.test(text.trim());
+  const isSingleWordText = (text: string): boolean =>
+    !/[\s\-_/|.,:;()[\]{}]/.test(text.trim());
 
   const isNonHighlightResult = (item: ContentType): boolean => {
     return getRawSearchResultId(item) === 'url-open';
@@ -80,7 +123,10 @@ export function useSearchResultDisplay(searchQuery: () => string | undefined, t:
     return !isSingleWordText(title);
   };
 
-  const shouldHighlightContent = (item: ContentType, content: string): boolean => {
+  const shouldHighlightContent = (
+    item: ContentType,
+    content: string
+  ): boolean => {
     if (!searchQuery()?.trim() || !content.trim()) return false;
     if (isNonHighlightResult(item) || isHistoryLikeResult(item)) return false;
     if (item.type === 'note' || item.summarize === 'bookmark') return true;
@@ -89,7 +135,9 @@ export function useSearchResultDisplay(searchQuery: () => string | undefined, t:
 
   const getDisplayTitle = (item: ContentType): string => {
     const title = getDefaultTitle(item);
-    return shouldHighlightTitle(item, title) ? highlightText(title, searchQuery()) : escapeHtml(title);
+    return shouldHighlightTitle(item, title)
+      ? highlightText(title, searchQuery())
+      : escapeHtml(title);
   };
 
   const getDisplayContentHighlighted = (item: ContentType): string => {
@@ -97,7 +145,9 @@ export function useSearchResultDisplay(searchQuery: () => string | undefined, t:
       return `<span class="url-display">${escapeHtml(item.content)}</span>`;
     }
 
-    return shouldHighlightContent(item, item.content) ? highlightText(item.content, searchQuery()) : escapeHtml(item.content);
+    return shouldHighlightContent(item, item.content)
+      ? highlightText(item.content, searchQuery())
+      : escapeHtml(item.content);
   };
 
   const getTypeLabel = (item: ContentType): string => {
@@ -112,17 +162,22 @@ export function useSearchResultDisplay(searchQuery: () => string | undefined, t:
   };
 
   const getFileExtension = (item: ContentType): string => {
-    const filePath = (item.metadata as Record<string, unknown> | null)?.file_path;
-    const rawPath = [filePath, item.content, item.title].find((value) => typeof value === 'string' && value.trim()) as string | undefined;
+    const filePath = (item.metadata as Record<string, unknown> | null)
+      ?.file_path;
+    const rawPath = [filePath, item.content, item.title].find(
+      (value) => typeof value === 'string' && value.trim()
+    ) as string | undefined;
     if (!rawPath) return '';
 
     const cleanPath = rawPath.split(/[?#]/)[0];
-    const fileName = cleanPath.split(/[\\/]/).filter(Boolean).pop() ?? cleanPath;
+    const fileName =
+      cleanPath.split(/[\\/]/).filter(Boolean).pop() ?? cleanPath;
     const ext = fileName.includes('.') ? fileName.split('.').pop() : '';
     return ext?.toLowerCase() ?? '';
   };
 
-  const getFileIconText = (item: ContentType): string => FILE_ICON_TEXT_MAP[getFileExtension(item)] ?? '📁';
+  const getFileIconText = (item: ContentType): string =>
+    FILE_ICON_TEXT_MAP[getFileExtension(item)] ?? '📁';
 
   const getFileIconComponent = (item: ContentType): Component => {
     const ext = getFileExtension(item);
@@ -137,7 +192,8 @@ export function useSearchResultDisplay(searchQuery: () => string | undefined, t:
 
     if (ext === 'pdf') classes.push('file-icon-pdf');
     else if (TEXT_FILE_EXTENSIONS.has(ext)) classes.push('file-icon-text');
-    else if (STRUCTURED_FILE_EXTENSIONS.has(ext)) classes.push('file-icon-structured');
+    else if (STRUCTURED_FILE_EXTENSIONS.has(ext))
+      classes.push('file-icon-structured');
     else if (WEB_FILE_EXTENSIONS.has(ext)) classes.push('file-icon-web');
     else if (CODE_FILE_EXTENSIONS.has(ext)) classes.push('file-icon-code');
     else if (MEDIA_FILE_EXTENSIONS.has(ext)) classes.push('file-icon-media');

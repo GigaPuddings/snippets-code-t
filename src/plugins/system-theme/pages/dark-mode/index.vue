@@ -299,7 +299,7 @@
                 <span class="sun-value">{{ sunTimes.sunset }}</span>
               </div>
             </div>
-            <div class="sun-divider" />
+            <div class="sun-divider"></div>
             <div class="sun-row sun-period">
               <span class="sun-label">{{ $t('darkMode.currentPeriod') }}</span>
               <span
@@ -331,7 +331,9 @@
                 sunCalcDebug?.longitude !== undefined
               "
             >
-              <span class="info-label">{{ $t('darkMode.sunCalcCoordinates') }}</span>
+              <span class="info-label">
+                {{ $t('darkMode.sunCalcCoordinates') }}
+              </span>
               <span class="info-value">
                 {{ Number(sunCalcDebug?.latitude).toFixed(4) }},
                 {{ Number(sunCalcDebug?.longitude).toFixed(4) }}
@@ -341,7 +343,9 @@
               class="info-row"
               v-if="sunCalcDebug?.timezoneOffset !== undefined"
             >
-              <span class="info-label">{{ $t('darkMode.sunCalcTimezoneOffset') }}</span>
+              <span class="info-label">
+                {{ $t('darkMode.sunCalcTimezoneOffset') }}
+              </span>
               <span class="info-value">{{ sunCalcDebug?.timezoneOffset }}</span>
             </div>
             <div class="info-row" v-if="sunCalcDebug?.sunset">
@@ -361,11 +365,7 @@
           <div class="inset-card time-settings">
             <label class="time-row">
               <span class="time-label-text">
-                <Sun
-                  theme="outline"
-                  :size="18"
-                  :stroke-width="3.5"
-                />
+                <Sun theme="outline" :size="18" :stroke-width="3.5" />
                 {{ $t('darkMode.lightModeStart') }}
               </span>
               <input
@@ -377,11 +377,7 @@
             </label>
             <label class="time-row">
               <span class="time-label-text">
-                <Moon
-                  theme="outline"
-                  :size="18"
-                  :stroke-width="3.5"
-                />
+                <Moon theme="outline" :size="18" :stroke-width="3.5" />
                 {{ $t('darkMode.darkModeStart') }}
               </span>
               <input
@@ -499,7 +495,9 @@ const sunCalcSourceLabel = computed(() => {
       city: source.replace('manual:', '')
     });
   if (source.startsWith('ip:'))
-    return t('darkMode.sunCalcAutoLocation', { city: source.replace('ip:', '') });
+    return t('darkMode.sunCalcAutoLocation', {
+      city: source.replace('ip:', '')
+    });
   return source || '-';
 });
 
@@ -715,7 +713,7 @@ onUnmounted(() => {
 .dark-mode-container {
   // 浅色（默认）
   --dm-bg: #fafafa;
-  --dm-card: #ffffff;
+  --dm-card: #fff;
   --dm-inset: #f1f5f9;
   --dm-status: #f8fafc;
   --dm-hover: #f1f5f9;
@@ -727,9 +725,9 @@ onUnmounted(() => {
   --dm-border-hover: #cbd5e1;
   --dm-accent: #6366f1;
   --dm-accent-hover: #4f46e5;
-  --dm-accent-soft: rgba(99, 102, 241, 0.08);
-  --dm-accent-ring: rgba(99, 102, 241, 0.2);
-  --dm-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --dm-accent-soft: rgb(99 102 241 / 8%);
+  --dm-accent-ring: rgb(99 102 241 / 20%);
+  --dm-shadow: 0 1px 2px rgb(0 0 0 / 4%);
   --dm-close-hover-fg: #475569;
   --dm-icon-bg: #f8fafc;
   --dm-icon-border: #e2e8f0;
@@ -747,15 +745,15 @@ onUnmounted(() => {
   --dm-emerald-fg: #047857;
   --dm-red-bg: #fee2e2;
   --dm-red-fg: #b91c1c;
-
   --dm-sun: #f59e0b;
   --dm-period-day: #d97706;
   --dm-period-night: #7c3aed;
   --dm-btn-bg: #6366f1;
   --dm-btn-hover-bg: #4f46e5;
-  --dm-btn-fg: #ffffff;
+  --dm-btn-fg: #fff;
 
   @apply h-dvh overflow-y-auto overflow-x-hidden bg-dm-bg text-dm;
+
   transition:
     background 0.25s ease,
     color 0.25s ease;
@@ -775,8 +773,8 @@ onUnmounted(() => {
   --dm-border-hover: #52525b;
   --dm-accent: #818cf8;
   --dm-accent-hover: #4f46e5;
-  --dm-accent-soft: rgba(129, 140, 248, 0.12);
-  --dm-accent-ring: rgba(129, 140, 248, 0.25);
+  --dm-accent-soft: rgb(129 140 248 / 12%);
+  --dm-accent-ring: rgb(129 140 248 / 25%);
   --dm-shadow: none;
   --dm-close-hover-fg: #fafafa;
   --dm-icon-bg: #202024;
@@ -795,13 +793,12 @@ onUnmounted(() => {
   --dm-emerald-fg: #6ee7b7;
   --dm-red-bg: #7f1d1d;
   --dm-red-fg: #fca5a5;
-
   --dm-sun: #fbbf24;
   --dm-period-day: #fbbf24;
   --dm-period-night: #a78bfa;
   --dm-btn-bg: #6366f1;
   --dm-btn-hover-bg: #4f46e5;
-  --dm-btn-fg: #ffffff;
+  --dm-btn-fg: #fff;
 }
 
 // ==================== 标题栏 ====================
@@ -841,6 +838,7 @@ onUnmounted(() => {
 // ==================== 模式卡片 ====================
 .mode-content {
   @apply flex items-center gap-2.5 py-2.5 px-3 rounded-lg border border-dm bg-dm-bg;
+
   transition:
     border-color 0.2s,
     background 0.2s,
@@ -894,6 +892,7 @@ onUnmounted(() => {
 // ==================== 定时方式小卡片 ====================
 .schedule-type-card {
   @apply py-[11px] px-3 rounded-lg border border-dm bg-dm-bg flex flex-col gap-1.5;
+
   transition:
     border-color 0.2s,
     background 0.2s,
@@ -936,12 +935,15 @@ onUnmounted(() => {
 .badge-light {
   @apply bg-dm-amber text-dm-amber;
 }
+
 .badge-dark {
   @apply bg-dm-indigo text-dm-indigo;
 }
+
 .badge-success {
   @apply bg-dm-emerald text-dm-emerald;
 }
+
 .badge-danger {
   @apply bg-dm-red text-dm-red;
 }
@@ -953,6 +955,7 @@ onUnmounted(() => {
 // ==================== 按钮 ====================
 .btn-primary {
   @apply w-full mt-2.5 py-2 px-3 text-xs font-semibold rounded-lg border-0 bg-dm-btn text-dm-btn cursor-pointer;
+
   transition:
     background 0.2s,
     opacity 0.2s,
@@ -1037,6 +1040,7 @@ onUnmounted(() => {
 .period-day {
   color: var(--dm-period-day) !important;
 }
+
 .period-night {
   color: var(--dm-period-night) !important;
 }
@@ -1075,6 +1079,7 @@ onUnmounted(() => {
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(360deg);
   }

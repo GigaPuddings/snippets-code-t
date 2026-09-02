@@ -4,15 +4,15 @@ declare global {
     id: string | number;
     name: string;
     created_at?: string;
-    isSystem: boolean;  // 必填字段，与后端保持一致
+    isSystem: boolean; // 必填字段，与后端保持一致
   };
 
   // 片段类型枚举
   type FragmentType = 'code' | 'note';
-  
+
   // 内容格式枚举
   type ContentFormat = 'plain' | 'markdown' | 'html';
-  
+
   // 片段元数据接口
   interface FragmentMetadata {
     // 代码片段元数据
@@ -20,15 +20,15 @@ declare global {
     framework?: string;
     kind?: string;
     theme?: string;
-    
+
     // 笔记元数据
     wordCount?: number;
     lastCursorPosition?: number;
-    
+
     // 通用元数据
     createdAt?: string;
     updatedAt?: string;
-    
+
     // 允许扩展
     [key: string]: any;
   }
@@ -45,7 +45,7 @@ declare global {
     category_name?: string;
     created_at?: string;
     updated_at?: string;
-    
+
     // 新增字段 - 可选，因为会有默认值
     type?: FragmentType;
     format?: ContentFormat;
@@ -97,7 +97,15 @@ declare global {
   }
 
   // 在适当的位置添加 'search' 类型
-  type SummarizeType = 'text' | 'app' | 'bookmark' | 'search' | 'code' | 'note' | 'file' | 'tool';
+  type SummarizeType =
+    | 'text'
+    | 'app'
+    | 'bookmark'
+    | 'search'
+    | 'code'
+    | 'note'
+    | 'file'
+    | 'tool';
 
   // 代办提醒类型
   interface AlarmCard {
@@ -118,10 +126,10 @@ declare global {
   interface SearchFilter {
     // 文本搜索
     text?: string;
-    
+
     // 类型筛选
     type?: 'code' | 'note' | 'all';
-    
+
     // 标签筛选
     tags?: string[];
 
@@ -129,17 +137,17 @@ declare global {
     language?: string;
     framework?: string;
     kind?: string;
-    
+
     // 日期筛选 - 创建日期
     createdAfter?: Date;
     createdBefore?: Date;
     createdPreset?: 'today' | 'week' | 'month';
-    
+
     // 日期筛选 - 更新日期
     updatedAfter?: Date;
     updatedBefore?: Date;
     updatedPreset?: 'today' | 'week' | 'month';
-    
+
     // 排序
     sortBy?: 'created' | 'updated' | 'title';
     sortOrder?: 'asc' | 'desc';
@@ -148,7 +156,16 @@ declare global {
   // 筛选条件标签接口
   interface FilterTag {
     id: string;
-    type: 'text' | 'type' | 'tag' | 'language' | 'framework' | 'kind' | 'created' | 'updated' | 'sort';
+    type:
+      | 'text'
+      | 'type'
+      | 'tag'
+      | 'language'
+      | 'framework'
+      | 'kind'
+      | 'created'
+      | 'updated'
+      | 'sort';
     label: string;
     value: any;
   }

@@ -40,16 +40,16 @@ const DEBUG_MODE = false;
 /**
  * 焦点模式管理组合式函数
  * 管理搜索界面的焦点状态（搜索框、列表、分类标签）
- * 
+ *
  * @returns 焦点模式相关的状态和方法
- * 
+ *
  * @example
  * ```typescript
  * const { currentMode, setMode, isSearchMode, isListMode } = useFocusMode();
- * 
+ *
  * // 切换到列表模式
  * setMode('LIST');
- * 
+ *
  * // 检查当前模式
  * if (isSearchMode.value) {
  *   console.log('当前在搜索框模式');

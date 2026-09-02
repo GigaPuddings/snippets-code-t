@@ -738,7 +738,6 @@ pub fn handle_wallpaper_menu_click(app: &AppHandle, menu_id: &str) {
                     }
                 }
             });
-            return;
         }
         "wallpaper_mode_fixed"
         | "wallpaper_mode_folder"
@@ -770,7 +769,7 @@ pub fn handle_wallpaper_menu_click(app: &AppHandle, menu_id: &str) {
                     config.wallhaven_source = WallhavenSource::Favorites;
                     info!("[TrayMenu] 壁纸切换到在线收藏模式");
                 }
-                _ => return,
+                _ => (),
             }
             if let Err(e) = save_wallpaper_config(app, &config) {
                 log::error!("[TrayMenu] 保存壁纸配置失败: {}", e);
@@ -788,7 +787,7 @@ pub fn handle_wallpaper_menu_click(app: &AppHandle, menu_id: &str) {
             debug!("[托盘菜单] 打开壁纸切换设置");
             open_wallpaper_switcher_window();
         }
-        _ => return,
+        _ => (),
     }
 }
 

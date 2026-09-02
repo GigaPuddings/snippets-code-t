@@ -1,5 +1,8 @@
 <template>
-  <main class="result-list glass-content" :class="{ 'has-results': hasVisibleResults }">
+  <main
+    class="result-list glass-content"
+    :class="{ 'has-results': hasVisibleResults }"
+  >
     <div v-if="!hasVisibleResults" class="empty-state">
       <div class="empty-state-content">
         <p class="empty-title">{{ t('search.noResults') }}</p>
@@ -10,9 +13,20 @@
       <span>Best Match</span>
       <span>Enter 执行</span>
     </div>
-    <RecycleScroller v-if="hasVisibleResults" ref="scrollerRef" class="result" :key="activeTab" :items="filteredResults" :item-size="itemSize"
-      :buffer="itemSize" :emit-update="true" key-field="__rowKey" @scroll.passive="syncShortcutWindowFromScroll"
-      @update="handleScrollerUpdate" v-slot="{ item, index }">
+    <RecycleScroller
+      v-if="hasVisibleResults"
+      ref="scrollerRef"
+      class="result"
+      :key="activeTab"
+      :items="filteredResults"
+      :item-size="itemSize"
+      :buffer="itemSize"
+      :emit-update="true"
+      key-field="__rowKey"
+      @scroll.passive="syncShortcutWindowFromScroll"
+      @update="handleScrollerUpdate"
+      v-slot="{ item, index }"
+    >
       <div
         class="item"
         :class="{
@@ -22,16 +36,35 @@
       >
         <!-- 图标，用于显示结果的图标 -->
         <div class="icon-wrapper">
-          <div v-if="item.summarize === 'file' && !item.icon" class="file-type-icon" :class="getFileIconClass(item)">
-            <component v-if="getFileIconComponent(item)" :is="getFileIconComponent(item)"
-              class="file-type-icon-svg" />
-            <span v-else class="file-type-icon-text">{{ getFileIconText(item) }}</span>
+          <div
+            v-if="item.summarize === 'file' && !item.icon"
+            class="file-type-icon"
+            :class="getFileIconClass(item)"
+          >
+            <component
+              v-if="getFileIconComponent(item)"
+              :is="getFileIconComponent(item)"
+              class="file-type-icon-svg"
+            />
+            <span v-else class="file-type-icon-text">
+              {{ getFileIconText(item) }}
+            </span>
           </div>
           <template v-else>
-            <img v-if="getIconState(item).src" :src="getIconState(item).src" class="icon"
+            <img
+              v-if="getIconState(item).src"
+              :src="getIconState(item).src"
+              class="icon"
               :class="getImageIconClass(item)"
-              @error="handleIconError(item)" loading="eager" decoding="async" />
-            <div v-else class="text-fallback-icon" :class="`type-${getIconState(item).typeClass || 'default'}`">
+              @error="handleIconError(item)"
+              loading="eager"
+              decoding="async"
+            />
+            <div
+              v-else
+              class="text-fallback-icon"
+              :class="`type-${getIconState(item).typeClass || 'default'}`"
+            >
               {{ getIconState(item).fallbackText }}
             </div>
           </template>
@@ -44,10 +77,17 @@
         </div>
         <!-- 快捷键和类型共用固定宽度，默认显示快捷键，悬停时显示类型 -->
         <div class="item-actions">
-          <span v-if="activeTab === 'text'" class="type-badge">{{ getTypeLabel(item) }}</span>
-          <div v-if="index >= visibleShortcutStart && index < visibleShortcutEnd" class="shortcut-key">
+          <span v-if="activeTab === 'text'" class="type-badge">
+            {{ getTypeLabel(item) }}
+          </span>
+          <div
+            v-if="index >= visibleShortcutStart && index < visibleShortcutEnd"
+            class="shortcut-key"
+          >
             <Command class="shortcut-key-icon" theme="outline" size="12" />
-            <span class="shortcut-key-text">{{ index - visibleShortcutStart + 1 }}</span>
+            <span class="shortcut-key-text">
+              {{ index - visibleShortcutStart + 1 }}
+            </span>
           </div>
         </div>
       </div>
@@ -75,7 +115,14 @@ import {
 const { t } = useI18n();
 
 const store = useConfigurationStore();
-const { currentMode, isSearchMode, isListMode, isTabMode, setMode, setCanSwitchToList } = useFocusMode();
+const {
+  currentMode,
+  isSearchMode,
+  isListMode,
+  isTabMode,
+  setMode,
+  setCanSwitchToList
+} = useFocusMode();
 
 const props = defineProps<{
   results: ContentType[];
@@ -128,10 +175,7 @@ const {
   getFileIconClass
 } = useSearchResultDisplay(() => props.searchQuery, t);
 
-const {
-  showHideWindow,
-  runPrimaryAction
-} = useSearchResultActions({
+const { showHideWindow, runPrimaryAction } = useSearchResultActions({
   onClearSearch: props.onClearSearch,
   copySuccessMessage: t('searchResult.copySuccess'),
   copyFailedMessage: t('searchResult.copyFailed')
@@ -155,13 +199,20 @@ watch(
   { immediate: true }
 );
 
-watch(() => props.searchQuery, () => {
-  void resetShortcutViewport();
-});
+watch(
+  () => props.searchQuery,
+  () => {
+    void resetShortcutViewport();
+  }
+);
 
-watch(() => props.results.length, (length) => {
-  setCanSwitchToList(length > 0);
-}, { immediate: true });
+watch(
+  () => props.results.length,
+  (length) => {
+    setCanSwitchToList(length > 0);
+  },
+  { immediate: true }
+);
 
 function switchTab(tab: SummarizeType) {
   setActiveTab(tab);
@@ -176,14 +227,22 @@ function switchTab(tab: SummarizeType) {
   }
 }
 
-const visibleShortcutItems = computed(() => filteredResults.value.slice(visibleShortcutStart.value, visibleShortcutEnd.value));
+const visibleShortcutItems = computed(() =>
+  filteredResults.value.slice(
+    visibleShortcutStart.value,
+    visibleShortcutEnd.value
+  )
+);
 
 function syncShortcutWindowFromScroll(): void {
   const scroller = scrollerRef.value?.$el;
   const resultCount = filteredResults.value.length;
   if (!scroller) {
     visibleShortcutStart.value = 0;
-    visibleShortcutEnd.value = Math.min(resultCount, fallbackVisibleShortcutCount);
+    visibleShortcutEnd.value = Math.min(
+      resultCount,
+      fallbackVisibleShortcutCount
+    );
     return;
   }
 
@@ -191,10 +250,17 @@ function syncShortcutWindowFromScroll(): void {
   // 行间距附近时把已离开视口的上一项仍计入快捷键范围。
   const viewportStart = scroller.scrollTop;
   const viewportEnd = viewportStart + scroller.clientHeight;
-  const firstVisibleIndex = Math.floor((viewportStart + itemVerticalMargin) / itemSize.value);
-  const visibleEndIndex = Math.ceil((viewportEnd - itemVerticalMargin) / itemSize.value);
+  const firstVisibleIndex = Math.floor(
+    (viewportStart + itemVerticalMargin) / itemSize.value
+  );
+  const visibleEndIndex = Math.ceil(
+    (viewportEnd - itemVerticalMargin) / itemSize.value
+  );
 
-  visibleShortcutStart.value = Math.min(Math.max(0, firstVisibleIndex), resultCount);
+  visibleShortcutStart.value = Math.min(
+    Math.max(0, firstVisibleIndex),
+    resultCount
+  );
   visibleShortcutEnd.value = Math.min(
     resultCount,
     Math.max(visibleShortcutStart.value, visibleEndIndex)
@@ -277,7 +343,9 @@ function handleItemClick(item: ContentType) {
   }
   syncSelectedItem(item);
   emit('selectionChange', item);
-  ensureItemVisible(filteredResults.value.findIndex((result) => result.id === item.id));
+  ensureItemVisible(
+    filteredResults.value.findIndex((result) => result.id === item.id)
+  );
 }
 
 function syncSelectedItem(item: ContentType) {
@@ -334,6 +402,7 @@ defineExpose({
   // --result-visible-rows: 6;
 
   @apply bg-search rounded-bl-lg relative h-full min-h-0 flex flex-col overflow-hidden;
+
   padding: 8px 8px 8px 10px;
 
   .empty-state {
@@ -358,12 +427,13 @@ defineExpose({
 
   .result-section-header {
     @apply flex items-center justify-between flex-shrink-0;
+
     padding: 0 8px 6px 2px;
-    color: var(--search-info-text-color);
     font-size: 11px;
     font-weight: 700;
-    letter-spacing: 0.08em;
+    color: var(--search-info-text-color);
     text-transform: uppercase;
+    letter-spacing: 0.08em;
   }
 
   .tabs {
@@ -371,6 +441,7 @@ defineExpose({
 
     .tabs-group {
       @apply flex items-center gap-2 min-w-0 overflow-x-auto overflow-y-hidden flex-nowrap;
+
       scrollbar-width: none;
 
       &::-webkit-scrollbar {
@@ -392,10 +463,12 @@ defineExpose({
 
     .return-hint {
       @apply flex items-center gap-1 ml-2 text-xs cursor-pointer whitespace-nowrap shrink-0;
+
       animation: fadeIn 0.3s ease-in-out;
 
       .hint-key {
         @apply px-1.5 py-0.5 rounded font-medium border;
+
         transition: all 0.2s ease;
       }
 
@@ -411,6 +484,7 @@ defineExpose({
 
   .result {
     @apply min-h-0 flex-1 overflow-y-auto;
+
     max-height: 100%;
 
     :deep(.vue-recycle-scroller__item-wrapper) {
@@ -419,10 +493,11 @@ defineExpose({
 
     .item {
       @apply grid grid-cols-[32px_minmax(0,1fr)_48px] items-center gap-2.5 text-search box-border rounded-lg cursor-pointer relative min-w-0 border border-transparent;
+
       width: calc(100% - 4px);
       height: 48px;
-      margin: 2px 4px 2px 0;
       padding: 5px 8px 5px 9px;
+      margin: 2px 4px 2px 0;
       background-color: transparent;
       transition:
         background-color 0.15s ease,
@@ -447,15 +522,15 @@ defineExpose({
       }
 
       &.active::before {
-        content: '';
         position: absolute;
-        left: 0;
         top: 7px;
         bottom: 7px;
+        left: 0;
         width: 3px;
-        border-radius: 0 999px 999px 0;
-        background: var(--search-result-accent);
         pointer-events: none;
+        content: '';
+        background: var(--search-result-accent);
+        border-radius: 0 999px 999px 0;
       }
 
       .item-actions {
@@ -476,6 +551,7 @@ defineExpose({
         --default-type-icon-scale: 1.14;
 
         @apply flex items-center justify-center w-8 h-8 flex-shrink-0 rounded-lg;
+
         background-color: var(--search-card-bg);
         box-shadow: 0 4px 14px rgb(15 23 42 / 8%);
 

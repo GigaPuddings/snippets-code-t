@@ -2,7 +2,10 @@ import { ErrorHandler, ErrorType } from '@/utils/error-handler';
 import type { Category, FragmentMetadata } from '@/types/database';
 import type { ContentType, MarkdownFile } from '@/types/models';
 import * as markdownApi from './markdown';
-import { cleanupAttachmentsOnDelete, syncAttachmentsOnRename } from '@/plugins/attachments/api';
+import {
+  cleanupAttachmentsOnDelete,
+  syncAttachmentsOnRename
+} from '@/plugins/attachments/api';
 import { applyFilter } from '@/utils/filterEngine';
 import { parseSearchText } from '@/utils/searchParser';
 import { logger } from '@/utils/logger';
@@ -34,7 +37,7 @@ function markdownFileToContentType(file: MarkdownFile): ContentType {
     ...(file.framework ? { framework: file.framework } : {}),
     ...(file.kind ? { kind: file.kind } : {})
   };
-  
+
   return {
     id: filePath,
     title: file.title,
@@ -47,7 +50,7 @@ function markdownFileToContentType(file: MarkdownFile): ContentType {
     metadata: Object.keys(metadata).length > 0 ? metadata : null,
     created_at: file.created,
     updated_at: file.modified,
-    usage_count: 0,
+    usage_count: 0
   };
 }
 
@@ -61,7 +64,7 @@ function isWorkspaceNotSetError(error: unknown): boolean {
     'workspace not set',
     'workspace is not set',
     'workspace root'
-  ].some(keyword => message.toLowerCase().includes(keyword.toLowerCase()));
+  ].some((keyword) => message.toLowerCase().includes(keyword.toLowerCase()));
 }
 
 function isMissingFileError(error: unknown): boolean {
@@ -75,24 +78,26 @@ function isMissingFileError(error: unknown): boolean {
     '找不到指定的文件',
     '文件不存在',
     '路径不存在'
-  ].some(keyword => normalized.includes(keyword.toLowerCase()));
+  ].some((keyword) => normalized.includes(keyword.toLowerCase()));
 }
 
 /**
  * 获取所有分类
  * 后端现在直接返回 Category 对象数组，无需前端转换
  */
-export async function getCategories(sort: 'asc' | 'desc' = 'desc'): Promise<Category[]> {
+export async function getCategories(
+  sort: 'asc' | 'desc' = 'desc'
+): Promise<Category[]> {
   try {
     const categories = await markdownApi.getCategories();
-    
+
     // 排序
     if (sort === 'asc') {
       categories.sort((a, b) => a.name.localeCompare(b.name));
     } else {
       categories.sort((a, b) => b.name.localeCompare(a.name));
     }
-    
+
     return categories;
   } catch (error) {
     if (isWorkspaceNotSetError(error)) {
@@ -116,7 +121,7 @@ export async function getCategories(sort: 'asc' | 'desc' = 'desc'): Promise<Cate
 export async function getUncategorizedId(): Promise<number | null> {
   try {
     const categories = await getCategories();
-    const uncategorized = categories.find(c => c.name === '未分类');
+    const uncategorized = categories.find((c) => c.name === '未分类');
     return uncategorized ? uncategorized.id : null;
   } catch (error) {
     ErrorHandler.handle(error, {
@@ -132,7 +137,7 @@ export async function getUncategorizedId(): Promise<number | null> {
  * 添加分类
  * @param name - 分类名称
  * @returns 新分类的 ID
- * 
+ *
  * @example
  * ```typescript
  * const categoryId = await addCategory('JavaScript');
@@ -141,15 +146,15 @@ export async function getUncategorizedId(): Promise<number | null> {
 export async function addCategory(name?: string): Promise<number> {
   try {
     const categoryName = name || 'New Category';
-    
+
     await markdownApi.createCategory(categoryName);
-    
+
     // 获取所有分类并找到新创建的分类的索引
     const categories = await getCategories();
-    
-    const newCategory = categories.find(c => c.name === categoryName);
+
+    const newCategory = categories.find((c) => c.name === categoryName);
     const categoryId = newCategory ? newCategory.id : categories.length;
-    
+
     return categoryId;
   } catch (error) {
     ErrorHandler.handle(error, {
@@ -166,23 +171,26 @@ export async function addCategory(name?: string): Promise<number> {
  * 编辑分类
  * @param id - 分类 ID
  * @param name - 新的分类名称
- * 
+ *
  * @example
  * ```typescript
  * await editCategory(1, 'TypeScript');
  * ```
  */
-export async function editCategory(id: number | string, name: string): Promise<void> {
+export async function editCategory(
+  id: number | string,
+  name: string
+): Promise<void> {
   try {
     // 获取所有分类，找到对应 ID 的分类名称
     const categories = await getCategories();
     const numId = typeof id === 'string' ? parseInt(id, 10) : id;
-    const oldCategory = categories.find(c => c.id === numId);
-    
+    const oldCategory = categories.find((c) => c.id === numId);
+
     if (!oldCategory) {
       throw new Error(`Category with id ${id} not found`);
     }
-    
+
     // 重命名分类文件夹
     await markdownApi.renameCategory(oldCategory.name, name);
   } catch (error) {
@@ -199,7 +207,7 @@ export async function editCategory(id: number | string, name: string): Promise<v
 /**
  * 删除分类（同时删除该分类下的所有片段）
  * @param id - 分类 ID
- * 
+ *
  * @example
  * ```typescript
  * await deleteCategory(1);
@@ -210,15 +218,15 @@ export async function deleteCategory(id: number | string): Promise<void> {
     // 获取所有分类，找到对应 ID 的分类名称
     const categories = await getCategories();
     const numId = typeof id === 'string' ? parseInt(id, 10) : id;
-    const category = categories.find(c => c.id === numId);
-    
+    const category = categories.find((c) => c.id === numId);
+
     if (!category) {
       throw new Error(`Category with id ${id} not found`);
     }
-    
+
     // 获取该分类下的所有文件
     const files = await markdownApi.getFilesByCategory(numId);
-    
+
     // 清理所有文件的附件，统计实际清理的数量
     let cleanedCount = 0;
     for (const file of files) {
@@ -232,16 +240,19 @@ export async function deleteCategory(id: number | string): Promise<void> {
         // 继续清理其他文件
       }
     }
-    
+
     // 删除分类文件夹
     await markdownApi.deleteCategory(category.name);
-    
+
     // 只有在实际清理了附件时才显示通知
     if (cleanedCount > 0) {
       const modalModule = await import('@/utils/modal');
       const i18nModule = await import('@/i18n');
       modalModule.default.success(
-        i18nModule.default.global.t('settings.attachment.categoryCleanupSuccessMessage', { count: cleanedCount }),
+        i18nModule.default.global.t(
+          'settings.attachment.categoryCleanupSuccessMessage',
+          { count: cleanedCount }
+        ),
         'top-right'
       );
     }
@@ -268,31 +279,35 @@ export async function getFragmentList(
 ): Promise<ContentType[]> {
   try {
     let files: MarkdownFile[] = [];
-    
+
     // 解析搜索文本，提取过滤条件
     const searchFilter = parseSearchText(searchVal);
     const textQuery = searchFilter.text || '';
-    
+
     if (textQuery) {
       // 如果有搜索关键词，使用搜索 API
       files = await markdownApi.searchMarkdownFiles(textQuery);
-      
+
       // 如果指定了分类，过滤结果
       if (categoryId !== undefined && categoryId !== null) {
-        const numId = typeof categoryId === 'string' ? parseInt(categoryId, 10) : categoryId;
-        files = files.filter(file => file.categoryId === numId);
+        const numId =
+          typeof categoryId === 'string'
+            ? parseInt(categoryId, 10)
+            : categoryId;
+        files = files.filter((file) => file.categoryId === numId);
       }
     } else if (categoryId !== undefined && categoryId !== null) {
       // 如果指定了分类但没有搜索关键词，获取该分类下的所有文件
-      const numId = typeof categoryId === 'string' ? parseInt(categoryId, 10) : categoryId;
+      const numId =
+        typeof categoryId === 'string' ? parseInt(categoryId, 10) : categoryId;
       files = await markdownApi.getFilesByCategory(numId);
     } else {
       // 获取所有文件
       files = await markdownApi.getAllFiles();
     }
-    
+
     // 转换为 ContentType
-    const fragments = files.map(file => markdownFileToContentType(file));
+    const fragments = files.map((file) => markdownFileToContentType(file));
 
     return applyFilter(fragments, {
       ...searchFilter,
@@ -334,7 +349,7 @@ export interface AddFragmentParams {
  * 添加片段
  * @param params - 片段参数
  * @returns 新片段的文件路径
- * 
+ *
  * @example
  * ```typescript
  * const filePath = await addFragment({
@@ -356,13 +371,13 @@ export async function addFragment(params?: AddFragmentParams): Promise<string> {
       } else {
         // 根据数字 ID 查找分类名
         const categories = await getCategories();
-        const category = categories.find(c => c.id === params.categoryId);
+        const category = categories.find((c) => c.id === params.categoryId);
         if (category) {
           categoryName = category.name;
         }
       }
     }
-    
+
     // 构建元数据
     const title = (params?.metadata?.title as string | undefined)?.trim();
     if (!title) {
@@ -377,12 +392,15 @@ export async function addFragment(params?: AddFragmentParams): Promise<string> {
       language: params?.metadata?.language as string | undefined,
       framework: params?.metadata?.framework as string | undefined,
       kind: params?.metadata?.kind as string | undefined,
-      favorite: false,
+      favorite: false
     };
-    
+
     // 创建文件
-    const filePath = await markdownApi.createMarkdownFile(categoryName, metadata);
-    
+    const filePath = await markdownApi.createMarkdownFile(
+      categoryName,
+      metadata
+    );
+
     return filePath;
   } catch (error) {
     ErrorHandler.handle(error, {
@@ -408,7 +426,7 @@ function isFilePath(id: number | string): boolean {
 /**
  * 删除片段
  * @param id - 片段 ID（文件路径或数字 ID）
- * 
+ *
  * @example
  * ```typescript
  * await deleteFragment(1);
@@ -419,23 +437,28 @@ export async function deleteFragment(id: number | string): Promise<void> {
     // 如果 ID 看起来像文件路径，直接使用
     if (isFilePath(id)) {
       const filePath = String(id);
-      
+
       // 读取文件以获取标题（用于清理附件）
       try {
         const file = await markdownApi.readMarkdownFile(filePath);
-        
+
         // 删除文件
         await markdownApi.deleteMarkdownFile(filePath);
-        
+
         // 清理附件并显示通知
         try {
           const hasAttachments = await cleanupAttachmentsOnDelete(file.title);
-          
+
           // 只有在实际删除了附件时才显示通知
           if (hasAttachments) {
             const modalModule = await import('@/utils/modal');
             const i18nModule = await import('@/i18n');
-            modalModule.default.success(i18nModule.default.global.t('settings.attachment.cleanupSuccessMessage'), 'top-right');
+            modalModule.default.success(
+              i18nModule.default.global.t(
+                'settings.attachment.cleanupSuccessMessage'
+              ),
+              'top-right'
+            );
           }
         } catch (cleanupError) {
           console.error('清理附件失败:', cleanupError);
@@ -488,7 +511,7 @@ export interface EditFragmentParams {
  * 编辑片段
  * @param params - 片段参数
  * @returns 如果文件被重命名，返回新的文件路径；否则返回 null
- * 
+ *
  * @example
  * ```typescript
  * const newPath = await editFragment({
@@ -505,29 +528,34 @@ export interface EditFragmentParams {
  * }
  * ```
  */
-export async function editFragment(params: EditFragmentParams): Promise<string | null> {
+export async function editFragment(
+  params: EditFragmentParams
+): Promise<string | null> {
   try {
     // ID 应该是文件路径
-    const filePath = typeof params.id === 'string' ? params.id : String(params.id);
-    
+    const filePath =
+      typeof params.id === 'string' ? params.id : String(params.id);
+
     // 读取当前文件以获取旧标题
     const currentFile = await markdownApi.readMarkdownFile(filePath);
     const oldTitle = currentFile.title;
     const titleChanged = params.title && params.title !== oldTitle;
-    
+
     // 如果传递了分类 ID（包括 null 表示未分类），先移动文件
     let currentFilePath = filePath;
     if (params.category_id !== undefined) {
       // 获取所有分类
       const categories = await markdownApi.getCategories();
-      
+
       // 处理 null 或 0 表示"未分类"
-      const targetCategoryId = params.category_id === null ? 0 : params.category_id;
-      const targetCategory = categories.find(c => c.id === targetCategoryId);
-      
+      const targetCategoryId =
+        params.category_id === null ? 0 : params.category_id;
+      const targetCategory = categories.find((c) => c.id === targetCategoryId);
+
       if (targetCategory) {
-        const targetCategoryName = targetCategory.name === '未分类' ? '' : targetCategory.name;
-        
+        const targetCategoryName =
+          targetCategory.name === '未分类' ? '' : targetCategory.name;
+
         // 移动文件到新分类
         const newPath = await markdownApi.moveMarkdownFile(
           filePath,
@@ -536,7 +564,7 @@ export async function editFragment(params: EditFragmentParams): Promise<string |
         currentFilePath = newPath;
       }
     }
-    
+
     // 如果标题变更，同步附件
     let updatedContent = params.content;
     if (titleChanged) {
@@ -546,24 +574,28 @@ export async function editFragment(params: EditFragmentParams): Promise<string |
         params.content
       );
     }
-    
+
     // 构建元数据更新
     const metadata: Partial<MarkdownFile> = {
       title: params.title,
       tags: params.tags || [],
       language: params.metadata?.language as string | undefined,
       framework: params.metadata?.framework as string | undefined,
-      kind: params.metadata?.kind as string | undefined,
+      kind: params.metadata?.kind as string | undefined
     };
-    
+
     // 只有在明确传递了 fragmentType 时才更新类型
     if (params.fragmentType !== undefined) {
       metadata.type = params.fragmentType === 'note' ? 'note' : 'code';
     }
-    
+
     // 更新文件内容和元数据（可能返回新路径）
-    const newPath = await markdownApi.updateMarkdownFile(currentFilePath, updatedContent, metadata);
-    
+    const newPath = await markdownApi.updateMarkdownFile(
+      currentFilePath,
+      updatedContent,
+      metadata
+    );
+
     return newPath;
   } catch (error) {
     // 不在此处处理，交由调用方（如 saveContent、useContentDialogs）统一展示，避免重复弹窗
@@ -583,19 +615,27 @@ export async function moveFragmentToCategory(
 ): Promise<ContentType> {
   const filePath = typeof id === 'string' ? id : String(id);
   const categories = await markdownApi.getCategories();
-  const normalizedCategoryId = categoryId === null || Number(categoryId) === 0
-    ? 0
-    : Number(categoryId);
-  const targetCategory = normalizedCategoryId === 0
-    ? categories.find(category => category.isSystem || category.name === '未分类')
-    : categories.find(category => Number(category.id) === normalizedCategoryId);
+  const normalizedCategoryId =
+    categoryId === null || Number(categoryId) === 0 ? 0 : Number(categoryId);
+  const targetCategory =
+    normalizedCategoryId === 0
+      ? categories.find(
+          (category) => category.isSystem || category.name === '未分类'
+        )
+      : categories.find(
+          (category) => Number(category.id) === normalizedCategoryId
+        );
 
   if (!targetCategory) {
     throw new Error(`Category not found: ${String(categoryId)}`);
   }
 
-  const targetCategoryName = targetCategory.name === '未分类' ? '' : targetCategory.name;
-  const newPath = await markdownApi.moveMarkdownFile(filePath, targetCategoryName);
+  const targetCategoryName =
+    targetCategory.name === '未分类' ? '' : targetCategory.name;
+  const newPath = await markdownApi.moveMarkdownFile(
+    filePath,
+    targetCategoryName
+  );
   const movedFile = await markdownApi.readMarkdownFile(newPath);
   return markdownFileToContentType(movedFile);
 }
@@ -618,7 +658,11 @@ export async function convertFragmentType(
 ): Promise<ContentType> {
   const filePath = typeof id === 'string' ? id : String(id);
   const currentFile = await markdownApi.readMarkdownFile(filePath);
-  const update = buildFragmentTypeConversionUpdate(currentFile, targetType, updates);
+  const update = buildFragmentTypeConversionUpdate(
+    currentFile,
+    targetType,
+    updates
+  );
 
   if (update.metadata.title && update.metadata.title !== currentFile.title) {
     update.content = await syncAttachmentsOnRename(
@@ -642,19 +686,21 @@ export async function convertFragmentType(
  * 获取单个片段内容
  * @param id - 片段 ID（文件路径或数字 ID）
  * @returns 片段内容，如果不存在则返回 null
- * 
+ *
  * @example
  * ```typescript
  * const fragment = await getFragmentContent(1);
  * ```
  */
-export async function getFragmentContent(id: number | string): Promise<ContentType | null> {
+export async function getFragmentContent(
+  id: number | string
+): Promise<ContentType | null> {
   try {
     // 处理 NaN 的情况（当组件调用 Number(filePath) 时）
     if (typeof id === 'number' && isNaN(id)) {
       return null;
     }
-    
+
     // 如果 ID 看起来像文件路径，直接使用
     if (isFilePath(id)) {
       const file = await markdownApi.readMarkdownFile(String(id));
@@ -684,16 +730,18 @@ export async function getFragmentContent(id: number | string): Promise<ContentTy
  * 搜索片段内容
  * @param keyword - 搜索关键词
  * @returns 匹配的片段列表
- * 
+ *
  * @example
  * ```typescript
  * const results = await searchFragmentContent('react hooks');
  * ```
  */
-export async function searchFragmentContent(keyword: string): Promise<ContentType[]> {
+export async function searchFragmentContent(
+  keyword: string
+): Promise<ContentType[]> {
   try {
     const files = await markdownApi.searchMarkdownFiles(keyword);
-    return files.map(file => markdownFileToContentType(file));
+    return files.map((file) => markdownFileToContentType(file));
   } catch (error) {
     ErrorHandler.handle(error, {
       type: ErrorType.API_ERROR,

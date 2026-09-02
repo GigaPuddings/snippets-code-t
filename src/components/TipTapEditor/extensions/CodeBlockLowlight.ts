@@ -22,7 +22,7 @@ export const CodeBlockLowlight = Node.create<CodeBlockOptions>({
   addOptions() {
     return {
       languageClassPrefix: 'language-',
-      HTMLAttributes: {},
+      HTMLAttributes: {}
     };
   },
 
@@ -40,12 +40,12 @@ export const CodeBlockLowlight = Node.create<CodeBlockOptions>({
     return {
       language: {
         default: null,
-        parseHTML: element => {
+        parseHTML: (element) => {
           const { languageClassPrefix } = this.options;
           const classNames = [...(element.firstElementChild?.classList || [])];
           const languages = classNames
-            .filter(className => className.startsWith(languageClassPrefix))
-            .map(className => className.replace(languageClassPrefix, ''));
+            .filter((className) => className.startsWith(languageClassPrefix))
+            .map((className) => className.replace(languageClassPrefix, ''));
           const language = languages[0];
 
           if (!language) {
@@ -54,8 +54,8 @@ export const CodeBlockLowlight = Node.create<CodeBlockOptions>({
 
           return language;
         },
-        rendered: false,
-      },
+        rendered: false
+      }
     };
   },
 
@@ -63,8 +63,8 @@ export const CodeBlockLowlight = Node.create<CodeBlockOptions>({
     return [
       {
         tag: 'pre',
-        preserveWhitespace: 'full',
-      },
+        preserveWhitespace: 'full'
+      }
     ];
   },
 
@@ -77,23 +77,25 @@ export const CodeBlockLowlight = Node.create<CodeBlockOptions>({
         {
           class: node.attrs.language
             ? this.options.languageClassPrefix + node.attrs.language
-            : null,
+            : null
         },
-        0,
-      ],
+        0
+      ]
     ];
   },
 
   addCommands() {
     return {
       setCodeBlock:
-        attributes => ({ commands }) => {
+        (attributes) =>
+        ({ commands }) => {
           return commands.setNode(this.name, attributes);
         },
       toggleCodeBlock:
-        attributes => ({ commands }) => {
+        (attributes) =>
+        ({ commands }) => {
           return commands.toggleNode(this.name, 'paragraph', attributes);
-        },
+        }
     };
   },
 
@@ -172,11 +174,11 @@ export const CodeBlockLowlight = Node.create<CodeBlockOptions>({
         }
 
         return editor.commands.exitCode();
-      },
+      }
     };
   },
 
   addNodeView() {
     return VueNodeViewRenderer(CodeBlockComponent);
-  },
+  }
 });

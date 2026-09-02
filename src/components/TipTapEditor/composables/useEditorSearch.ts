@@ -39,7 +39,10 @@ export function useEditorSearch(options: UseEditorSearchOptions) {
     const doc = editor.state.doc;
     const matches: SearchMatch[] = [];
     const flags = matchCase ? 'g' : 'gi';
-    const searchRegex = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), flags);
+    const searchRegex = new RegExp(
+      query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+      flags
+    );
 
     doc.descendants((node: any, pos: number) => {
       if (node.isText && node.text) {
@@ -79,10 +82,14 @@ export function useEditorSearch(options: UseEditorSearchOptions) {
     if (currentSearchIndex.value === -1) {
       currentSearchIndex.value = 0;
     } else {
-      currentSearchIndex.value = (currentSearchIndex.value + 1) % searchMatches.value.length;
+      currentSearchIndex.value =
+        (currentSearchIndex.value + 1) % searchMatches.value.length;
     }
 
-    options.updateMatchInfo?.(currentSearchIndex.value, searchMatches.value.length);
+    options.updateMatchInfo?.(
+      currentSearchIndex.value,
+      searchMatches.value.length
+    );
     scrollToMatch(currentSearchIndex.value, true);
   };
 
@@ -92,12 +99,16 @@ export function useEditorSearch(options: UseEditorSearchOptions) {
     if (currentSearchIndex.value === -1) {
       currentSearchIndex.value = searchMatches.value.length - 1;
     } else {
-      currentSearchIndex.value = currentSearchIndex.value <= 0
-        ? searchMatches.value.length - 1
-        : currentSearchIndex.value - 1;
+      currentSearchIndex.value =
+        currentSearchIndex.value <= 0
+          ? searchMatches.value.length - 1
+          : currentSearchIndex.value - 1;
     }
 
-    options.updateMatchInfo?.(currentSearchIndex.value, searchMatches.value.length);
+    options.updateMatchInfo?.(
+      currentSearchIndex.value,
+      searchMatches.value.length
+    );
     scrollToMatch(currentSearchIndex.value, true);
   };
 
@@ -121,9 +132,11 @@ export function useEditorSearch(options: UseEditorSearchOptions) {
         const scrollContainer = view.dom as HTMLElement;
         const coords = view.coordsAtPos(match.from);
         const containerRect = scrollContainer.getBoundingClientRect();
-        const relativeTop = coords.top - containerRect.top + scrollContainer.scrollTop;
+        const relativeTop =
+          coords.top - containerRect.top + scrollContainer.scrollTop;
         const isVisible =
-          coords.top >= containerRect.top && coords.bottom <= containerRect.bottom;
+          coords.top >= containerRect.top &&
+          coords.bottom <= containerRect.bottom;
 
         if (!isVisible) {
           scrollContainer.scrollTo({

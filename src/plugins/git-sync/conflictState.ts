@@ -92,7 +92,9 @@ export function restoreGitConflictState(
   try {
     const state = JSON.parse(savedState) as Partial<GitConflictState>;
     const conflictFiles = Array.isArray(state.conflictFiles)
-      ? state.conflictFiles.filter((file): file is string => typeof file === 'string')
+      ? state.conflictFiles.filter(
+          (file): file is string => typeof file === 'string'
+        )
       : [];
     const timestamp = typeof state.timestamp === 'number' ? state.timestamp : 0;
 

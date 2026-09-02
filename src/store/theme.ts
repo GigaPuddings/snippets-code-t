@@ -22,7 +22,10 @@ export const useThemeStore = defineStore('theme', {
   getters: {
     /** 当前实际是否为深色模式 */
     effectiveDark(): boolean {
-      return this.theme === 'dark' || (this.theme === 'auto' && this.systemPrefersDark);
+      return (
+        this.theme === 'dark' ||
+        (this.theme === 'auto' && this.systemPrefersDark)
+      );
     }
   },
   actions: {
@@ -36,14 +39,17 @@ export const useThemeStore = defineStore('theme', {
     /** 应用主题到 DOM，并同步 systemPrefersDark */
     applyTheme() {
       const root = document.documentElement;
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const prefersDark = window.matchMedia(
+        '(prefers-color-scheme: dark)'
+      ).matches;
       logger.debug(
         `[主题][ThemeStore] 应用主题到 DOM：theme=${this.theme}, prefersDark=${prefersDark}`
       );
       if (this.theme === 'auto') {
         this.systemPrefersDark = prefersDark;
       }
-      const isDark = this.theme === 'dark' || (this.theme === 'auto' && prefersDark);
+      const isDark =
+        this.theme === 'dark' || (this.theme === 'auto' && prefersDark);
 
       if (isDark) {
         root.classList.add('dark');

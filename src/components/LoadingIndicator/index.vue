@@ -17,7 +17,10 @@ const message = ref('正在加载...');
 
 const handleRefreshStart = (event: Event) => {
   const customEvent = event as CustomEvent;
-  logger.info('[LoadingIndicator] 🔔 收到 refresh-start 事件:', customEvent.detail);
+  logger.info(
+    '[LoadingIndicator] 🔔 收到 refresh-start 事件:',
+    customEvent.detail
+  );
   isLoading.value = true;
   message.value = customEvent.detail?.message || '正在同步数据...';
   logger.info('[LoadingIndicator] ✅ 加载指示器已显示:', message.value);
@@ -49,17 +52,17 @@ onUnmounted(() => {
   top: 16px;
   right: 16px;
   z-index: 9999;
+  padding: 12px 16px;
   background: var(--bg-panel);
   border: 1px solid var(--border-color);
   border-radius: 8px;
-  padding: 12px 16px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 15%);
 }
 
 .loading-content {
   display: flex;
-  align-items: center;
   gap: 8px;
+  align-items: center;
   font-size: 14px;
   color: var(--text-primary);
 }

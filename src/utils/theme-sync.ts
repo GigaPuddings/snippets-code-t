@@ -16,12 +16,21 @@ let themeSwitchGuardUntil = 0;
 let guardedTargetIsDark: boolean | null = null;
 const THEME_SWITCH_GUARD_MS = 1500;
 
-const withWindowTag = (message: string) => `[主题][窗口:${windowLabel}] ${message}`;
+const withWindowTag = (message: string) =>
+  `[主题][窗口:${windowLabel}] ${message}`;
 
-export const broadcastThemeChanged = async (isDark: boolean, theme: string, source: string) => {
+export const broadcastThemeChanged = async (
+  isDark: boolean,
+  theme: string,
+  source: string
+) => {
   try {
     await emit('theme-changed', { isDark, theme, source });
-    logger.debug(withWindowTag(`已广播 theme-changed：source=${source}, isDark=${isDark}, theme=${theme}`));
+    logger.debug(
+      withWindowTag(
+        `已广播 theme-changed：source=${source}, isDark=${isDark}, theme=${theme}`
+      )
+    );
   } catch (error) {
     logger.error(withWindowTag('发送 theme-changed 事件失败'), error);
   }
@@ -41,7 +50,11 @@ export const initTheme = async () => {
       const stored = localStorage.getItem('configuration');
       if (!stored) return;
       const parsed = JSON.parse(stored);
-      if (parsed?.theme === 'light' || parsed?.theme === 'dark' || parsed?.theme === 'auto') {
+      if (
+        parsed?.theme === 'light' ||
+        parsed?.theme === 'dark' ||
+        parsed?.theme === 'auto'
+      ) {
         if (store.theme !== parsed.theme) {
           store.theme = parsed.theme;
         }
@@ -62,16 +75,28 @@ export const initTheme = async () => {
 
     const now = Date.now();
     if (lastBackendIsDark === e.matches && now - lastBackendThemeAt < 1500) {
-      logger.debug(withWindowTag(`已忽略重复 matchMedia 主题事件：isDark=${e.matches}`));
+      logger.debug(
+        withWindowTag(`已忽略重复 matchMedia 主题事件：isDark=${e.matches}`)
+      );
       return;
     }
 
-    if (inGuardWindow() && guardedTargetIsDark !== null && e.matches !== guardedTargetIsDark) {
-      logger.debug(withWindowTag(`稳定期内忽略反向 matchMedia 事件：isDark=${e.matches}, target=${guardedTargetIsDark}`));
+    if (
+      inGuardWindow() &&
+      guardedTargetIsDark !== null &&
+      e.matches !== guardedTargetIsDark
+    ) {
+      logger.debug(
+        withWindowTag(
+          `稳定期内忽略反向 matchMedia 事件：isDark=${e.matches}, target=${guardedTargetIsDark}`
+        )
+      );
       return;
     }
 
-    logger.debug(withWindowTag(`检测到系统主题变化（matchMedia）：isDark=${e.matches}`));
+    logger.debug(
+      withWindowTag(`检测到系统主题变化（matchMedia）：isDark=${e.matches}`)
+    );
     store.syncSystemThemeStyle(e.matches);
   };
 
@@ -90,28 +115,41 @@ export const initTheme = async () => {
   logger.debug(withWindowTag('开始初始化全局主题监听器'));
 
   mediaQuery.addEventListener('change', handleMediaChange);
-  mediaQueryCleanup = () => mediaQuery.removeEventListener('change', handleMediaChange);
+  mediaQueryCleanup = () =>
+    mediaQuery.removeEventListener('change', handleMediaChange);
 
   window.addEventListener('focus', handleWindowRefresh);
   window.addEventListener('visibilitychange', handleWindowRefresh);
   focusCleanup = () => window.removeEventListener('focus', handleWindowRefresh);
-  visibilityCleanup = () => window.removeEventListener('visibilitychange', handleWindowRefresh);
+  visibilityCleanup = () =>
+    window.removeEventListener('visibilitychange', handleWindowRefresh);
 
-  unlistenDarkModeChanged = await listen<{ isDark: boolean; reason?: string }>('dark-mode-changed', (event) => {
-    const { isDark, reason } = event.payload;
-    lastBackendThemeAt = Date.now();
-    lastBackendIsDark = isDark;
+  unlistenDarkModeChanged = await listen<{ isDark: boolean; reason?: string }>(
+    'dark-mode-changed',
+    (event) => {
+      const { isDark, reason } = event.payload;
+      lastBackendThemeAt = Date.now();
+      lastBackendIsDark = isDark;
 
-    logger.debug(withWindowTag(`收到后端主题事件 dark-mode-changed：isDark=${isDark}, reason=${reason || 'unknown'}`));
+      logger.debug(
+        withWindowTag(
+          `收到后端主题事件 dark-mode-changed：isDark=${isDark}, reason=${reason || 'unknown'}`
+        )
+      );
 
-    if (reason === 'tray_menu' || reason === 'auto_switch') {
-      guardedTargetIsDark = isDark;
-      themeSwitchGuardUntil = Date.now() + THEME_SWITCH_GUARD_MS;
-      logger.debug(withWindowTag(`开启主题稳定期：target=${isDark}, duration=${THEME_SWITCH_GUARD_MS}ms`));
+      if (reason === 'tray_menu' || reason === 'auto_switch') {
+        guardedTargetIsDark = isDark;
+        themeSwitchGuardUntil = Date.now() + THEME_SWITCH_GUARD_MS;
+        logger.debug(
+          withWindowTag(
+            `开启主题稳定期：target=${isDark}, duration=${THEME_SWITCH_GUARD_MS}ms`
+          )
+        );
+      }
+
+      store.syncSystemThemeStyle(isDark);
     }
-
-    store.syncSystemThemeStyle(isDark);
-  });
+  );
 };
 
 export const disposeThemeListeners = () => {

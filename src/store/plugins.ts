@@ -377,6 +377,7 @@ export const usePluginStore = defineStore('plugins', {
       overwrite = false,
       packageSubdir?: string,
       expectedSizeBytes?: number,
+      expectedSha256?: string,
       mirrorUrls?: string[],
       pluginId?: string
     ): Promise<void> {
@@ -385,6 +386,7 @@ export const usePluginStore = defineStore('plugins', {
         overwrite,
         packageSubdir,
         expectedSizeBytes,
+        hasExpectedSha256: Boolean(expectedSha256),
         pluginId,
         mirrorCount: mirrorUrls?.length ?? 0
       });
@@ -393,6 +395,7 @@ export const usePluginStore = defineStore('plugins', {
         overwrite,
         packageSubdir,
         expectedSizeBytes,
+        expectedSha256,
         mirrorUrls,
         pluginId
       );
@@ -665,6 +668,7 @@ export const usePluginStore = defineStore('plugins', {
             true,
             item.packageSubdir,
             item.sizeBytes,
+            item.sha256,
             mirrorUrls,
             item.id
           );

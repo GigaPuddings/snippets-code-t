@@ -1,29 +1,29 @@
-import { existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs'
-import { join, resolve } from 'node:path'
-import { spawnSync } from 'node:child_process'
-import { fileURLToPath } from 'node:url'
+import { existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
-const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)))
-const FFMPEG_PATH = resolve(ROOT, 'src-tauri/resources/ffmpeg/ffmpeg.exe')
-const FFPROBE_PATH = resolve(ROOT, 'src-tauri/resources/ffmpeg/ffprobe.exe')
-const OUTPUT_DIR = resolve(ROOT, '_tmp/screen-recorder-smoke')
-const WIDTH = 384
-const HEIGHT = 148
+const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
+const FFMPEG_PATH = resolve(ROOT, 'src-tauri/resources/ffmpeg/ffmpeg.exe');
+const FFPROBE_PATH = resolve(ROOT, 'src-tauri/resources/ffmpeg/ffprobe.exe');
+const OUTPUT_DIR = resolve(ROOT, '_tmp/screen-recorder-smoke');
+const WIDTH = 384;
+const HEIGHT = 148;
 
 function main() {
-  assertExecutable(FFMPEG_PATH, 'ffmpeg.exe')
-  assertExecutable(FFPROBE_PATH, 'ffprobe.exe')
+  assertExecutable(FFMPEG_PATH, 'ffmpeg.exe');
+  assertExecutable(FFPROBE_PATH, 'ffprobe.exe');
 
-  rmSync(OUTPUT_DIR, { recursive: true, force: true })
-  mkdirSync(OUTPUT_DIR, { recursive: true })
+  rmSync(OUTPUT_DIR, { recursive: true, force: true });
+  mkdirSync(OUTPUT_DIR, { recursive: true });
 
-  const defaultMp4 = join(OUTPUT_DIR, 'default.mp4')
-  const compressedMp4 = join(OUTPUT_DIR, 'compressed.mp4')
-  const framesDir = join(OUTPUT_DIR, 'gif_frames')
-  const framePattern = join(framesDir, 'frame_%06d.png')
-  const palette = join(OUTPUT_DIR, 'palette.png')
-  const compressedGif = join(OUTPUT_DIR, 'compressed.gif')
-  const desktopCapture = join(OUTPUT_DIR, 'desktop-capture.mp4')
+  const defaultMp4 = join(OUTPUT_DIR, 'default.mp4');
+  const compressedMp4 = join(OUTPUT_DIR, 'compressed.mp4');
+  const framesDir = join(OUTPUT_DIR, 'gif_frames');
+  const framePattern = join(framesDir, 'frame_%06d.png');
+  const palette = join(OUTPUT_DIR, 'palette.png');
+  const compressedGif = join(OUTPUT_DIR, 'compressed.gif');
+  const desktopCapture = join(OUTPUT_DIR, 'desktop-capture.mp4');
 
   run(FFMPEG_PATH, [
     '-y',
@@ -44,7 +44,7 @@ function main() {
     '-pix_fmt',
     'yuv420p',
     defaultMp4
-  ])
+  ]);
 
   run(FFMPEG_PATH, [
     '-y',
@@ -65,9 +65,9 @@ function main() {
     '-movflags',
     '+faststart',
     compressedMp4
-  ])
+  ]);
 
-  mkdirSync(framesDir, { recursive: true })
+  mkdirSync(framesDir, { recursive: true });
   run(FFMPEG_PATH, [
     '-y',
     '-hide_banner',
@@ -76,9 +76,11 @@ function main() {
     '-vf',
     'fps=15,format=rgba',
     framePattern
-  ])
-  const gifFrameCount = readdirSync(framesDir).filter((name) => name.endsWith('.png')).length
-  assert(gifFrameCount > 0, 'GIF 临时帧没有生成')
+  ]);
+  const gifFrameCount = readdirSync(framesDir).filter((name) =>
+    name.endsWith('.png')
+  ).length;
+  assert(gifFrameCount > 0, 'GIF 临时帧没有生成');
 
   run(FFMPEG_PATH, [
     '-y',
@@ -90,7 +92,7 @@ function main() {
     '-vf',
     'palettegen=max_colors=96',
     palette
-  ])
+  ]);
 
   run(FFMPEG_PATH, [
     '-y',
@@ -108,20 +110,20 @@ function main() {
     '-loop',
     '0',
     compressedGif
-  ])
+  ]);
 
-  const defaultBytes = statSync(defaultMp4).size
-  const compressedBytes = statSync(compressedMp4).size
-  const gifBytes = statSync(compressedGif).size
-  const mp4Size = probeSize(compressedMp4)
-  const gifSize = probeSize(compressedGif)
+  const defaultBytes = statSync(defaultMp4).size;
+  const compressedBytes = statSync(compressedMp4).size;
+  const gifBytes = statSync(compressedGif).size;
+  const mp4Size = probeSize(compressedMp4);
+  const gifSize = probeSize(compressedGif);
 
-  assert(mp4Size === `${WIDTH}x${HEIGHT}`, `MP4 分辨率错误: ${mp4Size}`)
-  assert(gifSize === `${WIDTH}x${HEIGHT}`, `GIF 分辨率错误: ${gifSize}`)
+  assert(mp4Size === `${WIDTH}x${HEIGHT}`, `MP4 分辨率错误: ${mp4Size}`);
+  assert(gifSize === `${WIDTH}x${HEIGHT}`, `GIF 分辨率错误: ${gifSize}`);
   assert(
     compressedBytes < defaultBytes,
     `MP4 压缩无效: default=${defaultBytes}, compressed=${compressedBytes}`
-  )
+  );
 
   const result = {
     defaultMp4Bytes: defaultBytes,
@@ -130,7 +132,7 @@ function main() {
     gifFrameCount,
     mp4Size,
     gifSize
-  }
+  };
 
   if (process.platform === 'win32') {
     run(FFMPEG_PATH, [
@@ -162,21 +164,21 @@ function main() {
       '-pix_fmt',
       'yuv420p',
       desktopCapture
-    ])
-    result.desktopCaptureBytes = statSync(desktopCapture).size
-    result.desktopCaptureSize = probeSize(desktopCapture)
+    ]);
+    result.desktopCaptureBytes = statSync(desktopCapture).size;
+    result.desktopCaptureSize = probeSize(desktopCapture);
     assert(
       result.desktopCaptureSize === `${WIDTH}x${HEIGHT}`,
       `桌面录制分辨率错误: ${result.desktopCaptureSize}`
-    )
+    );
   }
 
-  console.log(`[ScreenRecorderSmoke] ${JSON.stringify(result)}`)
+  console.log(`[ScreenRecorderSmoke] ${JSON.stringify(result)}`);
 }
 
 function assertExecutable(path, name) {
   if (!existsSync(path)) {
-    throw new Error(`未找到 ${name}，请先运行 pnpm ffmpeg:install`)
+    throw new Error(`未找到 ${name}，请先运行 pnpm ffmpeg:install`);
   }
 }
 
@@ -191,26 +193,26 @@ function probeSize(filePath) {
     '-of',
     'csv=s=x:p=0',
     filePath
-  ]).trim()
+  ]).trim();
 }
 
 function run(command, args) {
   const output = spawnSync(command, args, {
     cwd: ROOT,
     encoding: 'utf8'
-  })
+  });
   if (output.status !== 0) {
     throw new Error(
       `${command} ${args.join(' ')} failed\n${output.stderr || output.stdout}`
-    )
+    );
   }
-  return output.stdout
+  return output.stdout;
 }
 
 function assert(condition, message) {
   if (!condition) {
-    throw new Error(message)
+    throw new Error(message);
   }
 }
 
-main()
+main();

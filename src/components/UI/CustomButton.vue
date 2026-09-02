@@ -1,15 +1,26 @@
 <template>
-  <button :class="[
-    'custom-button',
-    `custom-button--${props.type || 'default'}`,
-    props.size ? `custom-button--${props.size}` : 'custom-button--medium',
-    { 'custom-button--loading': props.loading },
-    { 'custom-button--circle': props.circle },
-    { 'custom-button--plain': props.plain }
-  ]" :disabled="loading || disabled" @click="$emit('click', $event)">
+  <button
+    :class="[
+      'custom-button',
+      `custom-button--${props.type || 'default'}`,
+      props.size ? `custom-button--${props.size}` : 'custom-button--medium',
+      { 'custom-button--loading': props.loading },
+      { 'custom-button--circle': props.circle },
+      { 'custom-button--plain': props.plain }
+    ]"
+    :disabled="loading || disabled"
+    @click="$emit('click', $event)"
+  >
     <div v-if="loading" class="custom-button__loading">
       <svg class="custom-button__spinner" viewBox="0 0 50 50">
-        <circle class="path" cx="25" cy="25" r="20" fill="none" stroke-width="5" />
+        <circle
+          class="path"
+          cx="25"
+          cy="25"
+          r="20"
+          fill="none"
+          stroke-width="5"
+        />
       </svg>
     </div>
     <slot></slot>
@@ -26,7 +37,9 @@ const props = defineProps({
     type: String,
     default: 'default',
     validator: (value: string) =>
-      ['default', 'primary', 'success', 'danger', 'warning', 'text'].includes(value)
+      ['default', 'primary', 'success', 'danger', 'warning', 'text'].includes(
+        value
+      )
   },
   size: {
     type: String,

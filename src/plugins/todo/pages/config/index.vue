@@ -7,7 +7,11 @@
         <strong>{{ alarmCards.length }}</strong>
       </div>
       <div class="todo-toolbar__actions">
-        <el-tooltip effect="light" :content="isEdit ? $t('local.done') : $t('local.edit')" placement="bottom">
+        <el-tooltip
+          effect="light"
+          :content="isEdit ? $t('local.done') : $t('local.edit')"
+          placement="bottom"
+        >
           <button
             class="todo-icon-button"
             type="button"
@@ -19,7 +23,11 @@
             <check-small v-else theme="outline" size="18" :strokeWidth="3" />
           </button>
         </el-tooltip>
-        <el-tooltip effect="light" :content="$t('local.add')" placement="bottom">
+        <el-tooltip
+          effect="light"
+          :content="$t('local.add')"
+          placement="bottom"
+        >
           <button
             class="todo-icon-button todo-icon-button--primary"
             type="button"
@@ -60,7 +68,9 @@
               >
                 {{ formatSpecificDates((item as any).specific_dates) }}
               </span>
-              <span v-else class="type-badge weekly">{{ $t('alarm.weekly') }}</span>
+              <span v-else class="type-badge weekly">
+                {{ $t('alarm.weekly') }}
+              </span>
             </div>
           </div>
           <div v-if="(item as any).alarm_type === 'Weekly'" class="weekdays">
@@ -88,7 +98,11 @@
             class="specific-date-info"
           >
             <span class="date-info">
-              {{ $t('alarm.totalDates', { count: ((item as any).specific_dates || []).length }) }}
+              {{
+                $t('alarm.totalDates', {
+                  count: ((item as any).specific_dates || []).length
+                })
+              }}
             </span>
           </div>
         </div>
@@ -131,7 +145,9 @@
       type="danger"
       @confirm="confirmDelete"
     >
-      <div>{{ $t('alarm.deleteConfirm', { name: deleteTarget?.title || '' }) }}</div>
+      <div>
+        {{ $t('alarm.deleteConfirm', { name: deleteTarget?.title || '' }) }}
+      </div>
     </ConfirmDialog>
   </div>
 </template>
@@ -238,7 +254,7 @@ const deleteAlarmCard = (item: AlarmCard) => {
 
 const confirmDelete = async () => {
   if (!deleteTarget.value) return;
-  
+
   try {
     await invoke('delete_alarm_card', { id: deleteTarget.value.id });
     modal.success(t('alarm.deleteSuccess'));
@@ -324,6 +340,7 @@ onUnmounted(() => {
 
       strong {
         @apply inline-flex items-center justify-center min-w-6 h-6 px-1 rounded-md text-xs;
+
         color: var(--search-result-accent);
         background: var(--search-card-bg);
       }
@@ -335,6 +352,7 @@ onUnmounted(() => {
 
     .todo-icon-button {
       @apply inline-flex w-8 h-8 items-center justify-center rounded-md border border-transparent text-panel-text-secondary cursor-pointer transition-colors;
+
       background: transparent;
 
       &:hover:not(:disabled),
@@ -429,6 +447,7 @@ onUnmounted(() => {
 
       .weekday {
         @apply text-xs text-panel px-2 py-1 rounded-md border border-panel;
+
         background: var(--search-card-bg);
       }
 

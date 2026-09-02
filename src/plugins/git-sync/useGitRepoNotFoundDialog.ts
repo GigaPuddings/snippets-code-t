@@ -13,10 +13,12 @@ export function useGitRepoNotFoundDialog(t: Composer['t']) {
     operation: ''
   });
 
-  const message = computed(() => t('settings.gitSync.repoNotFoundMessage', {
-    url: info.value.remoteUrl,
-    operation: info.value.operation
-  }));
+  const message = computed(() =>
+    t('settings.gitSync.repoNotFoundMessage', {
+      url: info.value.remoteUrl,
+      operation: info.value.operation
+    })
+  );
 
   const open = (nextInfo: GitRepoNotFoundInfo) => {
     info.value = nextInfo;

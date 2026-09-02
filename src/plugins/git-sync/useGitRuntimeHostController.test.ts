@@ -34,7 +34,9 @@ const createStorage = () => {
 describe('useGitRuntimeHostController', () => {
   it('sets up host, marks runtime ready, and resets conflict handled through runtime listeners', async () => {
     const host = createHost();
-    const setupHost = vi.fn(async (_deps: SetupGitRuntimeHostControllerDeps) => host);
+    const setupHost = vi.fn(
+      async (_deps: SetupGitRuntimeHostControllerDeps) => host
+    );
     const controller = useGitRuntimeHostController({
       setupHost,
       cleanupHost: vi.fn(),
@@ -56,10 +58,12 @@ describe('useGitRuntimeHostController', () => {
       gitListeners: null,
       autoSyncWindowListeners: null
     });
-    expect(setupHost).toHaveBeenCalledWith(expect.objectContaining({
-      t,
-      shouldInit: true
-    }));
+    expect(setupHost).toHaveBeenCalledWith(
+      expect.objectContaining({
+        t,
+        shouldInit: true
+      })
+    );
     expect(host.runtimeListeners?.resetConflictHandled).toHaveBeenCalled();
   });
 
@@ -68,7 +72,9 @@ describe('useGitRuntimeHostController', () => {
     const cleanupHost = vi.fn(async () => undefined);
     const isPluginEnabled = vi.fn(() => true);
     const controller = useGitRuntimeHostController({
-      setupHost: vi.fn(async (_deps: SetupGitRuntimeHostControllerDeps) => host),
+      setupHost: vi.fn(
+        async (_deps: SetupGitRuntimeHostControllerDeps) => host
+      ),
       cleanupHost,
       logger: { info: vi.fn() }
     });
@@ -83,17 +89,21 @@ describe('useGitRuntimeHostController', () => {
     });
     await controller.cleanup(isPluginEnabled);
 
-    expect(cleanupHost).toHaveBeenCalledWith(expect.objectContaining({
-      host,
-      isPluginEnabled
-    }));
+    expect(cleanupHost).toHaveBeenCalledWith(
+      expect.objectContaining({
+        host,
+        isPluginEnabled
+      })
+    );
     expect(controller.ready.value).toBe(false);
     expect(controller.host.value).toBeNull();
   });
 
   it('sets up host callbacks from runtime state', async () => {
     const host = createHost();
-    const setupHost = vi.fn(async (_deps: SetupGitRuntimeHostControllerDeps) => host);
+    const setupHost = vi.fn(
+      async (_deps: SetupGitRuntimeHostControllerDeps) => host
+    );
     const state = useGitRuntimeState({ t, storage: createStorage() });
     const controller = useGitRuntimeHostController({
       setupHost,

@@ -32,7 +32,10 @@ export interface ManualMergeInput {
   editedContents: Record<number, string>;
 }
 
-const writeConflictFileWithInvoke = async (filePath: string, content: string): Promise<void> => {
+const writeConflictFileWithInvoke = async (
+  filePath: string,
+  content: string
+): Promise<void> => {
   await tauriInvoke('write_conflict_file', {
     filePath,
     content
@@ -97,7 +100,8 @@ export async function completeManualMerge(
   deps: GitConflictResolutionDeps = {}
 ): Promise<ResolveConflictsResult> {
   const { files, selections, editedContents } = input;
-  const { resolveConflictsBatch, writeConflictFile, logger } = resolveDeps(deps);
+  const { resolveConflictsBatch, writeConflictFile, logger } =
+    resolveDeps(deps);
 
   for (const [indexStr, content] of Object.entries(editedContents)) {
     const index = Number.parseInt(indexStr, 10);
@@ -111,10 +115,14 @@ export async function completeManualMerge(
     }
   }
 
-  const resolutions: Parameters<typeof resolveConflictsBatch>[0] = files.map((file, index) => [
-    file,
-    selections[index] === 'remote' ? ConflictStrategy.KeepRemote : ConflictStrategy.KeepLocal
-  ]);
+  const resolutions: Parameters<typeof resolveConflictsBatch>[0] = files.map(
+    (file, index) => [
+      file,
+      selections[index] === 'remote'
+        ? ConflictStrategy.KeepRemote
+        : ConflictStrategy.KeepLocal
+    ]
+  );
 
   const result = await resolveConflictsBatch(resolutions);
   logger.info(`[GitSync] 手动合并成功，已解决 ${result.resolved_count} 个冲突`);

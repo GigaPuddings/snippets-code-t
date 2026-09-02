@@ -6,7 +6,7 @@
 /**
  * Git 错误类型
  */
-export type GitErrorType = 
+export type GitErrorType =
   | 'network'
   | 'auth'
   | 'conflict'
@@ -32,14 +32,16 @@ export interface GitErrorInfo {
  */
 export function analyzeGitError(error: unknown): GitErrorInfo {
   const errorMsg = String(error).toLowerCase();
-  
+
   // 网络相关错误
-  if (errorMsg.includes('network') || 
-      errorMsg.includes('connection') ||
-      errorMsg.includes('tcp') ||
-      errorMsg.includes('无法连接') ||
-      errorMsg.includes('连接失败') ||
-      errorMsg.includes('网络')) {
+  if (
+    errorMsg.includes('network') ||
+    errorMsg.includes('connection') ||
+    errorMsg.includes('tcp') ||
+    errorMsg.includes('无法连接') ||
+    errorMsg.includes('连接失败') ||
+    errorMsg.includes('网络')
+  ) {
     return {
       type: 'network',
       title: '网络连接失败',
@@ -52,17 +54,19 @@ export function analyzeGitError(error: unknown): GitErrorInfo {
       ]
     };
   }
-  
+
   // 认证相关错误
-  if (errorMsg.includes('authentication') || 
-      errorMsg.includes('auth') ||
-      errorMsg.includes('token') ||
-      errorMsg.includes('credential') ||
-      errorMsg.includes('认证') ||
-      errorMsg.includes('权限') ||
-      errorMsg.includes('token') ||
-      errorMsg.includes('密码') ||
-      errorMsg.includes('身份验证')) {
+  if (
+    errorMsg.includes('authentication') ||
+    errorMsg.includes('auth') ||
+    errorMsg.includes('token') ||
+    errorMsg.includes('credential') ||
+    errorMsg.includes('认证') ||
+    errorMsg.includes('权限') ||
+    errorMsg.includes('token') ||
+    errorMsg.includes('密码') ||
+    errorMsg.includes('身份验证')
+  ) {
     return {
       type: 'auth',
       title: '认证失败',
@@ -75,11 +79,13 @@ export function analyzeGitError(error: unknown): GitErrorInfo {
       ]
     };
   }
-  
+
   // 冲突相关错误
-  if (errorMsg.includes('conflict') ||
-      errorMsg.includes('冲突') ||
-      errorMsg.includes('merge')) {
+  if (
+    errorMsg.includes('conflict') ||
+    errorMsg.includes('冲突') ||
+    errorMsg.includes('merge')
+  ) {
     return {
       type: 'conflict',
       title: '合并冲突',
@@ -91,13 +97,15 @@ export function analyzeGitError(error: unknown): GitErrorInfo {
       ]
     };
   }
-  
+
   // 仓库不存在错误
-  if (errorMsg.includes('not found') ||
-      errorMsg.includes('repository') ||
-      errorMsg.includes('不存在') ||
-      errorMsg.includes('仓库') ||
-      errorMsg.includes('404')) {
+  if (
+    errorMsg.includes('not found') ||
+    errorMsg.includes('repository') ||
+    errorMsg.includes('不存在') ||
+    errorMsg.includes('仓库') ||
+    errorMsg.includes('404')
+  ) {
     return {
       type: 'not_found',
       title: '仓库不存在',
@@ -110,12 +118,14 @@ export function analyzeGitError(error: unknown): GitErrorInfo {
       ]
     };
   }
-  
+
   // 权限相关错误
-  if (errorMsg.includes('permission') ||
-      errorMsg.includes('access denied') ||
-      errorMsg.includes('访问被拒绝') ||
-      errorMsg.includes('权限不足')) {
+  if (
+    errorMsg.includes('permission') ||
+    errorMsg.includes('access denied') ||
+    errorMsg.includes('访问被拒绝') ||
+    errorMsg.includes('权限不足')
+  ) {
     return {
       type: 'permission',
       title: '权限不足',
@@ -127,12 +137,14 @@ export function analyzeGitError(error: unknown): GitErrorInfo {
       ]
     };
   }
-  
+
   // Git 未安装
-  if (errorMsg.includes('git is not installed') ||
-      errorMsg.includes('git not found') ||
-      errorMsg.includes('git 未安装') ||
-      errorMsg.includes('找不到 git')) {
+  if (
+    errorMsg.includes('git is not installed') ||
+    errorMsg.includes('git not found') ||
+    errorMsg.includes('git 未安装') ||
+    errorMsg.includes('找不到 git')
+  ) {
     return {
       type: 'git_not_installed',
       title: 'Git 未安装',
@@ -144,26 +156,27 @@ export function analyzeGitError(error: unknown): GitErrorInfo {
       ]
     };
   }
-  
+
   // 不是 Git 仓库
-  if (errorMsg.includes('not a git repository') ||
-      errorMsg.includes('不是 git 仓库') ||
-      errorMsg.includes('不是有效的仓库')) {
+  if (
+    errorMsg.includes('not a git repository') ||
+    errorMsg.includes('不是 git 仓库') ||
+    errorMsg.includes('不是有效的仓库')
+  ) {
     return {
       type: 'not_a_repo',
       title: '不是 Git 仓库',
       message: '当前目录不是 Git 仓库',
-      suggestions: [
-        '需要先初始化 Git 仓库',
-        '或重新配置指向已有的 Git 仓库'
-      ]
+      suggestions: ['需要先初始化 Git 仓库', '或重新配置指向已有的 Git 仓库']
     };
   }
-  
+
   // 没有远程仓库
-  if (errorMsg.includes('no remote') ||
-      errorMsg.includes('没有远程') ||
-      errorMsg.includes('未配置远程')) {
+  if (
+    errorMsg.includes('no remote') ||
+    errorMsg.includes('没有远程') ||
+    errorMsg.includes('未配置远程')
+  ) {
     return {
       type: 'no_remote',
       title: '未配置远程仓库',
@@ -175,7 +188,7 @@ export function analyzeGitError(error: unknown): GitErrorInfo {
       ]
     };
   }
-  
+
   // 未知错误
   return {
     type: 'unknown',

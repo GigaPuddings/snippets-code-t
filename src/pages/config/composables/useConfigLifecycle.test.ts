@@ -52,7 +52,11 @@ describe('useConfigLifecycle', () => {
     lifecycle.cleanup();
 
     expect(navigationEvents.cleanup).toHaveBeenCalled();
-    expect(logger.info).toHaveBeenCalledWith('[Config] 🧹 开始清理 Config 页面资源...');
-    expect(logger.info).toHaveBeenCalledWith('[Config] ✅ Config 页面资源清理完成');
+    expect(logger.info).toHaveBeenCalledWith(
+      '[Config] 🧹 开始清理 Config 页面资源...'
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      '[Config] ✅ Config 页面资源清理完成'
+    );
   });
 });

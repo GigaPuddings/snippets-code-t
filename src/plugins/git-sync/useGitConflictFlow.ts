@@ -54,8 +54,10 @@ export interface GitConflictFlowDeps {
 
 export function useGitConflictFlow(deps: GitConflictFlowDeps) {
   const logger = deps.logger ?? defaultLogger;
-  const resolveForcePush = deps.resolveForcePush ?? resolveConflictWithForcePush;
-  const resolveForcePull = deps.resolveForcePull ?? resolveConflictWithForcePull;
+  const resolveForcePush =
+    deps.resolveForcePush ?? resolveConflictWithForcePush;
+  const resolveForcePull =
+    deps.resolveForcePull ?? resolveConflictWithForcePull;
   const completeMerge = deps.completeMerge ?? completeManualMerge;
   const resumeAutoSync = deps.resumeAutoSync ?? resumeAutoSyncAfterConflict;
 

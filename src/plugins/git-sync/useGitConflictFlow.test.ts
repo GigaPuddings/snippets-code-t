@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
-import { useGitConflictFlow, type GitConflictFlowDeps } from './useGitConflictFlow';
+import {
+  useGitConflictFlow,
+  type GitConflictFlowDeps
+} from './useGitConflictFlow';
 
-const createDeps = (overrides: Partial<GitConflictFlowDeps> = {}): GitConflictFlowDeps => {
+const createDeps = (
+  overrides: Partial<GitConflictFlowDeps> = {}
+): GitConflictFlowDeps => {
   const conflictDialog = {
     value: {
       setLoading: vi.fn()
@@ -64,7 +69,9 @@ describe('useGitConflictFlow', () => {
     expect(deps.feedback.notifyForcePushResolved).toHaveBeenCalled();
     expect(deps.closeConflictDialog).toHaveBeenCalled();
     expect(deps.clearConflictFiles).toHaveBeenCalled();
-    expect(deps.conflictDialogRef.value?.setLoading).toHaveBeenLastCalledWith(false);
+    expect(deps.conflictDialogRef.value?.setLoading).toHaveBeenLastCalledWith(
+      false
+    );
   });
 
   it('runs force pull flow with untracked files', async () => {
@@ -76,7 +83,9 @@ describe('useGitConflictFlow', () => {
     expect(deps.conflictDialogRef.value?.setLoading).toHaveBeenCalledWith(true);
     expect(deps.resolveForcePull).toHaveBeenCalledWith(['untracked.md']);
     expect(deps.feedback.notifyForcePullResolved).toHaveBeenCalled();
-    expect(deps.conflictDialogRef.value?.setLoading).toHaveBeenLastCalledWith(false);
+    expect(deps.conflictDialogRef.value?.setLoading).toHaveBeenLastCalledWith(
+      false
+    );
   });
 
   it('does not show conflict dialog loading when force pull is cancelled', async () => {
@@ -85,10 +94,16 @@ describe('useGitConflictFlow', () => {
     });
     const flow = useGitConflictFlow(deps);
 
-    await expect(flow.handleConflictResolution('force-pull')).rejects.toBe('cancel');
+    await expect(flow.handleConflictResolution('force-pull')).rejects.toBe(
+      'cancel'
+    );
 
-    expect(deps.conflictDialogRef.value?.setLoading).not.toHaveBeenCalledWith(true);
-    expect(deps.conflictDialogRef.value?.setLoading).toHaveBeenLastCalledWith(false);
+    expect(deps.conflictDialogRef.value?.setLoading).not.toHaveBeenCalledWith(
+      true
+    );
+    expect(deps.conflictDialogRef.value?.setLoading).toHaveBeenLastCalledWith(
+      false
+    );
   });
 
   it('opens manual merge dialog for manual merge strategy', async () => {
@@ -107,9 +122,13 @@ describe('useGitConflictFlow', () => {
 
     await flow.handleConflictCancel();
 
-    expect(deps.clearConflictFiles).toHaveBeenCalledWith({ clearUntracked: false });
+    expect(deps.clearConflictFiles).toHaveBeenCalledWith({
+      clearUntracked: false
+    });
     expect(deps.resumeAutoSync).toHaveBeenCalled();
-    expect(deps.feedback.notifyAutoSyncResumed).toHaveBeenCalledWith('conflict-dialog');
+    expect(deps.feedback.notifyAutoSyncResumed).toHaveBeenCalledWith(
+      'conflict-dialog'
+    );
   });
 
   it('completes manual merge through merge input mapper', async () => {
@@ -118,7 +137,10 @@ describe('useGitConflictFlow', () => {
 
     await flow.handleManualMergeComplete({ 0: 'local' }, { 0: 'edited' });
 
-    expect(deps.getManualMergeInput).toHaveBeenCalledWith({ 0: 'local' }, { 0: 'edited' });
+    expect(deps.getManualMergeInput).toHaveBeenCalledWith(
+      { 0: 'local' },
+      { 0: 'edited' }
+    );
     expect(deps.completeMerge).toHaveBeenCalledWith({
       files: ['a.md'],
       selections: { 0: 'local' },

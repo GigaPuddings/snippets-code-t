@@ -10,30 +10,60 @@
       @contextmenu.prevent
       @mousedown.stop
     >
-      <button class="menu-item" :disabled="!canFormat" role="menuitem" @click="run('format')">
+      <button
+        class="menu-item"
+        :disabled="!canFormat"
+        role="menuitem"
+        @click="run('format')"
+      >
         <span>{{ $t('codeEditor.formatCode') }}</span>
         <kbd>Ctrl+Shift+F</kbd>
       </button>
-      <button class="menu-item" :disabled="!canEdit" role="menuitem" @click="run('undo')">
+      <button
+        class="menu-item"
+        :disabled="!canEdit"
+        role="menuitem"
+        @click="run('undo')"
+      >
         <span>{{ $t('codeEditor.undo') }}</span>
         <kbd>Ctrl+Z</kbd>
       </button>
-      <button class="menu-item" :disabled="!canEdit" role="menuitem" @click="run('redo')">
+      <button
+        class="menu-item"
+        :disabled="!canEdit"
+        role="menuitem"
+        @click="run('redo')"
+      >
         <span>{{ $t('codeEditor.redo') }}</span>
         <kbd>Ctrl+Y</kbd>
       </button>
 
       <div class="menu-divider"></div>
 
-      <button class="menu-item" :disabled="!canEdit || !hasSelection" role="menuitem" @click="run('cut')">
+      <button
+        class="menu-item"
+        :disabled="!canEdit || !hasSelection"
+        role="menuitem"
+        @click="run('cut')"
+      >
         <span>{{ $t('contextMenu.cut') }}</span>
         <kbd>Ctrl+X</kbd>
       </button>
-      <button class="menu-item" :disabled="!hasSelection" role="menuitem" @click="run('copy')">
+      <button
+        class="menu-item"
+        :disabled="!hasSelection"
+        role="menuitem"
+        @click="run('copy')"
+      >
         <span>{{ $t('contextMenu.copy') }}</span>
         <kbd>Ctrl+C</kbd>
       </button>
-      <button class="menu-item" :disabled="!canEdit" role="menuitem" @click="run('paste')">
+      <button
+        class="menu-item"
+        :disabled="!canEdit"
+        role="menuitem"
+        @click="run('paste')"
+      >
         <span>{{ $t('contextMenu.paste') }}</span>
         <kbd>Ctrl+V</kbd>
       </button>
@@ -49,7 +79,15 @@
 </template>
 
 <script setup lang="ts">
-type MenuAction = 'format' | 'undo' | 'redo' | 'cut' | 'copy' | 'paste' | 'copyAll' | 'selectAll';
+type MenuAction =
+  | 'format'
+  | 'undo'
+  | 'redo'
+  | 'cut'
+  | 'copy'
+  | 'paste'
+  | 'copyAll'
+  | 'selectAll';
 
 interface Props {
   dark?: boolean;
@@ -89,8 +127,14 @@ function show(event: MouseEvent): void {
 
     const rect = menu.getBoundingClientRect();
     position.value = {
-      x: Math.max(8, Math.min(position.value.x, window.innerWidth - rect.width - 8)),
-      y: Math.max(8, Math.min(position.value.y, window.innerHeight - rect.height - 8))
+      x: Math.max(
+        8,
+        Math.min(position.value.x, window.innerWidth - rect.width - 8)
+      ),
+      y: Math.max(
+        8,
+        Math.min(position.value.y, window.innerHeight - rect.height - 8)
+      )
     };
   });
 }
@@ -100,12 +144,12 @@ function hide(): void {
 }
 
 function run(action: MenuAction): void {
-  const disabled = (
-    (action === 'format' && !props.canFormat)
-    || ((action === 'undo' || action === 'redo' || action === 'paste') && !props.canEdit)
-    || ((action === 'cut') && (!props.canEdit || !props.hasSelection))
-    || (action === 'copy' && !props.hasSelection)
-  );
+  const disabled =
+    (action === 'format' && !props.canFormat) ||
+    ((action === 'undo' || action === 'redo' || action === 'paste') &&
+      !props.canEdit) ||
+    (action === 'cut' && (!props.canEdit || !props.hasSelection)) ||
+    (action === 'copy' && !props.hasSelection);
   if (disabled) return;
 
   emit('action', action);
@@ -138,17 +182,23 @@ defineExpose({ show, hide });
 <style lang="scss" scoped>
 .code-context-menu {
   @apply fixed z-[9999] min-w-[188px] rounded-lg border p-1 select-none;
+
   background-color: var(--panel-bg);
   border-color: var(--panel-border);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.08);
+  box-shadow:
+    0 6px 16px rgb(0 0 0 / 12%),
+    0 2px 6px rgb(0 0 0 / 8%);
 
   &.dark-theme {
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.3);
+    box-shadow:
+      0 6px 16px rgb(0 0 0 / 50%),
+      0 2px 6px rgb(0 0 0 / 30%);
   }
 }
 
 .menu-item {
   @apply flex w-full items-center gap-4 rounded-md px-2.5 py-1.5 text-left text-sm;
+
   color: var(--panel-text);
 
   &:not(:disabled):hover {
@@ -165,13 +215,15 @@ defineExpose({ show, hide });
 
   kbd {
     @apply text-[10px];
+
+    font-family: 'SF Mono', Monaco, Consolas, monospace;
     color: var(--panel-text-secondary);
-    font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
   }
 }
 
 .menu-divider {
   @apply my-1 h-px;
+
   background-color: var(--panel-border);
 }
 </style>

@@ -123,8 +123,9 @@ defineExpose({
 <style scoped lang="scss">
 .confirm-content {
   @apply py-0 px-0 text-sm leading-relaxed;
+
   color: var(--dialog-text);
-  
+
   :deep(div) {
     @apply text-sm;
   }
@@ -133,5 +134,4 @@ defineExpose({
 .confirm-footer {
   @apply flex justify-end gap-2;
 }
-
 </style>

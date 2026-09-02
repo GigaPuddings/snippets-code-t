@@ -21,7 +21,10 @@
       <!-- 新增链接（内部链接） -->
       <div class="menu-item" @click="handleAddLink">
         <svg class="menu-icon" viewBox="0 0 24 24">
-          <path fill="currentColor" d="M10.59,13.41C11,13.8 11,14.44 10.59,14.83C10.2,15.22 9.56,15.22 9.17,14.83C7.22,12.88 7.22,9.71 9.17,7.76V7.76L12.71,4.22C14.66,2.27 17.83,2.27 19.78,4.22C21.73,6.17 21.73,9.34 19.78,11.29L18.29,12.78C18.3,11.96 18.17,11.14 17.89,10.36L18.36,9.88C19.54,8.71 19.54,6.81 18.36,5.64C17.19,4.46 15.29,4.46 14.12,5.64L10.59,9.17C9.41,10.34 9.41,12.24 10.59,13.41M13.41,9.17C13.8,8.78 14.44,8.78 14.83,9.17C16.78,11.12 16.78,14.29 14.83,16.24V16.24L11.29,19.78C9.34,21.73 6.17,21.73 4.22,19.78C2.27,17.83 2.27,14.66 4.22,12.71L5.71,11.22C5.7,12.04 5.83,12.86 6.11,13.65L5.64,14.12C4.46,15.29 4.46,17.19 5.64,18.36C6.81,19.54 8.71,19.54 9.88,18.36L13.41,14.83C14.59,13.66 14.59,11.76 13.41,10.59C13,10.2 13,9.56 13.41,9.17Z" />
+          <path
+            fill="currentColor"
+            d="M10.59,13.41C11,13.8 11,14.44 10.59,14.83C10.2,15.22 9.56,15.22 9.17,14.83C7.22,12.88 7.22,9.71 9.17,7.76V7.76L12.71,4.22C14.66,2.27 17.83,2.27 19.78,4.22C21.73,6.17 21.73,9.34 19.78,11.29L18.29,12.78C18.3,11.96 18.17,11.14 17.89,10.36L18.36,9.88C19.54,8.71 19.54,6.81 18.36,5.64C17.19,4.46 15.29,4.46 14.12,5.64L10.59,9.17C9.41,10.34 9.41,12.24 10.59,13.41M13.41,9.17C13.8,8.78 14.44,8.78 14.83,9.17C16.78,11.12 16.78,14.29 14.83,16.24V16.24L11.29,19.78C9.34,21.73 6.17,21.73 4.22,19.78C2.27,17.83 2.27,14.66 4.22,12.71L5.71,11.22C5.7,12.04 5.83,12.86 6.11,13.65L5.64,14.12C4.46,15.29 4.46,17.19 5.64,18.36C6.81,19.54 8.71,19.54 9.88,18.36L13.41,14.83C14.59,13.66 14.59,11.76 13.41,10.59C13,10.2 13,9.56 13.41,9.17Z"
+          />
         </svg>
         <span>{{ $t('contextMenu.addLink') }}</span>
         <span class="menu-shortcut">[[]]</span>
@@ -30,7 +33,10 @@
       <!-- 新增外部链接 -->
       <div class="menu-item" @click="handleAddExternalLink">
         <svg class="menu-icon" viewBox="0 0 24 24">
-          <path fill="currentColor" d="M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z" />
+          <path
+            fill="currentColor"
+            d="M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z"
+          />
         </svg>
         <span>{{ $t('contextMenu.addExternalLink') }}</span>
         <span class="menu-shortcut">[]()</span>
@@ -46,11 +52,17 @@
         @mouseleave="handleMenuMouseLeave"
       >
         <svg class="menu-icon" viewBox="0 0 24 24">
-          <path fill="currentColor" d="M9.6,14L12,7.7L14.4,14M11,5L5.5,19H7.7L8.8,16H15.2L16.3,19H18.5L13,5H11Z" />
+          <path
+            fill="currentColor"
+            d="M9.6,14L12,7.7L14.4,14M11,5L5.5,19H7.7L8.8,16H15.2L16.3,19H18.5L13,5H11Z"
+          />
         </svg>
         <span>{{ $t('contextMenu.textFormat') }}</span>
         <svg class="menu-arrow" viewBox="0 0 24 24">
-          <path fill="currentColor" d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z" />
+          <path
+            fill="currentColor"
+            d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z"
+          />
         </svg>
       </div>
 
@@ -62,11 +74,17 @@
         @mouseleave="handleMenuMouseLeave"
       >
         <svg class="menu-icon" viewBox="0 0 24 24">
-          <path fill="currentColor" d="M13,4A4,4 0 0,1 17,8A4,4 0 0,1 13,12H11V18H9V4H13M13,10A2,2 0 0,0 15,8A2,2 0 0,0 13,6H11V10H13Z" />
+          <path
+            fill="currentColor"
+            d="M13,4A4,4 0 0,1 17,8A4,4 0 0,1 13,12H11V18H9V4H13M13,10A2,2 0 0,0 15,8A2,2 0 0,0 13,6H11V10H13Z"
+          />
         </svg>
         <span>{{ $t('contextMenu.paragraphSettings') }}</span>
         <svg class="menu-arrow" viewBox="0 0 24 24">
-          <path fill="currentColor" d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z" />
+          <path
+            fill="currentColor"
+            d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z"
+          />
         </svg>
       </div>
 
@@ -78,11 +96,17 @@
         @mouseleave="handleMenuMouseLeave"
       >
         <svg class="menu-icon" viewBox="0 0 24 24">
-          <path fill="currentColor" d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" />
+          <path
+            fill="currentColor"
+            d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"
+          />
         </svg>
         <span>{{ $t('contextMenu.insert') }}</span>
         <svg class="menu-arrow" viewBox="0 0 24 24">
-          <path fill="currentColor" d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z" />
+          <path
+            fill="currentColor"
+            d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z"
+          />
         </svg>
       </div>
 
@@ -91,35 +115,50 @@
       <!-- 剪贴板操作 -->
       <div class="menu-item disabled">
         <svg class="menu-icon" viewBox="0 0 24 24">
-          <path fill="currentColor" d="M19,3L13,9L15,11L22,4V3M12,12.5A0.5,0.5 0 0,1 11.5,12A0.5,0.5 0 0,1 12,11.5A0.5,0.5 0 0,1 12.5,12A0.5,0.5 0 0,1 12,12.5M6,20A2,2 0 0,1 4,18C4,16.89 4.9,16 6,16A2,2 0 0,1 8,18C8,19.11 7.1,20 6,20M6,8A2,2 0 0,1 4,6C4,4.89 4.9,4 6,4A2,2 0 0,1 8,6C8,7.11 7.1,8 6,8M9.64,7.64C9.87,7.14 10,6.59 10,6A4,4 0 0,0 6,2A4,4 0 0,0 2,6A4,4 0 0,0 6,10C6.59,10 7.14,9.87 7.64,9.64L10,12L7.64,14.36C7.14,14.13 6.59,14 6,14A4,4 0 0,0 2,18A4,4 0 0,0 6,22A4,4 0 0,0 10,18C10,17.41 9.87,16.86 9.64,16.36L12,14L19,21H22V20L9.64,7.64Z" />
+          <path
+            fill="currentColor"
+            d="M19,3L13,9L15,11L22,4V3M12,12.5A0.5,0.5 0 0,1 11.5,12A0.5,0.5 0 0,1 12,11.5A0.5,0.5 0 0,1 12.5,12A0.5,0.5 0 0,1 12,12.5M6,20A2,2 0 0,1 4,18C4,16.89 4.9,16 6,16A2,2 0 0,1 8,18C8,19.11 7.1,20 6,20M6,8A2,2 0 0,1 4,6C4,4.89 4.9,4 6,4A2,2 0 0,1 8,6C8,7.11 7.1,8 6,8M9.64,7.64C9.87,7.14 10,6.59 10,6A4,4 0 0,0 6,2A4,4 0 0,0 2,6A4,4 0 0,0 6,10C6.59,10 7.14,9.87 7.64,9.64L10,12L7.64,14.36C7.14,14.13 6.59,14 6,14A4,4 0 0,0 2,18A4,4 0 0,0 6,22A4,4 0 0,0 10,18C10,17.41 9.87,16.86 9.64,16.36L12,14L19,21H22V20L9.64,7.64Z"
+          />
         </svg>
         <span>{{ $t('contextMenu.cut') }}</span>
       </div>
 
       <div class="menu-item disabled">
         <svg class="menu-icon" viewBox="0 0 24 24">
-          <path fill="currentColor" d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z" />
+          <path
+            fill="currentColor"
+            d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"
+          />
         </svg>
         <span>{{ $t('contextMenu.copy') }}</span>
       </div>
 
       <div class="menu-item" @click="handlePaste">
         <svg class="menu-icon" viewBox="0 0 24 24">
-          <path fill="currentColor" d="M19,20H5V4H7V7H17V4H19M12,2A1,1 0 0,1 13,3A1,1 0 0,1 12,4A1,1 0 0,1 11,3A1,1 0 0,1 12,2M19,2H14.82C14.4,0.84 13.3,0 12,0C10.7,0 9.6,0.84 9.18,2H5A2,2 0 0,0 3,4V20A2,2 0 0,0 5,22H19A2,2 0 0,0 21,20V4A2,2 0 0,0 19,2Z" />
+          <path
+            fill="currentColor"
+            d="M19,20H5V4H7V7H17V4H19M12,2A1,1 0 0,1 13,3A1,1 0 0,1 12,4A1,1 0 0,1 11,3A1,1 0 0,1 12,2M19,2H14.82C14.4,0.84 13.3,0 12,0C10.7,0 9.6,0.84 9.18,2H5A2,2 0 0,0 3,4V20A2,2 0 0,0 5,22H19A2,2 0 0,0 21,20V4A2,2 0 0,0 19,2Z"
+          />
         </svg>
         <span>{{ $t('contextMenu.paste') }}</span>
       </div>
 
       <div class="menu-item" @click="handlePasteAsPlainText">
         <svg class="menu-icon" viewBox="0 0 24 24">
-          <path fill="currentColor" d="M19,20H5V4H7V7H17V4H19M12,2A1,1 0 0,1 13,3A1,1 0 0,1 12,4A1,1 0 0,1 11,3A1,1 0 0,1 12,2M19,2H14.82C14.4,0.84 13.3,0 12,0C10.7,0 9.6,0.84 9.18,2H5A2,2 0 0,0 3,4V20A2,2 0 0,0 5,22H19A2,2 0 0,0 21,20V4A2,2 0 0,0 19,2Z" />
+          <path
+            fill="currentColor"
+            d="M19,20H5V4H7V7H17V4H19M12,2A1,1 0 0,1 13,3A1,1 0 0,1 12,4A1,1 0 0,1 11,3A1,1 0 0,1 12,2M19,2H14.82C14.4,0.84 13.3,0 12,0C10.7,0 9.6,0.84 9.18,2H5A2,2 0 0,0 3,4V20A2,2 0 0,0 5,22H19A2,2 0 0,0 21,20V4A2,2 0 0,0 19,2Z"
+          />
         </svg>
         <span>{{ $t('contextMenu.pasteAsPlainText') }}</span>
       </div>
 
       <div class="menu-item" @click="handleSelectAll">
         <svg class="menu-icon" viewBox="0 0 24 24">
-          <path fill="currentColor" d="M9,9H15V15H9M7,17H17V7H7M15,5H17V3H15M15,21H17V19H15M19,17H21V15H19M19,9H21V7H19M19,21A2,2 0 0,0 21,19H19M19,13H21V11H19M11,21H13V19H11M9,3H7V5H9M3,17H5V15H3M5,21V19H3A2,2 0 0,0 5,21M19,3V5H21A2,2 0 0,0 19,3M13,3H11V5H13M3,9H5V7H3M7,21H9V19H7M3,13H5V11H3M3,5H5V3A2,2 0 0,0 3,5Z" />
+          <path
+            fill="currentColor"
+            d="M9,9H15V15H9M7,17H17V7H7M15,5H17V3H15M15,21H17V19H15M19,17H21V15H19M19,9H21V7H19M19,21A2,2 0 0,0 21,19H19M19,13H21V11H19M11,21H13V19H11M9,3H7V5H9M3,17H5V15H3M5,21V19H3A2,2 0 0,0 5,21M19,3V5H21A2,2 0 0,0 19,3M13,3H11V5H13M3,9H5V7H3M7,21H9V19H7M3,13H5V11H3M3,5H5V3A2,2 0 0,0 3,5Z"
+          />
         </svg>
         <span>{{ $t('contextMenu.selectAll') }}</span>
       </div>
@@ -135,95 +174,224 @@
           @mouseenter="keepSubmenuOpen"
           @mouseleave="hideSubmenu"
         >
-        <template v-if="activeSubmenu === 'textFormat'">
-          <div class="menu-item" :class="[{ active: editor?.isActive('bold') }, markdownDisabledClass]" @click="toggleBold">
-            <span>{{ $t('contextMenu.bold') }}</span>
-            <span class="menu-shortcut">**</span>
-          </div>
-          <div class="menu-item" :class="[{ active: editor?.isActive('italic') }, markdownDisabledClass]" @click="toggleItalic">
-            <span>{{ $t('contextMenu.italic') }}</span>
-            <span class="menu-shortcut">*</span>
-          </div>
-          <div class="menu-item" :class="[{ active: editor?.isActive('strike') }, markdownDisabledClass]" @click="toggleStrike">
-            <span>{{ $t('contextMenu.strikethrough') }}</span>
-            <span class="menu-shortcut">~~</span>
-          </div>
-          <div class="menu-item" :class="[{ active: editor?.isActive('code') }, markdownDisabledClass]" @click="toggleCode">
-            <span>{{ $t('contextMenu.code') }}</span>
-            <span class="menu-shortcut">`</span>
-          </div>
-          <div class="menu-divider"></div>
-          <div class="menu-item" :class="markdownDisabledClass" @click="clearFormat">
-            <span>{{ $t('contextMenu.clearFormat') }}</span>
-          </div>
-        </template>
+          <template v-if="activeSubmenu === 'textFormat'">
+            <div
+              class="menu-item"
+              :class="[
+                { active: editor?.isActive('bold') },
+                markdownDisabledClass
+              ]"
+              @click="toggleBold"
+            >
+              <span>{{ $t('contextMenu.bold') }}</span>
+              <span class="menu-shortcut">**</span>
+            </div>
+            <div
+              class="menu-item"
+              :class="[
+                { active: editor?.isActive('italic') },
+                markdownDisabledClass
+              ]"
+              @click="toggleItalic"
+            >
+              <span>{{ $t('contextMenu.italic') }}</span>
+              <span class="menu-shortcut">*</span>
+            </div>
+            <div
+              class="menu-item"
+              :class="[
+                { active: editor?.isActive('strike') },
+                markdownDisabledClass
+              ]"
+              @click="toggleStrike"
+            >
+              <span>{{ $t('contextMenu.strikethrough') }}</span>
+              <span class="menu-shortcut">~~</span>
+            </div>
+            <div
+              class="menu-item"
+              :class="[
+                { active: editor?.isActive('code') },
+                markdownDisabledClass
+              ]"
+              @click="toggleCode"
+            >
+              <span>{{ $t('contextMenu.code') }}</span>
+              <span class="menu-shortcut">`</span>
+            </div>
+            <div class="menu-divider"></div>
+            <div
+              class="menu-item"
+              :class="markdownDisabledClass"
+              @click="clearFormat"
+            >
+              <span>{{ $t('contextMenu.clearFormat') }}</span>
+            </div>
+          </template>
 
-        <template v-else-if="activeSubmenu === 'paragraphSettings'">
-          <div class="menu-item" :class="[{ active: editor?.isActive('bulletList') }, markdownDisabledClass]" @click="toggleBulletList">
-            <span>{{ $t('contextMenu.bulletList') }}</span>
-            <span class="menu-shortcut">-</span>
-          </div>
-          <div class="menu-item" :class="[{ active: editor?.isActive('orderedList') }, markdownDisabledClass]" @click="toggleOrderedList">
-            <span>{{ $t('contextMenu.orderedList') }}</span>
-            <span class="menu-shortcut">1.</span>
-          </div>
-          <div class="menu-item" :class="[{ active: editor?.isActive('taskList') }, markdownDisabledClass]" @click="toggleTaskList">
-            <span>{{ $t('contextMenu.taskList') }}</span>
-            <span class="menu-shortcut">- [ ]</span>
-          </div>
-          <div class="menu-divider"></div>
-          <div class="menu-item" :class="[{ active: editor?.isActive('heading', { level: 1 }) }, markdownDisabledClass]" @click="setHeading(1)">
-            <span>H₁ {{ $t('contextMenu.heading1') }}</span>
-            <span class="menu-shortcut">#</span>
-          </div>
-          <div class="menu-item" :class="[{ active: editor?.isActive('heading', { level: 2 }) }, markdownDisabledClass]" @click="setHeading(2)">
-            <span>H₂ {{ $t('contextMenu.heading2') }}</span>
-            <span class="menu-shortcut">##</span>
-          </div>
-          <div class="menu-item" :class="[{ active: editor?.isActive('heading', { level: 3 }) }, markdownDisabledClass]" @click="setHeading(3)">
-            <span>H₃ {{ $t('contextMenu.heading3') }}</span>
-            <span class="menu-shortcut">###</span>
-          </div>
-          <div class="menu-item" :class="[{ active: editor?.isActive('heading', { level: 4 }) }, markdownDisabledClass]" @click="setHeading(4)">
-            <span>H₄ {{ $t('contextMenu.heading4') }}</span>
-            <span class="menu-shortcut">####</span>
-          </div>
-          <div class="menu-item" :class="[{ active: editor?.isActive('heading', { level: 5 }) }, markdownDisabledClass]" @click="setHeading(5)">
-            <span>H₅ {{ $t('contextMenu.heading5') }}</span>
-            <span class="menu-shortcut">#####</span>
-          </div>
-          <div class="menu-item" :class="[{ active: editor?.isActive('heading', { level: 6 }) }, markdownDisabledClass]" @click="setHeading(6)">
-            <span>H₆ {{ $t('contextMenu.heading6') }}</span>
-            <span class="menu-shortcut">######</span>
-          </div>
-          <div class="menu-item" :class="[{ active: editor?.isActive('paragraph') }, markdownDisabledClass]" @click="setParagraph">
-            <span>≡ {{ $t('contextMenu.paragraph') }}</span>
-            <svg v-if="editor?.isActive('paragraph')" class="check-mark" viewBox="0 0 24 24" width="16" height="16">
-              <path fill="currentColor" d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z" />
-            </svg>
-          </div>
-          <div class="menu-divider"></div>
-          <div class="menu-item" :class="[{ active: editor?.isActive('blockquote') }, markdownDisabledClass]" @click="toggleBlockquote">
-            <span>❝❞ {{ $t('contextMenu.blockquote') }}</span>
-            <span class="menu-shortcut">></span>
-          </div>
-        </template>
+          <template v-else-if="activeSubmenu === 'paragraphSettings'">
+            <div
+              class="menu-item"
+              :class="[
+                { active: editor?.isActive('bulletList') },
+                markdownDisabledClass
+              ]"
+              @click="toggleBulletList"
+            >
+              <span>{{ $t('contextMenu.bulletList') }}</span>
+              <span class="menu-shortcut">-</span>
+            </div>
+            <div
+              class="menu-item"
+              :class="[
+                { active: editor?.isActive('orderedList') },
+                markdownDisabledClass
+              ]"
+              @click="toggleOrderedList"
+            >
+              <span>{{ $t('contextMenu.orderedList') }}</span>
+              <span class="menu-shortcut">1.</span>
+            </div>
+            <div
+              class="menu-item"
+              :class="[
+                { active: editor?.isActive('taskList') },
+                markdownDisabledClass
+              ]"
+              @click="toggleTaskList"
+            >
+              <span>{{ $t('contextMenu.taskList') }}</span>
+              <span class="menu-shortcut">- [ ]</span>
+            </div>
+            <div class="menu-divider"></div>
+            <div
+              class="menu-item"
+              :class="[
+                { active: editor?.isActive('heading', { level: 1 }) },
+                markdownDisabledClass
+              ]"
+              @click="setHeading(1)"
+            >
+              <span>H₁ {{ $t('contextMenu.heading1') }}</span>
+              <span class="menu-shortcut">#</span>
+            </div>
+            <div
+              class="menu-item"
+              :class="[
+                { active: editor?.isActive('heading', { level: 2 }) },
+                markdownDisabledClass
+              ]"
+              @click="setHeading(2)"
+            >
+              <span>H₂ {{ $t('contextMenu.heading2') }}</span>
+              <span class="menu-shortcut">##</span>
+            </div>
+            <div
+              class="menu-item"
+              :class="[
+                { active: editor?.isActive('heading', { level: 3 }) },
+                markdownDisabledClass
+              ]"
+              @click="setHeading(3)"
+            >
+              <span>H₃ {{ $t('contextMenu.heading3') }}</span>
+              <span class="menu-shortcut">###</span>
+            </div>
+            <div
+              class="menu-item"
+              :class="[
+                { active: editor?.isActive('heading', { level: 4 }) },
+                markdownDisabledClass
+              ]"
+              @click="setHeading(4)"
+            >
+              <span>H₄ {{ $t('contextMenu.heading4') }}</span>
+              <span class="menu-shortcut">####</span>
+            </div>
+            <div
+              class="menu-item"
+              :class="[
+                { active: editor?.isActive('heading', { level: 5 }) },
+                markdownDisabledClass
+              ]"
+              @click="setHeading(5)"
+            >
+              <span>H₅ {{ $t('contextMenu.heading5') }}</span>
+              <span class="menu-shortcut">#####</span>
+            </div>
+            <div
+              class="menu-item"
+              :class="[
+                { active: editor?.isActive('heading', { level: 6 }) },
+                markdownDisabledClass
+              ]"
+              @click="setHeading(6)"
+            >
+              <span>H₆ {{ $t('contextMenu.heading6') }}</span>
+              <span class="menu-shortcut">######</span>
+            </div>
+            <div
+              class="menu-item"
+              :class="[
+                { active: editor?.isActive('paragraph') },
+                markdownDisabledClass
+              ]"
+              @click="setParagraph"
+            >
+              <span>≡ {{ $t('contextMenu.paragraph') }}</span>
+              <svg
+                v-if="editor?.isActive('paragraph')"
+                class="check-mark"
+                viewBox="0 0 24 24"
+                width="16"
+                height="16"
+              >
+                <path
+                  fill="currentColor"
+                  d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"
+                />
+              </svg>
+            </div>
+            <div class="menu-divider"></div>
+            <div
+              class="menu-item"
+              :class="[
+                { active: editor?.isActive('blockquote') },
+                markdownDisabledClass
+              ]"
+              @click="toggleBlockquote"
+            >
+              <span>❝❞ {{ $t('contextMenu.blockquote') }}</span>
+              <span class="menu-shortcut">></span>
+            </div>
+          </template>
 
-        <template v-else-if="activeSubmenu === 'insert'">
-          <div class="menu-item" :class="markdownDisabledClass" @click="requestInsertTable">
-            <span>⊞ {{ $t('contextMenu.table') }}</span>
-          </div>
-          <div class="menu-divider"></div>
-          <div class="menu-item" :class="markdownDisabledClass" @click="insertCodeBlock">
-            <span>&lt;&gt; {{ $t('contextMenu.codeBlock') }}</span>
-            <span class="menu-shortcut">```</span>
-          </div>
-          <div class="menu-item" :class="markdownDisabledClass" @click="insertHorizontalRule">
-            <span>— {{ $t('contextMenu.horizontalRule') }}</span>
-            <span class="menu-shortcut">---</span>
-          </div>
-        </template>
-
+          <template v-else-if="activeSubmenu === 'insert'">
+            <div
+              class="menu-item"
+              :class="markdownDisabledClass"
+              @click="requestInsertTable"
+            >
+              <span>⊞ {{ $t('contextMenu.table') }}</span>
+            </div>
+            <div class="menu-divider"></div>
+            <div
+              class="menu-item"
+              :class="markdownDisabledClass"
+              @click="insertCodeBlock"
+            >
+              <span>&lt;&gt; {{ $t('contextMenu.codeBlock') }}</span>
+              <span class="menu-shortcut">```</span>
+            </div>
+            <div
+              class="menu-item"
+              :class="markdownDisabledClass"
+              @click="insertHorizontalRule"
+            >
+              <span>— {{ $t('contextMenu.horizontalRule') }}</span>
+              <span class="menu-shortcut">---</span>
+            </div>
+          </template>
         </div>
       </teleport>
     </div>
@@ -272,8 +440,12 @@ let submenuTimer: ReturnType<typeof setTimeout> | null = null;
 // 是否在源码模式
 const isSourceMode = computed(() => props.viewMode === 'source');
 const isCodeBlockActive = ref(false);
-const isMarkdownSyntaxDisabled = computed(() => isCodeBlockActive.value && !isSourceMode.value);
-const markdownDisabledClass = computed(() => ({ disabled: isMarkdownSyntaxDisabled.value }));
+const isMarkdownSyntaxDisabled = computed(
+  () => isCodeBlockActive.value && !isSourceMode.value
+);
+const markdownDisabledClass = computed(() => ({
+  disabled: isMarkdownSyntaxDisabled.value
+}));
 
 // 菜单样式
 const menuStyle = computed(() => ({
@@ -282,10 +454,10 @@ const menuStyle = computed(() => ({
 }));
 
 // 子菜单样式
-  const submenuStyle = computed(() => ({
-    left: `${submenuPosition.value.x}px`,
-    top: `${submenuPosition.value.y}px`
-  }));
+const submenuStyle = computed(() => ({
+  left: `${submenuPosition.value.x}px`,
+  top: `${submenuPosition.value.y}px`
+}));
 
 // 显示菜单
 const show = (event: MouseEvent) => {
@@ -308,52 +480,52 @@ const show = (event: MouseEvent) => {
 
   // Editor 实例本身不是 Vue 响应式对象，每次打开菜单时重新读取当前选区状态。
   isCodeBlockActive.value = props.editor?.isActive('codeBlock') ?? false;
-  
+
   const x = event.clientX;
   const y = event.clientY;
-  
+
   // 设置初始位置
   menuPosition.value = { x, y };
   visible.value = true;
-  
+
   // 下一帧调整位置以防止超出屏幕
   nextTick(() => {
     if (!menuRef.value) return;
-    
+
     const menuRect = menuRef.value.getBoundingClientRect();
     const windowWidth = window.innerWidth;
     const windowHeight = window.innerHeight;
     const padding = 10; // 边距
-    
+
     let adjustedX = x;
     let adjustedY = y;
-    
+
     // 调整 X 位置 - 如果右侧空间不足，向左调整
     if (x + menuRect.width > windowWidth - padding) {
       // 尝试向左对齐
       adjustedX = windowWidth - menuRect.width - padding;
-      
+
       // 如果还是超出左边界，就贴左边
       if (adjustedX < padding) {
         adjustedX = padding;
       }
     }
-    
+
     // 调整 Y 位置 - 如果下方空间不足，向上调整
     if (y + menuRect.height > windowHeight - padding) {
       // 尝试向上对齐
       adjustedY = windowHeight - menuRect.height - padding;
-      
+
       // 如果还是超出上边界，就贴上边
       if (adjustedY < padding) {
         adjustedY = padding;
       }
     }
-    
+
     // 确保不超出左上边界
     adjustedX = Math.max(padding, adjustedX);
     adjustedY = Math.max(padding, adjustedY);
-    
+
     menuPosition.value = { x: adjustedX, y: adjustedY };
   });
 };
@@ -374,27 +546,29 @@ const showSubmenu = (submenu: string, event: MouseEvent) => {
     clearTimeout(submenuTimer);
     submenuTimer = null;
   }
-  
+
   activeSubmenu.value = submenu;
-  
+
   nextTick(() => {
     if (!menuRef.value || !submenuRef.value) return;
-    
+
     const menuRect = menuRef.value.getBoundingClientRect();
-    const triggerRect = (event.currentTarget as HTMLElement | null)?.getBoundingClientRect();
+    const triggerRect = (
+      event.currentTarget as HTMLElement | null
+    )?.getBoundingClientRect();
     const submenuRect = submenuRef.value.getBoundingClientRect();
     const windowWidth = window.innerWidth;
     const windowHeight = window.innerHeight;
     const padding = 10;
     const gap = 0; // 主菜单和子菜单之间不留缝隙，避免鼠标移动时丢失 hover
-    
+
     let x = 0;
     let y = triggerRect ? triggerRect.top : menuRect.top;
-    
+
     // 默认尝试在右侧显示
     const rightX = menuRect.right + gap;
     const leftX = menuRect.left - submenuRect.width - gap;
-    
+
     // 判断右侧是否有足够空间
     if (rightX + submenuRect.width <= windowWidth - padding) {
       // 右侧有空间
@@ -406,7 +580,7 @@ const showSubmenu = (submenu: string, event: MouseEvent) => {
       // 两侧都没空间，选择空间较大的一侧
       const rightSpace = windowWidth - rightX;
       const leftSpace = menuRect.left;
-      
+
       if (rightSpace > leftSpace) {
         // 右侧空间更大，贴右边
         x = windowWidth - submenuRect.width - padding;
@@ -415,17 +589,17 @@ const showSubmenu = (submenu: string, event: MouseEvent) => {
         x = padding;
       }
     }
-    
+
     // 调整 Y 位置，确保不超出底部
     if (y + submenuRect.height > windowHeight - padding) {
       y = windowHeight - submenuRect.height - padding;
     }
-    
+
     // 确保不超出顶部
     if (y < padding) {
       y = padding;
     }
-    
+
     submenuPosition.value = { x, y };
   });
 };
@@ -439,7 +613,11 @@ const hideSubmenu = () => {
 
 const handleMenuMouseLeave = (event: MouseEvent) => {
   const relatedTarget = event.relatedTarget as Node | null;
-  if (submenuRef.value && relatedTarget && submenuRef.value.contains(relatedTarget)) {
+  if (
+    submenuRef.value &&
+    relatedTarget &&
+    submenuRef.value.contains(relatedTarget)
+  ) {
     return;
   }
   hideSubmenu();
@@ -498,7 +676,11 @@ const handleKeydown = (event: KeyboardEvent) => {
 
 // 点击外部关闭菜单
 const handleClickOutside = (event: MouseEvent) => {
-  if (visible.value && menuRef.value && !menuRef.value.contains(event.target as Node)) {
+  if (
+    visible.value &&
+    menuRef.value &&
+    !menuRef.value.contains(event.target as Node)
+  ) {
     if (submenuRef.value && submenuRef.value.contains(event.target as Node)) {
       return;
     }
@@ -530,28 +712,35 @@ defineExpose({
 <style lang="scss" scoped>
 .context-menu {
   @apply fixed z-[9999] min-w-[200px] max-w-[280px] border rounded-lg p-1 select-none;
+
   background-color: var(--panel-bg);
   border-color: var(--panel-border);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.08);
-  transition: background-color 0.2s ease, border-color 0.2s ease;
+  box-shadow:
+    0 6px 16px rgb(0 0 0 / 12%),
+    0 2px 6px rgb(0 0 0 / 8%);
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease;
   animation: fadeIn 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 
   &.dark-theme {
     background-color: var(--panel-bg);
     border-color: var(--panel-border);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.3);
+    box-shadow:
+      0 6px 16px rgb(0 0 0 / 50%),
+      0 2px 6px rgb(0 0 0 / 30%);
 
     .menu-item {
       color: var(--panel-text);
 
       &:hover:not(.disabled) {
         color: var(--panel-text);
-        background: rgba(93, 109, 253, 0.12);
+        background: rgb(93 109 253 / 12%);
       }
 
       &.active {
         color: var(--el-color-primary);
-        background: rgba(93, 109, 253, 0.08);
+        background: rgb(93 109 253 / 8%);
       }
 
       &.disabled {
@@ -580,18 +769,19 @@ defineExpose({
 
 .menu-item {
   @apply flex items-center min-h-[32px] px-2.5 py-[5px] text-[13px] cursor-pointer relative rounded-[5px] gap-2;
-  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+
   color: var(--panel-text);
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 
   &:hover:not(.disabled) {
     color: var(--panel-text);
-    background: rgba(93, 109, 253, 0.08);
+    background: rgb(93 109 253 / 8%);
   }
 
   &.active {
-    color: var(--el-color-primary);
     font-weight: 500;
-    background: rgba(93, 109, 253, 0.05);
+    color: var(--el-color-primary);
+    background: rgb(93 109 253 / 5%);
   }
 
   &.disabled {
@@ -601,6 +791,7 @@ defineExpose({
 
     &:hover {
       @apply bg-transparent;
+
       transform: none;
     }
   }
@@ -611,26 +802,30 @@ defineExpose({
 
   .menu-icon {
     @apply w-4 h-4 flex-shrink-0;
+
     color: var(--panel-text-secondary);
     transition: color 0.15s ease;
   }
 
   .menu-arrow {
     @apply ml-auto w-4 h-4 text-panel-text-secondary flex-shrink-0;
+
     transition: color 0.15s ease;
   }
 
   .check-mark {
     @apply ml-auto w-4 h-4 flex-shrink-0;
+
     color: var(--el-color-primary);
   }
 
   .menu-shortcut {
     @apply ml-auto px-1.5 py-px text-[10px] flex-shrink-0 rounded font-medium;
-    font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+
+    font-family: 'SF Mono', Monaco, Consolas, monospace;
     color: var(--panel-text-secondary);
-    background: rgba(0, 0, 0, 0.04);
     letter-spacing: 0.3px;
+    background: rgb(0 0 0 / 4%);
   }
 
   span {
@@ -640,6 +835,7 @@ defineExpose({
 
 .menu-divider {
   @apply h-px bg-panel mx-1.5 my-1;
+
   transition: background-color 0.2s ease;
 }
 
@@ -648,6 +844,7 @@ defineExpose({
     opacity: 0;
     transform: scale(0.95) translateY(-4px);
   }
+
   to {
     opacity: 1;
     transform: scale(1) translateY(0);
@@ -659,18 +856,20 @@ defineExpose({
     opacity: 0;
     transform: translateX(-6px);
   }
+
   to {
     opacity: 1;
     transform: translateX(0);
   }
 }
 
-@media (max-width: 768px) {
+@media (width <= 768px) {
   .context-menu {
     @apply min-w-[180px];
+
     max-width: calc(100vw - 24px);
   }
-  
+
   .menu-item {
     @apply min-h-[36px] px-2.5 py-1.5 text-sm;
   }

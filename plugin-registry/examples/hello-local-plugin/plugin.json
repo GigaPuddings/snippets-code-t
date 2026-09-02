@@ -14,15 +14,9 @@
   "category": "automation",
   "enabledByDefault": false,
   "capabilities": {
-    "routeNames": [
-      "HelloLocalPlugin"
-    ],
-    "settingsTabs": [
-      "helloLocalPlugin"
-    ],
-    "searchSources": [
-      "hello-local-plugin"
-    ]
+    "routeNames": ["HelloLocalPlugin"],
+    "settingsTabs": ["helloLocalPlugin"],
+    "searchSources": ["hello-local-plugin"]
   },
   "entry": {
     "frontend": "dist/frontend.js"

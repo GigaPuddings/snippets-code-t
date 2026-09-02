@@ -64,9 +64,13 @@ const emit = defineEmits<{
 const { t } = useI18n();
 const rows = ref(props.initialRows);
 const columns = ref(props.initialColumns);
-const dialogTitle = computed(() => t(
-  props.mode === 'insert' ? 'contextMenu.insertTableTitle' : 'contextMenu.resizeTable'
-));
+const dialogTitle = computed(() =>
+  t(
+    props.mode === 'insert'
+      ? 'contextMenu.insertTableTitle'
+      : 'contextMenu.resizeTable'
+  )
+);
 
 watch(
   () => [props.modelValue, props.initialRows, props.initialColumns] as const,

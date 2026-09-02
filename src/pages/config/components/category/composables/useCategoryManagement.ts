@@ -5,9 +5,9 @@ import { getCategories } from '@/api/fragment';
 
 /**
  * 分类管理 Composable
- * 
+ *
  * 提供分类的 CRUD 操作、排序、数据加载等功能
- * 
+ *
  * @example
  * ```ts
  * const {
@@ -17,10 +17,10 @@ import { getCategories } from '@/api/fragment';
  *   handleSort,
  *   handleAddCategory
  * } = useCategoryManagement();
- * 
+ *
  * // 加载分类
  * await loadCategories();
- * 
+ *
  * // 添加新分类
  * await handleAddCategory();
  * ```
@@ -65,7 +65,7 @@ export function useCategoryManagement() {
 
   /**
    * 添加新分类（延迟创建）
-   * 
+   *
    * 工作流程：
    * 1. 创建临时分类项（ID 为负数，表示未保存）
    * 2. 显示输入框让用户编辑
@@ -75,7 +75,7 @@ export function useCategoryManagement() {
   const handleAddCategory = async (): Promise<void> => {
     // 生成临时 ID（使用负数表示未保存）
     const tempId = -Date.now();
-    
+
     // 创建临时分类项
     const tempCategory: CategoryType = {
       id: tempId,
@@ -83,13 +83,13 @@ export function useCategoryManagement() {
       created_at: new Date().toISOString(),
       isSystem: false
     };
-    
+
     // 添加到分类列表
     store.categories.push(tempCategory);
-    
+
     // 设置为编辑状态
     store.editCategoryId = tempId.toString();
-    
+
     // 导航到该分类（使用临时 ID）
     const targetPath = `/config/category/contentList/${tempId}`;
     router.replace(targetPath);
@@ -98,10 +98,10 @@ export function useCategoryManagement() {
   return {
     // 状态
     // 过滤掉系统分类（如"未分类"），只显示用户创建的分类
-    categories: computed(() => store.categories.filter(c => !c.isSystem)),
+    categories: computed(() => store.categories.filter((c) => !c.isSystem)),
     isLoading,
     categorySort: computed(() => store.categorySort),
-    
+
     // 方法
     loadCategories,
     handleSort,

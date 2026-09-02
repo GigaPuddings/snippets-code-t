@@ -17,7 +17,9 @@ export const localLauncherSearchProvider: SearchSourceProvider = {
       });
     }
 
-    const bookmarkResults = await invoke<ContentType[]>('search_bookmarks', { query });
+    const bookmarkResults = await invoke<ContentType[]>('search_bookmarks', {
+      query
+    });
     if (Array.isArray(bookmarkResults)) {
       results.push({
         source: 'bookmark',

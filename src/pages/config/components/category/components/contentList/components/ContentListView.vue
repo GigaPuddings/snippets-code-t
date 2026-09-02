@@ -3,15 +3,11 @@
     <!-- Tag filter indicator -->
     <div v-if="tagFilter && !isTagInFilter" class="tag-filter-indicator">
       <span class="filter-label">{{ $t('tags.filterByTag') }}:</span>
-      <el-tag
-        closable
-        @close="$emit('clear-tag-filter')"
-        class="filter-tag"
-      >
+      <el-tag closable @close="$emit('clear-tag-filter')" class="filter-tag">
         {{ tagFilter }}
       </el-tag>
     </div>
-    
+
     <div class="content-list">
       <RecycleScroller
         v-if="contents.length > 0"
@@ -26,8 +22,8 @@
         <ContentItem
           :content="item"
           @delete="$emit('delete', item)"
-          @changeCategory="$emit('change-category', item)"
-          @convertType="handleConvertType"
+          @change-category="$emit('change-category', item)"
+          @convert-type="handleConvertType"
         />
       </RecycleScroller>
       <div v-else class="content-empty">
@@ -107,7 +103,9 @@ const activeContentId = computed(() => {
 const activeContentIndex = computed(() => {
   const normalizedRouteId = activeContentId.value;
   if (normalizedRouteId === -1) return -1;
-  return props.contents.findIndex((content) => String(content.id).replace(/\\/g, '/') === normalizedRouteId);
+  return props.contents.findIndex(
+    (content) => String(content.id).replace(/\\/g, '/') === normalizedRouteId
+  );
 });
 
 const isIndexVisibleInScroller = (index: number, container: HTMLElement) => {
@@ -142,7 +140,12 @@ function scrollActiveContentIntoView(index: number): void {
     }
 
     if (container) {
-      container.scrollTop = Math.max(0, index * ITEM_SIZE - Math.floor(container.clientHeight / 2) + Math.floor(ITEM_SIZE / 2));
+      container.scrollTop = Math.max(
+        0,
+        index * ITEM_SIZE -
+          Math.floor(container.clientHeight / 2) +
+          Math.floor(ITEM_SIZE / 2)
+      );
       refreshRecycleScroller(scroller);
     }
   });
@@ -170,11 +173,11 @@ watch(
 
 .tag-filter-indicator {
   @apply flex items-center gap-2 px-2 py-2 border-b border-panel;
-  
+
   .filter-label {
     @apply text-xs text-content;
   }
-  
+
   .filter-tag {
     @apply text-xs;
   }

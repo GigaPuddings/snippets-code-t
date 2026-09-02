@@ -62,30 +62,42 @@ export function useFileWatcher(options: {
     try {
       // 监听文件创建事件
       if (options.onFileCreated) {
-        unlistenCreated = await listen<FileChangeEvent>('file-created', (event) => {
-          options.onFileCreated?.(event.payload);
-        });
+        unlistenCreated = await listen<FileChangeEvent>(
+          'file-created',
+          (event) => {
+            options.onFileCreated?.(event.payload);
+          }
+        );
       }
 
       // 监听文件修改事件
       if (options.onFileModified) {
-        unlistenModified = await listen<FileChangeEvent>('file-modified', (event) => {
-          options.onFileModified?.(event.payload);
-        });
+        unlistenModified = await listen<FileChangeEvent>(
+          'file-modified',
+          (event) => {
+            options.onFileModified?.(event.payload);
+          }
+        );
       }
 
       // 监听文件删除事件
       if (options.onFileDeleted) {
-        unlistenDeleted = await listen<FileChangeEvent>('file-deleted', (event) => {
-          options.onFileDeleted?.(event.payload);
-        });
+        unlistenDeleted = await listen<FileChangeEvent>(
+          'file-deleted',
+          (event) => {
+            options.onFileDeleted?.(event.payload);
+          }
+        );
       }
 
       // 监听冲突事件
       if (options.onConflict) {
-        unlistenConflict = await listen<ConflictEvent>('file-conflict', (event) => {
-          options.onConflict?.(event.payload);
-        });
+        unlistenConflict = await listen<ConflictEvent>(
+          'file-conflict',
+          (event) => {
+            options.onConflict?.(event.payload);
+          }
+        );
       }
     } catch (error) {
       console.error('Failed to set up file watcher:', error);

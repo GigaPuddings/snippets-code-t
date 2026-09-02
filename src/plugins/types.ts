@@ -12,9 +12,15 @@ export type BuiltinPluginId =
   | 'attachments'
   | 'wallpaper-switcher';
 
-export type PluginId = BuiltinPluginId | (string & {});
+export type PluginId = BuiltinPluginId | (string & Record<never, never>);
 
-export type PluginCategory = 'capture' | 'automation' | 'search' | 'sync' | 'editor' | 'appearance';
+export type PluginCategory =
+  | 'capture'
+  | 'automation'
+  | 'search'
+  | 'sync'
+  | 'editor'
+  | 'appearance';
 
 export interface BuiltinPlugin {
   id: PluginId;

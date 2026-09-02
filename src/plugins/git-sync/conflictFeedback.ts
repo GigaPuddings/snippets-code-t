@@ -4,7 +4,12 @@ import { logger as defaultLogger } from '@/utils/logger';
 type ModalMsg = (
   message: string,
   type: 'success' | 'info' | 'warning' | 'error',
-  position?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'center',
+  position?:
+    | 'top-left'
+    | 'top-right'
+    | 'bottom-left'
+    | 'bottom-right'
+    | 'center',
   duration?: number
 ) => void;
 
@@ -20,9 +25,11 @@ export interface GitConflictFeedbackDeps {
 }
 
 const defaultDispatchRefreshData = (source: string) => {
-  window.dispatchEvent(new CustomEvent('refresh-data', {
-    detail: { source }
-  }));
+  window.dispatchEvent(
+    new CustomEvent('refresh-data', {
+      detail: { source }
+    })
+  );
 };
 
 const resolveDeps = (deps: GitConflictFeedbackDeps) => ({
@@ -33,12 +40,7 @@ const resolveDeps = (deps: GitConflictFeedbackDeps) => ({
 });
 
 export function createGitConflictFeedback(deps: GitConflictFeedbackDeps) {
-  const {
-    t,
-    modalMsg,
-    dispatchRefreshData,
-    logger
-  } = resolveDeps(deps);
+  const { t, modalMsg, dispatchRefreshData, logger } = resolveDeps(deps);
 
   const notifyForcePushResolved = () => {
     modalMsg(t('settings.gitSync.forcePushSuccess'), 'success', 'bottom-right');
@@ -56,7 +58,9 @@ export function createGitConflictFeedback(deps: GitConflictFeedbackDeps) {
     logger.info('[GitSync] 手动合并完成，自动同步已由后端恢复');
   };
 
-  const notifyAutoSyncResumed = (source: 'conflict-dialog' | 'manual-merge') => {
+  const notifyAutoSyncResumed = (
+    source: 'conflict-dialog' | 'manual-merge'
+  ) => {
     modalMsg(t('settings.gitSync.autoSyncResumed'), 'info', 'bottom-right');
     if (source === 'manual-merge') {
       logger.info('[GitSync] 用户从手动合并中选择恢复自动同步');

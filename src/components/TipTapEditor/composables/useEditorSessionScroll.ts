@@ -11,7 +11,10 @@ interface UseEditorSessionScrollOptions {
   getEditor: () => SessionScrollEditor | null | undefined;
 }
 
-function getElementOffsetTop(element: HTMLElement, scrollContainer: HTMLElement) {
+function getElementOffsetTop(
+  element: HTMLElement,
+  scrollContainer: HTMLElement
+) {
   let elementOffsetTop = 0;
   let currentElement: HTMLElement | null = element;
 
@@ -91,10 +94,17 @@ function createHighlight(rect: DOMRect) {
   setTimeout(() => overlay.remove(), 2000);
 }
 
-function findWikilinkDecoration(scrollContainer: HTMLElement, searchTitle: string) {
-  const wikilinkElements = scrollContainer.querySelectorAll('.wikilink-decoration');
+function findWikilinkDecoration(
+  scrollContainer: HTMLElement,
+  searchTitle: string
+) {
+  const wikilinkElements = scrollContainer.querySelectorAll(
+    '.wikilink-decoration'
+  );
   for (const element of wikilinkElements) {
-    const cleanText = (element.textContent || '').replace(/\[\[|\]\]/g, '').trim();
+    const cleanText = (element.textContent || '')
+      .replace(/\[\[|\]\]/g, '')
+      .trim();
     if (cleanText === searchTitle) {
       return {
         targetElement: element as HTMLElement,
@@ -107,7 +117,11 @@ function findWikilinkDecoration(scrollContainer: HTMLElement, searchTitle: strin
 }
 
 function findPlainTextMatch(scrollContainer: HTMLElement, searchTitle: string) {
-  const walker = document.createTreeWalker(scrollContainer, NodeFilter.SHOW_TEXT, null);
+  const walker = document.createTreeWalker(
+    scrollContainer,
+    NodeFilter.SHOW_TEXT,
+    null
+  );
   let node: Node | null;
 
   while ((node = walker.nextNode())) {
@@ -178,15 +192,29 @@ export function useEditorSessionScroll(options: UseEditorSessionScrollOptions) {
         const { targetElement, highlightRange } = match;
         const targetRect = targetElement.getBoundingClientRect();
         const containerRect = scrollContainer.getBoundingClientRect();
-        const elementOffsetTop = getElementOffsetTop(targetElement, scrollContainer);
+        const elementOffsetTop = getElementOffsetTop(
+          targetElement,
+          scrollContainer
+        );
         const targetPositionInViewport = containerRect.height / 2;
-        const scrollAdjustment = isInsideCodeBlock(targetElement, scrollContainer) ? 580 : -80;
-        const newScrollTop = elementOffsetTop - targetPositionInViewport + targetRect.height / 2 + scrollAdjustment;
+        const scrollAdjustment = isInsideCodeBlock(
+          targetElement,
+          scrollContainer
+        )
+          ? 580
+          : -80;
+        const newScrollTop =
+          elementOffsetTop -
+          targetPositionInViewport +
+          targetRect.height / 2 +
+          scrollAdjustment;
         scrollContainer.scrollTop = Math.max(0, newScrollTop);
 
         setTimeout(() => {
           if (highlightRange) {
-            Array.from<DOMRect>(highlightRange.getClientRects()).forEach(createHighlight);
+            Array.from<DOMRect>(highlightRange.getClientRects()).forEach(
+              createHighlight
+            );
           } else {
             createHighlight(targetElement.getBoundingClientRect());
           }

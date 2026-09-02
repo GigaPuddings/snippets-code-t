@@ -14,37 +14,22 @@
   "category": "automation",
   "enabledByDefault": true,
   "capabilities": {
-    "routeNames": [
-      "Translate"
-    ],
-    "settingsTabs": [
-      "translation"
-    ],
-    "hotkeys": [
-      "translate",
-      "selection_translate"
-    ],
-    "trayItems": [
-      "translate"
-    ],
+    "routeNames": ["Translate"],
+    "settingsTabs": ["translation"],
+    "hotkeys": ["translate", "selection_translate"],
+    "trayItems": ["translate"],
     "searchSources": []
   },
   "resources": {
     "hintKey": "plugins.translation.resourceHint",
     "bundled": false
   },
-  "dependencies": [
-    "translation-offline-runtime"
-  ],
-  "permissions": [
-    "command:*"
-  ],
+  "dependencies": ["translation-offline-runtime"],
+  "permissions": ["command:*"],
   "compatibleAppVersion": ">=2.1.55",
   "entry": {
     "frontend": "dist/frontend.js",
-    "styles": [
-      "dist/assets/runtime-entry-CpM_qYyL.css"
-    ]
+    "styles": ["dist/assets/runtime-entry-CpM_qYyL.css"]
   },
   "minAppVersion": "2.1.55",
   "repository": "https://github.com/GigaPuddings/snippets-code-plugin-translation",

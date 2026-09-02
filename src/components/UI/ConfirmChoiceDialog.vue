@@ -24,7 +24,10 @@
         <CustomButton v-if="secondaryText" @click="handleSecondary">
           {{ secondaryText }}
         </CustomButton>
-        <CustomButton :type="type === 'danger' ? 'danger' : 'primary'" @click="handlePrimary">
+        <CustomButton
+          :type="type === 'danger' ? 'danger' : 'primary'"
+          @click="handlePrimary"
+        >
           {{ primaryText }}
         </CustomButton>
       </div>
@@ -67,9 +70,12 @@ const skipCloseEmit = ref(false);
 
 const icon = computed(() => {
   switch (props.type) {
-    case 'warning': return '!';
-    case 'danger': return '!';
-    default: return 'i';
+    case 'warning':
+      return '!';
+    case 'danger':
+      return '!';
+    default:
+      return 'i';
   }
 });
 
@@ -105,7 +111,9 @@ const hintLines = computed(() => {
 
 watch(
   () => props.modelValue,
-  (val) => { visible.value = val; }
+  (val) => {
+    visible.value = val;
+  }
 );
 
 watch(visible, (val) => {
@@ -137,8 +145,12 @@ function closeAfterAction() {
 }
 
 defineExpose({
-  open: () => { visible.value = true; },
-  close: () => { visible.value = false; }
+  open: () => {
+    visible.value = true;
+  },
+  close: () => {
+    visible.value = false;
+  }
 });
 </script>
 
@@ -151,27 +163,27 @@ defineExpose({
 
 .message-row {
   display: flex;
-  align-items: flex-start;
   gap: 10px;
+  align-items: flex-start;
 }
 
 .message-text {
   font-size: 14px;
   line-height: 1.6;
-  white-space: pre-line;
   color: var(--dialog-text);
+  white-space: pre-line;
 }
 
 .type-indicator {
   display: flex;
-  width: 20px;
-  height: 20px;
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
+  width: 20px;
+  height: 20px;
   font-size: 12px;
   font-weight: 700;
+  border-radius: 50%;
 
   &.type-info {
     color: var(--el-color-primary);
@@ -194,32 +206,32 @@ defineExpose({
   flex-direction: column;
   gap: 7px;
   padding: 10px 12px;
+  background: var(--dialog-footer-bg);
   border: 1px solid var(--dialog-border);
   border-radius: 8px;
-  background: var(--dialog-footer-bg);
 }
 
 .hint-item {
   display: flex;
-  align-items: flex-start;
   gap: 10px;
+  align-items: flex-start;
   font-size: 13px;
   line-height: 1.5;
   color: var(--dialog-text-secondary);
 
   .hint-dot {
+    flex-shrink: 0;
     width: 5px;
     height: 5px;
-    border-radius: 50%;
-    background: var(--el-color-primary, #5d6dfd);
     margin-top: 7px;
-    flex-shrink: 0;
+    background: var(--el-color-primary, #5d6dfd);
+    border-radius: 50%;
   }
 }
 
 .confirm-footer {
   display: flex;
-  justify-content: flex-end;
   gap: 8px;
+  justify-content: flex-end;
 }
 </style>

@@ -75,7 +75,9 @@ describe('searchRanking', () => {
     expect(isRelevantSearchResult(item, 'zdy', { deepSearch: false })).toBe(
       false
     );
-    expect(isRelevantSearchResult(item, 'zdy', { deepSearch: true })).toBe(true);
+    expect(isRelevantSearchResult(item, 'zdy', { deepSearch: true })).toBe(
+      true
+    );
   });
 
   it('does not locally match app install paths without a backend title match', () => {
@@ -90,18 +92,19 @@ describe('searchRanking', () => {
       score: 0
     });
 
-    expect(
-      isRelevantSearchResult(youku, 'tail', { deepSearch: false })
-    ).toBe(false);
-    expect(
-      isRelevantSearchResult(youku, 'tail', { deepSearch: true })
-    ).toBe(false);
+    expect(isRelevantSearchResult(youku, 'tail', { deepSearch: false })).toBe(
+      false
+    );
+    expect(isRelevantSearchResult(youku, 'tail', { deepSearch: true })).toBe(
+      false
+    );
   });
 
   it('still keeps apps whose title genuinely matches the query', () => {
     const code = createItem({
       title: 'Visual Studio Code',
-      content: 'C:\\Users\\me\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe',
+      content:
+        'C:\\Users\\me\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe',
       summarize: 'app',
       metadata: { source: 'app', raw_id: 'code-uuid' },
       score: 100

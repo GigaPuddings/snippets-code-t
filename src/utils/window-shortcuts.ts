@@ -8,7 +8,9 @@ const CORE_ESCAPE_CLOSE_WINDOWS = new Map<string, string>([
 ]);
 
 function getPluginWindowCloseCommand(label: string): string | null {
-  const pluginWindow = pluginWindowShortcuts.find((windowShortcut) => windowShortcut.label === label);
+  const pluginWindow = pluginWindowShortcuts.find(
+    (windowShortcut) => windowShortcut.label === label
+  );
   if (!pluginWindow) return null;
 
   const pluginStore = usePluginStore();
@@ -18,11 +20,15 @@ function getPluginWindowCloseCommand(label: string): string | null {
 }
 
 export function shouldCloseWindowOnEscape(label: string): boolean {
-  return CORE_ESCAPE_CLOSE_WINDOWS.has(label) || getPluginWindowCloseCommand(label) !== null;
+  return (
+    CORE_ESCAPE_CLOSE_WINDOWS.has(label) ||
+    getPluginWindowCloseCommand(label) !== null
+  );
 }
 
 export async function closeWindowByLabel(label: string): Promise<void> {
-  const commandLabel = CORE_ESCAPE_CLOSE_WINDOWS.get(label) ?? getPluginWindowCloseCommand(label);
+  const commandLabel =
+    CORE_ESCAPE_CLOSE_WINDOWS.get(label) ?? getPluginWindowCloseCommand(label);
   if (!commandLabel) return;
 
   await invoke('show_hide_window_command', { label: commandLabel });

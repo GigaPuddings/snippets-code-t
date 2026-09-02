@@ -2,17 +2,22 @@ import { nextTick, ref } from 'vue';
 import { describe, expect, it, vi } from 'vitest';
 import { useEditorBacklinks } from './useEditorBacklinks';
 
-const createBacklinks = (overrides: {
-  title?: string;
-  fragmentId?: number | string;
-  getBacklinkStats?: (
-    title: string,
-    fragmentId?: number | string
-  ) => Promise<{ count: number }>;
-} = {}) => {
+const createBacklinks = (
+  overrides: {
+    title?: string;
+    fragmentId?: number | string;
+    getBacklinkStats?: (
+      title: string,
+      fragmentId?: number | string
+    ) => Promise<{ count: number }>;
+  } = {}
+) => {
   const currentTitle = ref(overrides.title ?? 'Button Patterns');
-  const currentFragmentId = ref<number | string | undefined>(overrides.fragmentId ?? 1);
-  const getBacklinkStats = overrides.getBacklinkStats ?? vi.fn(async () => ({ count: 3 }));
+  const currentFragmentId = ref<number | string | undefined>(
+    overrides.fragmentId ?? 1
+  );
+  const getBacklinkStats =
+    overrides.getBacklinkStats ?? vi.fn(async () => ({ count: 3 }));
   const emitNavigate = vi.fn();
 
   const backlinks = useEditorBacklinks({
@@ -38,7 +43,10 @@ describe('useEditorBacklinks', () => {
     await nextTick();
     await nextTick();
 
-    expect(backlinks.getBacklinkStats).toHaveBeenCalledWith('Button Patterns', 1);
+    expect(backlinks.getBacklinkStats).toHaveBeenCalledWith(
+      'Button Patterns',
+      1
+    );
     expect(backlinks.backlinkCount.value).toBe(3);
   });
 

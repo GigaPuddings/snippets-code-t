@@ -65,9 +65,10 @@ const style = computed(() => ({
 <style scoped lang="scss">
 .recording-entry {
   @apply fixed z-[5] flex items-center gap-[9px] h-[38px] py-[5px] px-2 rounded-md shadow-recorder-overlay;
+
   background: var(--recorder-overlay-bg);
-  border: 1px solid var(--recorder-overlay-border);
   backdrop-filter: blur(12px);
+  border: 1px solid var(--recorder-overlay-border);
 }
 
 .dimension {
@@ -75,17 +76,19 @@ const style = computed(() => ({
 
   input {
     @apply w-[54px] h-[26px] px-2 rounded-[5px] outline-none;
+
+    color: var(--recorder-text);
     background: var(--recorder-overlay-input-bg);
     border: 1px solid var(--recorder-overlay-input-border);
-    color: var(--recorder-text);
   }
 }
 
 select {
   @apply h-7 pl-[9px] pr-6 rounded-[5px] outline-none text-xs;
+
+  color: var(--recorder-text);
   background: var(--recorder-overlay-input-bg);
   border: 1px solid var(--recorder-overlay-input-border);
-  color: var(--recorder-text);
 }
 
 button {
@@ -94,7 +97,9 @@ button {
 
 .primary {
   @apply min-w-[92px] px-3.5 text-white bg-recorder-blue cursor-pointer;
-  box-shadow: 0 5px 12px color-mix(in srgb, var(--recorder-blue) 28%, transparent);
+
+  box-shadow: 0 5px 12px
+    color-mix(in srgb, var(--recorder-blue) 28%, transparent);
 
   &:disabled {
     @apply cursor-not-allowed opacity-[0.55];
@@ -103,6 +108,7 @@ button {
 
 .ghost {
   @apply w-7 text-recorder-muted text-[22px] leading-none;
+
   background: transparent;
 }
 </style>

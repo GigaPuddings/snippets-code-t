@@ -52,8 +52,12 @@ import ConfirmChoiceDialog from '@/components/UI/ConfirmChoiceDialog.vue';
 import type { GitRuntimeController } from '@/plugins/git-sync/useGitRuntimeController';
 import type { GitRuntimeState } from '@/plugins/git-sync/useGitRuntimeState';
 
-const GitConflictDialog = defineAsyncComponent(() => import('./GitConflictDialog/index.vue'));
-const GitManualMerge = defineAsyncComponent(() => import('./GitManualMerge/index.vue'));
+const GitConflictDialog = defineAsyncComponent(
+  () => import('./GitConflictDialog/index.vue')
+);
+const GitManualMerge = defineAsyncComponent(
+  () => import('./GitManualMerge/index.vue')
+);
 
 interface LoadingDialogExpose {
   setLoading: (loading: boolean) => void;
@@ -73,8 +77,12 @@ const manualMergeRef = ref<LoadingDialogExpose | null>(null);
 const conflictFiles = computed(() => props.state.dialogs.conflictFiles.value);
 const untrackedFiles = computed(() => props.state.dialogs.untrackedFiles.value);
 const mergeFileList = computed(() => props.state.dialogs.mergeFileList.value);
-const repoNotFoundMessage = computed(() => props.state.repoNotFound.message.value);
-const conflictConfirmOptions = computed(() => props.state.confirm.options.value);
+const repoNotFoundMessage = computed(
+  () => props.state.repoNotFound.message.value
+);
+const conflictConfirmOptions = computed(
+  () => props.state.confirm.options.value
+);
 
 const conflictDialogVisibleModel = computed({
   get: () => props.state.dialogs.showConflictDialog.value,

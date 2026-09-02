@@ -5,29 +5,36 @@
       <h3 class="panel-title">{{ $t('userCenter.title') }}</h3>
       <p class="panel-subtitle">{{ $t('userCenter.subtitle') }}</p>
     </div>
-    
+
     <!-- 可滚动内容 -->
     <div class="user-center-content">
-
       <!-- 用户信息卡片 -->
       <div class="info-card">
         <div class="info-item">
           <span class="info-label">{{ $t('userCenter.appVersion') }}</span>
           <span class="info-value">{{ appVersion }}</span>
         </div>
-        
+
         <div class="info-item">
           <span class="info-label">{{ $t('userCenter.workspaceRoot') }}</span>
-          <span class="info-value">{{ workspaceRoot || $t('userCenter.notSet') }}</span>
+          <span class="info-value">
+            {{ workspaceRoot || $t('userCenter.notSet') }}
+          </span>
         </div>
-        
+
         <div v-if="isGitSyncEnabled" class="info-item">
           <span class="info-label">{{ $t('userCenter.gitSyncStatus') }}</span>
           <span class="info-value">
-            <span v-if="!hasWorkspace" class="status-badge status-badge--warning">
+            <span
+              v-if="!hasWorkspace"
+              class="status-badge status-badge--warning"
+            >
               {{ $t('userCenter.workspaceNotSet') }}
             </span>
-            <span v-else-if="hasRequiredGitFieldsFilled" class="status-badge status-badge--success">
+            <span
+              v-else-if="hasRequiredGitFieldsFilled"
+              class="status-badge status-badge--success"
+            >
               {{ $t('userCenter.configured') }}
             </span>
             <span v-else class="status-badge status-badge--warning">
@@ -35,22 +42,24 @@
             </span>
           </span>
         </div>
-        
+
         <!-- 显示 Git 账户信息（如果已配置） -->
         <template v-if="gitConfigured && gitAccountInfo">
           <div class="info-item">
             <span class="info-label">{{ $t('userCenter.gitAccount') }}</span>
             <span class="info-value">{{ gitAccountInfo.user_name }}</span>
           </div>
-          
+
           <div class="info-item">
             <span class="info-label">{{ $t('userCenter.gitEmail') }}</span>
             <span class="info-value">{{ gitAccountInfo.user_email }}</span>
           </div>
-          
+
           <div v-if="gitAccountInfo.remote_url" class="info-item">
             <span class="info-label">{{ $t('userCenter.gitRemote') }}</span>
-            <span class="info-value text-xs">{{ gitAccountInfo.remote_url }}</span>
+            <span class="info-value text-xs">
+              {{ gitAccountInfo.remote_url }}
+            </span>
           </div>
         </template>
       </div>
@@ -61,8 +70,12 @@
           <Github theme="outline" size="24" :strokeWidth="3" />
         </div>
         <div class="git-plugin-guide-content">
-          <h4 class="git-plugin-guide-title">{{ $t('userCenter.gitPluginUnavailableTitle') }}</h4>
-          <p class="git-plugin-guide-desc">{{ $t('userCenter.gitPluginUnavailableDesc') }}</p>
+          <h4 class="git-plugin-guide-title">
+            {{ $t('userCenter.gitPluginUnavailableTitle') }}
+          </h4>
+          <p class="git-plugin-guide-desc">
+            {{ $t('userCenter.gitPluginUnavailableDesc') }}
+          </p>
           <CustomButton type="primary" size="small" @click="goToPluginSettings">
             {{ $t('userCenter.goToPluginSettings') }}
           </CustomButton>
@@ -70,14 +83,25 @@
       </div>
 
       <!-- 工作区引导：没有工作区时不展示 Git 必要配置 -->
-      <div v-if="isGitSyncEnabled && !hasWorkspace" class="workspace-guide-card">
+      <div
+        v-if="isGitSyncEnabled && !hasWorkspace"
+        class="workspace-guide-card"
+      >
         <div class="workspace-guide-icon">
           <FolderOpen theme="outline" size="24" :strokeWidth="3" />
         </div>
         <div class="workspace-guide-content">
-          <h4 class="workspace-guide-title">{{ $t('userCenter.workspaceSetupTitle') }}</h4>
-          <p class="workspace-guide-desc">{{ $t('userCenter.workspaceSetupDesc') }}</p>
-          <CustomButton type="primary" size="small" @click="goToWorkspaceSettings">
+          <h4 class="workspace-guide-title">
+            {{ $t('userCenter.workspaceSetupTitle') }}
+          </h4>
+          <p class="workspace-guide-desc">
+            {{ $t('userCenter.workspaceSetupDesc') }}
+          </p>
+          <CustomButton
+            type="primary"
+            size="small"
+            @click="goToWorkspaceSettings"
+          >
             {{ $t('userCenter.goToWorkspaceSettings') }}
           </CustomButton>
         </div>
@@ -86,7 +110,9 @@
       <!-- Git 必要字段配置（Git 同步设置入口始终可见，配置完成后才可建立同步） -->
       <div v-if="isGitSyncEnabled && hasWorkspace" class="git-config-card">
         <h4 class="section-title">{{ $t('userCenter.gitConfigSection') }}</h4>
-        <p class="git-config-desc">{{ $t('userCenter.gitConfigSectionDesc') }}</p>
+        <p class="git-config-desc">
+          {{ $t('userCenter.gitConfigSectionDesc') }}
+        </p>
         <div class="git-config-form">
           <div class="form-row">
             <span class="form-label">{{ $t('userCenter.gitAccount') }}</span>
@@ -112,14 +138,22 @@
               class="form-input"
             />
           </div>
-          <CustomButton type="primary" size="small" :loading="isSavingGit" @click="saveGitConfig">
+          <CustomButton
+            type="primary"
+            size="small"
+            :loading="isSavingGit"
+            @click="saveGitConfig"
+          >
             {{ $t('userCenter.saveGitConfig') }}
           </CustomButton>
         </div>
       </div>
 
       <!-- Git 同步引导卡片：必要字段（用户名、邮箱、远程 URL）都填写后才隐藏，与是否启用无关 -->
-      <div v-if="isGitSyncEnabled && hasWorkspace && hasRequiredGitFieldsFilled" class="tip-card">
+      <div
+        v-if="isGitSyncEnabled && hasWorkspace && hasRequiredGitFieldsFilled"
+        class="tip-card"
+      >
         <div class="tip-icon">
           <Github theme="outline" size="24" :strokeWidth="3" />
         </div>
@@ -136,17 +170,23 @@
       <div class="actions-section">
         <h4 class="section-title">{{ $t('userCenter.quickActions') }}</h4>
         <div class="action-buttons">
-          <CustomButton 
-            @click="openDataDir"
-          >
-            <FolderOpen theme="outline" size="16" :strokeWidth="3" class="mr-1" />
+          <CustomButton @click="openDataDir">
+            <FolderOpen
+              theme="outline"
+              size="16"
+              :strokeWidth="3"
+              class="mr-1"
+            />
             {{ $t('userCenter.openDataDir') }}
           </CustomButton>
-          
-          <CustomButton 
-            @click="goToSettings"
-          >
-            <SettingTwo theme="outline" size="16" :strokeWidth="3" class="mr-1" />
+
+          <CustomButton @click="goToSettings">
+            <SettingTwo
+              theme="outline"
+              size="16"
+              :strokeWidth="3"
+              class="mr-1"
+            />
             {{ $t('userCenter.openSettings') }}
           </CustomButton>
         </div>
@@ -203,7 +243,11 @@ const pluginStore = usePluginStore();
 const appVersion = ref('');
 const workspaceRoot = ref('');
 const gitConfigured = ref(false);
-const gitAccountInfo = ref<{ user_name: string; user_email: string; remote_url?: string } | null>(null);
+const gitAccountInfo = ref<{
+  user_name: string;
+  user_email: string;
+  remote_url?: string;
+} | null>(null);
 const hasWorkspace = computed(() => !!workspaceRoot.value?.trim());
 
 /** 个人中心 Git 必要配置表单（用户名、邮箱、远程 URL） */
@@ -230,17 +274,17 @@ const hasRequiredGitFieldsFilled = computed(
 const loadAppInfo = async () => {
   try {
     appVersion.value = await getVersion();
-    
+
     // 获取工作区根目录
     try {
       const root = await invoke<string | null>('get_workspace_root_path');
-      
+
       workspaceRoot.value = root || '';
     } catch (error) {
       workspaceRoot.value = '';
       console.error('[UserCenter] 获取工作区根目录失败:', error);
     }
-    
+
     if (!isGitSyncEnabled.value || !hasWorkspace.value) {
       gitConfigured.value = false;
       gitAccountInfo.value = null;
@@ -342,7 +386,10 @@ const saveGitConfig = async () => {
 // 跳转到 Git 同步设置（需先配置工作区与上述字段，才能建立远程同步）
 const goToGitSync = () => {
   try {
-    router.push({ path: '/config/category/settings', query: { tab: 'gitSync' } });
+    router.push({
+      path: '/config/category/settings',
+      query: { tab: 'gitSync' }
+    });
   } catch (error) {
     console.error('[UserCenter] 路由跳转失败:', error);
     modal.error('跳转失败: ' + error);
@@ -362,7 +409,10 @@ const goToWorkspaceSettings = () => {
 // 跳转到插件设置
 const goToPluginSettings = () => {
   try {
-    router.push({ path: '/config/category/settings', query: { tab: 'plugins' } });
+    router.push({
+      path: '/config/category/settings',
+      query: { tab: 'plugins' }
+    });
   } catch (error) {
     console.error('[UserCenter] 路由跳转失败:', error);
     modal.error('跳转失败: ' + error);
@@ -387,7 +437,10 @@ const openDataDir = async () => {
 const goToSettings = () => {
   try {
     // 跳转到设置页面，默认打开 general tab
-    router.push({ path: '/config/category/settings', query: { tab: 'general' } });
+    router.push({
+      path: '/config/category/settings',
+      query: { tab: 'general' }
+    });
   } catch (error) {
     console.error('[UserCenter] 路由跳转失败:', error);
     modal.error('跳转失败: ' + error);

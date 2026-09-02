@@ -1,7 +1,11 @@
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { MARKETPLACE_PATH, pluginRepositories, ROOT } from './plugin-release-config.mjs';
+import {
+  MARKETPLACE_PATH,
+  pluginRepositories,
+  ROOT
+} from './plugin-release-config.mjs';
 
 const args = process.argv.slice(2).filter((arg) => arg !== '--');
 function readOption(name) {
@@ -21,18 +25,29 @@ function readOption(name) {
 function readListOption(name) {
   const value = readOption(name);
   return value
-    ? value.split(/[,\s]+/).map((item) => item.trim()).filter(Boolean)
+    ? value
+        .split(/[,\s]+/)
+        .map((item) => item.trim())
+        .filter(Boolean)
     : [];
 }
 
-const VERIFY_REMOTE = !args.includes('--local') && process.env.PLUGIN_MARKETPLACE_VERIFY_REMOTE !== '0';
-const VERIFY_CONCURRENCY = Number(process.env.PLUGIN_MARKETPLACE_VERIFY_CONCURRENCY ?? 6);
-const ENABLE_API_FALLBACK = process.env.PLUGIN_MARKETPLACE_VERIFY_API_FALLBACK !== '0';
+const VERIFY_REMOTE =
+  !args.includes('--local') &&
+  process.env.PLUGIN_MARKETPLACE_VERIFY_REMOTE !== '0';
+const VERIFY_CONCURRENCY = Number(
+  process.env.PLUGIN_MARKETPLACE_VERIFY_CONCURRENCY ?? 6
+);
+const ENABLE_API_FALLBACK =
+  process.env.PLUGIN_MARKETPLACE_VERIFY_API_FALLBACK !== '0';
 const STRICT_COMPATIBILITY = args.includes('--strict-compatibility');
 const ONLY_IDS = readListOption('--only');
-const pluginRepositoryById = new Map(pluginRepositories.map((plugin) => [plugin.id, plugin]));
+const pluginRepositoryById = new Map(
+  pluginRepositories.map((plugin) => [plugin.id, plugin])
+);
 
-const isObject = (value) => typeof value === 'object' && value !== null && !Array.isArray(value);
+const isObject = (value) =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
 
 async function readJson(path) {
   return JSON.parse(await readFile(path, 'utf8'));
@@ -51,15 +66,22 @@ async function readRemoteJson(url) {
         signal: AbortSignal.timeout(15000)
       });
 
-      assert(response.ok, `远程 plugin.json 获取失败: ${url} (HTTP ${response.status})`);
+      assert(
+        response.ok,
+        `远程 plugin.json 获取失败: ${url} (HTTP ${response.status})`
+      );
       return await response.json();
     } catch (error) {
       lastError = error;
-      await new Promise((resolveTimeout) => setTimeout(resolveTimeout, attempt * 1500));
+      await new Promise((resolveTimeout) =>
+        setTimeout(resolveTimeout, attempt * 1500)
+      );
     }
   }
 
-  throw new Error(`远程 plugin.json 获取失败: ${url} (${lastError?.message ?? lastError})`);
+  throw new Error(
+    `远程 plugin.json 获取失败: ${url} (${lastError?.message ?? lastError})`
+  );
 }
 
 async function readRemoteJsonCandidates(urls) {
@@ -84,7 +106,10 @@ function assert(condition, message) {
 
 function assertOptionalSemver(item, value, field) {
   if (value === undefined) return;
-  assert(typeof value === 'string' && /^\d+\.\d+\.\d+$/.test(value), `${item.id}: ${field} 必须使用 x.y.z 格式`);
+  assert(
+    typeof value === 'string' && /^\d+\.\d+\.\d+$/.test(value),
+    `${item.id}: ${field} 必须使用 x.y.z 格式`
+  );
 }
 
 function assertOptionalCompatibility(item, value, field) {
@@ -95,12 +120,31 @@ function assertOptionalCompatibility(item, value, field) {
   );
 }
 
+function assertSha256(item, value, field) {
+  assert(
+    typeof value === 'string' && /^[a-fA-F0-9]{64}$/.test(value),
+    `${item.id}: ${field} 必须是 64 位十六进制 SHA-256`
+  );
+}
+
 function parseGithubArchivePackageUrl(packageUrl) {
-  const match = packageUrl.match(/^https:\/\/github\.com\/([^/]+)\/([^/]+)\/archive\/refs\/(heads|tags)\/(.+)\.zip$/);
+  const match = packageUrl.match(
+    /^https:\/\/github\.com\/([^/]+)\/([^/]+)\/archive\/refs\/(heads|tags)\/(.+)\.zip$/
+  );
   if (!match) return null;
 
-  const [, owner, repo, , ref] = match;
-  return { owner, repo, ref };
+  const [, owner, repo, refKind, ref] = match;
+  return { owner, repo, ref, refKind };
+}
+
+function parseGithubReleaseAssetPackageUrl(packageUrl) {
+  const match = packageUrl.match(
+    /^https:\/\/github\.com\/([^/]+)\/([^/]+)\/releases\/download\/([^/]+)\/([^/?#]+)$/
+  );
+  if (!match) return null;
+
+  const [, owner, repo, tag, assetName] = match;
+  return { owner, repo, tag, assetName };
 }
 
 function githubArchivePluginJsonUrls(packageUrl) {
@@ -111,45 +155,76 @@ function githubArchivePluginJsonUrls(packageUrl) {
   const encodedOwner = encodeURIComponent(owner);
   const encodedRepo = encodeURIComponent(repo);
   const encodedRef = encodeURIComponent(ref);
-  const urls = [`https://raw.githubusercontent.com/${owner}/${repo}/${ref}/plugin.json`];
+  const urls = [
+    `https://raw.githubusercontent.com/${owner}/${repo}/${ref}/plugin.json`
+  ];
   if (ENABLE_API_FALLBACK) {
-    urls.push(`https://api.github.com/repos/${encodedOwner}/${encodedRepo}/contents/plugin.json?ref=${encodedRef}`);
+    urls.push(
+      `https://api.github.com/repos/${encodedOwner}/${encodedRepo}/contents/plugin.json?ref=${encodedRef}`
+    );
   }
   return urls;
 }
 
 async function readPackageManifest(item) {
   if (!item.packageSubdir) {
-    if (!VERIFY_REMOTE) {
+    const readConfiguredLocalManifest = async () => {
       const plugin = pluginRepositoryById.get(item.id);
       assert(plugin, `${item.id}: 未找到官方插件发布配置`);
       const generatedResourceDir = plugin.resourceSourceDir
         ? resolve(ROOT, plugin.resourceSourceDir)
         : null;
-      const packageDir = generatedResourceDir && existsSync(join(generatedResourceDir, 'plugin.json'))
-        ? generatedResourceDir
-        : resolve(ROOT, plugin.sourceDir);
+      const packageDir =
+        generatedResourceDir &&
+        existsSync(join(generatedResourceDir, 'plugin.json'))
+          ? generatedResourceDir
+          : resolve(ROOT, plugin.sourceDir);
       const manifestPath = join(packageDir, 'plugin.json');
-      assert(existsSync(manifestPath), `${item.id}: 官方插件包缺少 plugin.json (${packageDir})`);
+      assert(
+        existsSync(manifestPath),
+        `${item.id}: 官方插件包缺少 plugin.json (${packageDir})`
+      );
       return {
         manifest: await readJson(manifestPath),
         packageDir
       };
+    };
+
+    if (!VERIFY_REMOTE) {
+      return readConfiguredLocalManifest();
     }
 
     const remotePluginJsonUrls = githubArchivePluginJsonUrls(item.packageUrl);
-    assert(remotePluginJsonUrls, `${item.id}: 缺少 packageSubdir 时 packageUrl 必须指向 GitHub 分支或标签归档`);
+    if (
+      !remotePluginJsonUrls &&
+      parseGithubReleaseAssetPackageUrl(item.packageUrl)
+    ) {
+      return readConfiguredLocalManifest();
+    }
+    assert(
+      remotePluginJsonUrls,
+      `${item.id}: 缺少 packageSubdir 时 packageUrl 必须指向 GitHub 分支、标签归档或已配置的 GitHub Release asset`
+    );
     return {
       manifest: await readRemoteJsonCandidates(remotePluginJsonUrls)
     };
   }
 
-  assert(typeof item.packageSubdir === 'string' && item.packageSubdir.length > 0, `${item.id}: packageSubdir 无效`);
-  assert(!item.packageSubdir.includes('..'), `${item.id}: packageSubdir 不允许包含 ..`);
+  assert(
+    typeof item.packageSubdir === 'string' && item.packageSubdir.length > 0,
+    `${item.id}: packageSubdir 无效`
+  );
+  assert(
+    !item.packageSubdir.includes('..'),
+    `${item.id}: packageSubdir 不允许包含 ..`
+  );
 
   const packageDir = resolve(ROOT, item.packageSubdir);
   const manifestPath = join(packageDir, 'plugin.json');
-  assert(existsSync(manifestPath), `${item.id}: packageSubdir 缺少 plugin.json (${item.packageSubdir})`);
+  assert(
+    existsSync(manifestPath),
+    `${item.id}: packageSubdir 缺少 plugin.json (${item.packageSubdir})`
+  );
   return {
     manifest: await readJson(manifestPath),
     packageDir
@@ -157,10 +232,22 @@ async function readPackageManifest(item) {
 }
 
 function assertSafePackagePath(item, relativePath, field) {
-  assert(typeof relativePath === 'string' && relativePath.length > 0, `${item.id}: ${field} 无效`);
-  assert(!relativePath.includes('://'), `${item.id}: ${field} 不允许使用 URL (${relativePath})`);
-  assert(!relativePath.startsWith('/') && !/^[a-zA-Z]:[\\/]/.test(relativePath), `${item.id}: ${field} 必须是相对路径 (${relativePath})`);
-  assert(!relativePath.split(/[\\/]+/).includes('..'), `${item.id}: ${field} 不允许包含 .. (${relativePath})`);
+  assert(
+    typeof relativePath === 'string' && relativePath.length > 0,
+    `${item.id}: ${field} 无效`
+  );
+  assert(
+    !relativePath.includes('://'),
+    `${item.id}: ${field} 不允许使用 URL (${relativePath})`
+  );
+  assert(
+    !relativePath.startsWith('/') && !/^[a-zA-Z]:[\\/]/.test(relativePath),
+    `${item.id}: ${field} 必须是相对路径 (${relativePath})`
+  );
+  assert(
+    !relativePath.split(/[\\/]+/).includes('..'),
+    `${item.id}: ${field} 不允许包含 .. (${relativePath})`
+  );
 }
 
 function verifyLocalPackageEntryFiles(item, manifest, packageDir) {
@@ -171,7 +258,12 @@ function verifyLocalPackageEntryFiles(item, manifest, packageDir) {
     entryPaths.push(['entry.frontend', manifest.entry.frontend]);
   }
   if (Array.isArray(manifest.entry.styles)) {
-    entryPaths.push(...manifest.entry.styles.map((stylePath, index) => [`entry.styles[${index}]`, stylePath]));
+    entryPaths.push(
+      ...manifest.entry.styles.map((stylePath, index) => [
+        `entry.styles[${index}]`,
+        stylePath
+      ])
+    );
   }
 
   for (const [field, relativePath] of entryPaths) {
@@ -184,48 +276,100 @@ function verifyLocalPackageEntryFiles(item, manifest, packageDir) {
 }
 
 async function verifyInstallablePackage(item) {
-  assert(typeof item.packageUrl === 'string' && item.packageUrl.length > 0, `${item.id}: packageUrl 无效`);
   assert(
-    typeof item.sizeBytes === 'number' && Number.isFinite(item.sizeBytes) && item.sizeBytes > 0,
+    typeof item.packageUrl === 'string' && item.packageUrl.length > 0,
+    `${item.id}: packageUrl 无效`
+  );
+  assert(
+    typeof item.sizeBytes === 'number' &&
+      Number.isFinite(item.sizeBytes) &&
+      item.sizeBytes > 0,
     `${item.id}: 可安装插件必须声明 sizeBytes`
   );
+  const archive = parseGithubArchivePackageUrl(item.packageUrl);
+  const releaseAsset = parseGithubReleaseAssetPackageUrl(item.packageUrl);
+  const isDevelopmentSubdirArchive = Boolean(
+    item.packageSubdir && archive?.refKind === 'heads'
+  );
+  if (!isDevelopmentSubdirArchive) {
+    assertSha256(item, item.sha256, 'sha256');
+  }
 
   const { manifest, packageDir } = await readPackageManifest(item);
-  assert(manifest.schemaVersion === 1, `${item.id}: plugin.json schemaVersion 必须为 1`);
-  assert(manifest.kind === 'local', `${item.id}: plugin.json kind 必须为 local`);
-  assert(manifest.id === item.id, `${item.id}: marketplace id 与 plugin.json id 不一致 (${manifest.id})`);
-  assert(manifest.version === item.version, `${item.id}: marketplace version 与 plugin.json version 不一致 (${item.version} != ${manifest.version})`);
+  assert(
+    manifest.schemaVersion === 1,
+    `${item.id}: plugin.json schemaVersion 必须为 1`
+  );
+  assert(
+    manifest.kind === 'local',
+    `${item.id}: plugin.json kind 必须为 local`
+  );
+  assert(
+    manifest.id === item.id,
+    `${item.id}: marketplace id 与 plugin.json id 不一致 (${manifest.id})`
+  );
+  assert(
+    manifest.version === item.version,
+    `${item.id}: marketplace version 与 plugin.json version 不一致 (${item.version} != ${manifest.version})`
+  );
   assertOptionalSemver(item, item.minAppVersion, 'marketplace minAppVersion');
-  assertOptionalSemver(item, manifest.minAppVersion, 'plugin.json minAppVersion');
-  assertOptionalCompatibility(item, item.compatibleAppVersion, 'marketplace compatibleAppVersion');
-  assertOptionalCompatibility(item, manifest.compatibleAppVersion, 'plugin.json compatibleAppVersion');
-  if (STRICT_COMPATIBILITY && (item.minAppVersion !== undefined || manifest.minAppVersion !== undefined)) {
+  assertOptionalSemver(
+    item,
+    manifest.minAppVersion,
+    'plugin.json minAppVersion'
+  );
+  assertOptionalCompatibility(
+    item,
+    item.compatibleAppVersion,
+    'marketplace compatibleAppVersion'
+  );
+  assertOptionalCompatibility(
+    item,
+    manifest.compatibleAppVersion,
+    'plugin.json compatibleAppVersion'
+  );
+  if (
+    STRICT_COMPATIBILITY &&
+    (item.minAppVersion !== undefined || manifest.minAppVersion !== undefined)
+  ) {
     assert(
       item.minAppVersion === manifest.minAppVersion,
       `${item.id}: marketplace minAppVersion 与 plugin.json minAppVersion 不一致 (${item.minAppVersion} != ${manifest.minAppVersion})`
     );
   }
   if (STRICT_COMPATIBILITY) {
-    const itemCompatibility = item.compatibleAppVersion ?? (
-      item.minAppVersion ? `>=${item.minAppVersion}` : undefined
-    );
-    const manifestCompatibility = manifest.compatibleAppVersion ?? (
-      manifest.minAppVersion ? `>=${manifest.minAppVersion}` : undefined
-    );
+    const itemCompatibility =
+      item.compatibleAppVersion ??
+      (item.minAppVersion ? `>=${item.minAppVersion}` : undefined);
+    const manifestCompatibility =
+      manifest.compatibleAppVersion ??
+      (manifest.minAppVersion ? `>=${manifest.minAppVersion}` : undefined);
     assert(
       itemCompatibility === manifestCompatibility,
       `${item.id}: marketplace compatibleAppVersion 与 plugin.json compatibleAppVersion 不一致 (${itemCompatibility} != ${manifestCompatibility})`
     );
   }
-  const archive = parseGithubArchivePackageUrl(item.packageUrl);
   if (archive && item.packageSubdir === undefined) {
     assert(
       archive.ref === item.version,
       `${item.id}: packageUrl 必须固定到当前版本标签 (${archive.ref} != ${item.version})`
     );
   }
-  assert(isObject(manifest.name) && typeof manifest.name.i18nKey === 'string', `${item.id}: name.i18nKey 无效`);
-  assert(isObject(manifest.description) && typeof manifest.description.i18nKey === 'string', `${item.id}: description.i18nKey 无效`);
+  if (releaseAsset && item.packageSubdir === undefined) {
+    assert(
+      releaseAsset.tag === item.version,
+      `${item.id}: packageUrl Release 标签必须固定到当前版本 (${releaseAsset.tag} != ${item.version})`
+    );
+  }
+  assert(
+    isObject(manifest.name) && typeof manifest.name.i18nKey === 'string',
+    `${item.id}: name.i18nKey 无效`
+  );
+  assert(
+    isObject(manifest.description) &&
+      typeof manifest.description.i18nKey === 'string',
+    `${item.id}: description.i18nKey 无效`
+  );
   verifyLocalPackageEntryFiles(item, manifest, packageDir);
 }
 
@@ -256,27 +400,45 @@ async function main() {
   const onlyIds = new Set(ONLY_IDS);
   for (const item of marketplace.plugins) {
     assert(isObject(item), 'marketplace plugin item 必须是对象');
-    assert(typeof item.id === 'string' && item.id.length > 0, 'marketplace plugin item 缺少 id');
+    assert(
+      typeof item.id === 'string' && item.id.length > 0,
+      'marketplace plugin item 缺少 id'
+    );
     assert(!ids.has(item.id), `插件 ID 重复: ${item.id}`);
     ids.add(item.id);
 
-    if ((item.packageUrl || item.packageSubdir) && (onlyIds.size === 0 || onlyIds.has(item.id))) {
+    if (
+      (item.packageUrl || item.packageSubdir) &&
+      (onlyIds.size === 0 || onlyIds.has(item.id))
+    ) {
       installableItems.push(item);
     }
   }
 
-  await runLimited(installableItems, VERIFY_CONCURRENCY, verifyInstallablePackage);
+  await runLimited(
+    installableItems,
+    VERIFY_CONCURRENCY,
+    verifyInstallablePackage
+  );
 
   for (const item of marketplace.plugins) {
     if (!Array.isArray(item.dependencies)) continue;
     for (const dependencyId of item.dependencies) {
-      assert(typeof dependencyId === 'string' && dependencyId.length > 0, `${item.id}: dependency id 无效`);
-      assert(ids.has(dependencyId), `${item.id}: dependency 不存在: ${dependencyId}`);
+      assert(
+        typeof dependencyId === 'string' && dependencyId.length > 0,
+        `${item.id}: dependency id 无效`
+      );
+      assert(
+        ids.has(dependencyId),
+        `${item.id}: dependency 不存在: ${dependencyId}`
+      );
       assert(dependencyId !== item.id, `${item.id}: dependency 不能指向自身`);
     }
   }
 
-  console.log(`[Plugins] 插件市场校验通过: ${marketplace.plugins.length} entries, ${installableItems.length} installable packages`);
+  console.log(
+    `[Plugins] 插件市场校验通过: ${marketplace.plugins.length} entries, ${installableItems.length} installable packages`
+  );
 }
 
 main().catch((error) => {

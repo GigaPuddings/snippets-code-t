@@ -1,8 +1,22 @@
-import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import {
+  cp,
+  mkdir,
+  readFile,
+  readdir,
+  rm,
+  stat,
+  writeFile
+} from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { basename, isAbsolute, join, relative, resolve } from 'node:path';
-import { MARKETPLACE_PATH, OWNER, pluginRepositories, ROOT } from './plugin-release-config.mjs';
+import {
+  MARKETPLACE_PATH,
+  OWNER,
+  pluginRepositories,
+  ROOT
+} from './plugin-release-config.mjs';
 
 const TMP_ROOT = resolve(ROOT, '_tmp/plugin-repo-sync');
 const CLONE_RETRY_DELAYS_MS = [0, 1000, 2500];
@@ -36,9 +50,17 @@ function parseArgs() {
     } else if (arg === '--pin-marketplace-tags') {
       options.pinMarketplaceTags = true;
     } else if (arg === '--only') {
-      options.only = args[++index]?.split(',').map((item) => item.trim()).filter(Boolean) ?? [];
+      options.only =
+        args[++index]
+          ?.split(',')
+          .map((item) => item.trim())
+          .filter(Boolean) ?? [];
     } else if (arg.startsWith('--only=')) {
-      options.only = arg.slice('--only='.length).split(',').map((item) => item.trim()).filter(Boolean);
+      options.only = arg
+        .slice('--only='.length)
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean);
     } else if (arg === '--version') {
       options.version = args[++index];
     } else if (arg.startsWith('--version=')) {
@@ -86,12 +108,55 @@ function tagArchiveUrl(repo, version) {
   return `https://github.com/${OWNER}/${repo}/archive/refs/tags/${version}.zip`;
 }
 
+function packageUrlFor(plugin, version, options) {
+  if (plugin.releaseAssetName) {
+    const assetName = plugin.releaseAssetName.replace('{version}', version);
+    return `https://github.com/${OWNER}/${plugin.repo}/releases/download/${version}/${assetName}`;
+  }
+
+  return options.pinMarketplaceTags
+    ? tagArchiveUrl(plugin.repo, version)
+    : mainArchiveUrl(plugin.repo);
+}
+
 function releaseUrl(repo, version) {
   return `https://github.com/${OWNER}/${repo}/releases/tag/${version}`;
 }
 
 function mainArchiveUrl(repo) {
   return `https://github.com/${OWNER}/${repo}/archive/refs/heads/main.zip`;
+}
+
+function codeloadArchiveUrl(packageUrl) {
+  const match = packageUrl.match(
+    /^https:\/\/github\.com\/([^/]+)\/([^/]+)\/archive\/refs\/(heads|tags)\/(.+)\.zip$/
+  );
+  if (!match) return packageUrl;
+
+  const [, owner, repo, refKind, ref] = match;
+  return `https://codeload.github.com/${owner}/${repo}/zip/refs/${refKind}/${ref}`;
+}
+
+async function remotePackageSha256(packageUrl) {
+  const downloadUrl = codeloadArchiveUrl(packageUrl);
+  const response = await fetch(downloadUrl, {
+    headers: {
+      'user-agent': 'snippets-code-plugin-release'
+    },
+    signal: AbortSignal.timeout(10 * 60 * 1000)
+  });
+  if (!response.ok) {
+    throw new Error(
+      `下载插件包计算 SHA-256 失败: ${downloadUrl} (HTTP ${response.status})`
+    );
+  }
+
+  const hasher = createHash('sha256');
+  for await (const chunk of response.body) {
+    hasher.update(chunk);
+  }
+
+  return hasher.digest('hex');
 }
 
 async function directoryExists(path) {
@@ -110,14 +175,21 @@ function wait(milliseconds) {
 function assertTemporaryRepositoryPath(path) {
   const resolvedPath = resolve(path);
   const relativePath = relative(TMP_ROOT, resolvedPath);
-  if (!relativePath || relativePath.startsWith('..') || isAbsolute(relativePath)) {
+  if (
+    !relativePath ||
+    relativePath.startsWith('..') ||
+    isAbsolute(relativePath)
+  ) {
     throw new Error(`拒绝操作临时仓库目录之外的路径: ${resolvedPath}`);
   }
   return resolvedPath;
 }
 
 async function removeTemporaryRepository(path) {
-  await rm(assertTemporaryRepositoryPath(path), { recursive: true, force: true });
+  await rm(assertTemporaryRepositoryPath(path), {
+    recursive: true,
+    force: true
+  });
 }
 
 function errorMessage(error) {
@@ -154,9 +226,15 @@ function isCleanGitRepository(path) {
 }
 
 function updateCachedRepository(repoDir) {
-  run('git', ['fetch', '--depth', '1', 'origin', 'main'], { cwd: repoDir, inherit: true });
+  run('git', ['fetch', '--depth', '1', 'origin', 'main'], {
+    cwd: repoDir,
+    inherit: true
+  });
   run('git', ['checkout', 'main'], { cwd: repoDir, inherit: true });
-  run('git', ['reset', '--hard', 'origin/main'], { cwd: repoDir, inherit: true });
+  run('git', ['reset', '--hard', 'origin/main'], {
+    cwd: repoDir,
+    inherit: true
+  });
 }
 
 async function directorySize(path) {
@@ -194,7 +272,8 @@ async function copyDirectoryContents(sourceDir, targetDir) {
 async function updateManifestVersion(plugin, version, sourceDir, options) {
   const manifestPath = join(sourceDir, 'plugin.json');
   const manifest = await readJson(manifestPath);
-  const minAppVersion = options.minAppVersion ?? manifest.minAppVersion ?? version;
+  const minAppVersion =
+    options.minAppVersion ?? manifest.minAppVersion ?? version;
   assertVersion(minAppVersion);
   manifest.version = version;
   manifest.minAppVersion = minAppVersion;
@@ -218,16 +297,21 @@ async function updateMarketplace(selectedPlugins, pluginVersions, options) {
     const version = pluginVersions.get(plugin.id);
     const sourceDir = await resolveSourceDir(plugin, options);
     const sourceManifest = await readJson(join(sourceDir, 'plugin.json'));
-    const minAppVersion = sourceManifest.minAppVersion ?? item.minAppVersion ?? version;
+    const minAppVersion =
+      sourceManifest.minAppVersion ?? item.minAppVersion ?? version;
 
     item.version = version;
     item.minAppVersion = minAppVersion;
     item.compatibleAppVersion = `>=${minAppVersion}`;
     item.repository = `https://github.com/${OWNER}/${plugin.repo}`;
     item.releaseUrl = releaseUrl(plugin.repo, version);
-    item.packageUrl = options.pinMarketplaceTags
-      ? tagArchiveUrl(plugin.repo, version)
-      : mainArchiveUrl(plugin.repo);
+    item.packageUrl = packageUrlFor(plugin, version, options);
+    if (options.pinMarketplaceTags || plugin.releaseAssetName) {
+      console.log(`[Plugins] 计算 ${plugin.id} 包 SHA-256`);
+      item.sha256 = await remotePackageSha256(item.packageUrl);
+    } else {
+      delete item.sha256;
+    }
     delete item.packageSubdir;
     if (plugin.resourceSourceDir && options[plugin.includeFlag]) {
       const resourceDir = resolve(ROOT, plugin.resourceSourceDir);
@@ -282,12 +366,18 @@ package, then synchronized again.
 }
 
 async function resolveSourceDir(plugin, options) {
-  if (plugin.requiresExplicitResource && plugin.resourceSourceDir && options[plugin.includeFlag]) {
+  if (
+    plugin.requiresExplicitResource &&
+    plugin.resourceSourceDir &&
+    options[plugin.includeFlag]
+  ) {
     const resourceDir = resolve(ROOT, plugin.resourceSourceDir);
     if (await directoryExists(resourceDir)) {
       return resourceDir;
     }
-    throw new Error(`未找到 ${plugin.resourceSourceDir}，请先运行对应的资源打包脚本`);
+    throw new Error(
+      `未找到 ${plugin.resourceSourceDir}，请先运行对应的资源打包脚本`
+    );
   }
 
   return resolve(ROOT, plugin.sourceDir);
@@ -295,7 +385,9 @@ async function resolveSourceDir(plugin, options) {
 
 async function cloneRepository(plugin, targetDir, options) {
   if (options.dryRun) {
-    console.log(`[Plugins] dry-run: reuse or clone ${OWNER}/${plugin.repo} -> ${targetDir}`);
+    console.log(
+      `[Plugins] dry-run: reuse or clone ${OWNER}/${plugin.repo} -> ${targetDir}`
+    );
     return;
   }
 
@@ -307,25 +399,46 @@ async function cloneRepository(plugin, targetDir, options) {
       updateCachedRepository(targetDir);
       return;
     } catch (error) {
-      console.warn(`[Plugins] 临时仓库更新失败，将重新克隆: ${errorMessage(error)}`);
+      console.warn(
+        `[Plugins] 临时仓库更新失败，将重新克隆: ${errorMessage(error)}`
+      );
     }
   }
 
   const sshUrl = `git@github.com:${OWNER}/${plugin.repo}.git`;
-  if (await runCloneStrategy('SSH', 'git', ['clone', '--depth', '1', sshUrl, targetDir], targetDir)) {
+  if (
+    await runCloneStrategy(
+      'SSH',
+      'git',
+      ['clone', '--depth', '1', sshUrl, targetDir],
+      targetDir
+    )
+  ) {
     return;
   }
 
-  if (await runCloneStrategy(
-    'GitHub CLI',
-    'gh',
-    ['repo', 'clone', `${OWNER}/${plugin.repo}`, targetDir, '--', '--depth', '1'],
-    targetDir
-  )) {
+  if (
+    await runCloneStrategy(
+      'GitHub CLI',
+      'gh',
+      [
+        'repo',
+        'clone',
+        `${OWNER}/${plugin.repo}`,
+        targetDir,
+        '--',
+        '--depth',
+        '1'
+      ],
+      targetDir
+    )
+  ) {
     return;
   }
 
-  throw new Error(`${plugin.id}: SSH 与 GitHub CLI 克隆均失败，请检查网络连接后重试`);
+  throw new Error(
+    `${plugin.id}: SSH 与 GitHub CLI 克隆均失败，请检查网络连接后重试`
+  );
 }
 
 async function writeVersionsIndex(repoDir, version, manifest) {
@@ -343,20 +456,30 @@ async function writeVersionsIndex(repoDir, version, manifest) {
   await writeJson(
     versionsPath,
     Object.fromEntries(
-      Object.entries(versions).sort(([left], [right]) => (
+      Object.entries(versions).sort(([left], [right]) =>
         left.localeCompare(right, undefined, { numeric: true })
-      ))
+      )
     )
   );
 }
 
-async function writeRepositoryReadme(plugin, repoDir, manifest, version, sourceDir) {
+async function writeRepositoryReadme(
+  plugin,
+  repoDir,
+  manifest,
+  version,
+  sourceDir
+) {
   const sourceReadmePath = join(sourceDir, 'README.md');
   if (existsSync(sourceReadmePath)) {
     return;
   }
 
-  await writeFile(join(repoDir, 'README.md'), renderReadme(plugin, manifest, version, sourceDir), 'utf8');
+  await writeFile(
+    join(repoDir, 'README.md'),
+    renderReadme(plugin, manifest, version, sourceDir),
+    'utf8'
+  );
 }
 
 function gitOutput(cwd, args) {
@@ -368,7 +491,12 @@ function gitOutput(cwd, args) {
 }
 
 function remoteTagExists(repoDir, tag) {
-  const output = gitOutput(repoDir, ['ls-remote', '--tags', 'origin', `refs/tags/${tag}`]);
+  const output = gitOutput(repoDir, [
+    'ls-remote',
+    '--tags',
+    'origin',
+    `refs/tags/${tag}`
+  ]);
   return output.length > 0;
 }
 
@@ -382,9 +510,15 @@ function localTagExists(repoDir, tag) {
 }
 
 function commitAndPush(plugin, repoDir, version, options) {
-  run('git', ['add', '-A'], { cwd: repoDir, inherit: true, dryRun: options.dryRun });
+  run('git', ['add', '-A'], {
+    cwd: repoDir,
+    inherit: true,
+    dryRun: options.dryRun
+  });
 
-  const status = options.dryRun ? 'dry-run' : gitOutput(repoDir, ['status', '--short']);
+  const status = options.dryRun
+    ? 'dry-run'
+    : gitOutput(repoDir, ['status', '--short']);
   if (status.length > 0) {
     run('git', ['commit', '-m', `release: sync plugin package ${version}`], {
       cwd: repoDir,
@@ -407,15 +541,32 @@ function commitAndPush(plugin, repoDir, version, options) {
   }
 
   if (!options.dryRun && localTagExists(repoDir, tag)) {
-    run('git', ['tag', '-d', tag], { cwd: repoDir, inherit: true, dryRun: options.dryRun });
+    run('git', ['tag', '-d', tag], {
+      cwd: repoDir,
+      inherit: true,
+      dryRun: options.dryRun
+    });
   }
 
-  run('git', ['tag', tag], { cwd: repoDir, inherit: true, dryRun: options.dryRun });
-  run('git', ['push', options.forceTag ? '--force' : 'origin', ...(options.forceTag ? ['origin'] : []), tag], {
+  run('git', ['tag', tag], {
     cwd: repoDir,
     inherit: true,
     dryRun: options.dryRun
   });
+  run(
+    'git',
+    [
+      'push',
+      options.forceTag ? '--force' : 'origin',
+      ...(options.forceTag ? ['origin'] : []),
+      tag
+    ],
+    {
+      cwd: repoDir,
+      inherit: true,
+      dryRun: options.dryRun
+    }
+  );
 }
 
 async function syncRepository(plugin, version, options) {
@@ -446,12 +597,14 @@ async function main() {
   const selectedPlugins = options.only
     ? pluginRepositories.filter((plugin) => options.only.includes(plugin.id))
     : pluginRepositories.filter(
-      (plugin) => !plugin.requiresExplicitResource || options[plugin.includeFlag]
-    );
+        (plugin) =>
+          !plugin.requiresExplicitResource || options[plugin.includeFlag]
+      );
 
-  const missing = options.only?.filter(
-    (pluginId) => !pluginRepositories.some((plugin) => plugin.id === pluginId)
-  ) ?? [];
+  const missing =
+    options.only?.filter(
+      (pluginId) => !pluginRepositories.some((plugin) => plugin.id === pluginId)
+    ) ?? [];
   if (missing.length > 0) {
     throw new Error(`未知插件 ID: ${missing.join(', ')}`);
   }

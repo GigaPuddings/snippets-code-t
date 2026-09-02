@@ -1,53 +1,59 @@
 /**
  * Live Preview 扩展
- * 
+ *
  * 功能：
  * 1. 当光标在某个块级元素内时，显示该块的 Markdown 源码
  * 2. 当光标离开时，恢复渲染后的效果
  * 3. 实时编辑体验
- * 
+ *
  * 工作原理：
  * - 监听光标位置变化
  * - 使用 Decoration 来控制显示/隐藏 Markdown 语法
  * - 只影响当前编辑的块，其他块保持渲染状态
  */
-// @ts-nocheck
 import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
+
+interface LivePreviewState {
+  activeNodePos: number | null;
+  decorations: DecorationSet;
+}
+
+const livePreviewPluginKey = new PluginKey<LivePreviewState>('livePreview');
 
 export const LivePreview = Extension.create({
   name: 'livePreview',
 
   addProseMirrorPlugins() {
     return [
-      new Plugin({
-        key: new PluginKey('livePreview'),
+      new Plugin<LivePreviewState>({
+        key: livePreviewPluginKey,
         state: {
-          init() {
+          init(): LivePreviewState {
             return {
               activeNodePos: null,
               decorations: DecorationSet.empty
             };
           },
-          apply(tr, value, oldState, newState) {
+          apply(tr, _value, _oldState, newState): LivePreviewState {
             // 如果文档没有变化且选区没有变化，保持原状态
             if (!tr.docChanged && !tr.selectionSet) {
-              return value;
+              return _value;
             }
 
             const { selection } = newState;
             const { $from } = selection;
-            
+
             // 找到当前光标所在的块级节点
             let activeNodePos = null;
             let depth = $from.depth;
-            
+
             // 从当前位置向上查找块级节点
             while (depth > 0) {
               const node = $from.node(depth);
               const pos = $from.before(depth);
-              
+
               // 检查是否是块级节点（段落、标题、列表项等）
               if (node.isBlock && node.type.name !== 'doc') {
                 activeNodePos = pos;
@@ -63,11 +69,15 @@ export const LivePreview = Extension.create({
           }
         },
         props: {
-          decorations(state) {
-            const pluginState = this.getState(state);
-            const decorations: any[] = [];
+          decorations(state): DecorationSet {
+            const pluginState = livePreviewPluginKey.getState(state);
+            if (!pluginState) {
+              return DecorationSet.empty;
+            }
+
+            const decorations: Decoration[] = [];
             const { activeNodePos } = pluginState;
-            const { doc, selection } = state;
+            const { doc } = state;
 
             // 如果没有活动节点，返回空装饰
             if (activeNodePos === null) {

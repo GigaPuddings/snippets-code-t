@@ -73,8 +73,8 @@ const UNIT_ALIASES: Record<string, UnitDefinition> = {
   mm: { base: 'm', factor: 0.001, label: '毫米', defaultTarget: 'm' },
   毫米: { base: 'm', factor: 0.001, label: '毫米', defaultTarget: 'm' },
   um: { base: 'm', factor: 0.000001, label: '微米', defaultTarget: 'm' },
-  'μm': { base: 'm', factor: 0.000001, label: '微米', defaultTarget: 'm' },
-  'µm': { base: 'm', factor: 0.000001, label: '微米', defaultTarget: 'm' },
+  μm: { base: 'm', factor: 0.000001, label: '微米', defaultTarget: 'm' },
+  µm: { base: 'm', factor: 0.000001, label: '微米', defaultTarget: 'm' },
   微米: { base: 'm', factor: 0.000001, label: '微米', defaultTarget: 'm' },
   nm: { base: 'm', factor: 0.000000001, label: '纳米', defaultTarget: 'm' },
   纳米: { base: 'm', factor: 0.000000001, label: '纳米', defaultTarget: 'm' },
@@ -83,23 +83,78 @@ const UNIT_ALIASES: Record<string, UnitDefinition> = {
   升: { base: 'ml', factor: 1000, label: '升', defaultTarget: 'ml' },
   ml: { base: 'ml', factor: 1, label: '毫升', defaultTarget: 'L' },
   毫升: { base: 'ml', factor: 1, label: '毫升', defaultTarget: 'L' },
-  km2: { base: 'm2', factor: 1000000, label: '平方千米', defaultTarget: '平方米' },
-  'km²': { base: 'm2', factor: 1000000, label: '平方千米', defaultTarget: '平方米' },
-  平方千米: { base: 'm2', factor: 1000000, label: '平方千米', defaultTarget: '平方米' },
-  平方公里: { base: 'm2', factor: 1000000, label: '平方千米', defaultTarget: '平方米' },
+  km2: {
+    base: 'm2',
+    factor: 1000000,
+    label: '平方千米',
+    defaultTarget: '平方米'
+  },
+  'km²': {
+    base: 'm2',
+    factor: 1000000,
+    label: '平方千米',
+    defaultTarget: '平方米'
+  },
+  平方千米: {
+    base: 'm2',
+    factor: 1000000,
+    label: '平方千米',
+    defaultTarget: '平方米'
+  },
+  平方公里: {
+    base: 'm2',
+    factor: 1000000,
+    label: '平方千米',
+    defaultTarget: '平方米'
+  },
   m2: { base: 'm2', factor: 1, label: '平方米', defaultTarget: 'cm2' },
   'm²': { base: 'm2', factor: 1, label: '平方米', defaultTarget: 'cm2' },
   '㎡': { base: 'm2', factor: 1, label: '平方米', defaultTarget: 'cm2' },
   平方: { base: 'm2', factor: 1, label: '平方米', defaultTarget: 'cm2' },
   平方米: { base: 'm2', factor: 1, label: '平方米', defaultTarget: 'cm2' },
   平米: { base: 'm2', factor: 1, label: '平方米', defaultTarget: 'cm2' },
-  cm2: { base: 'm2', factor: 0.0001, label: '平方厘米', defaultTarget: '平方米' },
-  'cm²': { base: 'm2', factor: 0.0001, label: '平方厘米', defaultTarget: '平方米' },
-  平方厘米: { base: 'm2', factor: 0.0001, label: '平方厘米', defaultTarget: '平方米' },
-  mm2: { base: 'm2', factor: 0.000001, label: '平方毫米', defaultTarget: '平方米' },
-  'mm²': { base: 'm2', factor: 0.000001, label: '平方毫米', defaultTarget: '平方米' },
-  平方毫米: { base: 'm2', factor: 0.000001, label: '平方毫米', defaultTarget: '平方米' },
-  亩: { base: 'm2', factor: 666.6666666667, label: '亩', defaultTarget: '平方米' },
+  cm2: {
+    base: 'm2',
+    factor: 0.0001,
+    label: '平方厘米',
+    defaultTarget: '平方米'
+  },
+  'cm²': {
+    base: 'm2',
+    factor: 0.0001,
+    label: '平方厘米',
+    defaultTarget: '平方米'
+  },
+  平方厘米: {
+    base: 'm2',
+    factor: 0.0001,
+    label: '平方厘米',
+    defaultTarget: '平方米'
+  },
+  mm2: {
+    base: 'm2',
+    factor: 0.000001,
+    label: '平方毫米',
+    defaultTarget: '平方米'
+  },
+  'mm²': {
+    base: 'm2',
+    factor: 0.000001,
+    label: '平方毫米',
+    defaultTarget: '平方米'
+  },
+  平方毫米: {
+    base: 'm2',
+    factor: 0.000001,
+    label: '平方毫米',
+    defaultTarget: '平方米'
+  },
+  亩: {
+    base: 'm2',
+    factor: 666.6666666667,
+    label: '亩',
+    defaultTarget: '平方米'
+  },
   公顷: { base: 'm2', factor: 10000, label: '公顷', defaultTarget: '平方米' },
   ha: { base: 'm2', factor: 10000, label: '公顷', defaultTarget: '平方米' }
 };
@@ -114,7 +169,7 @@ const UNIT_ALIAS_PATTERN = Object.keys(UNIT_ALIASES)
 
 const CHINESE_DIGITS: Record<string, number> = {
   零: 0,
-  '〇': 0,
+  〇: 0,
   一: 1,
   二: 2,
   两: 2,
@@ -229,18 +284,24 @@ const evaluateMath = (query: string): ContentType | null => {
     const value = Function(`"use strict"; return (${expression})`)();
     if (typeof value !== 'number' || !Number.isFinite(value)) return null;
     const formatted = formatNumber(value);
-    return createResult('quick-tools-calc', `${expression} = ${formatted}`, formatted, query, {
-      tool: 'calculator',
-      toolName: '计算器',
-      input: expression,
-      outputValue: formatted,
-      outputUnit: '',
-      rows: [
-        { label: '原始输入', value: query },
-        { label: '表达式', value: expression },
-        { label: '展示策略', value: '结果列表显示摘要，右侧展示结构化答案' }
-      ]
-    });
+    return createResult(
+      'quick-tools-calc',
+      `${expression} = ${formatted}`,
+      formatted,
+      query,
+      {
+        tool: 'calculator',
+        toolName: '计算器',
+        input: expression,
+        outputValue: formatted,
+        outputUnit: '',
+        rows: [
+          { label: '原始输入', value: query },
+          { label: '表达式', value: expression },
+          { label: '展示策略', value: '结果列表显示摘要，右侧展示结构化答案' }
+        ]
+      }
+    );
   } catch {
     return null;
   }
@@ -254,14 +315,16 @@ const parseUnitConversion = (query: string) => {
       'i'
     )
   );
-  const shortMatch = normalized.match(new RegExp(`^(${NUMBER_PATTERN})\\s*(${UNIT_ALIAS_PATTERN})$`, 'i'));
+  const shortMatch = normalized.match(
+    new RegExp(`^(${NUMBER_PATTERN})\\s*(${UNIT_ALIAS_PATTERN})$`, 'i')
+  );
 
   if (match) {
     const amount = parseAmount(match[1]);
     const from = resolveUnit(match[2]);
     const to = resolveUnit(match[3]);
     if (Number.isFinite(amount) && from && to && from.base === to.base) {
-      const value = amount * from.factor / to.factor;
+      const value = (amount * from.factor) / to.factor;
       return {
         amount,
         fromLabel: getExplicitUnitLabel(match[2], from),
@@ -276,9 +339,10 @@ const parseUnitConversion = (query: string) => {
   const amount = parseAmount(shortMatch[1]);
   const from = resolveUnit(shortMatch[2]);
   const to = from?.defaultTarget ? resolveUnit(from.defaultTarget) : undefined;
-  if (!Number.isFinite(amount) || !from || !to || from.base !== to.base) return null;
+  if (!Number.isFinite(amount) || !from || !to || from.base !== to.base)
+    return null;
 
-  const value = amount * from.factor / to.factor;
+  const value = (amount * from.factor) / to.factor;
   return {
     amount,
     fromLabel: from.label,
@@ -305,7 +369,10 @@ const convertUnit = (query: string): ContentType | null => {
       outputUnit: conversion.toLabel,
       rows: [
         { label: '原始输入', value: query },
-        { label: '识别单位', value: `${conversion.fromLabel} → ${conversion.toLabel}` },
+        {
+          label: '识别单位',
+          value: `${conversion.fromLabel} → ${conversion.toLabel}`
+        },
         { label: '展示策略', value: '结果列表显示摘要，右侧展示结构化答案' }
       ]
     }
@@ -313,12 +380,18 @@ const convertUnit = (query: string): ContentType | null => {
 };
 
 const resolveCurrency = (value: string): CurrencyDefinition | null =>
-  CURRENCY_ALIASES[value.trim().toLowerCase()] ?? CURRENCY_ALIASES[value.trim()] ?? null;
+  CURRENCY_ALIASES[value.trim().toLowerCase()] ??
+  CURRENCY_ALIASES[value.trim()] ??
+  null;
 
 const parseCurrencyConversion = (query: string) => {
   const normalized = query.trim();
-  const match = normalized.match(/^([\d.]+)\s*([a-zA-Z]+|[\u4e00-\u9fa5]+)\s*(?:=|to|转|换算(?:成)?|是多少)?\s*([a-zA-Z]+|[\u4e00-\u9fa5]+)$/i);
-  const shortMatch = normalized.match(/^([\d.]+)\s*([a-zA-Z]+|[\u4e00-\u9fa5]+)$/i);
+  const match = normalized.match(
+    /^([\d.]+)\s*([a-zA-Z]+|[\u4e00-\u9fa5]+)\s*(?:=|to|转|换算(?:成)?|是多少)?\s*([a-zA-Z]+|[\u4e00-\u9fa5]+)$/i
+  );
+  const shortMatch = normalized.match(
+    /^([\d.]+)\s*([a-zA-Z]+|[\u4e00-\u9fa5]+)$/i
+  );
 
   if (match) {
     const amount = Number(match[1]);
@@ -333,7 +406,8 @@ const parseCurrencyConversion = (query: string) => {
     const amount = Number(shortMatch[1]);
     const from = resolveCurrency(shortMatch[2]);
     const to = resolveCurrency(DEFAULT_CURRENCY_TARGET);
-    if (!Number.isFinite(amount) || !from || !to || from.code === to.code) return null;
+    if (!Number.isFinite(amount) || !from || !to || from.code === to.code)
+      return null;
     return { amount, from, to };
   }
 
@@ -348,8 +422,14 @@ const convertCurrency = async (query: string): Promise<ContentType | null> => {
     const url = `https://api.frankfurter.dev/v2/rate/${conversion.from.code}/${conversion.to.code}`;
     const response = await fetch(url);
     if (!response.ok) return null;
-    const data = await response.json() as { date?: string; base?: string; quote?: string; rate?: number };
-    const value = typeof data.rate === 'number' ? data.rate * conversion.amount : undefined;
+    const data = (await response.json()) as {
+      date?: string;
+      base?: string;
+      quote?: string;
+      rate?: number;
+    };
+    const value =
+      typeof data.rate === 'number' ? data.rate * conversion.amount : undefined;
     if (typeof value !== 'number') return null;
     const rateDate = data.date;
 
@@ -371,7 +451,10 @@ const convertCurrency = async (query: string): Promise<ContentType | null> => {
         provider: 'Frankfurter',
         rows: [
           { label: '原始输入', value: query },
-          { label: '识别币种', value: `${conversion.from.code} → ${conversion.to.code}` },
+          {
+            label: '识别币种',
+            value: `${conversion.from.code} → ${conversion.to.code}`
+          },
           { label: '展示策略', value: '结果列表显示摘要，右侧展示结构化答案' }
         ]
       }

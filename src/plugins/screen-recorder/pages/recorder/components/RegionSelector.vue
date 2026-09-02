@@ -5,7 +5,12 @@
       {{ $t('screenRecorder.dragToSelect') }}
     </div>
     <div v-if="rect" class="selected-region" :style="rectStyle">
-      <span v-for="handle in handles" :key="handle" class="resize-handle" :class="handle"></span>
+      <span
+        v-for="handle in handles"
+        :key="handle"
+        class="resize-handle"
+        :class="handle"
+      ></span>
     </div>
   </div>
 </template>
@@ -46,7 +51,12 @@ const rectStyle = computed(() => {
   };
 });
 
-const normalizeRect = (left: number, top: number, right: number, bottom: number): Rect => ({
+const normalizeRect = (
+  left: number,
+  top: number,
+  right: number,
+  bottom: number
+): Rect => ({
   x: Math.min(left, right),
   y: Math.min(top, bottom),
   width: Math.abs(right - left),
@@ -106,21 +116,23 @@ const handleMouseUp = () => {
 
 .grid-layer {
   @apply absolute inset-0;
-  background-image:
-    linear-gradient(rgb(31 113 255 / 8%) 1px, transparent 1px),
+
+  background-image: linear-gradient(rgb(31 113 255 / 8%) 1px, transparent 1px),
     linear-gradient(90deg, rgb(31 113 255 / 8%) 1px, transparent 1px);
   background-size: 18px 18px;
 }
 
 .selection-hint {
   @apply fixed left-1/2 top-[44%] py-2.5 px-3.5 rounded-md text-[13px] shadow-recorder-overlay -translate-x-1/2 -translate-y-1/2;
+
+  color: var(--recorder-text);
   background: var(--recorder-overlay-bg);
   border: 1px solid var(--recorder-overlay-border);
-  color: var(--recorder-text);
 }
 
 .selected-region {
   @apply absolute cursor-default;
+
   background: rgb(255 255 255 / 2%);
   border: 2px dashed var(--recorder-blue);
   box-shadow: 0 0 0 9999px rgb(255 255 255 / 18%);
@@ -128,17 +140,53 @@ const handleMouseUp = () => {
 
 .resize-handle {
   @apply absolute w-2.5 h-2.5 rounded-full;
+
   background: #fff;
   border: 2px solid var(--recorder-blue);
   box-shadow: 0 1px 4px rgb(28 69 135 / 22%);
 }
 
-.nw { left: -6px; top: -6px; }
-.n { left: 50%; top: -6px; transform: translateX(-50%); }
-.ne { right: -6px; top: -6px; }
-.e { right: -6px; top: 50%; transform: translateY(-50%); }
-.se { right: -6px; bottom: -6px; }
-.s { left: 50%; bottom: -6px; transform: translateX(-50%); }
-.sw { left: -6px; bottom: -6px; }
-.w { left: -6px; top: 50%; transform: translateY(-50%); }
+.nw {
+  top: -6px;
+  left: -6px;
+}
+
+.n {
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.ne {
+  top: -6px;
+  right: -6px;
+}
+
+.e {
+  top: 50%;
+  right: -6px;
+  transform: translateY(-50%);
+}
+
+.se {
+  right: -6px;
+  bottom: -6px;
+}
+
+.s {
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.sw {
+  bottom: -6px;
+  left: -6px;
+}
+
+.w {
+  top: 50%;
+  left: -6px;
+  transform: translateY(-50%);
+}
 </style>

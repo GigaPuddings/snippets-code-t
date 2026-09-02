@@ -159,9 +159,15 @@ export const summarizeBackendDiagnostics = (
 
 const currentWindowLabel = (): string => {
   try {
-    return (globalThis as typeof globalThis & {
-      __TAURI_INTERNALS__?: { metadata?: { currentWindow?: { label?: string } } };
-    }).__TAURI_INTERNALS__?.metadata?.currentWindow?.label ?? 'webview';
+    return (
+      (
+        globalThis as typeof globalThis & {
+          __TAURI_INTERNALS__?: {
+            metadata?: { currentWindow?: { label?: string } };
+          };
+        }
+      ).__TAURI_INTERNALS__?.metadata?.currentWindow?.label ?? 'webview'
+    );
   } catch {
     return 'webview';
   }
@@ -289,7 +295,7 @@ export const setupGlobalDeveloperDiagnostics = (): void => {
       .map((arg) =>
         typeof arg === 'string'
           ? arg
-          : stringifyDiagnosticValue(arg) ?? String(arg)
+          : (stringifyDiagnosticValue(arg) ?? String(arg))
       )
       .join(' ');
     if (!isBenignDiagnosticWarning(warningText)) {

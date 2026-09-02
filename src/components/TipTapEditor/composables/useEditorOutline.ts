@@ -38,11 +38,17 @@ interface UseEditorOutlineOptions {
 const HEADING_SCROLL_OFFSET = 120;
 
 function getEditorScrollContainer(editor: OutlineEditor): HTMLElement {
-  const container = editor.view.dom.closest?.('.editor-content') as HTMLElement | null | undefined;
+  const container = editor.view.dom.closest?.('.editor-content') as
+    | HTMLElement
+    | null
+    | undefined;
   return container || editor.view.dom;
 }
 
-function debounce<T extends (...args: Parameters<T>) => void>(fn: T, wait: number) {
+function debounce<T extends (...args: Parameters<T>) => void>(
+  fn: T,
+  wait: number
+) {
   let timeout: ReturnType<typeof setTimeout> | null = null;
 
   return (...args: Parameters<T>) => {
@@ -289,13 +295,15 @@ export function useEditorOutline(options: UseEditorOutlineOptions) {
 
     try {
       const scrollContainer = getEditorScrollContainer(editor);
-      const targetHeading = headings.value.find(h => h.pos === pos);
+      const targetHeading = headings.value.find((h) => h.pos === pos);
       if (!targetHeading) {
         console.warn('Target heading not found for pos:', pos);
         return;
       }
 
-      const targetIndex = headings.value.findIndex(h => h.pos === targetHeading.pos);
+      const targetIndex = headings.value.findIndex(
+        (h) => h.pos === targetHeading.pos
+      );
       const headingElements = Array.from(
         editor.view.dom.querySelectorAll('h1, h2, h3, h4, h5, h6')
       ) as HTMLElement[];
@@ -304,8 +312,12 @@ export function useEditorOutline(options: UseEditorOutlineOptions) {
       if (targetElement) {
         const containerRect = scrollContainer.getBoundingClientRect();
         const targetRect = targetElement.getBoundingClientRect();
-        const elementTop = targetRect.top - containerRect.top + scrollContainer.scrollTop;
-        scrollContainer.scrollTop = Math.max(0, elementTop - HEADING_SCROLL_OFFSET);
+        const elementTop =
+          targetRect.top - containerRect.top + scrollContainer.scrollTop;
+        scrollContainer.scrollTop = Math.max(
+          0,
+          elementTop - HEADING_SCROLL_OFFSET
+        );
         updateVisibleHeading();
       } else {
         console.warn('Target element not found in DOM');

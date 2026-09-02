@@ -61,7 +61,12 @@ function toWorkspaceImagePath(workspaceRoot: string, relativePath: string) {
   return `${workspaceRoot}\\${relativePath.replace('../', '').replace(/\//g, '\\')}`;
 }
 
-function createImageHtml(src: string, alt: string, relativePath: string, scalePercent: number) {
+function createImageHtml(
+  src: string,
+  alt: string,
+  relativePath: string,
+  scalePercent: number
+) {
   return `<img src="${src}" alt="${alt}" data-original-path="${relativePath}" data-image-scale="${scalePercent}" />`;
 }
 
@@ -128,15 +133,23 @@ export function useEditorImageUpload(
     try {
       console.log('[handleImageUpload] 调用 uploadImage');
       const attachmentInfo = await uploadImage(file, String(currentFragmentId));
-      console.log('[handleImageUpload] 上传成功, attachmentInfo:', attachmentInfo);
+      console.log(
+        '[handleImageUpload] 上传成功, attachmentInfo:',
+        attachmentInfo
+      );
 
-      const absolutePath = toWorkspaceImagePath(options.workspaceRoot.value, attachmentInfo.relativePath);
+      const absolutePath = toWorkspaceImagePath(
+        options.workspaceRoot.value,
+        attachmentInfo.relativePath
+      );
       console.log('[handleImageUpload] 绝对路径:', absolutePath);
 
       const tauriUrl = await convertFileSrc(absolutePath);
       console.log('[handleImageUpload] Tauri URL:', tauriUrl);
 
-      const attachmentConfig = await getAttachmentConfig().catch(() => DEFAULT_ATTACHMENT_CONFIG);
+      const attachmentConfig = await getAttachmentConfig().catch(
+        () => DEFAULT_ATTACHMENT_CONFIG
+      );
 
       const editor = options.editor.value;
       if (editor) {
@@ -157,7 +170,9 @@ export function useEditorImageUpload(
       options.notifySuccess('图片上传成功');
     } catch (error) {
       console.error('图片上传失败:', error);
-      options.notifyError(`图片上传失败: ${error instanceof Error ? error.message : '未知错误'}`);
+      options.notifyError(
+        `图片上传失败: ${error instanceof Error ? error.message : '未知错误'}`
+      );
     }
   };
 

@@ -587,17 +587,18 @@ function handleCancel(): void {
   --update-shadow: 0 18px 48px rgb(15 23 42 / 12%);
 
   min-height: 0;
-  animation: fadeIn 0.24s ease-out;
   color: var(--update-text);
   background: var(--update-bg);
   border-color: var(--update-border-strong);
   box-shadow: var(--update-shadow);
+  animation: fadeIn 0.24s ease-out;
 
   .update-header {
     @apply w-full flex items-center justify-between px-5 py-2 flex-shrink-0;
+
     height: 54px;
-    border-bottom: 1px solid var(--update-border);
     background: var(--update-header-bg);
+    border-bottom: 1px solid var(--update-border);
 
     .header-title {
       @apply flex items-center gap-2;
@@ -605,6 +606,7 @@ function handleCancel(): void {
 
     .logo-mark {
       @apply relative w-9 h-9 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0;
+
       background: rgb(95 116 243 / 12%);
       border: 1px solid var(--update-border);
 
@@ -626,8 +628,8 @@ function handleCancel(): void {
       color: var(--update-text-muted);
 
       &:hover {
-        background: var(--update-hover-bg);
         color: var(--update-text);
+        background: var(--update-hover-bg);
       }
     }
   }
@@ -711,8 +713,8 @@ function handleCancel(): void {
 
         height: 0;
         min-height: 0;
-        border: 1px solid var(--update-border);
         background: var(--update-card-bg);
+        border: 1px solid var(--update-border);
 
         :deep(.el-scrollbar__wrap) {
           max-height: 100%;
@@ -955,7 +957,6 @@ function handleCancel(): void {
 
         &:hover {
           background: var(--update-hover-bg);
-
           box-shadow: 0 10px 22px rgb(15 23 42 / 8%);
         }
       }

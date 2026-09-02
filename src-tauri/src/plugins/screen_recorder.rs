@@ -121,6 +121,18 @@ pub struct RecordingExportResult {
     debug_log_path: Option<String>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportRecordingRequest {
+    format: String,
+    fps: u32,
+    quality: String,
+    save_path: String,
+    duration_ms: Option<u64>,
+    trim_start_ms: Option<u64>,
+    trim_end_ms: Option<u64>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RecordingClipThumbnail {
@@ -1557,12 +1569,7 @@ fn ensure_parent_dir(path: &Path) -> Result<(), String> {
 }
 
 fn session_temp_dir(app_handle: &AppHandle, id: &str) -> Result<PathBuf, String> {
-    let dir = app_handle
-        .path()
-        .app_cache_dir()
-        .map_err(|e| e.to_string())?
-        .join("screen-recorder")
-        .join(id);
+    let dir = crate::app_config::ensure_plugin_cache_dir(app_handle, "screen-recorder")?.join(id);
     fs::create_dir_all(&dir).map_err(|e| format!("创建录屏临时目录失败: {}", e))?;
     Ok(dir)
 }
@@ -2545,14 +2552,18 @@ fn write_export_debug_log(session: &RecordingSession, target: &Path) -> Result<(
 #[tauri::command]
 pub fn screen_recorder_export_recording(
     app_handle: AppHandle,
-    format: String,
-    fps: u32,
-    quality: String,
-    save_path: String,
-    duration_ms: Option<u64>,
-    trim_start_ms: Option<u64>,
-    trim_end_ms: Option<u64>,
+    request: ExportRecordingRequest,
 ) -> Result<RecordingExportResult, String> {
+    let ExportRecordingRequest {
+        format,
+        fps,
+        quality,
+        save_path,
+        duration_ms,
+        trim_start_ms,
+        trim_end_ms,
+    } = request;
+
     require_plugin(&app_handle)?;
     let mut state = RECORDING_SESSION
         .lock()

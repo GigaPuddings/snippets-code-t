@@ -6,7 +6,10 @@ import {
   useGitRuntimeHostController,
   type GitRuntimeHostControllerDeps
 } from './useGitRuntimeHostController';
-import { useGitRuntimeState, type GitRuntimeStateDeps } from './useGitRuntimeState';
+import {
+  useGitRuntimeState,
+  type GitRuntimeStateDeps
+} from './useGitRuntimeState';
 
 type GitSyncRuntimeLogger = {
   info: (message: string, data?: unknown, ...args: unknown[]) => void;
@@ -62,9 +65,14 @@ export function useGitSyncRuntimeFacade(deps: GitSyncRuntimeFacadeDeps) {
     logger
   });
 
-  const setup = async ({ shouldInit, autoSyncWindow }: SetupGitSyncRuntimeFacadeDeps) => {
+  const setup = async ({
+    shouldInit,
+    autoSyncWindow
+  }: SetupGitSyncRuntimeFacadeDeps) => {
     if (!deps.isPluginEnabled()) {
-      logger.info('[Config] Git 同步插件未启用，跳过 Git 事件监听和自动同步初始化');
+      logger.info(
+        '[Config] Git 同步插件未启用，跳过 Git 事件监听和自动同步初始化'
+      );
       return;
     }
 
@@ -77,7 +85,8 @@ export function useGitSyncRuntimeFacade(deps: GitSyncRuntimeFacadeDeps) {
     });
   };
 
-  const restoreConflictDialogState = () => state.dialogs.restoreConflictDialogState();
+  const restoreConflictDialogState = () =>
+    state.dialogs.restoreConflictDialogState();
   const setupAndRestore = async (setupDeps: SetupGitSyncRuntimeFacadeDeps) => {
     await setup(setupDeps);
     return restoreConflictDialogState();

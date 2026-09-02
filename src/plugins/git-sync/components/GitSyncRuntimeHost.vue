@@ -26,7 +26,8 @@ const { t } = useI18n();
 const gitSyncRuntime = useGitSyncRuntimeFacade({
   t,
   modalMsg: modal.msg.bind(modal),
-  routeToGitSettings: () => props.configHostContext.navigateTo('/config/category/settings?tab=gitSync'),
+  routeToGitSettings: () =>
+    props.configHostContext.navigateTo('/config/category/settings?tab=gitSync'),
   isPluginEnabled: () => props.configHostContext.isPluginEnabled('git-sync'),
   logger
 });

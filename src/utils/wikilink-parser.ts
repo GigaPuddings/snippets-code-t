@@ -64,7 +64,7 @@ export function hasWikilinks(text: string): boolean {
  */
 export function extractWikilinkTitles(text: string): string[] {
   const matches = parseWikilinks(text);
-  const titles = matches.map(m => m.title);
+  const titles = matches.map((m) => m.title);
   return Array.from(new Set(titles));
 }
 
@@ -109,8 +109,10 @@ export function renderWikilinksToHtml(
     const trimmedTitle = title.trim();
     const exists = existingTitles ? existingTitles.has(trimmedTitle) : true;
     const className = exists ? 'wikilink' : 'wikilink wikilink-broken';
-    const dataAttr = onLinkClick ? `data-wikilink="${escapeHtml(trimmedTitle)}"` : '';
-    
+    const dataAttr = onLinkClick
+      ? `data-wikilink="${escapeHtml(trimmedTitle)}"`
+      : '';
+
     return `<a href="#" class="${className}" ${dataAttr}>${escapeHtml(trimmedTitle)}</a>`;
   });
 }

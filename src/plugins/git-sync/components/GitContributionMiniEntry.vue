@@ -32,7 +32,7 @@
               :key="day.date"
               class="git-contribution-mini__day"
               :class="getDayClass(day)"
-            />
+            ></i>
           </span>
         </span>
       </button>
@@ -75,7 +75,9 @@
         >
           <div
             class="git-contribution-mini__weeks"
-            :style="{ gridTemplateColumns: `repeat(${panelWeeks.length}, 8px)` }"
+            :style="{
+              gridTemplateColumns: `repeat(${panelWeeks.length}, 8px)`
+            }"
           >
             <div
               v-for="(week, weekIndex) in panelWeeks"
@@ -88,7 +90,7 @@
                 class="git-contribution-mini__day git-contribution-mini__day--panel"
                 :class="getDayClass(day)"
                 :title="day ? getDayTitle(day) : ''"
-              />
+              ></i>
             </div>
           </div>
         </div>
@@ -101,7 +103,7 @@
               :key="level"
               class="git-contribution-mini__day git-contribution-mini__day--legend"
               :class="`git-contribution-mini__day--level-${level}`"
-            />
+            ></i>
             {{ $t('settings.gitSync.contribution.more') }}
           </span>
         </footer>
@@ -129,12 +131,8 @@ type ContributionCell = GitContributionDay | null;
 const router = useRouter();
 const pluginStore = usePluginStore();
 const { t } = useI18n();
-const {
-  gitSettings,
-  syncState,
-  refreshSettings,
-  refreshStatus
-} = useGitStatus();
+const { gitSettings, syncState, refreshSettings, refreshStatus } =
+  useGitStatus();
 
 const rootRef = ref<HTMLElement | null>(null);
 const contributionActivity = ref<GitContributionActivity | null>(null);
@@ -146,20 +144,22 @@ let unlistenWorkspaceChanged: UnlistenFn | null = null;
 let refreshTimer: number | null = null;
 let isDisposed = false;
 
-const canLoadActivity = computed(() => (
-  pluginStore.isInstalled('git-sync') &&
-  pluginStore.isEnabled('git-sync') &&
-  gitSettings.value?.enabled === true
-));
+const canLoadActivity = computed(
+  () =>
+    pluginStore.isInstalled('git-sync') &&
+    pluginStore.isEnabled('git-sync') &&
+    gitSettings.value?.enabled === true
+);
 
-const visible = computed(() => (
-  canLoadActivity.value &&
-  (isLoading.value || contributionActivity.value !== null)
-));
+const visible = computed(
+  () =>
+    canLoadActivity.value &&
+    (isLoading.value || contributionActivity.value !== null)
+);
 
-const miniDays = computed(() => (
-  contributionActivity.value?.days.slice(-12) ?? []
-));
+const miniDays = computed(
+  () => contributionActivity.value?.days.slice(-12) ?? []
+);
 
 const panelWeeks = computed<ContributionCell[][]>(() => {
   const days = contributionActivity.value?.days.slice(-84) ?? [];
@@ -196,10 +196,7 @@ async function initializeActivity(): Promise<void> {
 
   if (!canLoadActivity.value) return;
 
-  await Promise.all([
-    refreshStatus(),
-    loadActivity()
-  ]);
+  await Promise.all([refreshStatus(), loadActivity()]);
 }
 
 async function loadActivity(): Promise<void> {
@@ -352,17 +349,22 @@ onUnmounted(() => {
 
 .git-contribution-mini__button {
   @apply inline-flex w-8 h-[30px] items-center justify-center p-0 text-panel cursor-pointer bg-transparent border border-transparent rounded-md outline-none;
-  transition: background 0.16s ease, border-color 0.16s ease;
+
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease;
 
   &:hover,
   &:focus-visible {
     @apply bg-hover;
+
     border-color: rgba(var(--categories-border-color-rgb), 0.65);
   }
 }
 
 .git-contribution-mini__loading {
   @apply text-emerald-500;
+
   animation: git-contribution-mini-spin 0.8s linear infinite;
 }
 
@@ -384,18 +386,21 @@ onUnmounted(() => {
 
 .git-contribution-mini__spark {
   @apply grid;
+
   grid-template-columns: repeat(4, 4px);
   gap: 2px;
 }
 
 .git-contribution-mini__day {
   @apply inline-block w-1 h-1 rounded-[1px];
+
   background: rgba(var(--categories-border-color-rgb), 0.36);
 }
 
 .git-contribution-mini__day--panel,
 .git-contribution-mini__day--legend {
   @apply w-2 h-2;
+
   border: 1px solid rgba(var(--categories-border-color-rgb), 0.5);
 }
 
@@ -429,6 +434,7 @@ onUnmounted(() => {
 
 .git-contribution-mini__panel {
   @apply fixed box-border z-[20] p-3 bg-content border border-panel rounded-lg;
+
   box-shadow: 0 12px 30px rgb(15 23 42 / 18%);
 }
 
@@ -442,6 +448,7 @@ onUnmounted(() => {
   &:hover,
   &:focus-visible {
     @apply text-primary;
+
     background: rgba(var(--el-color-primary-rgb), 0.08);
     border-color: rgba(var(--el-color-primary-rgb), 0.3);
   }
@@ -457,6 +464,7 @@ onUnmounted(() => {
 
 .git-contribution-mini__week {
   @apply grid;
+
   grid-template-rows: repeat(7, 8px);
   gap: 3px;
 }
@@ -471,7 +479,9 @@ onUnmounted(() => {
 
 .git-contribution-mini-pop-enter-active,
 .git-contribution-mini-pop-leave-active {
-  transition: opacity 0.14s ease, transform 0.14s ease;
+  transition:
+    opacity 0.14s ease,
+    transform 0.14s ease;
 }
 
 .git-contribution-mini-pop-enter-from,

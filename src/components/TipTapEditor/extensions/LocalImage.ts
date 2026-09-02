@@ -14,115 +14,117 @@ import { createLocalImageCursorPlugin } from '../utils/imageCursor';
 
 export const LocalImage = Node.create({
   name: 'localImage',
-  
+
   // 设置更高的优先级，确保在其他扩展之前处理
   priority: 1000,
-  
+
   // 定义为内联节点
   inline: true,
-  
+
   // 定义节点组
   group: 'inline',
-  
+
   // 可拖拽
   draggable: true,
-  
+
   // 原子节点（不可编辑内部内容）
   atom: true,
-  
+
   addAttributes() {
     return {
       src: {
         default: null,
-        parseHTML: element => element.getAttribute('src'),
-        renderHTML: attributes => {
+        parseHTML: (element) => element.getAttribute('src'),
+        renderHTML: (attributes) => {
           if (!attributes.src) {
             return {};
           }
           return {
-            src: attributes.src,
+            src: attributes.src
           };
-        },
+        }
       },
       alt: {
         default: null,
-        parseHTML: element => element.getAttribute('alt'),
-        renderHTML: attributes => {
+        parseHTML: (element) => element.getAttribute('alt'),
+        renderHTML: (attributes) => {
           if (!attributes.alt) {
             return {};
           }
           return {
-            alt: attributes.alt,
+            alt: attributes.alt
           };
-        },
+        }
       },
       title: {
         default: null,
-        parseHTML: element => element.getAttribute('title'),
-        renderHTML: attributes => {
+        parseHTML: (element) => element.getAttribute('title'),
+        renderHTML: (attributes) => {
           if (!attributes.title) {
             return {};
           }
           return {
-            title: attributes.title,
+            title: attributes.title
           };
-        },
+        }
       },
       width: {
         default: null,
-        parseHTML: element => {
+        parseHTML: (element) => {
           const width = element.getAttribute('width');
           return width ? parseInt(width, 10) : null;
         },
-        renderHTML: attributes => {
+        renderHTML: (attributes) => {
           if (!attributes.width) {
             return {};
           }
           return {
-            width: attributes.width,
+            width: attributes.width
           };
-        },
+        }
       },
       height: {
         default: null,
-        parseHTML: element => {
+        parseHTML: (element) => {
           const height = element.getAttribute('height');
           return height ? parseInt(height, 10) : null;
         },
-        renderHTML: attributes => {
+        renderHTML: (attributes) => {
           if (!attributes.height) {
             return {};
           }
           return {
-            height: attributes.height,
+            height: attributes.height
           };
-        },
+        }
       },
       'data-image-scale': {
         default: null,
-        parseHTML: element => {
-          const scale = Number.parseFloat(element.getAttribute('data-image-scale') || '');
+        parseHTML: (element) => {
+          const scale = Number.parseFloat(
+            element.getAttribute('data-image-scale') || ''
+          );
           return Number.isFinite(scale) ? scale : null;
         },
-        renderHTML: attributes => {
+        renderHTML: (attributes) => {
           const scale = Number(attributes['data-image-scale']);
           if (!Number.isFinite(scale)) return {};
           return { 'data-image-scale': Math.round(scale) };
-        },
+        }
       },
       // 存储原始的相对路径
       'data-original-path': {
         default: null,
-        parseHTML: element => element.getAttribute('data-original-path'),
-        renderHTML: attributes => {
+        parseHTML: (element) => element.getAttribute('data-original-path'),
+        renderHTML: (attributes) => {
           if (!attributes['data-original-path']) {
             return {};
           }
           return {
-            'data-original-path': attributes['data-original-path'],
+            'data-original-path': attributes['data-original-path']
           };
-        },
-      },
+        }
+      }
     };
   },
 
@@ -134,21 +136,25 @@ export const LocalImage = Node.create({
           const htmlElement = element as HTMLElement;
           const src = htmlElement.getAttribute('src');
           const originalPath = htmlElement.getAttribute('data-original-path');
-          
+
           // 返回属性对象，TipTap 会使用这些属性创建节点
           return {
             src: src || '',
             alt: htmlElement.getAttribute('alt') || '',
             title: htmlElement.getAttribute('title') || null,
-            width: htmlElement.getAttribute('width') ? parseInt(htmlElement.getAttribute('width')!, 10) : null,
-            height: htmlElement.getAttribute('height') ? parseInt(htmlElement.getAttribute('height')!, 10) : null,
+            width: htmlElement.getAttribute('width')
+              ? parseInt(htmlElement.getAttribute('width')!, 10)
+              : null,
+            height: htmlElement.getAttribute('height')
+              ? parseInt(htmlElement.getAttribute('height')!, 10)
+              : null,
             'data-image-scale': htmlElement.getAttribute('data-image-scale')
               ? Number.parseFloat(htmlElement.getAttribute('data-image-scale')!)
               : null,
-            'data-original-path': originalPath || null,
+            'data-original-path': originalPath || null
           };
         }
-      },
+      }
     ];
   },
 
@@ -162,5 +168,5 @@ export const LocalImage = Node.create({
 
   addProseMirrorPlugins() {
     return [createLocalImageCursorPlugin()];
-  },
+  }
 });

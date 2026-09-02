@@ -11,10 +11,12 @@ import {
 
 describe('jsonToMarkdown', () => {
   it('keeps the editor default empty document empty', () => {
-    expect(jsonToMarkdown({
-      type: 'doc',
-      content: [{ type: 'paragraph' }]
-    })).toBe('');
+    expect(
+      jsonToMarkdown({
+        type: 'doc',
+        content: [{ type: 'paragraph' }]
+      })
+    ).toBe('');
   });
 
   it('escapes literal HTML-like text so it remains visible after reopening a note', () => {
@@ -43,11 +45,15 @@ describe('jsonToMarkdown', () => {
       ]
     });
 
-    expect(markdown).toContain('\\<input>、\\<select>、\\<option>、\\<textarea>。');
+    expect(markdown).toContain(
+      '\\<input>、\\<select>、\\<option>、\\<textarea>。'
+    );
     expect(markdown).toContain('`<input>`');
 
     const html = markdownToHtml(markdown);
-    expect(html).toContain('&lt;input&gt;、&lt;select&gt;、&lt;option&gt;、&lt;textarea&gt;。');
+    expect(html).toContain(
+      '&lt;input&gt;、&lt;select&gt;、&lt;option&gt;、&lt;textarea&gt;。'
+    );
     expect(html).toContain('<code>&lt;input&gt;</code>');
   });
 
@@ -79,7 +85,9 @@ describe('jsonToMarkdown', () => {
       ]
     });
 
-    expect(markdown).toBe('## Vue Pattern\n\n`useModal` with [docs](https://vuejs.org)\n');
+    expect(markdown).toBe(
+      '## Vue Pattern\n\n`useModal` with [docs](https://vuejs.org)\n'
+    );
   });
 
   it('keeps consecutive spaces in the Markdown and intermediate HTML', () => {
@@ -243,11 +251,21 @@ describe('jsonToMarkdown', () => {
               content: [
                 {
                   type: 'tableHeader',
-                  content: [{ type: 'paragraph', content: [{ type: 'text', text: 'A|B' }] }]
+                  content: [
+                    {
+                      type: 'paragraph',
+                      content: [{ type: 'text', text: 'A|B' }]
+                    }
+                  ]
                 },
                 {
                   type: 'tableHeader',
-                  content: [{ type: 'paragraph', content: [{ type: 'text', text: 'C' }] }]
+                  content: [
+                    {
+                      type: 'paragraph',
+                      content: [{ type: 'text', text: 'C' }]
+                    }
+                  ]
                 }
               ]
             },
@@ -269,7 +287,12 @@ describe('jsonToMarkdown', () => {
                 },
                 {
                   type: 'tableCell',
-                  content: [{ type: 'paragraph', content: [{ type: 'text', text: 'ok' }] }]
+                  content: [
+                    {
+                      type: 'paragraph',
+                      content: [{ type: 'text', text: 'ok' }]
+                    }
+                  ]
                 }
               ]
             }
@@ -290,17 +313,26 @@ describe('jsonToMarkdown', () => {
     ];
     const markdown = jsonToMarkdown({
       type: 'doc',
-      content: [{
-        type: 'table',
-        content: [{
-          type: 'tableRow',
-          content: headers.map(header => ({
-            type: 'tableHeader',
-            attrs: { textAlign: header.textAlign },
-            content: [{ type: 'paragraph', content: [{ type: 'text', text: header.text }] }]
-          }))
-        }]
-      }]
+      content: [
+        {
+          type: 'table',
+          content: [
+            {
+              type: 'tableRow',
+              content: headers.map((header) => ({
+                type: 'tableHeader',
+                attrs: { textAlign: header.textAlign },
+                content: [
+                  {
+                    type: 'paragraph',
+                    content: [{ type: 'text', text: header.text }]
+                  }
+                ]
+              }))
+            }
+          ]
+        }
+      ]
     });
 
     expect(markdown).toContain('| :--- | :---: | ---: |');
@@ -317,7 +349,10 @@ describe('jsonToMarkdown', () => {
             {
               type: 'listItem',
               content: [
-                { type: 'paragraph', content: [{ type: 'text', text: '第一项' }] },
+                {
+                  type: 'paragraph',
+                  content: [{ type: 'text', text: '第一项' }]
+                },
                 {
                   type: 'table',
                   content: [
@@ -326,7 +361,12 @@ describe('jsonToMarkdown', () => {
                       content: [
                         {
                           type: 'tableHeader',
-                          content: [{ type: 'paragraph', content: [{ type: 'text', text: '标题' }] }]
+                          content: [
+                            {
+                              type: 'paragraph',
+                              content: [{ type: 'text', text: '标题' }]
+                            }
+                          ]
                         }
                       ]
                     },
@@ -335,7 +375,12 @@ describe('jsonToMarkdown', () => {
                       content: [
                         {
                           type: 'tableCell',
-                          content: [{ type: 'paragraph', content: [{ type: 'text', text: '内容' }] }]
+                          content: [
+                            {
+                              type: 'paragraph',
+                              content: [{ type: 'text', text: '内容' }]
+                            }
+                          ]
                         }
                       ]
                     }
@@ -345,7 +390,12 @@ describe('jsonToMarkdown', () => {
             },
             {
               type: 'listItem',
-              content: [{ type: 'paragraph', content: [{ type: 'text', text: '第二项' }] }]
+              content: [
+                {
+                  type: 'paragraph',
+                  content: [{ type: 'text', text: '第二项' }]
+                }
+              ]
             }
           ]
         }
@@ -393,7 +443,9 @@ describe('jsonToMarkdown', () => {
       ]
     });
 
-    expect(markdown).toBe('<img src="../assets/image.png" alt="Preview" data-image-scale="75">');
+    expect(markdown).toBe(
+      '<img src="../assets/image.png" alt="Preview" data-image-scale="75">'
+    );
     expect(markdownToHtml(markdown)).toContain('data-image-scale="75"');
   });
 });
@@ -407,7 +459,9 @@ describe('markdownToHtml', () => {
   });
 
   it('removes unsafe raw HTML and event handlers', () => {
-    const html = markdownToHtml('<script>alert(1)</script><img src="x" onerror="alert(1)">');
+    const html = markdownToHtml(
+      '<script>alert(1)</script><img src="x" onerror="alert(1)">'
+    );
 
     expect(html).not.toContain('<script');
     expect(html).not.toContain('onerror');
@@ -425,8 +479,12 @@ describe('markdownToHtml', () => {
       '[src/plugins/translation/pages/translate/index.vue](src/plugins/translation/pages/translate/index.vue)'
     );
 
-    expect(html).toContain('<a href="src/plugins/translation/pages/translate/index.vue"');
-    expect(html).toContain('>src/plugins/translation/pages/translate/index.vue</a>');
+    expect(html).toContain(
+      '<a href="src/plugins/translation/pages/translate/index.vue"'
+    );
+    expect(html).toContain(
+      '>src/plugins/translation/pages/translate/index.vue</a>'
+    );
     expect(html).not.toContain('invalid-link-text');
   });
 
@@ -466,51 +524,63 @@ describe('markdownToHtml', () => {
   });
 
   it('normalizes AI label bold markers with a space before the closing delimiter', () => {
-    const html = markdownToHtml([
-      '## 2025.2-2025.3 | 采购平台小程序开发（微信小程序）',
-      '',
-      '**描述: **面向企业内部采购流程管理的专用系统。',
-      '',
-      '**关键技术: **',
-      '',
-      '1. 严格遵循微信官方 WXML、WXSS、JavaScript 规范进行开发。'
-    ].join('\n'));
+    const html = markdownToHtml(
+      [
+        '## 2025.2-2025.3 | 采购平台小程序开发（微信小程序）',
+        '',
+        '**描述: **面向企业内部采购流程管理的专用系统。',
+        '',
+        '**关键技术: **',
+        '',
+        '1. 严格遵循微信官方 WXML、WXSS、JavaScript 规范进行开发。'
+      ].join('\n')
+    );
 
     expect(html).toContain('<h2');
-    expect(html).toContain('<strong>描述:</strong><br>面向企业内部采购流程管理的专用系统。');
+    expect(html).toContain(
+      '<strong>描述:</strong><br>面向企业内部采购流程管理的专用系统。'
+    );
     expect(html).toContain('<strong>关键技术:</strong>');
     expect(html).not.toContain('**描述: **');
   });
 
   it('preserves line breaks between consecutive AI labels and their content', () => {
-    const normalized = normalizeAiMarkdown([
-      '**描述: **面向企业内部采购流程管理的专用系统。（Vue2 + TDesign） **关键技术: **',
-      '1. 严格遵循微信官方 WXML、WXSS、JavaScript 规范进行开发。'
-    ].join('\n'));
+    const normalized = normalizeAiMarkdown(
+      [
+        '**描述: **面向企业内部采购流程管理的专用系统。（Vue2 + TDesign） **关键技术: **',
+        '1. 严格遵循微信官方 WXML、WXSS、JavaScript 规范进行开发。'
+      ].join('\n')
+    );
     const html = markdownToHtml(normalized);
 
-    expect(normalized).toContain('**描述: **\n面向企业内部采购流程管理的专用系统。（Vue2 + TDesign）\n\n**关键技术: **');
-    expect(html).toContain('<strong>描述:</strong><br>面向企业内部采购流程管理的专用系统。');
+    expect(normalized).toContain(
+      '**描述: **\n面向企业内部采购流程管理的专用系统。（Vue2 + TDesign）\n\n**关键技术: **'
+    );
+    expect(html).toContain(
+      '<strong>描述:</strong><br>面向企业内部采购流程管理的专用系统。'
+    );
     expect(html).toContain('<strong>关键技术:</strong>');
   });
 
   it('keeps an AI-generated Markdown document structurally intact for the rich-text editor', () => {
-    const html = markdownToHtml([
-      '# 项目经历',
-      '',
-      '负责 **前端架构**，并完成 [发布说明](https://example.com/release)。',
-      '',
-      '- [x] 完成需求梳理',
-      '- [ ] 补充验收用例',
-      '',
-      '```ts',
-      'const result = await generate();',
-      '```',
-      '',
-      '| 指标 | 结果 |',
-      '| --- | --- |',
-      '| 性能 | 提升 30% |'
-    ].join('\n'));
+    const html = markdownToHtml(
+      [
+        '# 项目经历',
+        '',
+        '负责 **前端架构**，并完成 [发布说明](https://example.com/release)。',
+        '',
+        '- [x] 完成需求梳理',
+        '- [ ] 补充验收用例',
+        '',
+        '```ts',
+        'const result = await generate();',
+        '```',
+        '',
+        '| 指标 | 结果 |',
+        '| --- | --- |',
+        '| 性能 | 提升 30% |'
+      ].join('\n')
+    );
 
     expect(html).toContain('<h1');
     expect(html).toContain('<strong>前端架构</strong>');
@@ -560,7 +630,6 @@ describe('markdownToHtml', () => {
     expect(html).toContain('<strong>知识库问答(RAG)</strong>');
     expect(html).not.toContain('**');
   });
-
 });
 
 describe('HTML empty paragraph compatibility', () => {
@@ -650,8 +719,9 @@ describe('rich clipboard conversion', () => {
       '表单元素的内容操作使用value。'
     ].join('\n');
 
-    expect(shouldPreferMarkdownClipboardText(text, '<p><strong>富文本</strong></p>'))
-      .toBe(true);
+    expect(
+      shouldPreferMarkdownClipboardText(text, '<p><strong>富文本</strong></p>')
+    ).toBe(true);
 
     const html = markdownToHtml(text);
     expect(html).toContain(
@@ -696,24 +766,26 @@ describe('rich clipboard conversion', () => {
   });
 
   it('normalizes the rendered TipTap code-block NodeView structure', () => {
-    const html = richHtmlToEditorHtml([
-      '<p>按：</p>',
-      '<div class="code-block-wrapper code-block" data-node-view-wrapper>',
-      '<div class="code-toolbar" contenteditable="false">',
-      '<button class="language-button"><span class="language-text">Plain Text</span></button>',
-      '<button class="copy-language-button"><svg aria-hidden="true"></svg></button>',
-      '</div>',
-      '<pre class="code-block-pre"><code class="language-plaintext" data-language="plaintext">',
-      '<div data-node-view-content class="code-block-content">',
-      '<span class="shiki-token">CPU</span>\n',
-      '<span class="shiki-token">↓</span>\n',
-      '<span class="shiki-token">关联的句柄</span>\n',
-      '<br class="ProseMirror-trailingBreak">',
-      '</div></code></pre>',
-      '</div>',
-      '<p>如果看到：</p>',
-      '<ul><li><p>codex.exe</p></li><li><p>node.exe</p></li></ul>'
-    ].join(''));
+    const html = richHtmlToEditorHtml(
+      [
+        '<p>按：</p>',
+        '<div class="code-block-wrapper code-block" data-node-view-wrapper>',
+        '<div class="code-toolbar" contenteditable="false">',
+        '<button class="language-button"><span class="language-text">Plain Text</span></button>',
+        '<button class="copy-language-button"><svg aria-hidden="true"></svg></button>',
+        '</div>',
+        '<pre class="code-block-pre"><code class="language-plaintext" data-language="plaintext">',
+        '<div data-node-view-content class="code-block-content">',
+        '<span class="shiki-token">CPU</span>\n',
+        '<span class="shiki-token">↓</span>\n',
+        '<span class="shiki-token">关联的句柄</span>\n',
+        '<br class="ProseMirror-trailingBreak">',
+        '</div></code></pre>',
+        '</div>',
+        '<p>如果看到：</p>',
+        '<ul><li><p>codex.exe</p></li><li><p>node.exe</p></li></ul>'
+      ].join('')
+    );
 
     expect(html.match(/<pre>/g)).toHaveLength(1);
     expect(html).toContain(
@@ -725,41 +797,53 @@ describe('rich clipboard conversion', () => {
   });
 
   it('removes editor NodeView chrome and fixed image wrappers from copied notes', () => {
-    const html = richHtmlToEditorHtml([
-      '<div class="editor-content-body">',
-      '<div contenteditable="true" class="tiptap ProseMirror tiptap-editor">',
-      '<h1>响应式笔记</h1>',
-      '<div class="code-block-wrapper" data-node-view-wrapper data-component="code-block">',
-      '<div class="code-toolbar"><button>Plain Text</button></div>',
-      '<pre><code data-language="plaintext"><div data-node-view-content>const value = 1;<br class="ProseMirror-trailingBreak"></div></code></pre>',
-      '</div>',
-      '<p><span class="image-wrapper" data-node-view-wrapper style="width: 1071px">',
-      '<span class="image-container"><img src="https://example.com/preview.png" alt="preview" style="width: 100%"></span>',
-      '<span class="image-controls"><input type="range"><output>100%</output></span>',
-      '</span><img class="ProseMirror-separator" alt=""><br class="ProseMirror-trailingBreak"></p>',
-      '</div></div>'
-    ].join(''));
+    const html = richHtmlToEditorHtml(
+      [
+        '<div class="editor-content-body">',
+        '<div contenteditable="true" class="tiptap ProseMirror tiptap-editor">',
+        '<h1>响应式笔记</h1>',
+        '<div class="code-block-wrapper" data-node-view-wrapper data-component="code-block">',
+        '<div class="code-toolbar"><button>Plain Text</button></div>',
+        '<pre><code data-language="plaintext"><div data-node-view-content>const value = 1;<br class="ProseMirror-trailingBreak"></div></code></pre>',
+        '</div>',
+        '<p><span class="image-wrapper" data-node-view-wrapper style="width: 1071px">',
+        '<span class="image-container"><img src="https://example.com/preview.png" alt="preview" style="width: 100%"></span>',
+        '<span class="image-controls"><input type="range"><output>100%</output></span>',
+        '</span><img class="ProseMirror-separator" alt=""><br class="ProseMirror-trailingBreak"></p>',
+        '</div></div>'
+      ].join('')
+    );
 
     expect(html).toContain('<h1 id="响应式笔记">响应式笔记</h1>');
-    expect(html).toContain('<pre><code class="language-plaintext">const value = 1;\n</code></pre>');
+    expect(html).toContain(
+      '<pre><code class="language-plaintext">const value = 1;\n</code></pre>'
+    );
     expect(html.match(/<img/g)).toHaveLength(1);
-    expect(html).toContain('<img src="https://example.com/preview.png" alt="preview">');
-    expect(html).not.toMatch(/image-wrapper|image-controls|ProseMirror-|width=|style=/);
+    expect(html).toContain(
+      '<img src="https://example.com/preview.png" alt="preview">'
+    );
+    expect(html).not.toMatch(
+      /image-wrapper|image-controls|ProseMirror-|width=|style=/
+    );
     expect(html).not.toContain('100%');
   });
 
   it('drops empty presentation code blocks and keeps the real code block', () => {
-    const html = richHtmlToEditorHtml([
-      '<p>进入：</p>',
-      '<pre aria-hidden="true"><code>\u200b</code></pre>',
-      '<pre><code data-language="text">CPU<br>↓<br>关联的句柄</code></pre>',
-      '<p>右侧搜索框输入：</p>',
-      '<pre><code></code></pre>',
-      '<pre><code>.codex</code></pre>'
-    ].join(''));
+    const html = richHtmlToEditorHtml(
+      [
+        '<p>进入：</p>',
+        '<pre aria-hidden="true"><code>\u200b</code></pre>',
+        '<pre><code data-language="text">CPU<br>↓<br>关联的句柄</code></pre>',
+        '<p>右侧搜索框输入：</p>',
+        '<pre><code></code></pre>',
+        '<pre><code>.codex</code></pre>'
+      ].join('')
+    );
 
     expect(html.match(/<pre>/g)).toHaveLength(2);
-    expect(html).toContain('<code class="language-text">CPU\n↓\n关联的句柄\n</code>');
+    expect(html).toContain(
+      '<code class="language-text">CPU\n↓\n关联的句柄\n</code>'
+    );
     expect(html).toContain('<pre><code>.codex\n</code></pre>');
   });
 
@@ -784,15 +868,17 @@ describe('rich clipboard conversion', () => {
   });
 
   it('canonicalizes loose rich-text lists without blank list paragraphs', () => {
-    const html = richHtmlToEditorHtml([
-      '<p>如果看到：</p>',
-      '<ul>',
-      '  <li>\n<p><br>codex.exe</p>\n</li>',
-      '  <li>\n<p>node.exe</p>\n</li>',
-      '  <li>\n<p>Code.exe</p>\n</li>',
-      '</ul>',
-      '<p>右键结束对应进程。</p>'
-    ].join(''));
+    const html = richHtmlToEditorHtml(
+      [
+        '<p>如果看到：</p>',
+        '<ul>',
+        '  <li>\n<p><br>codex.exe</p>\n</li>',
+        '  <li>\n<p>node.exe</p>\n</li>',
+        '  <li>\n<p>Code.exe</p>\n</li>',
+        '</ul>',
+        '<p>右键结束对应进程。</p>'
+      ].join('')
+    );
 
     expect(html).toContain('<ul>');
     expect(html.match(/<li>/g)).toHaveLength(3);
@@ -801,18 +887,20 @@ describe('rich clipboard conversion', () => {
   });
 
   it('preserves the other rich-text structures supported by the note editor', () => {
-    const html = richHtmlToEditorHtml([
-      '<h2>排查步骤</h2>',
-      '<p><strong>注意</strong>：保留 <em>Markdown</em> 结构。</p>',
-      '<blockquote><p>先备份配置。</p></blockquote>',
-      '<ol><li>第一步</li><li>第二步</li></ol>',
-      '<ul class="task-list">',
-      '<li class="task-item"><input type="checkbox" checked><div><p>已完成</p></div></li>',
-      '<li class="task-item"><input type="checkbox"><div><p>待处理</p></div></li>',
-      '</ul>',
-      '<table><thead><tr><th>进程</th><th>状态</th></tr></thead>',
-      '<tbody><tr><td>codex.exe</td><td>运行中</td></tr></tbody></table>'
-    ].join(''));
+    const html = richHtmlToEditorHtml(
+      [
+        '<h2>排查步骤</h2>',
+        '<p><strong>注意</strong>：保留 <em>Markdown</em> 结构。</p>',
+        '<blockquote><p>先备份配置。</p></blockquote>',
+        '<ol><li>第一步</li><li>第二步</li></ol>',
+        '<ul class="task-list">',
+        '<li class="task-item"><input type="checkbox" checked><div><p>已完成</p></div></li>',
+        '<li class="task-item"><input type="checkbox"><div><p>待处理</p></div></li>',
+        '</ul>',
+        '<table><thead><tr><th>进程</th><th>状态</th></tr></thead>',
+        '<tbody><tr><td>codex.exe</td><td>运行中</td></tr></tbody></table>'
+      ].join('')
+    );
 
     expect(html).toContain('<h2');
     expect(html).toContain('<strong>注意</strong>');

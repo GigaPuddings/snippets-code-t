@@ -3,20 +3,34 @@
     <section v-if="results.length" class="top-bar glass-content">
       <div class="tabs-group">
         <template v-for="item in resultTabs" :key="item.value">
-          <button class="tab" :class="{ active: item.value === activeTab }" type="button"
-            @click="switchTab(item.value)">
+          <button
+            class="tab"
+            :class="{ active: item.value === activeTab }"
+            type="button"
+            @click="switchTab(item.value)"
+          >
             <span>{{ item.label }}</span>
           </button>
         </template>
       </div>
       <div class="top-bar-right">
-        <span v-if="activeTabCount > 0" class="result-count">{{ activeTabCount }} {{ t('searchResult.total')}}</span>
+        <span v-if="activeTabCount > 0" class="result-count">
+          {{ activeTabCount }} {{ t('searchResult.total') }}
+        </span>
         <button
           class="preview-panel-toggle"
           type="button"
           :class="{ active: previewPanelVisible }"
-          :title="previewPanelVisible ? t('searchPreview.hidePanel') : t('searchPreview.showPanel')"
-          :aria-label="previewPanelVisible ? t('searchPreview.hidePanel') : t('searchPreview.showPanel')"
+          :title="
+            previewPanelVisible
+              ? t('searchPreview.hidePanel')
+              : t('searchPreview.showPanel')
+          "
+          :aria-label="
+            previewPanelVisible
+              ? t('searchPreview.hidePanel')
+              : t('searchPreview.showPanel')
+          "
           :aria-pressed="previewPanelVisible"
           @click="togglePreviewPanel"
         >
@@ -25,20 +39,40 @@
         </button>
         <button class="return-hint" type="button" @click="emit('backToSearch')">
           <span class="hint-key">Tab</span>
-          <span class="hint-text">{{ isListMode ? t('searchResult.backToResults') : t('searchResult.backToSearch') }}</span>
+          <span class="hint-text">
+            {{
+              isListMode
+                ? t('searchResult.backToResults')
+                : t('searchResult.backToSearch')
+            }}
+          </span>
         </button>
       </div>
     </section>
 
     <transition name="result-drawer">
       <div v-if="results.length" class="result-container">
-        <section class="result-pane" :class="{ expanded: !previewPanelVisible }">
-          <ResultList ref="resultListRef" :results="results" :search-query="searchQuery"
-            :on-clear-search="onClearSearch" :item-size="52" @back-to-search="emit('backToSearch')"
-            @selection-change="handleSelectionChange" @tab-change="handleTabChange"
-            @primary-action="handlePrimaryAction" />
+        <section
+          class="result-pane"
+          :class="{ expanded: !previewPanelVisible }"
+        >
+          <ResultList
+            ref="resultListRef"
+            :results="results"
+            :search-query="searchQuery"
+            :on-clear-search="onClearSearch"
+            :item-size="52"
+            @back-to-search="emit('backToSearch')"
+            @selection-change="handleSelectionChange"
+            @tab-change="handleTabChange"
+            @primary-action="handlePrimaryAction"
+          />
         </section>
-        <section class="preview-pane" :class="{ collapsed: !previewPanelVisible }" :aria-hidden="!previewPanelVisible">
+        <section
+          class="preview-pane"
+          :class="{ collapsed: !previewPanelVisible }"
+          :aria-hidden="!previewPanelVisible"
+        >
           <InlinePreview :item="selectedItem" />
         </section>
       </div>
@@ -109,11 +143,15 @@ function togglePreviewPanel(): void {
     });
 }
 
-watch(resultTabs, (tabs) => {
-  if (!tabs.some((tab) => tab.value === activeTab.value)) {
-    switchTab('text');
-  }
-}, { immediate: true });
+watch(
+  resultTabs,
+  (tabs) => {
+    if (!tabs.some((tab) => tab.value === activeTab.value)) {
+      switchTab('text');
+    }
+  },
+  { immediate: true }
+);
 
 function switchTab(tab: SummarizeType) {
   activeTab.value = tab;
@@ -168,7 +206,10 @@ defineExpose({
   @apply flex flex-col min-h-0;
 
   height: 404px;
-  transition: height 0.18s ease, min-height 0.18s ease, opacity 0.18s ease;
+  transition:
+    height 0.18s ease,
+    min-height 0.18s ease,
+    opacity 0.18s ease;
 
   &.empty {
     height: 0;
@@ -225,7 +266,8 @@ defineExpose({
     &:focus-visible {
       @apply outline-none;
 
-      box-shadow: 0 0 0 2px color-mix(in srgb, var(--search-result-accent) 28%, transparent);
+      box-shadow: 0 0 0 2px
+        color-mix(in srgb, var(--search-result-accent) 28%, transparent);
     }
   }
 

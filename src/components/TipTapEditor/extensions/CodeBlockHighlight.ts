@@ -39,11 +39,11 @@ import tomlLang from 'shiki/langs/toml.mjs';
 import githubDarkDefault from 'shiki/themes/github-dark-default.mjs';
 import githubLightDefault from 'shiki/themes/github-light-default.mjs';
 import CodeBlockHighlightComponent from './CodeBlockHighlightComponent.vue';
-import {
-  removeLeadingEmptyParagraphBeforeCodeBlock
-} from '../utils/codeBlockNavigation';
+import { removeLeadingEmptyParagraphBeforeCodeBlock } from '../utils/codeBlockNavigation';
 
-const codeBlockSyntaxKey = new PluginKey<DecorationSet>('codeBlockSyntaxHighlight');
+const codeBlockSyntaxKey = new PluginKey<DecorationSet>(
+  'codeBlockSyntaxHighlight'
+);
 
 let shikiHighlighter: HighlighterCore | null = null;
 let shikiReadyPromise: Promise<HighlighterCore | null> | null = null;
@@ -75,12 +75,11 @@ const SHIKI_LANGS = [
   yamlLang,
   dockerLang,
   dartLang,
-  tomlLang,
+  tomlLang
 ];
 
 const SHIKI_THEME_LIGHT = 'github-light-default';
 const SHIKI_THEME_DARK = 'github-dark-default';
-
 
 /** Markdown 围栏语言别名 → 内部语言 key */
 const LANG_ALIASES: Record<string, string> = {
@@ -107,7 +106,7 @@ const LANG_ALIASES: Record<string, string> = {
   md: 'markdown',
   docker: 'dockerfile',
   dart: 'dart',
-  flutter: 'flutter',
+  flutter: 'flutter'
 };
 
 function escapeRegExp(s: string): string {
@@ -121,14 +120,17 @@ async function ensureShikiHighlighter(): Promise<HighlighterCore | null> {
   shikiReadyPromise = createHighlighterCore({
     themes: [githubLightDefault, githubDarkDefault],
     langs: SHIKI_LANGS,
-    engine: createJavaScriptRegexEngine(),
+    engine: createJavaScriptRegexEngine()
   })
-    .then(highlighter => {
+    .then((highlighter) => {
       shikiHighlighter = highlighter;
       return highlighter;
     })
-    .catch(error => {
-      console.warn('[CodeBlockHighlight] Shiki 初始化失败，回退到内置高亮。', error);
+    .catch((error) => {
+      console.warn(
+        '[CodeBlockHighlight] Shiki 初始化失败，回退到内置高亮。',
+        error
+      );
       shikiHighlighter = null;
       return null;
     });
@@ -137,7 +139,11 @@ async function ensureShikiHighlighter(): Promise<HighlighterCore | null> {
 }
 
 function toShikiLang(language: string): string {
-  const normalized = (LANG_ALIASES[language] || language || 'plaintext').toLowerCase();
+  const normalized = (
+    LANG_ALIASES[language] ||
+    language ||
+    'plaintext'
+  ).toLowerCase();
   if (normalized === 'flutter') return 'dart';
   if (normalized === 'shell') return 'bash';
   if (normalized === 'dockerfile') return 'docker';
@@ -145,12 +151,21 @@ function toShikiLang(language: string): string {
   return normalized;
 }
 
-function isShikiLanguageLoaded(highlighter: HighlighterCore, language: string): boolean {
-  return ['text', 'txt', 'plain', 'plaintext'].includes(language) || highlighter.getLoadedLanguages().includes(language);
+function isShikiLanguageLoaded(
+  highlighter: HighlighterCore,
+  language: string
+): boolean {
+  return (
+    ['text', 'txt', 'plain', 'plaintext'].includes(language) ||
+    highlighter.getLoadedLanguages().includes(language)
+  );
 }
 
 /** 解析用于高亮的语言 key（含别名与空语言时的自动检测） */
-export function resolveCodeBlockLang(languageAttr: string | null | undefined, code: string): string {
+export function resolveCodeBlockLang(
+  languageAttr: string | null | undefined,
+  code: string
+): string {
   const raw = (languageAttr ?? '').trim().toLowerCase();
   if (raw) {
     if (raw === 'react') {
@@ -171,7 +186,9 @@ function looksLikeTypedReact(code: string): boolean {
 }
 
 function detectTauriLanguage(code: string): string {
-  if (/^\s*\[(?:package|dependencies|build-dependencies|features)\]/m.test(code)) {
+  if (
+    /^\s*\[(?:package|dependencies|build-dependencies|features)\]/m.test(code)
+  ) {
     return 'toml';
   }
   if (
@@ -207,9 +224,16 @@ function buildCodeBlockSyntaxDecorations(
 ): DecorationSet {
   const decorations: Decoration[] = [];
 
-  const addDeco = (start: number, from: number, to: number, className: string) => {
+  const addDeco = (
+    start: number,
+    from: number,
+    to: number,
+    className: string
+  ) => {
     if (to <= from) return;
-    decorations.push(Decoration.inline(start + from, start + to, { class: className }));
+    decorations.push(
+      Decoration.inline(start + from, start + to, { class: className })
+    );
   };
 
   const markRange = (occupied: boolean[], from: number, to: number) => {
@@ -218,7 +242,11 @@ function buildCodeBlockSyntaxDecorations(
     }
   };
 
-  const isRangeFree = (occupied: boolean[], from: number, to: number): boolean => {
+  const isRangeFree = (
+    occupied: boolean[],
+    from: number,
+    to: number
+  ): boolean => {
     for (let i = Math.max(0, from); i < Math.min(occupied.length, to); i += 1) {
       if (occupied[i]) return false;
     }
@@ -230,7 +258,10 @@ function buildCodeBlockSyntaxDecorations(
     const text = node.textContent;
     if (!text) return;
 
-    const lang = resolveCodeBlockLang(node.attrs.language as string | null, text);
+    const lang = resolveCodeBlockLang(
+      node.attrs.language as string | null,
+      text
+    );
     const keywords = languageKeywords[lang] ?? [];
     const start = pos + 1;
     const occupied = new Array(text.length).fill(false);
@@ -240,7 +271,7 @@ function buildCodeBlockSyntaxDecorations(
       try {
         const tokens = highlighter.codeToTokens(text, {
           lang: shikiLang,
-          theme: isDarkMode ? SHIKI_THEME_DARK : SHIKI_THEME_LIGHT,
+          theme: isDarkMode ? SHIKI_THEME_DARK : SHIKI_THEME_LIGHT
         });
 
         let cursor = 0;
@@ -251,10 +282,16 @@ function buildCodeBlockSyntaxDecorations(
             const from = cursor;
             const to = cursor + value.length;
             const className = 'shiki-token';
-            const style = token.color ? `--shiki-color: ${token.color};` : undefined;
+            const style = token.color
+              ? `--shiki-color: ${token.color};`
+              : undefined;
             if (to > from) {
               decorations.push(
-                Decoration.inline(start + from, start + to, style ? { class: className, style } : { class: className })
+                Decoration.inline(
+                  start + from,
+                  start + to,
+                  style ? { class: className, style } : { class: className }
+                )
               );
             }
             cursor = to;
@@ -263,7 +300,10 @@ function buildCodeBlockSyntaxDecorations(
         }
         return;
       } catch (error) {
-        console.warn('[CodeBlockHighlight] Shiki 渲染失败，回退到正则高亮。', error);
+        console.warn(
+          '[CodeBlockHighlight] Shiki 渲染失败，回退到正则高亮。',
+          error
+        );
       }
     }
 
@@ -279,7 +319,11 @@ function buildCodeBlockSyntaxDecorations(
       }
     }
 
-    const stringPatterns = [/"(?:[^"\\]|\\.)*"/g, /'(?:[^'\\]|\\.)*'/g, /`(?:[^`\\]|\\.)*`/g];
+    const stringPatterns = [
+      /"(?:[^"\\]|\\.)*"/g,
+      /'(?:[^'\\]|\\.)*'/g,
+      /`(?:[^`\\]|\\.)*`/g
+    ];
     for (const pat of stringPatterns) {
       let m: RegExpExecArray | null;
       while ((m = pat.exec(text)) !== null) {
@@ -302,7 +346,10 @@ function buildCodeBlockSyntaxDecorations(
 
     if (keywords.length) {
       const sorted = [...keywords].sort((a, b) => b.length - a.length);
-      const keywordPattern = new RegExp(`\\b(${sorted.map(escapeRegExp).join('|')})\\b`, 'g');
+      const keywordPattern = new RegExp(
+        `\\b(${sorted.map(escapeRegExp).join('|')})\\b`,
+        'g'
+      );
       let keywordMatch: RegExpExecArray | null;
       while ((keywordMatch = keywordPattern.exec(text)) !== null) {
         const from = keywordMatch.index;
@@ -312,8 +359,22 @@ function buildCodeBlockSyntaxDecorations(
       }
     }
 
-    const commandBuiltins = ['flutter', 'dart', 'npm', 'pnpm', 'yarn', 'node', 'git', 'cargo', 'go', 'python'];
-    const builtInPattern = new RegExp(`\\b(${commandBuiltins.map(escapeRegExp).join('|')})\\b`, 'g');
+    const commandBuiltins = [
+      'flutter',
+      'dart',
+      'npm',
+      'pnpm',
+      'yarn',
+      'node',
+      'git',
+      'cargo',
+      'go',
+      'python'
+    ];
+    const builtInPattern = new RegExp(
+      `\\b(${commandBuiltins.map(escapeRegExp).join('|')})\\b`,
+      'g'
+    );
     let builtInMatch: RegExpExecArray | null;
     while ((builtInMatch = builtInPattern.exec(text)) !== null) {
       const from = builtInMatch.index;
@@ -387,26 +448,937 @@ declare module '@tiptap/core' {
 
 // 语言关键词映射表
 const languageKeywords: Record<string, string[]> = {
-  javascript: ['const', 'let', 'var', 'function', 'return', 'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'break', 'continue', 'try', 'catch', 'finally', 'throw', 'new', 'this', 'class', 'extends', 'import', 'export', 'default', 'from', 'async', 'await', 'typeof', 'instanceof', 'in', 'of', 'null', 'undefined', 'true', 'false', 'void'],
-  typescript: ['const', 'let', 'var', 'function', 'return', 'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'break', 'continue', 'try', 'catch', 'finally', 'throw', 'new', 'this', 'class', 'extends', 'import', 'export', 'default', 'from', 'async', 'await', 'typeof', 'instanceof', 'in', 'of', 'null', 'undefined', 'true', 'false', 'void', 'interface', 'type', 'enum', 'namespace', 'module', 'declare', 'abstract', 'implements', 'private', 'public', 'protected', 'readonly', 'static', 'as', 'keyof', 'infer', 'never', 'unknown', 'any'],
-  python: ['def', 'class', 'return', 'if', 'elif', 'else', 'for', 'while', 'try', 'except', 'finally', 'with', 'as', 'import', 'from', 'pass', 'break', 'continue', 'raise', 'yield', 'lambda', 'and', 'or', 'not', 'in', 'is', 'True', 'False', 'None', 'global', 'nonlocal', 'assert', 'del', 'async', 'await'],
-  java: ['public', 'private', 'protected', 'static', 'final', 'abstract', 'class', 'interface', 'extends', 'implements', 'new', 'return', 'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'break', 'continue', 'try', 'catch', 'finally', 'throw', 'throws', 'import', 'package', 'this', 'super', 'void', 'int', 'long', 'double', 'float', 'boolean', 'char', 'byte', 'short', 'String', 'true', 'false', 'null', 'instanceof', 'synchronized', 'volatile', 'transient', 'native', 'enum'],
-  c: ['int', 'long', 'double', 'float', 'char', 'void', 'signed', 'unsigned', 'const', 'static', 'extern', 'register', 'volatile', 'auto', 'struct', 'union', 'enum', 'typedef', 'sizeof', 'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'break', 'continue', 'return', 'goto', 'NULL', 'true', 'false', 'include', 'define', 'ifdef', 'ifndef', 'endif', 'pragma'],
-  cpp: ['int', 'long', 'double', 'float', 'char', 'void', 'bool', 'auto', 'const', 'static', 'extern', 'volatile', 'register', 'signed', 'unsigned', 'struct', 'union', 'enum', 'class', 'typedef', 'namespace', 'using', 'template', 'typename', 'public', 'private', 'protected', 'virtual', 'override', 'final', 'new', 'delete', 'this', 'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'break', 'continue', 'return', 'goto', 'try', 'catch', 'throw', 'nullptr', 'true', 'false', 'include', 'define', 'pragma', 'std', 'cout', 'cin', 'endl', 'string', 'vector', 'map', 'set'],
-  csharp: ['public', 'private', 'protected', 'internal', 'static', 'sealed', 'abstract', 'class', 'interface', 'struct', 'enum', 'delegate', 'event', 'new', 'this', 'base', 'if', 'else', 'for', 'foreach', 'while', 'do', 'switch', 'case', 'break', 'continue', 'return', 'goto', 'try', 'catch', 'finally', 'throw', 'using', 'namespace', 'import', 'async', 'await', 'void', 'int', 'long', 'double', 'float', 'decimal', 'bool', 'char', 'string', 'byte', 'true', 'false', 'null', 'var', 'dynamic', 'readonly', 'const', 'ref', 'out', 'in', 'params', 'nameof', 'typeof', 'is', 'as', 'null', 'true', 'false'],
-  go: ['package', 'import', 'func', 'return', 'var', 'const', 'type', 'struct', 'interface', 'map', 'chan', 'if', 'else', 'for', 'range', 'switch', 'case', 'default', 'break', 'continue', 'goto', 'fallthrough', 'defer', 'go', 'select', 'true', 'false', 'nil', 'iota', 'make', 'new', 'append', 'len', 'cap', 'copy', 'delete', 'panic', 'recover'],
-  rust: ['fn', 'let', 'mut', 'const', 'static', 'struct', 'enum', 'impl', 'trait', 'type', 'where', 'pub', 'mod', 'use', 'self', 'super', 'crate', 'if', 'else', 'match', 'for', 'while', 'loop', 'break', 'continue', 'return', 'as', 'in', 'ref', 'move', 'async', 'await', 'dyn', 'unsafe', 'true', 'false', 'Some', 'None', 'Ok', 'Err', 'Self', 'Box', 'Vec', 'String', 'Option', 'Result'],
-  php: ['php', 'echo', 'print', 'function', 'class', 'interface', 'trait', 'extends', 'implements', 'new', 'return', 'if', 'else', 'elseif', 'for', 'foreach', 'while', 'do', 'switch', 'case', 'default', 'break', 'continue', 'try', 'catch', 'finally', 'throw', 'use', 'namespace', 'import', 'require', 'include', 'require_once', 'include_once', 'true', 'false', 'null', 'var', 'const', 'static', 'public', 'private', 'protected', 'final', 'abstract', 'global', 'array', 'list', 'empty', 'isset', 'unset', 'die', 'exit'],
-  html: ['html', 'head', 'body', 'div', 'span', 'p', 'a', 'img', 'ul', 'ol', 'li', 'table', 'tr', 'td', 'th', 'form', 'input', 'button', 'select', 'option', 'textarea', 'label', 'script', 'style', 'link', 'meta', 'title', 'header', 'footer', 'nav', 'section', 'article', 'aside', 'main', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'br', 'hr', 'strong', 'em', 'iframe', 'canvas', 'svg', 'path', 'class', 'id', 'src', 'href', 'alt', 'style', 'type', 'name', 'value', 'placeholder', 'disabled', 'readonly', 'required', 'checked', 'selected'],
-  css: ['color', 'background', 'background-color', 'font', 'font-size', 'font-family', 'font-weight', 'text-align', 'margin', 'padding', 'border', 'width', 'height', 'display', 'position', 'top', 'left', 'right', 'bottom', 'float', 'clear', 'overflow', 'z-index', 'flex', 'grid', 'box-shadow', 'opacity', 'transform', 'transition', 'animation', 'cursor', 'visibility', 'line-height', 'letter-spacing', 'word-spacing', 'text-decoration', 'vertical-align', 'justify-content', 'align-items', 'flex-direction', 'flex-wrap', 'gap', 'important'],
+  javascript: [
+    'const',
+    'let',
+    'var',
+    'function',
+    'return',
+    'if',
+    'else',
+    'for',
+    'while',
+    'do',
+    'switch',
+    'case',
+    'break',
+    'continue',
+    'try',
+    'catch',
+    'finally',
+    'throw',
+    'new',
+    'this',
+    'class',
+    'extends',
+    'import',
+    'export',
+    'default',
+    'from',
+    'async',
+    'await',
+    'typeof',
+    'instanceof',
+    'in',
+    'of',
+    'null',
+    'undefined',
+    'true',
+    'false',
+    'void'
+  ],
+  typescript: [
+    'const',
+    'let',
+    'var',
+    'function',
+    'return',
+    'if',
+    'else',
+    'for',
+    'while',
+    'do',
+    'switch',
+    'case',
+    'break',
+    'continue',
+    'try',
+    'catch',
+    'finally',
+    'throw',
+    'new',
+    'this',
+    'class',
+    'extends',
+    'import',
+    'export',
+    'default',
+    'from',
+    'async',
+    'await',
+    'typeof',
+    'instanceof',
+    'in',
+    'of',
+    'null',
+    'undefined',
+    'true',
+    'false',
+    'void',
+    'interface',
+    'type',
+    'enum',
+    'namespace',
+    'module',
+    'declare',
+    'abstract',
+    'implements',
+    'private',
+    'public',
+    'protected',
+    'readonly',
+    'static',
+    'as',
+    'keyof',
+    'infer',
+    'never',
+    'unknown',
+    'any'
+  ],
+  python: [
+    'def',
+    'class',
+    'return',
+    'if',
+    'elif',
+    'else',
+    'for',
+    'while',
+    'try',
+    'except',
+    'finally',
+    'with',
+    'as',
+    'import',
+    'from',
+    'pass',
+    'break',
+    'continue',
+    'raise',
+    'yield',
+    'lambda',
+    'and',
+    'or',
+    'not',
+    'in',
+    'is',
+    'True',
+    'False',
+    'None',
+    'global',
+    'nonlocal',
+    'assert',
+    'del',
+    'async',
+    'await'
+  ],
+  java: [
+    'public',
+    'private',
+    'protected',
+    'static',
+    'final',
+    'abstract',
+    'class',
+    'interface',
+    'extends',
+    'implements',
+    'new',
+    'return',
+    'if',
+    'else',
+    'for',
+    'while',
+    'do',
+    'switch',
+    'case',
+    'break',
+    'continue',
+    'try',
+    'catch',
+    'finally',
+    'throw',
+    'throws',
+    'import',
+    'package',
+    'this',
+    'super',
+    'void',
+    'int',
+    'long',
+    'double',
+    'float',
+    'boolean',
+    'char',
+    'byte',
+    'short',
+    'String',
+    'true',
+    'false',
+    'null',
+    'instanceof',
+    'synchronized',
+    'volatile',
+    'transient',
+    'native',
+    'enum'
+  ],
+  c: [
+    'int',
+    'long',
+    'double',
+    'float',
+    'char',
+    'void',
+    'signed',
+    'unsigned',
+    'const',
+    'static',
+    'extern',
+    'register',
+    'volatile',
+    'auto',
+    'struct',
+    'union',
+    'enum',
+    'typedef',
+    'sizeof',
+    'if',
+    'else',
+    'for',
+    'while',
+    'do',
+    'switch',
+    'case',
+    'break',
+    'continue',
+    'return',
+    'goto',
+    'NULL',
+    'true',
+    'false',
+    'include',
+    'define',
+    'ifdef',
+    'ifndef',
+    'endif',
+    'pragma'
+  ],
+  cpp: [
+    'int',
+    'long',
+    'double',
+    'float',
+    'char',
+    'void',
+    'bool',
+    'auto',
+    'const',
+    'static',
+    'extern',
+    'volatile',
+    'register',
+    'signed',
+    'unsigned',
+    'struct',
+    'union',
+    'enum',
+    'class',
+    'typedef',
+    'namespace',
+    'using',
+    'template',
+    'typename',
+    'public',
+    'private',
+    'protected',
+    'virtual',
+    'override',
+    'final',
+    'new',
+    'delete',
+    'this',
+    'if',
+    'else',
+    'for',
+    'while',
+    'do',
+    'switch',
+    'case',
+    'break',
+    'continue',
+    'return',
+    'goto',
+    'try',
+    'catch',
+    'throw',
+    'nullptr',
+    'true',
+    'false',
+    'include',
+    'define',
+    'pragma',
+    'std',
+    'cout',
+    'cin',
+    'endl',
+    'string',
+    'vector',
+    'map',
+    'set'
+  ],
+  csharp: [
+    'public',
+    'private',
+    'protected',
+    'internal',
+    'static',
+    'sealed',
+    'abstract',
+    'class',
+    'interface',
+    'struct',
+    'enum',
+    'delegate',
+    'event',
+    'new',
+    'this',
+    'base',
+    'if',
+    'else',
+    'for',
+    'foreach',
+    'while',
+    'do',
+    'switch',
+    'case',
+    'break',
+    'continue',
+    'return',
+    'goto',
+    'try',
+    'catch',
+    'finally',
+    'throw',
+    'using',
+    'namespace',
+    'import',
+    'async',
+    'await',
+    'void',
+    'int',
+    'long',
+    'double',
+    'float',
+    'decimal',
+    'bool',
+    'char',
+    'string',
+    'byte',
+    'true',
+    'false',
+    'null',
+    'var',
+    'dynamic',
+    'readonly',
+    'const',
+    'ref',
+    'out',
+    'in',
+    'params',
+    'nameof',
+    'typeof',
+    'is',
+    'as',
+    'null',
+    'true',
+    'false'
+  ],
+  go: [
+    'package',
+    'import',
+    'func',
+    'return',
+    'var',
+    'const',
+    'type',
+    'struct',
+    'interface',
+    'map',
+    'chan',
+    'if',
+    'else',
+    'for',
+    'range',
+    'switch',
+    'case',
+    'default',
+    'break',
+    'continue',
+    'goto',
+    'fallthrough',
+    'defer',
+    'go',
+    'select',
+    'true',
+    'false',
+    'nil',
+    'iota',
+    'make',
+    'new',
+    'append',
+    'len',
+    'cap',
+    'copy',
+    'delete',
+    'panic',
+    'recover'
+  ],
+  rust: [
+    'fn',
+    'let',
+    'mut',
+    'const',
+    'static',
+    'struct',
+    'enum',
+    'impl',
+    'trait',
+    'type',
+    'where',
+    'pub',
+    'mod',
+    'use',
+    'self',
+    'super',
+    'crate',
+    'if',
+    'else',
+    'match',
+    'for',
+    'while',
+    'loop',
+    'break',
+    'continue',
+    'return',
+    'as',
+    'in',
+    'ref',
+    'move',
+    'async',
+    'await',
+    'dyn',
+    'unsafe',
+    'true',
+    'false',
+    'Some',
+    'None',
+    'Ok',
+    'Err',
+    'Self',
+    'Box',
+    'Vec',
+    'String',
+    'Option',
+    'Result'
+  ],
+  php: [
+    'php',
+    'echo',
+    'print',
+    'function',
+    'class',
+    'interface',
+    'trait',
+    'extends',
+    'implements',
+    'new',
+    'return',
+    'if',
+    'else',
+    'elseif',
+    'for',
+    'foreach',
+    'while',
+    'do',
+    'switch',
+    'case',
+    'default',
+    'break',
+    'continue',
+    'try',
+    'catch',
+    'finally',
+    'throw',
+    'use',
+    'namespace',
+    'import',
+    'require',
+    'include',
+    'require_once',
+    'include_once',
+    'true',
+    'false',
+    'null',
+    'var',
+    'const',
+    'static',
+    'public',
+    'private',
+    'protected',
+    'final',
+    'abstract',
+    'global',
+    'array',
+    'list',
+    'empty',
+    'isset',
+    'unset',
+    'die',
+    'exit'
+  ],
+  html: [
+    'html',
+    'head',
+    'body',
+    'div',
+    'span',
+    'p',
+    'a',
+    'img',
+    'ul',
+    'ol',
+    'li',
+    'table',
+    'tr',
+    'td',
+    'th',
+    'form',
+    'input',
+    'button',
+    'select',
+    'option',
+    'textarea',
+    'label',
+    'script',
+    'style',
+    'link',
+    'meta',
+    'title',
+    'header',
+    'footer',
+    'nav',
+    'section',
+    'article',
+    'aside',
+    'main',
+    'h1',
+    'h2',
+    'h3',
+    'h4',
+    'h5',
+    'h6',
+    'br',
+    'hr',
+    'strong',
+    'em',
+    'iframe',
+    'canvas',
+    'svg',
+    'path',
+    'class',
+    'id',
+    'src',
+    'href',
+    'alt',
+    'style',
+    'type',
+    'name',
+    'value',
+    'placeholder',
+    'disabled',
+    'readonly',
+    'required',
+    'checked',
+    'selected'
+  ],
+  css: [
+    'color',
+    'background',
+    'background-color',
+    'font',
+    'font-size',
+    'font-family',
+    'font-weight',
+    'text-align',
+    'margin',
+    'padding',
+    'border',
+    'width',
+    'height',
+    'display',
+    'position',
+    'top',
+    'left',
+    'right',
+    'bottom',
+    'float',
+    'clear',
+    'overflow',
+    'z-index',
+    'flex',
+    'grid',
+    'box-shadow',
+    'opacity',
+    'transform',
+    'transition',
+    'animation',
+    'cursor',
+    'visibility',
+    'line-height',
+    'letter-spacing',
+    'word-spacing',
+    'text-decoration',
+    'vertical-align',
+    'justify-content',
+    'align-items',
+    'flex-direction',
+    'flex-wrap',
+    'gap',
+    'important'
+  ],
   json: [],
-  sql: ['SELECT', 'FROM', 'WHERE', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'DROP', 'ALTER', 'TABLE', 'INDEX', 'VIEW', 'JOIN', 'LEFT', 'RIGHT', 'INNER', 'OUTER', 'ON', 'AND', 'OR', 'NOT', 'IN', 'LIKE', 'BETWEEN', 'IS', 'NULL', 'TRUE', 'FALSE', 'AS', 'ORDER', 'BY', 'GROUP', 'HAVING', 'LIMIT', 'OFFSET', 'UNION', 'ALL', 'DISTINCT', 'COUNT', 'SUM', 'AVG', 'MAX', 'MIN', 'PRIMARY', 'KEY', 'FOREIGN', 'REFERENCES', 'CONSTRAINT', 'DEFAULT', 'AUTO_INCREMENT', 'CASCADE', 'VALUES', 'SET', 'INTO', 'EXISTS', 'CASE', 'WHEN', 'THEN', 'ELSE', 'END', 'COMMIT', 'ROLLBACK', 'TRANSACTION', 'GRANT', 'REVOKE', 'TRIGGER', 'PROCEDURE', 'FUNCTION'],
-  bash: ['#!/bin/bash', 'echo', 'read', 'if', 'then', 'else', 'elif', 'fi', 'for', 'while', 'do', 'done', 'case', 'esac', 'function', 'return', 'exit', 'break', 'continue', 'export', 'source', 'alias', 'unset', 'set', 'local', 'shift', 'trap', 'exec', 'test', 'true', 'false', 'cd', 'pwd', 'ls', 'cp', 'mv', 'rm', 'mkdir', 'rmdir', 'touch', 'cat', 'grep', 'sed', 'awk', 'find', 'xargs', 'sort', 'uniq', 'head', 'tail', 'cut', 'wc', 'chmod', 'chown', 'sudo', 'su', 'curl', 'wget', 'npm', 'yarn', 'node', 'git'],
-  vue: ['template', 'script', 'style', 'export', 'default', 'import', 'from', 'const', 'let', 'var', 'function', 'return', 'if', 'else', 'for', 'while', 'class', 'extends', 'new', 'this', 'async', 'await', 'ref', 'reactive', 'computed', 'watch', 'watchEffect', 'onMounted', 'onUpdated', 'onUnmounted', 'onBeforeMount', 'onBeforeUpdate', 'onBeforeUnmount', 'provide', 'inject', 'defineProps', 'defineEmits', 'defineExpose', 'v-if', 'v-else', 'v-else-if', 'v-for', 'v-on', 'v-bind', 'v-model', 'v-show', 'v-text', 'v-html', 'v-once', 'v-pre', 'v-cloak'],
-  dart: ['import', 'library', 'part', 'class', 'abstract', 'mixin', 'extension', 'enum', 'typedef', 'void', 'final', 'const', 'var', 'late', 'required', 'dynamic', 'String', 'int', 'double', 'bool', 'List', 'Map', 'Set', 'Future', 'Stream', 'return', 'if', 'else', 'switch', 'case', 'default', 'for', 'while', 'do', 'break', 'continue', 'try', 'catch', 'finally', 'throw', 'rethrow', 'on', 'is', 'as', 'this', 'super', 'new', 'true', 'false', 'null', 'async', 'await', 'yield', 'with', 'implements', 'extends', 'override', 'Widget', 'StatefulWidget', 'StatelessWidget', 'BuildContext', 'setState'],
-  flutter: ['flutter', 'dart', 'clean', 'pub', 'get', 'build', 'apk', 'appbundle', 'ios', 'web', 'windows', 'linux', 'macos', 'run', 'test', 'doctor', 'upgrade', 'analyze', 'gen-l10n', '--release', '--debug', '--profile', '--flavor', '--target', '--dart-define'],
-  jsx: ['const', 'let', 'function', 'return', 'import', 'export', 'default', 'from', 'async', 'await', 'className', 'useState', 'useEffect', 'useMemo', 'useCallback', 'Fragment'],
-  tsx: ['const', 'let', 'function', 'return', 'import', 'export', 'default', 'from', 'async', 'await', 'interface', 'type', 'extends', 'implements', 'as', 'keyof', 'readonly', 'className', 'useState', 'useEffect', 'useMemo', 'useCallback', 'Fragment'],
+  sql: [
+    'SELECT',
+    'FROM',
+    'WHERE',
+    'INSERT',
+    'UPDATE',
+    'DELETE',
+    'CREATE',
+    'DROP',
+    'ALTER',
+    'TABLE',
+    'INDEX',
+    'VIEW',
+    'JOIN',
+    'LEFT',
+    'RIGHT',
+    'INNER',
+    'OUTER',
+    'ON',
+    'AND',
+    'OR',
+    'NOT',
+    'IN',
+    'LIKE',
+    'BETWEEN',
+    'IS',
+    'NULL',
+    'TRUE',
+    'FALSE',
+    'AS',
+    'ORDER',
+    'BY',
+    'GROUP',
+    'HAVING',
+    'LIMIT',
+    'OFFSET',
+    'UNION',
+    'ALL',
+    'DISTINCT',
+    'COUNT',
+    'SUM',
+    'AVG',
+    'MAX',
+    'MIN',
+    'PRIMARY',
+    'KEY',
+    'FOREIGN',
+    'REFERENCES',
+    'CONSTRAINT',
+    'DEFAULT',
+    'AUTO_INCREMENT',
+    'CASCADE',
+    'VALUES',
+    'SET',
+    'INTO',
+    'EXISTS',
+    'CASE',
+    'WHEN',
+    'THEN',
+    'ELSE',
+    'END',
+    'COMMIT',
+    'ROLLBACK',
+    'TRANSACTION',
+    'GRANT',
+    'REVOKE',
+    'TRIGGER',
+    'PROCEDURE',
+    'FUNCTION'
+  ],
+  bash: [
+    '#!/bin/bash',
+    'echo',
+    'read',
+    'if',
+    'then',
+    'else',
+    'elif',
+    'fi',
+    'for',
+    'while',
+    'do',
+    'done',
+    'case',
+    'esac',
+    'function',
+    'return',
+    'exit',
+    'break',
+    'continue',
+    'export',
+    'source',
+    'alias',
+    'unset',
+    'set',
+    'local',
+    'shift',
+    'trap',
+    'exec',
+    'test',
+    'true',
+    'false',
+    'cd',
+    'pwd',
+    'ls',
+    'cp',
+    'mv',
+    'rm',
+    'mkdir',
+    'rmdir',
+    'touch',
+    'cat',
+    'grep',
+    'sed',
+    'awk',
+    'find',
+    'xargs',
+    'sort',
+    'uniq',
+    'head',
+    'tail',
+    'cut',
+    'wc',
+    'chmod',
+    'chown',
+    'sudo',
+    'su',
+    'curl',
+    'wget',
+    'npm',
+    'yarn',
+    'node',
+    'git'
+  ],
+  vue: [
+    'template',
+    'script',
+    'style',
+    'export',
+    'default',
+    'import',
+    'from',
+    'const',
+    'let',
+    'var',
+    'function',
+    'return',
+    'if',
+    'else',
+    'for',
+    'while',
+    'class',
+    'extends',
+    'new',
+    'this',
+    'async',
+    'await',
+    'ref',
+    'reactive',
+    'computed',
+    'watch',
+    'watchEffect',
+    'onMounted',
+    'onUpdated',
+    'onUnmounted',
+    'onBeforeMount',
+    'onBeforeUpdate',
+    'onBeforeUnmount',
+    'provide',
+    'inject',
+    'defineProps',
+    'defineEmits',
+    'defineExpose',
+    'v-if',
+    'v-else',
+    'v-else-if',
+    'v-for',
+    'v-on',
+    'v-bind',
+    'v-model',
+    'v-show',
+    'v-text',
+    'v-html',
+    'v-once',
+    'v-pre',
+    'v-cloak'
+  ],
+  dart: [
+    'import',
+    'library',
+    'part',
+    'class',
+    'abstract',
+    'mixin',
+    'extension',
+    'enum',
+    'typedef',
+    'void',
+    'final',
+    'const',
+    'var',
+    'late',
+    'required',
+    'dynamic',
+    'String',
+    'int',
+    'double',
+    'bool',
+    'List',
+    'Map',
+    'Set',
+    'Future',
+    'Stream',
+    'return',
+    'if',
+    'else',
+    'switch',
+    'case',
+    'default',
+    'for',
+    'while',
+    'do',
+    'break',
+    'continue',
+    'try',
+    'catch',
+    'finally',
+    'throw',
+    'rethrow',
+    'on',
+    'is',
+    'as',
+    'this',
+    'super',
+    'new',
+    'true',
+    'false',
+    'null',
+    'async',
+    'await',
+    'yield',
+    'with',
+    'implements',
+    'extends',
+    'override',
+    'Widget',
+    'StatefulWidget',
+    'StatelessWidget',
+    'BuildContext',
+    'setState'
+  ],
+  flutter: [
+    'flutter',
+    'dart',
+    'clean',
+    'pub',
+    'get',
+    'build',
+    'apk',
+    'appbundle',
+    'ios',
+    'web',
+    'windows',
+    'linux',
+    'macos',
+    'run',
+    'test',
+    'doctor',
+    'upgrade',
+    'analyze',
+    'gen-l10n',
+    '--release',
+    '--debug',
+    '--profile',
+    '--flavor',
+    '--target',
+    '--dart-define'
+  ],
+  jsx: [
+    'const',
+    'let',
+    'function',
+    'return',
+    'import',
+    'export',
+    'default',
+    'from',
+    'async',
+    'await',
+    'className',
+    'useState',
+    'useEffect',
+    'useMemo',
+    'useCallback',
+    'Fragment'
+  ],
+  tsx: [
+    'const',
+    'let',
+    'function',
+    'return',
+    'import',
+    'export',
+    'default',
+    'from',
+    'async',
+    'await',
+    'interface',
+    'type',
+    'extends',
+    'implements',
+    'as',
+    'keyof',
+    'readonly',
+    'className',
+    'useState',
+    'useEffect',
+    'useMemo',
+    'useCallback',
+    'Fragment'
+  ]
 };
 
 // 自动语言检测函数
@@ -430,17 +1402,35 @@ function detectLanguage(code: string): string | null {
   // 基于代码特征检测
   const patterns: [RegExp, string][] = [
     // React / JSX / TSX（必须先于普通 TypeScript、JavaScript 和 HTML）
-    [/<[A-Z][\w.]*\b[^>]*>|\bReact\.(?:createElement|Fragment)\b/, looksLikeTypedReact(trimmed) ? 'tsx' : 'jsx'],
-    [/=>\s*\(?\s*<[a-z][\w-]*\b[^>]*>/, looksLikeTypedReact(trimmed) ? 'tsx' : 'jsx'],
-    [/\b(?:useState|useEffect|useMemo|useCallback|useContext)\s*(?:<[^>]+>)?\s*\(/, looksLikeTypedReact(trimmed) ? 'tsx' : 'jsx'],
+    [
+      /<[A-Z][\w.]*\b[^>]*>|\bReact\.(?:createElement|Fragment)\b/,
+      looksLikeTypedReact(trimmed) ? 'tsx' : 'jsx'
+    ],
+    [
+      /=>\s*\(?\s*<[a-z][\w-]*\b[^>]*>/,
+      looksLikeTypedReact(trimmed) ? 'tsx' : 'jsx'
+    ],
+    [
+      /\b(?:useState|useEffect|useMemo|useCallback|useContext)\s*(?:<[^>]+>)?\s*\(/,
+      looksLikeTypedReact(trimmed) ? 'tsx' : 'jsx'
+    ],
 
     // Tauri Rust / Cargo manifest / frontend API
-    [/#\[(?:tauri::)?command\]|\btauri::(?:Builder|generate_handler|generate_context)\b/, 'rust'],
-    [/^\s*\[(?:package|dependencies|build-dependencies)\][\s\S]*\btauri\s*=/m, 'toml'],
+    [
+      /#\[(?:tauri::)?command\]|\btauri::(?:Builder|generate_handler|generate_context)\b/,
+      'rust'
+    ],
+    [
+      /^\s*\[(?:package|dependencies|build-dependencies)\][\s\S]*\btauri\s*=/m,
+      'toml'
+    ],
     [/@tauri-apps\/api|\binvoke\s*(?:<[^>]+>)?\s*\(/, 'typescript'],
 
     // TypeScript
-    [/:\s*(string|number|boolean|any|void|never|unknown|interface|type|enum)\s*[;=)]/i, 'typescript'],
+    [
+      /:\s*(string|number|boolean|any|void|never|unknown|interface|type|enum)\s*[;=)]/i,
+      'typescript'
+    ],
     [/<\w+(\s*,\s*\w+)*>/, 'typescript'],
     [/as\s+\w+/, 'typescript'],
     [/import\s+.*\s+from\s+['"].*['"]/i, 'typescript'],
@@ -462,7 +1452,10 @@ function detectLanguage(code: string): string | null {
     [/^\s*if\s+__name__\s*==\s*['"]__main__['"]/m, 'python'],
 
     // Java
-    [/^(public|private|protected)\s+(static\s+)?(class|interface|enum)/m, 'java'],
+    [
+      /^(public|private|protected)\s+(static\s+)?(class|interface|enum)/m,
+      'java'
+    ],
     [/^(import|package)\s+[\w.]+;/m, 'java'],
     [/System\.out\.print/m, 'java'],
     [/@Override|@Autowired|@Component/m, 'java'],
@@ -540,15 +1533,21 @@ function detectLanguage(code: string): string | null {
     [/^(SELECT|INSERT|UPDATE|DELETE|CREATE|ALTER|DROP)\s+/im, 'sql'],
     [/^(FROM|WHERE|JOIN|LEFT|RIGHT|INNER|OUTER)\s+/im, 'sql'],
     [/^(GROUP|ORDER|HAVING|LIMIT)\s+BY/im, 'sql'],
-    [/^\s*(USE|SHOW|DESCRIBE|DESC|TRUNCATE|LOAD\s+DATA|LOCK\s+TABLES|UNLOCK\s+TABLES)\b/im, 'sql'],
+    [
+      /^\s*(USE|SHOW|DESCRIBE|DESC|TRUNCATE|LOAD\s+DATA|LOCK\s+TABLES|UNLOCK\s+TABLES)\b/im,
+      'sql'
+    ],
 
     // Bash/Shell
-    [/^\s*(mysql|mysqldump|mysqlimport|mysqladmin|pg_dump|pg_restore|psql)\b/im, 'bash'],
+    [
+      /^\s*(mysql|mysqldump|mysqlimport|mysqladmin|pg_dump|pg_restore|psql)\b/im,
+      'bash'
+    ],
     [/^#!/m, 'bash'],
     [/^echo\s+/m, 'bash'],
     [/\$\{?\w+\}?/m, 'bash'],
     [/if\s+\[\s+/m, 'bash'],
-    [/\$\(.*\)/m, 'bash'],
+    [/\$\(.*\)/m, 'bash']
   ];
 
   for (const [pattern, lang] of patterns) {
@@ -575,20 +1574,35 @@ function highlightCode(code: string, language: string | null): string {
 
   if (keywords.length > 0) {
     // 高亮字符串（双引号）
-    result = result.replace(/(["'`])(?:(?!\1)[^\\]|\\.)*\1/g, '<span class="hljs-string">$&</span>');
+    result = result.replace(
+      /(["'`])(?:(?!\1)[^\\]|\\.)*\1/g,
+      '<span class="hljs-string">$&</span>'
+    );
 
     // 高亮注释（行注释）
-    result = result.replace(/(\/\/.*$)/gm, '<span class="hljs-comment">$1</span>');
+    result = result.replace(
+      /(\/\/.*$)/gm,
+      '<span class="hljs-comment">$1</span>'
+    );
 
     // 高亮注释（块注释）
-    result = result.replace(/(\/\*[\s\S]*?\*\/)/g, '<span class="hljs-comment">$1</span>');
+    result = result.replace(
+      /(\/\*[\s\S]*?\*\/)/g,
+      '<span class="hljs-comment">$1</span>'
+    );
 
     // 高亮数字
-    result = result.replace(/\b(\d+\.?\d*)\b/g, '<span class="hljs-number">$1</span>');
+    result = result.replace(
+      /\b(\d+\.?\d*)\b/g,
+      '<span class="hljs-number">$1</span>'
+    );
 
     // 高亮关键词
     const keywordPattern = new RegExp(`\\b(${keywords.join('|')})\\b`, 'g');
-    result = result.replace(keywordPattern, '<span class="hljs-keyword">$1</span>');
+    result = result.replace(
+      keywordPattern,
+      '<span class="hljs-keyword">$1</span>'
+    );
   }
 
   return result;
@@ -600,7 +1614,7 @@ export const CodeBlockHighlight = Node.create<CodeBlockHighlightOptions>({
   addOptions() {
     return {
       languageClassPrefix: 'language-',
-      HTMLAttributes: {},
+      HTMLAttributes: {}
     };
   },
 
@@ -618,12 +1632,12 @@ export const CodeBlockHighlight = Node.create<CodeBlockHighlightOptions>({
     return {
       language: {
         default: null,
-        parseHTML: element => {
+        parseHTML: (element) => {
           const { languageClassPrefix } = this.options;
           const classNames = [...(element.firstElementChild?.classList || [])];
           const languages = classNames
-            .filter(className => className.startsWith(languageClassPrefix))
-            .map(className => className.replace(languageClassPrefix, ''));
+            .filter((className) => className.startsWith(languageClassPrefix))
+            .map((className) => className.replace(languageClassPrefix, ''));
           const language = languages[0];
 
           if (!language) {
@@ -632,8 +1646,8 @@ export const CodeBlockHighlight = Node.create<CodeBlockHighlightOptions>({
 
           return language;
         },
-        rendered: false,
-      },
+        rendered: false
+      }
     };
   },
 
@@ -641,8 +1655,8 @@ export const CodeBlockHighlight = Node.create<CodeBlockHighlightOptions>({
     return [
       {
         tag: 'pre',
-        preserveWhitespace: 'full',
-      },
+        preserveWhitespace: 'full'
+      }
     ];
   },
 
@@ -656,23 +1670,25 @@ export const CodeBlockHighlight = Node.create<CodeBlockHighlightOptions>({
           class: node.attrs.language
             ? this.options.languageClassPrefix + node.attrs.language
             : null,
-          'data-language': node.attrs.language || 'plaintext',
+          'data-language': node.attrs.language || 'plaintext'
         },
-        0,
-      ],
+        0
+      ]
     ];
   },
 
   addCommands() {
     return {
       setCodeBlock:
-        attributes => ({ commands }) => {
+        (attributes) =>
+        ({ commands }) => {
           return commands.setNode(this.name, attributes);
         },
       toggleCodeBlock:
-        attributes => ({ commands }) => {
+        (attributes) =>
+        ({ commands }) => {
           return commands.toggleNode(this.name, 'paragraph', attributes);
-        },
+        }
     };
   },
 
@@ -711,8 +1727,7 @@ export const CodeBlockHighlight = Node.create<CodeBlockHighlightOptions>({
 
         this.editor.view.dispatch(transaction);
         return true;
-      },
-
+      }
     };
   },
 
@@ -726,18 +1741,28 @@ export const CodeBlockHighlight = Node.create<CodeBlockHighlightOptions>({
         key: codeBlockSyntaxKey,
         state: {
           init(_, { doc }) {
-            return buildCodeBlockSyntaxDecorations(doc, shikiHighlighter, currentEditorDarkMode);
+            return buildCodeBlockSyntaxDecorations(
+              doc,
+              shikiHighlighter,
+              currentEditorDarkMode
+            );
           },
           apply(tr, oldDeco) {
-            const shouldRefresh = Boolean(tr.getMeta(codeBlockSyntaxKey)?.refresh);
+            const shouldRefresh = Boolean(
+              tr.getMeta(codeBlockSyntaxKey)?.refresh
+            );
             if (!tr.docChanged && !shouldRefresh) return oldDeco;
-            return buildCodeBlockSyntaxDecorations(tr.doc, shikiHighlighter, currentEditorDarkMode);
-          },
+            return buildCodeBlockSyntaxDecorations(
+              tr.doc,
+              shikiHighlighter,
+              currentEditorDarkMode
+            );
+          }
         },
         props: {
           decorations(state): DecorationSource | null {
             return codeBlockSyntaxKey.getState(state) ?? DecorationSet.empty;
-          },
+          }
         },
         view: (view: EditorView) => {
           let mounted = true;
@@ -751,7 +1776,7 @@ export const CodeBlockHighlight = Node.create<CodeBlockHighlightOptions>({
             view.dispatch(tr);
           };
 
-          ensureShikiHighlighter().then(highlighter => {
+          ensureShikiHighlighter().then((highlighter) => {
             if (!mounted || !highlighter) return;
             refreshDecorations();
           });
@@ -783,12 +1808,12 @@ export const CodeBlockHighlight = Node.create<CodeBlockHighlightOptions>({
             destroy() {
               mounted = false;
               mediaQuery?.removeEventListener?.('change', themeListener);
-            },
+            }
           };
-        },
-      }),
+        }
+      })
     ];
-  },
+  }
 });
 
 // 导出工具函数供外部使用

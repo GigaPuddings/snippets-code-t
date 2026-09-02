@@ -27,11 +27,13 @@
 
 .loading-content {
   @apply flex flex-col items-center justify-center text-center max-w-xs;
+
   width: 248px;
 }
 
 .logo-container {
   @apply mb-3 relative rounded-2xl p-3;
+
   background: rgb(59 130 246 / 8%);
   border: 1px solid rgb(59 130 246 / 12%);
 
@@ -99,6 +101,7 @@
 
 .loading-progress {
   @apply w-full mt-5 h-1 rounded-full overflow-hidden;
+
   background: rgb(59 130 246 / 10%);
 }
 

@@ -11,7 +11,9 @@ interface LinkEditorView {
 interface LinkEditor {
   state: {
     doc: {
-      descendants: (callback: (node: LinkEditorNode, pos: number) => void) => void;
+      descendants: (
+        callback: (node: LinkEditorNode, pos: number) => void
+      ) => void;
     };
   };
 }
@@ -63,7 +65,10 @@ function findAnchorTarget(scrollContainer: HTMLElement, anchorId: string) {
   return null;
 }
 
-function findHeadingByAnchor(editor: LinkEditor | null | undefined, anchorId: string) {
+function findHeadingByAnchor(
+  editor: LinkEditor | null | undefined,
+  anchorId: string
+) {
   if (!editor) return null;
 
   const headings: Array<{ text: string; pos: number }> = [];
@@ -76,23 +81,34 @@ function findHeadingByAnchor(editor: LinkEditor | null | undefined, anchorId: st
     }
   });
 
-  return headings.find((heading) => normalizeHeadingId(heading.text) === anchorId) ?? null;
+  return (
+    headings.find((heading) => normalizeHeadingId(heading.text) === anchorId) ??
+    null
+  );
 }
 
 function findHeadingElement(scrollContainer: HTMLElement, headingText: string) {
   let targetElement: HTMLElement | null = null;
 
-  scrollContainer.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach((el: Element) => {
-    const headingEl = el as HTMLElement;
-    if (!targetElement && (headingEl.textContent?.trim() || '') === headingText) {
-      targetElement = headingEl;
-    }
-  });
+  scrollContainer
+    .querySelectorAll('h1, h2, h3, h4, h5, h6')
+    .forEach((el: Element) => {
+      const headingEl = el as HTMLElement;
+      if (
+        !targetElement &&
+        (headingEl.textContent?.trim() || '') === headingText
+      ) {
+        targetElement = headingEl;
+      }
+    });
 
   return targetElement;
 }
 
-function getElementOffsetTop(element: HTMLElement, scrollContainer: HTMLElement) {
+function getElementOffsetTop(
+  element: HTMLElement,
+  scrollContainer: HTMLElement
+) {
   let elementTop = 0;
   let currentElement: HTMLElement | null = element;
 
@@ -111,13 +127,17 @@ async function openWithTauriShell(url: string) {
 }
 
 export function useEditorLinks(options: UseEditorLinksOptions) {
-  const headingScrollOffset = options.headingScrollOffset ?? DEFAULT_HEADING_SCROLL_OFFSET;
+  const headingScrollOffset =
+    options.headingScrollOffset ?? DEFAULT_HEADING_SCROLL_OFFSET;
   let anchorClickCleanup: (() => void) | null = null;
 
   const scrollToAnchor = (scrollContainer: HTMLElement, anchorId: string) => {
     const directTarget = findAnchorTarget(scrollContainer, anchorId);
     if (directTarget) {
-      scrollContainer.scrollTop = Math.max(0, directTarget.offsetTop - headingScrollOffset);
+      scrollContainer.scrollTop = Math.max(
+        0,
+        directTarget.offsetTop - headingScrollOffset
+      );
       return true;
     }
 
@@ -133,7 +153,10 @@ export function useEditorLinks(options: UseEditorLinksOptions) {
       return true;
     }
 
-    scrollContainer.scrollTop = Math.max(0, getElementOffsetTop(headingElement, scrollContainer) - headingScrollOffset);
+    scrollContainer.scrollTop = Math.max(
+      0,
+      getElementOffsetTop(headingElement, scrollContainer) - headingScrollOffset
+    );
     return true;
   };
 

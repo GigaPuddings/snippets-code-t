@@ -12,7 +12,9 @@ export interface SearchResultIconState {
   typeClass: string;
 }
 
-export function getSearchResultIcon(item: ContentType | null | undefined): SearchResultIconState {
+export function getSearchResultIcon(
+  item: ContentType | null | undefined
+): SearchResultIconState {
   if (!item) {
     return {
       src: '',

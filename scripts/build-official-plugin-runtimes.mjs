@@ -36,7 +36,7 @@ async function listFiles(directory) {
   for (const entry of entries) {
     const fullPath = join(directory, entry.name);
     if (entry.isDirectory()) {
-      result.push(...await listFiles(fullPath));
+      result.push(...(await listFiles(fullPath)));
     } else {
       result.push(fullPath);
     }
@@ -44,7 +44,8 @@ async function listFiles(directory) {
   return result;
 }
 
-const toPluginPath = (pluginDir, filePath) => relative(pluginDir, filePath).replaceAll('\\', '/');
+const toPluginPath = (pluginDir, filePath) =>
+  relative(pluginDir, filePath).replaceAll('\\', '/');
 
 async function buildRuntime(pluginId, entryPath) {
   const pluginDir = join(PLUGIN_PACKAGE_ROOT, pluginId);
@@ -119,7 +120,11 @@ async function buildRuntime(pluginId, entryPath) {
     ...(styles.length ? { styles } : {})
   };
 
-  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+  await writeFile(
+    manifestPath,
+    `${JSON.stringify(manifest, null, 2)}\n`,
+    'utf8'
+  );
 
   return {
     pluginId,
@@ -131,7 +136,12 @@ async function buildRuntime(pluginId, entryPath) {
 async function main() {
   const requested = process.argv.slice(2);
   const selected = requested.length
-    ? Object.fromEntries(requested.map((pluginId) => [pluginId, officialRuntimeEntries[pluginId]]))
+    ? Object.fromEntries(
+        requested.map((pluginId) => [
+          pluginId,
+          officialRuntimeEntries[pluginId]
+        ])
+      )
     : officialRuntimeEntries;
 
   for (const [pluginId, entryPath] of Object.entries(selected)) {
@@ -148,7 +158,9 @@ async function main() {
 
   console.log(`[Plugins] 官方插件运行时打包完成: ${results.length}`);
   for (const result of results) {
-    console.log(`[Plugins] ${result.pluginId}: files=${result.files}, styles=${result.styles}`);
+    console.log(
+      `[Plugins] ${result.pluginId}: files=${result.files}, styles=${result.styles}`
+    );
   }
 }
 

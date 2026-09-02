@@ -2,7 +2,10 @@
   <div v-if="show" class="search-panel" :class="{ 'dark-theme': dark }">
     <div class="search-input-wrapper">
       <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16">
-        <path fill="currentColor" d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z" />
+        <path
+          fill="currentColor"
+          d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z"
+        />
       </svg>
       <input
         ref="searchInputRef"
@@ -19,7 +22,8 @@
       />
       <div class="search-controls">
         <span v-if="totalMatches > 0" class="match-count">
-          {{ currentMatchIndex === -1 ? '-' : currentMatchIndex + 1 }} / {{ totalMatches }}
+          {{ currentMatchIndex === -1 ? '-' : currentMatchIndex + 1 }} /
+          {{ totalMatches }}
         </span>
         <button
           class="search-btn"
@@ -28,7 +32,10 @@
           @click="findPrevious"
         >
           <svg viewBox="0 0 24 24" width="16" height="16">
-            <path fill="currentColor" d="M7.41,15.41L12,10.83L16.59,15.41L18,14L12,8L6,14L7.41,15.41Z" />
+            <path
+              fill="currentColor"
+              d="M7.41,15.41L12,10.83L16.59,15.41L18,14L12,8L6,14L7.41,15.41Z"
+            />
           </svg>
         </button>
         <button
@@ -38,7 +45,10 @@
           @click="findNext"
         >
           <svg viewBox="0 0 24 24" width="16" height="16">
-            <path fill="currentColor" d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z" />
+            <path
+              fill="currentColor"
+              d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"
+            />
           </svg>
         </button>
         <button
@@ -55,7 +65,10 @@
           @click="close"
         >
           <svg viewBox="0 0 24 24" width="16" height="16">
-            <path fill="currentColor" d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z" />
+            <path
+              fill="currentColor"
+              d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"
+            />
           </svg>
         </button>
       </div>
@@ -64,7 +77,6 @@
 </template>
 
 <script setup lang="ts">
-
 interface Props {
   show: boolean;
   dark?: boolean;
@@ -113,14 +125,17 @@ onUnmounted(() => {
   }
 });
 
-watch(() => props.show, (show) => {
-  if (show) {
-    nextTick(() => {
-      searchInputRef.value?.focus();
-      searchInputRef.value?.select();
-    });
+watch(
+  () => props.show,
+  (show) => {
+    if (show) {
+      nextTick(() => {
+        searchInputRef.value?.focus();
+        searchInputRef.value?.select();
+      });
+    }
   }
-});
+);
 
 // 移除直接监听 searchQuery 和 matchCase，改为使用防抖搜索
 // watch([searchQuery, matchCase], () => {
@@ -171,14 +186,15 @@ defineExpose({
 <style lang="scss" scoped>
 .search-panel {
   @apply absolute top-2 right-2 z-20 border rounded-lg shadow-lg;
+
   background-color: var(--panel-bg);
   border-color: var(--panel-border);
   animation: slideDown 0.2s ease-out;
 
   &.dark-theme {
     .search-input {
-      background-color: var(--editor-bg);
       color: var(--editor-text);
+      background-color: var(--editor-bg);
       border-color: var(--panel-border);
 
       &::placeholder {
@@ -202,8 +218,8 @@ defineExpose({
       color: var(--panel-text-secondary);
 
       &:hover:not(:disabled) {
-        background-color: var(--panel-hover-bg);
         color: var(--panel-text);
+        background-color: var(--panel-hover-bg);
       }
 
       &:disabled {
@@ -212,8 +228,8 @@ defineExpose({
       }
 
       &.active {
-        background-color: var(--el-color-primary);
         color: white;
+        background-color: var(--el-color-primary);
       }
     }
   }
@@ -225,15 +241,17 @@ defineExpose({
 
 .search-icon {
   @apply flex-shrink-0;
+
   color: var(--panel-text-secondary);
 }
 
 .search-input {
   @apply flex-1 px-2 py-1 text-sm rounded outline-none;
+
   min-width: 200px;
+  color: var(--panel-text);
   background-color: var(--panel-bg);
   border: 1px solid var(--panel-border);
-  color: var(--panel-text);
   transition: border-color 0.2s ease;
 
   &::placeholder {
@@ -251,19 +269,21 @@ defineExpose({
 
 .match-count {
   @apply text-xs px-2;
+
   min-width: 50px;
-  text-align: center;
   color: var(--panel-text-secondary);
+  text-align: center;
 }
 
 .search-btn {
   @apply flex items-center justify-center w-7 h-7 rounded cursor-pointer border-none bg-transparent;
-  transition: all 0.15s ease;
+
   color: var(--panel-text-secondary);
+  transition: all 0.15s ease;
 
   &:hover:not(:disabled) {
-    background-color: var(--panel-hover-bg);
     color: var(--panel-text);
+    background-color: var(--panel-hover-bg);
   }
 
   &:disabled {
@@ -273,7 +293,8 @@ defineExpose({
 
   &.match-case-btn {
     @apply text-xs font-semibold;
-    font-family: ui-monospace, 'SF Mono', 'Monaco', 'Consolas', monospace;
+
+    font-family: ui-monospace, 'SF Mono', Monaco, Consolas, monospace;
 
     &.active {
       @apply bg-blue-600 text-white;
@@ -290,6 +311,7 @@ defineExpose({
     opacity: 0;
     transform: translateY(-10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);

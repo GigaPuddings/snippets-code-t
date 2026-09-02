@@ -7,8 +7,12 @@
     <main class="panel-content developer-content">
       <section class="summarize-section mode-section">
         <div class="summarize-label">
-          <div class="summarize-label-title">{{ t('settings.developer.mode') }}</div>
-          <div class="summarize-label-desc">{{ t('settings.developer.modeDesc') }}</div>
+          <div class="summarize-label-title">
+            {{ t('settings.developer.mode') }}
+          </div>
+          <div class="summarize-label-desc">
+            {{ t('settings.developer.modeDesc') }}
+          </div>
         </div>
         <div class="summarize-input-wrapper">
           <CustomSwitch
@@ -22,7 +26,12 @@
 
       <div class="developer-toolbar">
         <div class="developer-actions">
-          <CustomButton type="primary" size="small" :loading="loading" @click="refresh">
+          <CustomButton
+            type="primary"
+            size="small"
+            :loading="loading"
+            @click="refresh"
+          >
             {{ t('settings.developer.refresh') }}
           </CustomButton>
           <CustomButton size="small" @click="copyReport">
@@ -36,40 +45,91 @@
           </CustomButton>
         </div>
         <span v-if="diagnostics" class="refresh-time">
-          {{ t('settings.developer.generatedAt') }} {{ diagnostics.generatedAt }}
+          {{ t('settings.developer.generatedAt') }}
+          {{ diagnostics.generatedAt }}
         </span>
       </div>
 
       <p class="developer-hint">{{ t('settings.developer.hint') }}</p>
       <p v-if="ignoredWarningCount > 0" class="ignored-warning-hint">
-        {{ t('settings.developer.ignoredWarnings', { count: ignoredWarningCount }) }}
+        {{
+          t('settings.developer.ignoredWarnings', {
+            count: ignoredWarningCount
+          })
+        }}
       </p>
 
       <section class="diagnostic-summary">
-        <article class="summary-card" :class="issueCardClass(totalErrorCount, totalIssueCount)">
-          <span class="summary-label">{{ t('settings.developer.status') }}</span>
-          <strong>{{ totalIssueCount > 0 ? t('settings.developer.attention') : t('settings.developer.normal') }}</strong>
-          <small>{{ t('settings.developer.issueCount', { count: totalIssueCount }) }}</small>
+        <article
+          class="summary-card"
+          :class="issueCardClass(totalErrorCount, totalIssueCount)"
+        >
+          <span class="summary-label">
+            {{ t('settings.developer.status') }}
+          </span>
+          <strong>
+            {{
+              totalIssueCount > 0
+                ? t('settings.developer.attention')
+                : t('settings.developer.normal')
+            }}
+          </strong>
+          <small>
+            {{ t('settings.developer.issueCount', { count: totalIssueCount }) }}
+          </small>
         </article>
         <article class="summary-card">
-          <span class="summary-label">{{ t('settings.developer.application') }}</span>
+          <span class="summary-label">
+            {{ t('settings.developer.application') }}
+          </span>
           <strong>v{{ diagnostics?.appVersion || '-' }}</strong>
-          <small>{{ diagnostics?.buildMode || '-' }} · {{ diagnostics?.os || '-' }} {{ diagnostics?.arch || '' }}</small>
+          <small>
+            {{ diagnostics?.buildMode || '-' }} · {{ diagnostics?.os || '-' }}
+            {{ diagnostics?.arch || '' }}
+          </small>
         </article>
         <article class="summary-card">
-          <span class="summary-label">{{ t('settings.developer.windows') }}</span>
-          <strong>{{ visibleWindowCount }} / {{ diagnostics?.windows.length || 0 }}</strong>
+          <span class="summary-label">
+            {{ t('settings.developer.windows') }}
+          </span>
+          <strong>
+            {{ visibleWindowCount }} / {{ diagnostics?.windows.length || 0 }}
+          </strong>
           <small>{{ t('settings.developer.visibleWindows') }}</small>
         </article>
-        <article class="summary-card" :class="issueCardClass(frontendErrorCount, frontendIssueCount)">
-          <span class="summary-label">{{ t('settings.developer.frontendIssues') }}</span>
+        <article
+          class="summary-card"
+          :class="issueCardClass(frontendErrorCount, frontendIssueCount)"
+        >
+          <span class="summary-label">
+            {{ t('settings.developer.frontendIssues') }}
+          </span>
           <strong>{{ frontendIssueCount }}</strong>
-          <small>{{ t('settings.developer.errorWarnCount', { errors: frontendErrorCount, warnings: frontendWarningCount }) }}</small>
+          <small>
+            {{
+              t('settings.developer.errorWarnCount', {
+                errors: frontendErrorCount,
+                warnings: frontendWarningCount
+              })
+            }}
+          </small>
         </article>
-        <article class="summary-card" :class="issueCardClass(backendErrorCount, backendIssueCount)">
-          <span class="summary-label">{{ t('settings.developer.backendIssues') }}</span>
+        <article
+          class="summary-card"
+          :class="issueCardClass(backendErrorCount, backendIssueCount)"
+        >
+          <span class="summary-label">
+            {{ t('settings.developer.backendIssues') }}
+          </span>
           <strong>{{ backendIssueCount }}</strong>
-          <small>{{ t('settings.developer.errorWarnCount', { errors: backendErrorCount, warnings: backendWarningCount }) }}</small>
+          <small>
+            {{
+              t('settings.developer.errorWarnCount', {
+                errors: backendErrorCount,
+                warnings: backendWarningCount
+              })
+            }}
+          </small>
         </article>
       </section>
 
@@ -83,7 +143,9 @@
           @click="activeTab = tab.id"
         >
           {{ tab.label }}
-          <span v-if="tab.count !== undefined" class="tab-count">{{ tab.count }}</span>
+          <span v-if="tab.count !== undefined" class="tab-count">
+            {{ tab.count }}
+          </span>
         </button>
       </nav>
 
@@ -114,11 +176,24 @@
           <article class="overview-card">
             <h4>{{ t('settings.developer.windows') }}</h4>
             <div v-if="diagnostics?.windows.length" class="compact-list">
-              <div v-for="window in diagnostics.windows" :key="window.label" class="compact-item">
+              <div
+                v-for="window in diagnostics.windows"
+                :key="window.label"
+                class="compact-item"
+              >
                 <div class="compact-item-title">
-                  <span class="status-dot" :class="{ 'status-dot--active': window.visible }"></span>
+                  <span
+                    class="status-dot"
+                    :class="{ 'status-dot--active': window.visible }"
+                  ></span>
                   <strong>{{ window.label }}</strong>
-                  <span class="state-text">{{ window.visible ? t('settings.developer.visible') : t('settings.developer.hidden') }}</span>
+                  <span class="state-text">
+                    {{
+                      window.visible
+                        ? t('settings.developer.visible')
+                        : t('settings.developer.hidden')
+                    }}
+                  </span>
                 </div>
                 <small>{{ window.url }}</small>
               </div>
@@ -129,10 +204,16 @@
           <article class="overview-card">
             <h4>{{ t('settings.developer.logFiles') }}</h4>
             <div v-if="diagnostics?.logFiles.length" class="compact-list">
-              <div v-for="file in diagnostics.logFiles" :key="file.path" class="compact-item">
+              <div
+                v-for="file in diagnostics.logFiles"
+                :key="file.path"
+                class="compact-item"
+              >
                 <div class="compact-item-title">
                   <strong>{{ fileName(file.path) }}</strong>
-                  <span class="state-text">{{ formatBytes(file.sizeBytes) }}</span>
+                  <span class="state-text">
+                    {{ formatBytes(file.sizeBytes) }}
+                  </span>
                 </div>
                 <small>{{ file.modifiedAt || '-' }} · {{ file.path }}</small>
               </div>
@@ -150,7 +231,11 @@
             type="search"
             :placeholder="t('settings.developer.searchLogs')"
           />
-          <span>{{ t('settings.developer.matchLines', { count: matchedLineCount }) }}</span>
+          <span>
+            {{
+              t('settings.developer.matchLines', { count: matchedLineCount })
+            }}
+          </span>
         </div>
         <pre class="diagnostic-report">{{ visibleLogText }}</pre>
       </section>
@@ -193,7 +278,9 @@ const loading = ref(false);
 const activeTab = ref<DiagnosticTab>('overview');
 const logSearch = ref('');
 
-const frontendSummary = computed(() => summarizeFrontendDiagnostics(frontendLogs.value));
+const frontendSummary = computed(() =>
+  summarizeFrontendDiagnostics(frontendLogs.value)
+);
 const backendSummary = computed(() =>
   summarizeBackendDiagnostics(diagnostics.value?.recentBackendLogs)
 );
@@ -203,26 +290,37 @@ const frontendIssueCount = computed(() => frontendSummary.value.total);
 const backendErrorCount = computed(() => backendSummary.value.errors);
 const backendWarningCount = computed(() => backendSummary.value.warnings);
 const backendIssueCount = computed(() => backendSummary.value.total);
-const totalErrorCount = computed(() => frontendErrorCount.value + backendErrorCount.value);
-const totalIssueCount = computed(() => frontendIssueCount.value + backendIssueCount.value);
-const ignoredWarningCount = computed(
-  () => frontendSummary.value.ignoredWarnings + backendSummary.value.ignoredWarnings
+const totalErrorCount = computed(
+  () => frontendErrorCount.value + backendErrorCount.value
 );
-const visibleWindowCount = computed(() =>
-  diagnostics.value?.windows.filter((window) => window.visible).length || 0
+const totalIssueCount = computed(
+  () => frontendIssueCount.value + backendIssueCount.value
+);
+const ignoredWarningCount = computed(
+  () =>
+    frontendSummary.value.ignoredWarnings + backendSummary.value.ignoredWarnings
+);
+const visibleWindowCount = computed(
+  () =>
+    diagnostics.value?.windows.filter((window) => window.visible).length || 0
 );
 
-const frontendLogText = computed(() =>
-  formatFrontendDiagnostics(frontendLogs.value) || t('settings.developer.empty')
+const frontendLogText = computed(
+  () =>
+    formatFrontendDiagnostics(frontendLogs.value) ||
+    t('settings.developer.empty')
 );
-const backendLogText = computed(() =>
-  redactDiagnosticText(diagnostics.value?.recentBackendLogs || '') || t('settings.developer.empty')
+const backendLogText = computed(
+  () =>
+    redactDiagnosticText(diagnostics.value?.recentBackendLogs || '') ||
+    t('settings.developer.empty')
 );
 
 const reportText = computed(() => {
-  const { recentBackendLogs: _recentBackendLogs, ...summary } = diagnostics.value || {
-    recentBackendLogs: ''
-  };
+  const { recentBackendLogs: _recentBackendLogs, ...summary } =
+    diagnostics.value || {
+      recentBackendLogs: ''
+    };
   return redactDiagnosticText(
     [
       '===== Environment =====',
@@ -239,8 +337,16 @@ const reportText = computed(() => {
 
 const tabs = computed(() => [
   { id: 'overview' as const, label: t('settings.developer.overview') },
-  { id: 'frontend' as const, label: t('settings.developer.frontendLogs'), count: frontendIssueCount.value },
-  { id: 'backend' as const, label: t('settings.developer.backendLogs'), count: backendIssueCount.value },
+  {
+    id: 'frontend' as const,
+    label: t('settings.developer.frontendLogs'),
+    count: frontendIssueCount.value
+  },
+  {
+    id: 'backend' as const,
+    label: t('settings.developer.backendLogs'),
+    count: backendIssueCount.value
+  },
   { id: 'report' as const, label: t('settings.developer.fullReport') }
 ]);
 
@@ -253,10 +359,12 @@ const selectedLogText = computed(() => {
 const visibleLogText = computed(() => {
   const keyword = logSearch.value.trim().toLowerCase();
   if (!keyword) return selectedLogText.value;
-  return selectedLogText.value
-    .split('\n')
-    .filter((line) => line.toLowerCase().includes(keyword))
-    .join('\n') || t('settings.developer.noMatches');
+  return (
+    selectedLogText.value
+      .split('\n')
+      .filter((line) => line.toLowerCase().includes(keyword))
+      .join('\n') || t('settings.developer.noMatches')
+  );
 });
 
 const matchedLineCount = computed(() => {
@@ -265,13 +373,15 @@ const matchedLineCount = computed(() => {
   return visibleLogText.value.split('\n').length;
 });
 
-const issueCardClass = (errorCount: number, issueCount: number): Record<string, boolean> => ({
+const issueCardClass = (
+  errorCount: number,
+  issueCount: number
+): Record<string, boolean> => ({
   'summary-card--danger': errorCount > 0,
   'summary-card--warning': errorCount === 0 && issueCount > 0
 });
 
-const fileName = (path: string): string =>
-  path.split(/[\\/]/).pop() || path;
+const fileName = (path: string): string => path.split(/[\\/]/).pop() || path;
 
 const formatBytes = (bytes: number): string => {
   if (bytes < 1024) return `${bytes} B`;
@@ -294,7 +404,9 @@ const refresh = async () => {
 
 const handleDeveloperModeChange = (enabled: boolean) => {
   setDeveloperModeEnabled(enabled);
-  modal.msg(enabled ? t('settings.developer.enabled') : t('settings.developer.disabled'));
+  modal.msg(
+    enabled ? t('settings.developer.enabled') : t('settings.developer.disabled')
+  );
   void refresh();
 };
 
@@ -347,8 +459,8 @@ onMounted(() => {
 
 .developer-toolbar {
   flex-wrap: wrap;
-  justify-content: space-between;
   gap: 8px;
+  justify-content: space-between;
 }
 
 .developer-actions {
@@ -362,8 +474,8 @@ onMounted(() => {
 .empty-text,
 .compact-item small,
 .summary-card small {
-  color: var(--panel-text-secondary);
   font-size: 12px;
+  color: var(--panel-text-secondary);
 }
 
 .developer-hint,
@@ -375,11 +487,11 @@ onMounted(() => {
 
 .ignored-warning-hint {
   padding: 6px 9px;
+  font-size: 12px;
   color: #a16207;
   background: rgb(245 158 11 / 8%);
   border: 1px solid rgb(245 158 11 / 22%);
   border-radius: 6px;
-  font-size: 12px;
 }
 
 .diagnostic-summary {
@@ -398,14 +510,14 @@ onMounted(() => {
 
 .summary-card {
   display: flex;
-  min-width: 0;
   flex-direction: column;
   gap: 3px;
+  min-width: 0;
   border-left: 3px solid var(--search-result-accent);
 
   strong {
-    color: var(--panel-text);
     font-size: 17px;
+    color: var(--panel-text);
   }
 
   &--danger {
@@ -418,8 +530,8 @@ onMounted(() => {
 }
 
 .summary-label {
-  color: var(--panel-text-secondary);
   font-size: 12px;
+  color: var(--panel-text-secondary);
 }
 
 .diagnostic-tabs {
@@ -431,14 +543,14 @@ onMounted(() => {
 
 .diagnostic-tab {
   display: inline-flex;
-  align-items: center;
   gap: 5px;
+  align-items: center;
   padding: 6px 10px;
   color: var(--panel-text-secondary);
+  cursor: pointer;
   background: transparent;
   border: 0;
   border-radius: 6px;
-  cursor: pointer;
 
   &:hover,
   &--active {
@@ -450,16 +562,16 @@ onMounted(() => {
 .tab-count,
 .state-text {
   padding: 1px 5px;
+  font-size: 11px;
   color: var(--panel-text-secondary);
   background: var(--panel-hover-bg);
   border-radius: 999px;
-  font-size: 11px;
 }
 
 .overview-panel,
 .log-panel {
-  min-height: 0;
   flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
 }
 
@@ -478,8 +590,8 @@ onMounted(() => {
 
   h4 {
     margin: 0 0 8px;
-    color: var(--panel-text);
     font-size: 13px;
+    color: var(--panel-text);
   }
 }
 
@@ -522,14 +634,14 @@ onMounted(() => {
 
   .compact-item-title {
     gap: 6px;
-    color: var(--panel-text);
     font-size: 12px;
+    color: var(--panel-text);
   }
 
   small {
     display: block;
-    overflow: hidden;
     margin-top: 2px;
+    overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -553,8 +665,8 @@ onMounted(() => {
 }
 
 .log-toolbar {
-  justify-content: space-between;
   gap: 10px;
+  justify-content: space-between;
 }
 
 .log-search {
@@ -572,23 +684,23 @@ onMounted(() => {
 }
 
 .diagnostic-report {
-  min-height: 0;
   flex: 1 1 auto;
-  overflow: auto;
-  margin: 0;
+  min-height: 0;
   padding: 10px;
-  color: var(--panel-text);
-  background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
-  border-radius: 6px;
+  margin: 0;
+  overflow: auto;
   font-family: Consolas, 'Courier New', monospace;
   font-size: 12px;
   line-height: 1.55;
-  white-space: pre-wrap;
+  color: var(--panel-text);
   word-break: break-word;
+  white-space: pre-wrap;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
 }
 
-@media (max-width: 1100px) {
+@media (width <= 1100px) {
   .diagnostic-summary {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }

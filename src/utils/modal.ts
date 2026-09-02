@@ -1,3 +1,5 @@
+import { ElMessage, ElNotification } from 'element-plus';
+
 /**
  * 消息提示位置
  * - center: 居中显示（默认，用于重要操作反馈）
@@ -6,7 +8,12 @@
  * - bottom-right: 右下角显示
  * - bottom-left: 左下角显示
  */
-export type MessagePosition = 'center' | 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
+export type MessagePosition =
+  | 'center'
+  | 'top-right'
+  | 'top-left'
+  | 'bottom-right'
+  | 'bottom-left';
 
 /**
  * 消息提示选项
@@ -26,20 +33,20 @@ export interface MessageOptions {
 
 /**
  * 统一的消息提示工具
- * 
+ *
  * 使用规范：
  * - 重要操作反馈（保存、删除等）：使用 center 位置
  * - 后台操作通知（更新链接、同步等）：使用 top-right 位置
  * - 错误提示：使用 center 位置，type 为 error
- * 
+ *
  * @example
  * ```typescript
  * // 居中显示成功消息（默认）
  * modal.msg('保存成功');
- * 
+ *
  * // 右上角显示通知
  * modal.msg('已更新 3 个反向链接', 'success', 'top-right');
- * 
+ *
  * // 使用选项对象
  * modal.message({
  *   message: '操作成功',
@@ -86,8 +93,6 @@ const modal = {
 
     // 如果位置是 center，使用 ElMessage（居中显示）
     if (position === 'center') {
-      // 使用全局的 ElMessage（由 unplugin-auto-import 自动导入）
-      // @ts-ignore - ElMessage 由 auto-import 提供
       ElMessage({
         message,
         type,
@@ -98,7 +103,6 @@ const modal = {
       });
     } else {
       // 其他位置使用 ElNotification（角落显示）
-      // @ts-ignore - ElNotification 由 auto-import 提供
       ElNotification({
         message,
         type,
@@ -118,7 +122,11 @@ const modal = {
    * @param position 显示位置，默认 center
    * @param duration 显示时长（毫秒），默认 3000
    */
-  success(message: string, position: MessagePosition = 'center', duration?: number) {
+  success(
+    message: string,
+    position: MessagePosition = 'center',
+    duration?: number
+  ) {
     this.msg(message, 'success', position, duration);
   },
 
@@ -128,7 +136,11 @@ const modal = {
    * @param position 显示位置，默认 center
    * @param duration 显示时长（毫秒），默认 3000
    */
-  warning(message: string, position: MessagePosition = 'center', duration?: number) {
+  warning(
+    message: string,
+    position: MessagePosition = 'center',
+    duration?: number
+  ) {
     this.msg(message, 'warning', position, duration);
   },
 
@@ -138,7 +150,11 @@ const modal = {
    * @param position 显示位置，默认 center
    * @param duration 显示时长（毫秒），默认 3000
    */
-  info(message: string, position: MessagePosition = 'center', duration?: number) {
+  info(
+    message: string,
+    position: MessagePosition = 'center',
+    duration?: number
+  ) {
     this.msg(message, 'info', position, duration);
   },
 
@@ -148,7 +164,11 @@ const modal = {
    * @param position 显示位置，默认 center
    * @param duration 显示时长（毫秒），默认 3000
    */
-  error(message: string, position: MessagePosition = 'center', duration?: number) {
+  error(
+    message: string,
+    position: MessagePosition = 'center',
+    duration?: number
+  ) {
     this.msg(message, 'error', position, duration);
   }
 };

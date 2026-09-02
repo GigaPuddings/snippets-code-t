@@ -1,11 +1,15 @@
 /**
  * Wikilink 反向链接更新工具
- * 
+ *
  * 当修改片段/笔记标题时，自动更新所有引用了该标题的内部链接
  * 自动重命名功能
  */
 
-import { getFragmentList, editFragment, type EditFragmentParams } from '@/api/fragment';
+import {
+  getFragmentList,
+  editFragment,
+  type EditFragmentParams
+} from '@/api/fragment';
 import { ErrorHandler, ErrorType } from '@/utils/error-handler';
 import type { ContentType } from '@/types/models';
 
@@ -49,7 +53,10 @@ function stripAllWikilinks(content: string): string {
  *    这类行不是真正的笔记引用，而是术语解释
  * 4. 移除其余 Markdown 语法（标题标记、加粗斜体、列表符号等），得到纯文本
  */
-function markdownToSearchableText(content: string, titleToExclude?: string): string {
+function markdownToSearchableText(
+  content: string,
+  titleToExclude?: string
+): string {
   // 1. 移除围栏式代码块
   let text = content.replace(/```[\s\S]*?```/g, '');
 
@@ -75,13 +82,13 @@ function markdownToSearchableText(content: string, titleToExclude?: string): str
 
   // 6. 移除 Markdown 语法标记，只保留可读文本
   text = text
-    .replace(/^#{1,6}\s+/gm, '')          // 标题 ## 前缀
-    .replace(/\*\*([^*\n]+)\*\*/g, '$1')  // 加粗
-    .replace(/\*([^*\n]+)\*/g, '$1')      // 斜体
-    .replace(/~~([^~\n]+)~~/g, '$1')      // 删除线
-    .replace(/^[\s]*[-*+]\s+/gm, '')      // 无序列表符号
-    .replace(/^[\s]*\d+\.\s+/gm, '')      // 有序列表符号
-    .replace(/<[^>]+>/g, '');             // HTML 标签
+    .replace(/^#{1,6}\s+/gm, '') // 标题 ## 前缀
+    .replace(/\*\*([^*\n]+)\*\*/g, '$1') // 加粗
+    .replace(/\*([^*\n]+)\*/g, '$1') // 斜体
+    .replace(/~~([^~\n]+)~~/g, '$1') // 删除线
+    .replace(/^[\s]*[-*+]\s+/gm, '') // 无序列表符号
+    .replace(/^[\s]*\d+\.\s+/gm, '') // 有序列表符号
+    .replace(/<[^>]+>/g, ''); // HTML 标签
 
   return text;
 }
@@ -112,9 +119,11 @@ function removeWikilinksFor(content: string, title: string): string {
 function isCJKChar(ch: string): boolean {
   if (!ch) return false;
   const cp = ch.codePointAt(0)!;
-  return (cp >= 0x4e00 && cp <= 0x9fff)   // CJK 基本汉字
-    || (cp >= 0x3400 && cp <= 0x4dbf)      // CJK 扩展 A
-    || (cp >= 0x20000 && cp <= 0x2a6df);   // CJK 扩展 B
+  return (
+    (cp >= 0x4e00 && cp <= 0x9fff) || // CJK 基本汉字
+    (cp >= 0x3400 && cp <= 0x4dbf) || // CJK 扩展 A
+    (cp >= 0x20000 && cp <= 0x2a6df)
+  ); // CJK 扩展 B
 }
 
 /**
@@ -143,7 +152,8 @@ function containsPlainMention(content: string, title: string): boolean {
     if (idx === -1) break;
 
     const prevChar = idx > 0 ? content[idx - 1] : '';
-    const nextChar = idx + title.length < content.length ? content[idx + title.length] : '';
+    const nextChar =
+      idx + title.length < content.length ? content[idx + title.length] : '';
 
     // 前后字符均不是 CJK → 这是独立出现的标题，视为有效提及
     if (!isCJKChar(prevChar) && !isCJKChar(nextChar)) {
@@ -164,7 +174,12 @@ function containsPlainMention(content: string, title: string): boolean {
  * @param keepBrackets - 是否保留方括号（默认true）
  * @returns 替换后的文本
  */
-function replaceWikilinks(content: string, oldTitle: string, newTitle: string, keepBrackets: boolean = true): string {
+function replaceWikilinks(
+  content: string,
+  oldTitle: string,
+  newTitle: string,
+  keepBrackets: boolean = true
+): string {
   // 使用全局替换，确保替换所有出现的位置
   const regex = new RegExp(`\\[\\[${escapeRegExp(oldTitle)}\\]\\]`, 'g');
   const replacement = keepBrackets ? `[[${newTitle}]]` : newTitle;
@@ -189,13 +204,13 @@ export async function findBacklinks(title: string): Promise<ContentType[]> {
   try {
     // 获取所有片段
     const allFragments = await getFragmentList();
-    
+
     // 过滤出包含该标题的 Wikilink 的片段
-    const backlinks = allFragments.filter(fragment => {
+    const backlinks = allFragments.filter((fragment) => {
       const wikilinks = findWikilinks(fragment.content || '');
       return wikilinks.includes(title);
     });
-    
+
     return backlinks;
   } catch (error) {
     ErrorHandler.handle(error, {
@@ -228,12 +243,12 @@ export interface UpdateBacklinksResult {
  * @param newTitle - 新标题
  * @param keepBrackets - 是否保留方括号（默认true，设为false时移除链接）
  * @returns 更新结果
- * 
+ *
  * @example
  * ```typescript
  * // 重命名链接
  * const result = await updateBacklinks('旧笔记名', '新笔记名');
- * 
+ *
  * // 删除链接，保留文本
  * const result = await updateBacklinks('笔记名', '笔记名', false);
  * ```
@@ -249,21 +264,26 @@ export async function updateBacklinks(
     updatedIds: [],
     failures: []
   };
-  
+
   try {
     // 查找所有引用了旧标题的片段
     const backlinks = await findBacklinks(oldTitle);
-    
+
     if (backlinks.length === 0) {
       return result;
     }
-    
+
     // 更新每个片段
     for (const fragment of backlinks) {
       try {
         // 替换内容中的 Wikilink
-        const updatedContent = replaceWikilinks(fragment.content || '', oldTitle, newTitle, keepBrackets);
-        
+        const updatedContent = replaceWikilinks(
+          fragment.content || '',
+          oldTitle,
+          newTitle,
+          keepBrackets
+        );
+
         // 构建更新参数（保持原始 ID，不转换）
         const params: EditFragmentParams = {
           id: fragment.id, // 保持原始 ID（文件路径）
@@ -275,10 +295,10 @@ export async function updateBacklinks(
           metadata: fragment.metadata ?? null,
           tags: fragment.tags ?? null
         };
-        
+
         // 更新片段
         await editFragment(params);
-        
+
         result.successCount++;
         result.updatedIds.push(fragment.id);
       } catch (error) {
@@ -288,7 +308,7 @@ export async function updateBacklinks(
           title: fragment.title,
           error: error instanceof Error ? error.message : String(error)
         });
-        
+
         ErrorHandler.handle(error, {
           type: ErrorType.DATABASE_ERROR,
           operation: 'updateBacklinks',
@@ -297,7 +317,7 @@ export async function updateBacklinks(
         });
       }
     }
-    
+
     return result;
   } catch (error) {
     ErrorHandler.handle(error, {
@@ -346,34 +366,45 @@ export async function getBacklinkStats(
   try {
     // 获取链接引用
     const backlinks = await findBacklinks(title);
-    
+
     // 过滤并映射片段
     const fragments = backlinks
-      .filter(fragment => {
+      .filter((fragment) => {
         // 比较 ID 时，将两者都转换为字符串进行比较
-        return excludeFragmentId === undefined || String(fragment.id) !== String(excludeFragmentId);
+        return (
+          excludeFragmentId === undefined ||
+          String(fragment.id) !== String(excludeFragmentId)
+        );
       })
-      .map(fragment => {
+      .map((fragment) => {
         const wikilinks = findWikilinks(fragment.content || '');
-        const occurrences = wikilinks.filter(link => link === title).length;
-        const fragmentId = typeof fragment.id === 'string' ? parseInt(fragment.id, 10) : fragment.id;
-        
+        const occurrences = wikilinks.filter((link) => link === title).length;
+        const fragmentId =
+          typeof fragment.id === 'string'
+            ? parseInt(fragment.id, 10)
+            : fragment.id;
+
         return {
           id: fragmentId,
           title: fragment.title,
           occurrences
         };
       });
-    
+
     // 获取未链接的提及
     const mentions = await findUnlinkedMentions(title);
-    
+
     // 过滤未链接提及
-    const filteredMentions = mentions.filter(fragment => {
-      const fragmentId = typeof fragment.id === 'string' ? parseInt(fragment.id, 10) : fragment.id;
-      return excludeFragmentId === undefined || fragmentId !== excludeFragmentId;
+    const filteredMentions = mentions.filter((fragment) => {
+      const fragmentId =
+        typeof fragment.id === 'string'
+          ? parseInt(fragment.id, 10)
+          : fragment.id;
+      return (
+        excludeFragmentId === undefined || fragmentId !== excludeFragmentId
+      );
     });
-    
+
     // 返回总数：链接引用 + 未链接提及（排除当前片段后）
     return {
       count: fragments.length + filteredMentions.length,
@@ -395,28 +426,33 @@ export async function getBacklinkStats(
  * @param title - 标题
  * @returns 提及了该标题但未创建链接的片段列表
  */
-export async function findUnlinkedMentions(title: string): Promise<ContentType[]> {
+export async function findUnlinkedMentions(
+  title: string
+): Promise<ContentType[]> {
   try {
     // 获取所有片段
     const allFragments = await getFragmentList();
-    
+
     // 过滤出提及了标题但未创建 wikilink 的片段
-    const mentions = allFragments.filter(fragment => {
+    const mentions = allFragments.filter((fragment) => {
       const content = fragment.content || '';
-      
+
       // 排除当前片段自己
       if (fragment.title === title) {
         return false;
       }
-      
+
       // 如果内容中存在该标题的 wikilink（Markdown 或 HTML 格式），
       // 说明已经是"链接引用"，只在移除 wikilink 后检查是否还有独立的纯文本提及
       if (hasWikilinkFor(content, title)) {
         const contentWithoutWikilinks = removeWikilinksFor(content, title);
-        const searchText = markdownToSearchableText(contentWithoutWikilinks, title);
+        const searchText = markdownToSearchableText(
+          contentWithoutWikilinks,
+          title
+        );
         return containsPlainMention(searchText, title);
       }
-      
+
       // 没有 wikilink——转为可搜索纯文本后，检查是否有独立的纯文本提及
       // markdownToSearchableText 会：
       //   1. 去除代码块和行内代码
@@ -425,7 +461,7 @@ export async function findUnlinkedMentions(title: string): Promise<ContentType[]
       const searchText = markdownToSearchableText(content, title);
       return containsPlainMention(searchText, title);
     });
-    
+
     return mentions;
   } catch (error) {
     ErrorHandler.handle(error, {

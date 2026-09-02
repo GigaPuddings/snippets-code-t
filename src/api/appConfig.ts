@@ -71,7 +71,9 @@ export async function getQuickSearchPreviewVisible(): Promise<boolean> {
 /**
  * 更新快速搜索右侧预览面板显示状态。
  */
-export async function setQuickSearchPreviewVisible(visible: boolean): Promise<void> {
+export async function setQuickSearchPreviewVisible(
+  visible: boolean
+): Promise<void> {
   await invoke('set_quick_search_preview_visible', { visible });
 }
 
@@ -89,7 +91,9 @@ export async function getEditorSettings(): Promise<EditorSettings> {
 /**
  * 更新编辑器显示设置
  */
-export async function updateEditorSettings(settings: EditorSettings): Promise<void> {
+export async function updateEditorSettings(
+  settings: EditorSettings
+): Promise<void> {
   try {
     await invoke('update_editor_settings', { settings });
   } catch (error) {

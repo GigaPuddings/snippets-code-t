@@ -1,43 +1,49 @@
-import { createRequire } from 'module'
-import { Octokit } from '@octokit/rest'
-import fs from 'fs'
-import path from 'path'
-import { execFileSync } from 'child_process'
+import { createRequire } from 'module';
+import { Octokit } from '@octokit/rest';
+import fs from 'fs';
+import path from 'path';
+import { execFileSync } from 'child_process';
 
-const require = createRequire(import.meta.url)
-const tauriConfig = require('../src-tauri/tauri.conf.json')
+const require = createRequire(import.meta.url);
+const tauriConfig = require('../src-tauri/tauri.conf.json');
 
 // 从环境变量获取 GitHub token
-const token = process.env.GITHUB_TOKEN
-const octokit = new Octokit({ auth: token })
+const token = process.env.GITHUB_TOKEN;
+const octokit = new Octokit({ auth: token });
 
 // GitHub 仓库信息
-const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/')
-const tag = process.env.GITHUB_REF_NAME
+const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/');
+const tag = process.env.GITHUB_REF_NAME;
 
 function getReleaseNotes() {
   try {
-    const scriptPath = path.resolve('./scripts/format-release-notes.mjs')
+    const scriptPath = path.resolve('./scripts/format-release-notes.mjs');
     const output = execFileSync(process.execPath, [scriptPath, '--raw'], {
-      encoding: 'utf8',
-    })
-    const notes = output.trimEnd()
-    if (notes) return notes
+      encoding: 'utf8'
+    });
+    const notes = output.trimEnd();
+    if (notes) return notes;
   } catch (error) {
-    console.warn('⚠️  Failed to get release notes from format-release-notes.mjs:', error?.message || error)
+    console.warn(
+      '⚠️  Failed to get release notes from format-release-notes.mjs:',
+      error?.message || error
+    );
   }
 
   try {
-    const notesPath = path.resolve('./RELEASE_NOTES.md')
+    const notesPath = path.resolve('./RELEASE_NOTES.md');
     if (fs.existsSync(notesPath)) {
-      const notes = fs.readFileSync(notesPath, 'utf8').trimEnd()
-      if (notes) return notes
+      const notes = fs.readFileSync(notesPath, 'utf8').trimEnd();
+      if (notes) return notes;
     }
   } catch (error) {
-    console.warn('⚠️  Failed to read RELEASE_NOTES.md:', error?.message || error)
+    console.warn(
+      '⚠️  Failed to read RELEASE_NOTES.md:',
+      error?.message || error
+    );
   }
 
-  return `Version ${tauriConfig.version}`
+  return `Version ${tauriConfig.version}`;
 }
 
 async function main() {
@@ -46,35 +52,35 @@ async function main() {
     const { data: release } = await octokit.repos.getReleaseByTag({
       owner,
       repo,
-      tag,
-    })
+      tag
+    });
 
     // 获取完整的 release 信息
     const { data: fullRelease } = await octokit.repos.getRelease({
       owner,
       repo,
       release_id: release.id
-    })
+    });
 
     // 构建文件路径 - 本地构建的文件不带 _windows 后缀
-    const basePath = path.resolve('./src-tauri/target/release/bundle')
-    const setupFileName = `snippets-code_${tauriConfig.version}_x64-setup.exe`
-    const setupFile = path.join(basePath, 'nsis', setupFileName)
-    const sigFile = `${setupFile}.sig`
+    const basePath = path.resolve('./src-tauri/target/release/bundle');
+    const setupFileName = `snippets-code_${tauriConfig.version}_x64-setup.exe`;
+    const setupFile = path.join(basePath, 'nsis', setupFileName);
+    const sigFile = `${setupFile}.sig`;
 
     // 获取已上传的文件
-    const setupAsset = release.assets.find(asset => 
-      asset.name === setupFileName
-    )
+    const setupAsset = release.assets.find(
+      (asset) => asset.name === setupFileName
+    );
 
     if (!setupAsset) {
-      throw new Error('Setup file not found in release assets')
+      throw new Error('Setup file not found in release assets');
     }
 
     // 读取签名文件
-    const signature = fs.readFileSync(sigFile, 'utf8')
+    const signature = fs.readFileSync(sigFile, 'utf8');
 
-    const releaseNotes = getReleaseNotes()
+    const releaseNotes = getReleaseNotes();
 
     // 创建 latest.json
     const latestJson = {
@@ -87,12 +93,12 @@ async function main() {
           signature: signature.trim()
         }
       }
-    }
+    };
 
     // 检查是否已存在 latest.json
-    const existingLatestJson = release.assets.find(asset => 
-      asset.name === 'latest.json'
-    )
+    const existingLatestJson = release.assets.find(
+      (asset) => asset.name === 'latest.json'
+    );
 
     if (existingLatestJson) {
       // 如果存在，先删除
@@ -100,11 +106,11 @@ async function main() {
         owner,
         repo,
         asset_id: existingLatestJson.id
-      })
+      });
     }
 
     // 上传新的 latest.json
-    const latestJsonContent = JSON.stringify(latestJson, null, 2)
+    const latestJsonContent = JSON.stringify(latestJson, null, 2);
     await octokit.repos.uploadReleaseAsset({
       owner,
       repo,
@@ -115,7 +121,7 @@ async function main() {
         'content-type': 'application/json',
         'content-length': Buffer.byteLength(latestJsonContent)
       }
-    })
+    });
 
     // 更新发布说明
     if (!fullRelease.body) {
@@ -124,7 +130,7 @@ async function main() {
         repo,
         release_id: release.id,
         body: releaseNotes
-      })
+      });
     }
 
     // 设置为预发布
@@ -133,16 +139,17 @@ async function main() {
       repo,
       release_id: release.id,
       prerelease: true,
-      draft: true  // 设置为草稿状态，需要手动发布
-    })
+      draft: true // 设置为草稿状态，需要手动发布
+    });
 
-    console.log('✨ 成功上传 latest.json 并设置为预发布草稿状态')
-    console.log('已自动生成发布说明，请前往 GitHub Releases 页面检查并手动发布')
+    console.log('✨ 成功上传 latest.json 并设置为预发布草稿状态');
+    console.log(
+      '已自动生成发布说明，请前往 GitHub Releases 页面检查并手动发布'
+    );
   } catch (error) {
-    console.error('❌ 错误:', error)
-    process.exit(1)
+    console.error('❌ 错误:', error);
+    process.exit(1);
   }
 }
 
-main()
-
+main();

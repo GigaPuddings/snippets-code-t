@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
-import { useGitRuntimeController, type GitRuntimeControllerDeps } from './useGitRuntimeController';
+import {
+  useGitRuntimeController,
+  type GitRuntimeControllerDeps
+} from './useGitRuntimeController';
 import { useGitRuntimeState } from './useGitRuntimeState';
 
 const t = ((key: string) => key) as any;
@@ -32,7 +35,9 @@ const createRuntimeState = () => {
   return state;
 };
 
-const createDeps = (overrides: Partial<GitRuntimeControllerDeps> = {}): GitRuntimeControllerDeps => ({
+const createDeps = (
+  overrides: Partial<GitRuntimeControllerDeps> = {}
+): GitRuntimeControllerDeps => ({
   t,
   modalMsg: vi.fn(),
   routeToGitSettings: vi.fn(),
@@ -130,7 +135,10 @@ describe('useGitRuntimeController', () => {
     await nextTick();
     await controller.handleConflictResolution('force-pull');
 
-    expect(deps.logger?.error).toHaveBeenCalledWith('[GitSync] 冲突处理失败:', expect.any(Error));
+    expect(deps.logger?.error).toHaveBeenCalledWith(
+      '[GitSync] 冲突处理失败:',
+      expect.any(Error)
+    );
     expect(deps.modalMsg).toHaveBeenCalledWith(
       'settings.gitSync.conflictResolutionFailed: pull failed',
       'error',

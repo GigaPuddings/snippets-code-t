@@ -16,11 +16,17 @@ export const useLayoutStore = defineStore('layout', {
   getters: {
     /** 实际是否折叠分类面板：用户偏好 或 窗口过窄时强制折叠 */
     effectiveCategoryCollapsed(state): boolean {
-      return state.categoryPanelCollapsed || state.windowWidth < WIDTH_THRESHOLD_CATEGORY;
+      return (
+        state.categoryPanelCollapsed ||
+        state.windowWidth < WIDTH_THRESHOLD_CATEGORY
+      );
     },
     /** 实际是否折叠片段列表面板：用户偏好 或 窗口过窄时强制折叠 */
     effectiveContentListCollapsed(state): boolean {
-      return state.contentListPanelCollapsed || state.windowWidth < WIDTH_THRESHOLD_CONTENT_LIST;
+      return (
+        state.contentListPanelCollapsed ||
+        state.windowWidth < WIDTH_THRESHOLD_CONTENT_LIST
+      );
     },
     /** 窗口是否足够宽以显示分类面板折叠按钮（点击后可实际展开） */
     isWideEnoughForCategoryPanel(state): boolean {

@@ -511,6 +511,7 @@ onUnmounted(() => {
 /* 左侧：品牌 + 导航，可在小窗口内让应用名收缩 */
 .titlebar-left {
   @apply flex items-center gap-2 text-slate-800 dark:text-panel pl-1;
+
   flex: 0 1 auto;
   min-width: 0;
   text-shadow: 0 1px 1px rgb(0 0 0 / 5%);
@@ -522,6 +523,7 @@ onUnmounted(() => {
 
 .titlebar-app-name {
   @apply text-lg;
+
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -534,6 +536,7 @@ onUnmounted(() => {
 
 .titlebar-nav {
   @apply flex items-center flex-shrink-0 ml-2;
+
   cursor: default;
 }
 
@@ -554,22 +557,23 @@ onUnmounted(() => {
 
 .titlebar-quick-search {
   @apply inline-flex items-center rounded-md border bg-panel px-3;
+
   width: 100%;
+  min-width: 0;
   max-width: 360px;
   height: 30px;
-  min-width: 0;
+  color: rgba(var(--categories-text-color-rgb), 0.7);
   cursor: text;
   border-color: rgba(var(--categories-border-color-rgb), 0.72);
   box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
-  color: rgba(var(--categories-text-color-rgb), 0.7);
   transition:
     border-color 0.16s ease,
     box-shadow 0.16s ease,
     background-color 0.16s ease;
 
   &:hover {
-    border-color: var(--search-result-active-border);
     background-color: var(--search-soft-bg);
+    border-color: var(--search-result-active-border);
     box-shadow: 0 0 0 2px rgb(95 116 243 / 8%);
   }
 }
@@ -581,6 +585,7 @@ onUnmounted(() => {
 
 .quick-search-placeholder {
   @apply truncate text-left;
+
   flex: 1;
   min-width: 0;
   margin-left: 8px;
@@ -590,18 +595,20 @@ onUnmounted(() => {
 
 .quick-search-shortcut {
   @apply flex-shrink-0 rounded;
-  margin-left: 10px;
+
   padding: 1px 5px;
-  color: var(--categories-info-text-color);
+  margin-left: 10px;
   font-size: 10px;
   font-weight: 700;
   line-height: 16px;
+  color: var(--categories-info-text-color);
   background-color: rgba(var(--categories-border-color-rgb), 0.28);
 }
 
 /* 右侧：操作按钮 + 窗口控制，不收缩 */
 .titlebar-right {
   @apply flex h-full items-center;
+
   flex: 0 0 auto;
   gap: 4px;
   padding-right: 4px;
@@ -609,6 +616,7 @@ onUnmounted(() => {
 
 .titlebar-button {
   @apply leading-4 relative flex items-center justify-center rounded-md overflow-hidden;
+
   min-width: 32px;
   min-height: 32px;
   cursor: pointer;
@@ -616,26 +624,31 @@ onUnmounted(() => {
   transition: all 0.2s ease;
 
   &:hover {
-    background-color: rgba(93, 109, 253, 0.08);
+    background-color: rgb(93 109 253 / 8%);
 
     .icon {
       color: #5d6dfd;
       background-color: transparent !important;
+    }
+
+    .update-dot {
+      @apply animate-none;
     }
   }
 
   &--update {
     &:hover .icon {
       @apply animate-spin;
-      animation-duration: 1s;
+
       color: #5d6dfd;
       background-color: transparent !important;
+      animation-duration: 1s;
     }
   }
 
   &--window {
     &:hover {
-      background-color: rgba(93, 109, 253, 0.08);
+      background-color: rgb(93 109 253 / 8%);
 
       .icon {
         color: #5d6dfd;
@@ -646,7 +659,7 @@ onUnmounted(() => {
 
   &--close {
     &:hover {
-      background-color: rgba(239, 68, 68, 0.1);
+      background-color: rgb(239 68 68 / 10%);
 
       .icon {
         color: #ef4444;
@@ -654,41 +667,37 @@ onUnmounted(() => {
       }
     }
   }
-
-  &:hover {
-    .update-dot {
-      @apply animate-none;
-    }
-  }
 }
 
 .panel-toggle-group {
   @apply flex items-center;
+
   gap: 2px;
 }
 
 .titlebar-divider {
   @apply h-5 mx-1;
-  width: 1px;
-  background: rgba(0, 0, 0, 0.15);
+
   flex-shrink: 0;
-  box-shadow: 1px 0 0 rgba(255, 255, 255, 0.1);
+  width: 1px;
+  background: rgb(0 0 0 / 15%);
+  box-shadow: 1px 0 0 rgb(255 255 255 / 10%);
 
   &--thick {
     width: 1px;
-    background: rgba(0, 0, 0, 0.2);
-    box-shadow: 1px 0 0 rgba(255, 255, 255, 0.15);
+    background: rgb(0 0 0 / 20%);
+    box-shadow: 1px 0 0 rgb(255 255 255 / 15%);
   }
 }
 
 // 暗色模式下的分隔线
 .dark .titlebar-divider {
-  background: rgba(255, 255, 255, 0.1);
-  box-shadow: 1px 0 0 rgba(255, 255, 255, 0.05);
+  background: rgb(255 255 255 / 10%);
+  box-shadow: 1px 0 0 rgb(255 255 255 / 5%);
 
   &--thick {
-    background: rgba(255, 255, 255, 0.15);
-    box-shadow: 1px 0 0 rgba(255, 255, 255, 0.08);
+    background: rgb(255 255 255 / 15%);
+    box-shadow: 1px 0 0 rgb(255 255 255 / 8%);
   }
 }
 
@@ -696,33 +705,34 @@ onUnmounted(() => {
   @include commonIcon;
 
   @apply p-1.5;
-  font-size: 18px;
-  min-width: 32px;
-  min-height: 32px;
+
   display: flex;
   align-items: center;
   justify-content: center;
-
+  min-width: 32px;
+  min-height: 32px;
+  font-size: 18px;
   color: rgba(var(--categories-text-color-rgb), 0.85);
   transition: all 0.2s ease;
 
   &:hover {
     color: #5d6dfd;
-    background-color: rgba(93, 109, 253, 0.08);
+    background-color: rgb(93 109 253 / 8%);
   }
 
   &.icon-active {
     color: #5d6dfd;
-    background-color: rgba(93, 109, 253, 0.1);
+    background-color: rgb(93 109 253 / 10%);
 
     &:hover {
-      background-color: rgba(93, 109, 253, 0.15);
+      background-color: rgb(93 109 253 / 15%);
     }
   }
 }
 
 .update-dot {
   @apply absolute top-0.5 right-0.5 w-[6px] h-[6px] rounded-full;
+
   background-color: #5d6dfd;
   animation: pulse-dot 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
@@ -733,6 +743,7 @@ onUnmounted(() => {
     opacity: 1;
     transform: scale(1);
   }
+
   50% {
     opacity: 0.5;
     transform: scale(1.2);
@@ -740,7 +751,7 @@ onUnmounted(() => {
 }
 
 /* 窄屏（≤880px）：缩小间距 */
-@media (max-width: 880px) {
+@media (width <= 880px) {
   .titlebar {
     gap: 2px;
   }
@@ -768,7 +779,7 @@ onUnmounted(() => {
 }
 
 /* 极窄屏（≤640px）：应用名可截断；窄屏布局由 isNarrow 控制，此处仅保留版本号 */
-@media (max-width: 640px) {
+@media (width <= 640px) {
   .titlebar-app-name {
     max-width: 7em;
     overflow: hidden;
@@ -783,24 +794,24 @@ onUnmounted(() => {
   width: 6px;
   height: 6px;
   margin-left: 4px;
-  border-radius: 50%;
-  background-color: #5d6dfd;
   vertical-align: middle;
+  background-color: #5d6dfd;
+  border-radius: 50%;
 }
 
 @keyframes pulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(93, 109, 253, 0.7);
+    box-shadow: 0 0 0 0 rgb(93 109 253 / 70%);
     transform: scale(0.95);
   }
 
   70% {
-    box-shadow: 0 0 0 6px rgba(93, 109, 253, 0);
+    box-shadow: 0 0 0 6px rgb(93 109 253 / 0%);
     transform: scale(1);
   }
 
   100% {
-    box-shadow: 0 0 0 0 rgba(93, 109, 253, 0);
+    box-shadow: 0 0 0 0 rgb(93 109 253 / 0%);
     transform: scale(0.95);
   }
 }

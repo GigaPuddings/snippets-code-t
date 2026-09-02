@@ -34,7 +34,7 @@ function normalizeEditorEmptyParagraphHtml(html: string): string {
 function expandSourceEmptyParagraphs(markdown: string): string {
   const normalized = markdown.replace(/\r\n?/g, '\n');
   const lines = normalized.split('\n');
-  if (!lines.some(line => line.trim().length > 0)) return normalized;
+  if (!lines.some((line) => line.trim().length > 0)) return normalized;
 
   const expanded: string[] = [];
   let pendingBlankLines = 0;
@@ -122,7 +122,10 @@ function isLocalPathLink(url: string): boolean {
 }
 
 function getCodeFence(code: string): string {
-  const longestFence = Math.max(2, ...Array.from(code.matchAll(/`{3,}/g), match => match[0].length));
+  const longestFence = Math.max(
+    2,
+    ...Array.from(code.matchAll(/`{3,}/g), (match) => match[0].length)
+  );
   return '`'.repeat(longestFence + 1);
 }
 
@@ -170,7 +173,9 @@ function getCodeBlockLanguage(pre: Element, code: Element): string {
       return attributeLanguage.trim().match(/[A-Za-z0-9_+#.-]+/)?.[0] || '';
     }
 
-    const classLanguage = element.className.match(/(?:^|\s)(?:language-|lang-)([^\s]+)/i)?.[1];
+    const classLanguage = element.className.match(
+      /(?:^|\s)(?:language-|lang-)([^\s]+)/i
+    )?.[1];
     if (classLanguage) {
       return classLanguage;
     }
@@ -227,7 +232,8 @@ function normalizeMarkdownBeforeParse(markdown: string): string {
 }
 
 const ESCAPED_HTML_TAG_RE = /\\<\/?[A-Za-z][A-Za-z0-9-]*(?:\s[^<>\n]*)?\/?>/;
-const UNSUPPORTED_EDITOR_HTML_TAG_RE = /<\/?(?:input|select|option|textarea)\b/i;
+const UNSUPPORTED_EDITOR_HTML_TAG_RE =
+  /<\/?(?:input|select|option|textarea)\b/i;
 
 /**
  * 当剪贴板纯文本明确使用 Markdown 反斜杠保留 HTML 标签示例时，富 HTML
@@ -239,8 +245,9 @@ export function shouldPreferMarkdownClipboardText(
 ): boolean {
   return Boolean(
     text.trim() &&
-    html.trim() &&
-    (ESCAPED_HTML_TAG_RE.test(text) || UNSUPPORTED_EDITOR_HTML_TAG_RE.test(text))
+      html.trim() &&
+      (ESCAPED_HTML_TAG_RE.test(text) ||
+        UNSUPPORTED_EDITOR_HTML_TAG_RE.test(text))
   );
 }
 
@@ -250,13 +257,15 @@ export function shouldPreferMarkdownClipboardText(
  */
 export function normalizeAiMarkdown(markdown: string): string {
   const label = '\\*\\*[^*\\r\\n]*?[：:]\\s*\\*\\*';
-  return markdown
-    .replace(/\r\n/g, '\n')
-    // “**描述:**正文” → 标签与正文分行。
-    .replace(new RegExp(`(${label})(?=[^\\n])`, 'g'), '$1\n')
-    // “……。（技术栈） **关键技术:**” → 下一个结构化标签另起段。
-    .replace(new RegExp(`([。！？；;）)])\\s*(${label})`, 'g'), '$1\n\n$2')
-    .trimEnd();
+  return (
+    markdown
+      .replace(/\r\n/g, '\n')
+      // “**描述:**正文” → 标签与正文分行。
+      .replace(new RegExp(`(${label})(?=[^\\n])`, 'g'), '$1\n')
+      // “……。（技术栈） **关键技术:**” → 下一个结构化标签另起段。
+      .replace(new RegExp(`([。！？；;）)])\\s*(${label})`, 'g'), '$1\n\n$2')
+      .trimEnd()
+  );
 }
 
 /**
@@ -271,7 +280,7 @@ function textToAnchorId(text: string): string {
   return text
     .toLowerCase()
     .trim()
-    .replace(/\s+/g, '-')           // 空格转连字符
+    .replace(/\s+/g, '-') // 空格转连字符
     .replace(/[^\w\u4e00-\u9fa5-]/g, ''); // 移除特殊字符，保留字母、数字、中文、连字符
 }
 
@@ -293,7 +302,7 @@ const taskListExtension = {
     // 匹配连续的 GFM 任务列表项：- [ ]、* [x]、+ [X]
     const rule = /^((?: {0,3}[-*+]\s+\[[ xX]\]\s+[^\n]*(?:\n|$))+)/;
     const match = rule.exec(src);
-    
+
     if (match) {
       const items: Array<{ checked: boolean; text: string }> = [];
       const raw = match[0];
@@ -308,7 +317,7 @@ const taskListExtension = {
           });
         }
       }
-      
+
       if (items.length > 0) {
         return {
           type: 'taskList',
@@ -317,19 +326,21 @@ const taskListExtension = {
         };
       }
     }
-    
+
     return undefined;
   },
   renderer(token: any) {
     // 生成 TipTap 兼容的 HTML 结构
     let html = '<ul data-type="taskList">\n';
     token.items.forEach((item: { checked: boolean; text: string }) => {
-      const checked = item.checked ? ' data-checked="true"' : ' data-checked="false"';
+      const checked = item.checked
+        ? ' data-checked="true"'
+        : ' data-checked="false"';
       const checkedAttr = item.checked ? ' checked' : '';
-      
+
       // 将文本解析为 HTML（处理行内代码、加粗等）
       const parsedParagraph = marked.parse(item.text) as string;
-      
+
       // 提取 <p> 标签内的内容
       let innerContent = parsedParagraph;
       const pMatch = parsedParagraph.match(/<p>(.*?)<\/p>/s);
@@ -338,13 +349,13 @@ const taskListExtension = {
       } else {
         innerContent = parsedParagraph.replace(/\n/g, '').trim();
       }
-      
+
       // 使用 TipTap TaskItem 期望的结构：
       // <li><label><input></label><div><p>内容</p></div></li>
       html += `<li data-type="taskItem"${checked}><label><input type="checkbox"${checkedAttr}></label><div><p>${innerContent}</p></div></li>\n`;
     });
     html += '</ul>\n';
-    
+
     return html;
   }
 };
@@ -392,7 +403,7 @@ const markdownLinkExtension = {
     if (match && !src.startsWith('[[')) {
       const text = match[1];
       const url = match[2].trim();
-      
+
       // 拦截所有链接，在 renderer 中决定如何处理
       return {
         type: 'markdownLink',
@@ -406,19 +417,19 @@ const markdownLinkExtension = {
   renderer(token: any) {
     const url = token.url;
     const text = token.text;
-    
+
     // 判断是否是有效的外部链接
-    const isValidExternalLink = url && (
-      url.startsWith('http://') || 
-      url.startsWith('https://') || 
-      url.startsWith('www.') ||
-      /^[a-zA-Z0-9-]+\.[a-zA-Z]{2,}/.test(url)
-    );
-    
+    const isValidExternalLink =
+      url &&
+      (url.startsWith('http://') ||
+        url.startsWith('https://') ||
+        url.startsWith('www.') ||
+        /^[a-zA-Z0-9-]+\.[a-zA-Z]{2,}/.test(url));
+
     // 判断是否是锚点链接
     const isAnchorLink = url && url.startsWith('#');
     const isLocalLink = url && isLocalPathLink(url);
-    
+
     if (isAnchorLink) {
       // 锚点链接：转换为 <a> 标签，支持文档内跳转
       return `<a href="${escapeAttribute(url)}">${escapeHtml(text)}</a>`;
@@ -442,7 +453,7 @@ const markdownLinkExtension = {
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
-      
+
       return `<span class="invalid-link-text">&#91;${escapedText}&#93;&#40;${escapedUrl}&#41;</span>`;
     }
   }
@@ -471,7 +482,10 @@ function renderUnparsedLabelStrong(html: string): string {
       // 避免在列表项、标题等元素中产生意外的标签拆分。
       if (tag === 'p') {
         const structuredContent = fixedContent
-          .replace(/([。！？；;）)])(<strong>[^<]*?[：:]<\/strong>)/g, '$1</p><p>$2')
+          .replace(
+            /([。！？；;）)])(<strong>[^<]*?[：:]<\/strong>)/g,
+            '$1</p><p>$2'
+          )
           .replace(/(<strong>[^<]*?[：:]<\/strong>)(?=[^<\r\n])/g, '$1<br>');
         return `<p>${structuredContent}</p>`;
       }
@@ -507,12 +521,12 @@ const imageWithAttributesExtension = {
     const alt = token.alt || '';
     const url = token.url || '';
     const width = token.width;
-    
+
     let attrString = '';
     if (width) {
       attrString = ` width="${width}"`;
     }
-    
+
     return `<img src="${escapeAttribute(url)}" alt="${escapeAttribute(alt)}"${attrString}>`;
   }
 };
@@ -521,7 +535,12 @@ const imageWithAttributesExtension = {
 // 输出成可见文本，避免 textarea 等元素破坏随后生成的文档结构。任务列表的
 // checkbox 由 taskListExtension 直接生成，不会经过此 renderer。
 marked.use({
-  extensions: [taskListExtension, wikilinkExtension, markdownLinkExtension, imageWithAttributesExtension],
+  extensions: [
+    taskListExtension,
+    wikilinkExtension,
+    markdownLinkExtension,
+    imageWithAttributesExtension
+  ],
   renderer: {
     html(token) {
       return UNSUPPORTED_EDITOR_HTML_TAG_RE.test(token.text)
@@ -599,10 +618,13 @@ export function createTurndownService(): TurndownService {
       // 检查是否是包含 checkbox 的列表项
       if (node.nodeName === 'LI') {
         const hasCheckbox = node.querySelector('input[type="checkbox"]');
-        const hasTaskListClass = node.parentNode?.nodeName === 'UL' &&
-                                 (node.parentNode as Element).classList.contains('task-list');
-        const hasTaskItemClass = (node as Element).classList.contains('task-item');
-        
+        const hasTaskListClass =
+          node.parentNode?.nodeName === 'UL' &&
+          (node.parentNode as Element).classList.contains('task-list');
+        const hasTaskItemClass = (node as Element).classList.contains(
+          'task-item'
+        );
+
         // 如果有 checkbox 或者有任务列表相关的类，就认为是任务列表项
         return !!(hasCheckbox || hasTaskListClass || hasTaskItemClass);
       }
@@ -611,11 +633,11 @@ export function createTurndownService(): TurndownService {
     replacement: (content, node) => {
       const element = node as HTMLElement;
       const checkbox = element.querySelector('input[type="checkbox"]');
-      
+
       if (checkbox) {
         const isChecked = (checkbox as HTMLInputElement).checked;
         const prefix = isChecked ? '- [x] ' : '- [ ] ';
-        
+
         // 提取 div 中的文本内容（跳过 label 和 input）
         const div = element.querySelector('div');
         let textContent = '';
@@ -634,10 +656,10 @@ export function createTurndownService(): TurndownService {
             textContent = content.trim();
           }
         }
-        
+
         return prefix + textContent + '\n';
       }
-      
+
       // 如果没有 checkbox，使用默认处理
       return '- ' + content + '\n';
     }
@@ -646,7 +668,10 @@ export function createTurndownService(): TurndownService {
   // 添加任务列表容器规则
   turndownService.addRule('taskList', {
     filter: (node) => {
-      return node.nodeName === 'UL' && (node as Element).classList.contains('task-list');
+      return (
+        node.nodeName === 'UL' &&
+        (node as Element).classList.contains('task-list')
+      );
     },
     replacement: (content) => {
       return '\n' + content + '\n';
@@ -662,12 +687,15 @@ export function createTurndownService(): TurndownService {
     replacement: (_content, node) => {
       const preElement = node as Element;
       const codeElements = preElement.querySelectorAll('code');
-      const sourceElement = codeElements.length === 1 ? codeElements[0] : preElement;
+      const sourceElement =
+        codeElements.length === 1 ? codeElements[0] : preElement;
       const clonedCode = sourceElement.cloneNode(true) as Element;
 
       clonedCode
-        .querySelectorAll('.ProseMirror-trailingBreak, button, [aria-hidden="true"], [hidden]')
-        .forEach(element => element.remove());
+        .querySelectorAll(
+          '.ProseMirror-trailingBreak, button, [aria-hidden="true"], [hidden]'
+        )
+        .forEach((element) => element.remove());
 
       const code = getCodeTextContent(clonedCode)
         .replace(/\r\n?/g, '\n')
@@ -688,7 +716,7 @@ export function createTurndownService(): TurndownService {
     replacement: (_content, node) => {
       const table = node as HTMLTableElement;
       const rows: string[] = [];
-      
+
       // 处理表头
       const thead = table.querySelector('thead');
       if (thead) {
@@ -696,43 +724,51 @@ export function createTurndownService(): TurndownService {
         if (headerRow) {
           const headers: string[] = [];
           const separators: string[] = [];
-          
+
           Array.from(headerRow.querySelectorAll('th, td')).forEach((cell) => {
-            const cellContent = turndownService.turndown((cell as HTMLElement).innerHTML).trim();
+            const cellContent = turndownService
+              .turndown((cell as HTMLElement).innerHTML)
+              .trim();
             headers.push(escapeMarkdownTableCell(cellContent));
-            separators.push(tableAlignmentSeparator((cell as HTMLElement).getAttribute('align')));
+            separators.push(
+              tableAlignmentSeparator(
+                (cell as HTMLElement).getAttribute('align')
+              )
+            );
           });
-          
+
           if (headers.length > 0) {
             rows.push('| ' + headers.join(' | ') + ' |');
             rows.push('| ' + separators.join(' | ') + ' |');
           }
         }
       }
-      
+
       // 处理表体
       const tbody = table.querySelector('tbody') || table;
       const bodyRows = tbody.querySelectorAll('tr');
-      
+
       Array.from(bodyRows).forEach((row) => {
         // 跳过已经在 thead 中处理的行
         if (thead && thead.contains(row)) return;
-        
+
         const cells: string[] = [];
         Array.from(row.querySelectorAll('th, td')).forEach((cell) => {
-          const cellContent = turndownService.turndown((cell as HTMLElement).innerHTML).trim();
+          const cellContent = turndownService
+            .turndown((cell as HTMLElement).innerHTML)
+            .trim();
           cells.push(escapeMarkdownTableCell(cellContent));
         });
-        
+
         if (cells.length > 0) {
           rows.push('| ' + cells.join(' | ') + ' |');
         }
       });
-      
+
       return '\n' + rows.join('\n') + '\n\n';
     }
   });
-  
+
   // 添加图片规则 - 保留原始相对路径
   turndownService.addRule('image', {
     filter: 'img',
@@ -754,18 +790,18 @@ export function createTurndownService(): TurndownService {
       if (width) {
         return `<img src="${escapeAttribute(source)}" alt="${escapeAttribute(alt)}" width="${escapeAttribute(width)}">`;
       }
-      
+
       // 如果有原始路径，使用原始路径
       if (originalPath) {
         return `![${alt}](${originalPath})`;
       }
-      
+
       // 否则使用 src（可能是 Tauri URL，需要转换回相对路径）
       const src = element.getAttribute('src') || '';
       return `![${alt}](${src})`;
     }
   });
-  
+
   return turndownService;
 }
 
@@ -777,11 +813,17 @@ export function createTurndownService(): TurndownService {
  * @example
  * markdownToHtml('# 标题\n内容') // '<h1 id="标题">标题</h1>\n<p>内容</p>'
  */
-export function markdownToHtml(markdown: string, workspaceRoot?: string): string {
+export function markdownToHtml(
+  markdown: string,
+  workspaceRoot?: string
+): string {
   const normalizedMarkdown = normalizeMarkdownBeforeParse(markdown);
   // 先用 marked 解析 Markdown。breaks 必须在每次调用中明确指定：
   // marked 的全局配置可能被其他扩展覆盖，导致 AI 输出的单换行被折叠。
-  const parsedHtml = marked.parse(normalizedMarkdown, { breaks: true, gfm: true }) as string;
+  const parsedHtml = marked.parse(normalizedMarkdown, {
+    breaks: true,
+    gfm: true
+  }) as string;
   // 移除预处理阶段插入的零宽空格（marked 解析完成后不再需要），
   // 否则会干扰 renderUnparsedLabelStrong 中的正则匹配。随后将持久化用的
   // 空段落标记规范化为 TipTap 需要的唯一空段落节点。
@@ -789,9 +831,9 @@ export function markdownToHtml(markdown: string, workspaceRoot?: string): string
     parsedHtml.replace(/\u200B/g, '')
   );
   const html = sanitizeHtml(renderUnparsedLabelStrong(cleanedHtml));
-  
+
   let processedHtml = html;
-  
+
   // 如果提供了工作区根目录，处理图片路径
   if (workspaceRoot) {
     // 在 HTML 中查找图片标签，转换相对路径（包括 Markdown 和 HTML 格式的图片）
@@ -808,12 +850,14 @@ export function markdownToHtml(markdown: string, workspaceRoot?: string): string
         const tauriUrl = convertFileSrc(absolutePath);
         // 保存原始相对路径到 data 属性（如果还没有）
         const hasOriginalPath = (before + after).includes('data-original-path');
-        const originalPathAttr = hasOriginalPath ? '' : ` data-original-path="${escapeAttribute(decodedSrc)}"`;
+        const originalPathAttr = hasOriginalPath
+          ? ''
+          : ` data-original-path="${escapeAttribute(decodedSrc)}"`;
         return `<img${before}src="${escapeAttribute(tauriUrl)}"${originalPathAttr}${after}>`;
       }
     );
   }
-  
+
   // 为标题添加 ID 属性，以支持锚点链接跳转
   processedHtml = processedHtml.replace(
     /<h([1-6])>(.+?)<\/h\1>/g,
@@ -824,7 +868,7 @@ export function markdownToHtml(markdown: string, workspaceRoot?: string): string
       return `<h${level} id="${id}">${text}</h${level}>`;
     }
   );
-  
+
   return sanitizeHtml(processedHtml);
 }
 
@@ -857,9 +901,15 @@ export function resolvePreviewImageUrls(
     );
   };
 
-  const resolveRelativePath = (baseDir: string, relativePath: string): string => {
+  const resolveRelativePath = (
+    baseDir: string,
+    relativePath: string
+  ): string => {
     const base = baseDir.split('/').filter(Boolean);
-    const rel = relativePath.replace(/\\/g, '/').split('/').filter((x) => x && x !== '.');
+    const rel = relativePath
+      .replace(/\\/g, '/')
+      .split('/')
+      .filter((x) => x && x !== '.');
     for (const p of rel) {
       if (p === '..') base.pop();
       else base.push(p);
@@ -880,60 +930,65 @@ export function resolvePreviewImageUrls(
       const absolutePath = resolveRelativePath(noteDir, relativePath);
       const tauriUrl = convertFileSrc(absolutePath);
       const hasOriginal = (before + after).includes('data-original-path');
-      const originalAttr = hasOriginal ? '' : ` data-original-path="${decodedSrc}"`;
+      const originalAttr = hasOriginal
+        ? ''
+        : ` data-original-path="${decodedSrc}"`;
       return `<img${before}src="${tauriUrl}"${originalAttr}${after}>`;
     }
   );
 }
 
 // HTML 转 Markdown
-export function htmlToMarkdown(html: string, turndownService: TurndownService): string {
+export function htmlToMarkdown(
+  html: string,
+  turndownService: TurndownService
+): string {
   let markdown = turndownService.turndown(html);
-  
+
   // 后处理：修复过度转义的 Markdown 语法字符
   // 注意：必须按照特定顺序处理，避免相互干扰
-  
+
   // 1. 修复标题中的转义数字：### 1\. → ### 1.
   // 只处理标题中的情况，不影响列表
   markdown = markdown.replace(/^(#{1,6}\s+.*?)(\d+)\\\./gm, '$1$2.');
-  
+
   // 2. 修复有序列表开头的转义：1\. → 1. (只在行首)
   markdown = markdown.replace(/^(\d+)\\\.\s/gm, '$1. ');
-  
-  // 3. 修复无序列表的多余空格：-   → - 
+
+  // 3. 修复无序列表的多余空格：-   → -
   markdown = markdown.replace(/^-\s{3,}/gm, '- ');
-  
+
   // 4. 修复加粗：\*\* → ** (必须在斜体之前处理)
   markdown = markdown.replace(/\\\*\\\*/g, '**');
-  
+
   // 5. 修复斜体：\* → * (在加粗处理后，单独的 \* 才是斜体)
   markdown = markdown.replace(/\\\*/g, '*');
-  
+
   // 6. 修复行内代码：\` → `
   markdown = markdown.replace(/\\`/g, '`');
-  
+
   // 7. 修复标题：\# → #
   markdown = markdown.replace(/\\#/g, '#');
-  
+
   // 8. 修复下划线：\_ → _
   markdown = markdown.replace(/\\_/g, '_');
-  
+
   // 9. 修复方括号：\[ 和 \] → [ 和 ]
   // 但要保留任务列表中的方括号
   markdown = markdown.replace(/\\\[(?![x ]?\\\])/g, '[');
   markdown = markdown.replace(/(?<!\\)\\\]/g, ']');
-  
+
   // 10. 修复圆括号：\( 和 \) → ( 和 )
   markdown = markdown.replace(/\\\(/g, '(');
   markdown = markdown.replace(/\\\)/g, ')');
-  
+
   // 11. 清理网页富文本列表缩进产生的“仅含空白字符”的空行。
   // 这类行不会被后面的连续换行规则识别，会在列表项内变成空段落。
   markdown = markdown.replace(/^[\t ]+$/gm, '');
 
   // 12. 格式化：确保标题后有空行
   markdown = markdown.replace(/(^#{1,6}\s+.+)(\n)(?![\n#])/gm, '$1\n\n');
-  
+
   // 13. 移除多余的空行（超过2个连续换行）
   markdown = markdown.replace(/\n{3,}/g, '\n\n');
 
@@ -945,13 +1000,13 @@ export function htmlToMarkdown(html: string, turndownService: TurndownService): 
   // Turndown 内部使用兼容标记保护顶层空段落；写入源码前恢复为连续纯空行，
   // 避免在源码模式中暴露 <p></p>。
   markdown = emptyParagraphMarkersToSourceWhitespace(markdown);
-  
+
   // 14. 确保文档开头没有多余空行
   markdown = markdown.replace(/^\n+/, '');
-  
+
   // 15. 确保文档末尾只有一个换行
   markdown = markdown.replace(/\n+$/, '\n');
-  
+
   return markdown;
 }
 
@@ -960,7 +1015,10 @@ export function htmlToMarkdown(html: string, turndownService: TurndownService): 
  * HTML -> Markdown -> HTML 的往返会去掉展示层包装节点，避免隐藏代码层、
  * 松散列表段落和复制按钮被 TipTap 当成正文节点。
  */
-export function richHtmlToEditorHtml(html: string, workspaceRoot?: string): string {
+export function richHtmlToEditorHtml(
+  html: string,
+  workspaceRoot?: string
+): string {
   const markdown = htmlToMarkdown(html, createTurndownService());
   return markdown.trim() ? markdownToHtml(markdown, workspaceRoot) : '';
 }
@@ -982,10 +1040,10 @@ export function jsonToMarkdown(json: any): string {
     if (node.type === 'text') return node.text || '';
     return node.content ? node.content.map(getPlainTextContent).join('') : '';
   };
-  
+
   const processNode = (node: any): string => {
     const type = node.type;
-    
+
     // 处理文本节点
     if (type === 'text') {
       const marks = Array.isArray(node.marks) ? node.marks : [];
@@ -996,7 +1054,7 @@ export function jsonToMarkdown(json: any): string {
         // 保存为 Markdown 时必须恢复反斜杠，否则重新打开会被当成 DOM 标签。
         text = escapeHtmlLikeMarkdownText(text);
       }
-      
+
       // 处理文本标记（加粗、斜体、代码、删除线、超链接等）
       if (marks.length > 0) {
         let linkHref: string | null = null;
@@ -1012,7 +1070,9 @@ export function jsonToMarkdown(json: any): string {
         });
 
         const hasBold = otherMarks.some((mark: any) => mark.type === 'bold');
-        const hasItalic = otherMarks.some((mark: any) => mark.type === 'italic');
+        const hasItalic = otherMarks.some(
+          (mark: any) => mark.type === 'italic'
+        );
 
         // 稳定组合加粗和斜体，避免 mark 数组顺序变化后生成相互交错的分隔符。
         if (hasBold && hasItalic) {
@@ -1040,64 +1100,83 @@ export function jsonToMarkdown(json: any): string {
           }
         }
       }
-      
+
       return text;
     }
-    
+
     // 处理段落
     if (type === 'paragraph') {
-      const content = node.content ? node.content.map(processNode).join('') : '';
+      const content = node.content
+        ? node.content.map(processNode).join('')
+        : '';
       return content + '\n\n';
     }
-    
+
     // 处理标题
     if (type === 'heading') {
       const level = node.attrs?.level || 1;
-      const content = node.content ? node.content.map(processNode).join('') : '';
+      const content = node.content
+        ? node.content.map(processNode).join('')
+        : '';
       return '#'.repeat(level) + ' ' + content + '\n\n';
     }
-    
+
     // 处理任务列表
     if (type === 'taskList') {
       const items = node.content ? node.content.map(processNode).join('') : '';
       return items;
     }
-    
+
     // 处理任务列表项
     if (type === 'taskItem') {
       const checked = node.attrs?.checked || false;
       const prefix = checked ? '- [x] ' : '- [ ] ';
-      const content = node.content ? node.content.map(processNode).join('').trim() : '';
+      const content = node.content
+        ? node.content.map(processNode).join('').trim()
+        : '';
       return prefix + content + '\n';
     }
-    
+
     // 处理无序列表
     if (type === 'bulletList') {
       const items = node.content ? node.content.map(processNode).join('') : '';
       return items + '\n';
     }
-    
+
     // 处理有序列表
     if (type === 'orderedList') {
       let index = node.attrs?.start || 1;
-      const items = node.content ? node.content.map((item: any) => {
-        const prefix = `${index++}. `;
-        const indentation = ' '.repeat(prefix.length);
-        const content = item.content
-          ? item.content.map(processNode).join('').trim().replace(/\n{3,}/g, '\n\n')
-          : '';
-        const indentedContent = content.replace(/\n/g, `\n${indentation}`);
-        return `${prefix}${indentedContent}\n`;
-      }).join('') : '';
+      const items = node.content
+        ? node.content
+            .map((item: any) => {
+              const prefix = `${index++}. `;
+              const indentation = ' '.repeat(prefix.length);
+              const content = item.content
+                ? item.content
+                    .map(processNode)
+                    .join('')
+                    .trim()
+                    .replace(/\n{3,}/g, '\n\n')
+                : '';
+              const indentedContent = content.replace(
+                /\n/g,
+                `\n${indentation}`
+              );
+              return `${prefix}${indentedContent}\n`;
+            })
+            .join('')
+        : '';
       return items + '\n';
     }
-    
+
     // 处理列表项
     if (type === 'listItem') {
-      const content = node.content ? node.content.map(processNode).join('').trim() : '';
+      const content = node.content
+        ? node.content.map(processNode).join('').trim()
+        : '';
       return '- ' + content + '\n';
     }
-    
+
     // 处理代码块
     if (type === 'codeBlock') {
       const language = node.attrs?.language || '';
@@ -1107,66 +1186,85 @@ export function jsonToMarkdown(json: any): string {
       const fence = getCodeFence(trimmedContent);
       return fence + language + '\n' + trimmedContent + '\n' + fence + '\n\n';
     }
-    
+
     // 处理引用
     if (type === 'blockquote') {
-      const content = node.content ? node.content.map(processNode).join('') : '';
-      return content.split('\n').filter((line: string) => line.trim()).map((line: string) => '> ' + line).join('\n') + '\n\n';
+      const content = node.content
+        ? node.content.map(processNode).join('')
+        : '';
+      return (
+        content
+          .split('\n')
+          .filter((line: string) => line.trim())
+          .map((line: string) => '> ' + line)
+          .join('\n') + '\n\n'
+      );
     }
-    
+
     // 处理水平线
     if (type === 'horizontalRule') {
       return '---\n\n';
     }
-    
+
     // 处理硬换行
     if (type === 'hardBreak') {
       return '\n';
     }
-    
+
     // 处理表格
     if (type === 'table') {
       const rows = node.content ? node.content.map(processNode).join('') : '';
       return '\n' + rows + '\n';
     }
-    
+
     // 处理表格行
     if (type === 'tableRow') {
       const cells = node.content || [];
-      const isHeaderRow = cells.some((cell: any) => cell.type === 'tableHeader');
-      
+      const isHeaderRow = cells.some(
+        (cell: any) => cell.type === 'tableHeader'
+      );
+
       // 处理单元格内容
       const cellContents = cells.map((cell: any) => {
-        const content = cell.content ? cell.content.map(processNode).join('').trim() : '';
+        const content = cell.content
+          ? cell.content.map(processNode).join('').trim()
+          : '';
         return escapeMarkdownTableCell(content);
       });
-      
+
       // 生成表格行
       let row = '| ' + cellContents.join(' | ') + ' |\n';
-      
+
       // 如果是表头行，添加分隔线
       if (isHeaderRow) {
-        const separator = '| ' + cells
-          .map((cell: any) => tableAlignmentSeparator(cell.attrs?.textAlign))
-          .join(' | ') + ' |\n';
+        const separator =
+          '| ' +
+          cells
+            .map((cell: any) => tableAlignmentSeparator(cell.attrs?.textAlign))
+            .join(' | ') +
+          ' |\n';
         row += separator;
       }
-      
+
       return row;
     }
-    
+
     // 处理表格单元格（普通单元格）
     if (type === 'tableCell') {
-      const content = node.content ? node.content.map(processNode).join('').trim() : '';
+      const content = node.content
+        ? node.content.map(processNode).join('').trim()
+        : '';
       return content;
     }
-    
+
     // 处理表格表头单元格
     if (type === 'tableHeader') {
-      const content = node.content ? node.content.map(processNode).join('').trim() : '';
+      const content = node.content
+        ? node.content.map(processNode).join('').trim()
+        : '';
       return content;
     }
-    
+
     // 处理图片（包括 image 和 localImage）
     if (type === 'image' || type === 'localImage') {
       const src = node.attrs?.src || '';
@@ -1179,7 +1277,7 @@ export function jsonToMarkdown(json: any): string {
       if (imageScale) {
         return `<img src="${escapeAttribute(source)}" alt="${escapeAttribute(alt)}" data-image-scale="${Math.round(Number(imageScale))}">`;
       }
-      
+
       // 优先使用原始相对路径
       if (originalPath) {
         // 如果有宽度属性，使用 HTML 格式（兼容所有编辑器）
@@ -1188,10 +1286,14 @@ export function jsonToMarkdown(json: any): string {
         }
         return `![${alt}](${originalPath})`;
       }
-      
+
       // 如果没有原始路径，尝试从 src 中提取
       // 如果 src 是 Tauri URL，需要转换回相对路径
-      if (src.startsWith('https://asset.localhost/') || src.startsWith('asset://') || src.startsWith('http://asset.localhost/')) {
+      if (
+        src.startsWith('https://asset.localhost/') ||
+        src.startsWith('asset://') ||
+        src.startsWith('http://asset.localhost/')
+      ) {
         // 这种情况下，图片可能是新上传的，应该已经有 originalPath
         // 如果没有，就使用 src（虽然不理想）
         if (width) {
@@ -1199,23 +1301,26 @@ export function jsonToMarkdown(json: any): string {
         }
         return `![${alt}](${src})`;
       }
-      
+
       if (width) {
         return `![${alt}](${src}|${width})`;
       }
       return `![${alt}](${src})`;
     }
-    
+
     // 默认处理：递归处理子节点
     if (node.content) {
       return node.content.map(processNode).join('');
     }
-    
+
     return '';
   };
-  
+
   const processTopLevelNode = (node: any): string => {
-    if (node.type === 'paragraph' && (!node.content || node.content.length === 0)) {
+    if (
+      node.type === 'paragraph' &&
+      (!node.content || node.content.length === 0)
+    ) {
       return EMPTY_PARAGRAPH_MARKDOWN + '\n\n';
     }
 
@@ -1223,12 +1328,12 @@ export function jsonToMarkdown(json: any): string {
   };
 
   let markdown = json.content.map(processTopLevelNode).join('');
-  
+
   // 清理多余的空行
   markdown = markdown.replace(/\n{3,}/g, '\n\n');
   markdown = emptyParagraphMarkersToSourceWhitespace(markdown);
   markdown = markdown.replace(/^\n+/, '');
   markdown = markdown.replace(/\n+$/, '\n');
-  
+
   return markdown;
 }

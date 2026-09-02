@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { useEditorContextMenu } from './useEditorContextMenu';
 
-const createContextEvent = () => ({
-  preventDefault: vi.fn()
-}) as unknown as MouseEvent;
+const createContextEvent = () =>
+  ({
+    preventDefault: vi.fn()
+  }) as unknown as MouseEvent;
 
 describe('useEditorContextMenu', () => {
   it('opens the context menu when enabled', () => {

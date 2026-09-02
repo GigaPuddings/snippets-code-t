@@ -1,5 +1,9 @@
 <template>
-  <main class="editor-container" :class="{ 'dark-theme': props.dark }" :style="editorContainerStyle">
+  <main
+    class="editor-container"
+    :class="{ 'dark-theme': props.dark }"
+    :style="editorContainerStyle"
+  >
     <!-- 主编辑区域（左侧） -->
     <div class="editor-main">
       <!-- 富文本编辑器视图 -->
@@ -17,7 +21,7 @@
       >
         <editor-content class="editor-content-body" :editor="editor" />
       </div>
-      
+
       <!-- 源码编辑器视图 -->
       <SourceEditor
         ref="sourceEditorRef"
@@ -29,7 +33,7 @@
         @contextmenu="handleSourceContextMenu"
         @scroll="handleSourceScroll"
       />
-      
+
       <!-- 搜索面板 -->
       <SearchPanel
         ref="searchPanelRef"
@@ -40,7 +44,7 @@
         @next="findNext"
         @previous="findPrevious"
       />
-      
+
       <!-- 右上角功能按钮 -->
       <EditorActions
         v-if="props.showEditorActions"
@@ -49,7 +53,7 @@
         @reading-mode-click="toggleToReadingMode"
         @editing-mode-click="toggleToEditingMode"
       />
-      
+
       <!-- 底部状态栏 -->
       <EditorStatusBar
         :word-count="wordCount"
@@ -63,7 +67,7 @@
         @toggle-backlinks="toggleBacklinks"
       />
     </div>
-    
+
     <!-- 大纲面板（右侧） -->
     <OutlinePanel
       :show="showOutline"
@@ -75,7 +79,7 @@
       @heading-click="jumpToHeading"
       @update-visible-heading="updateVisibleHeading"
     />
-    
+
     <!-- 右键上下文菜单 -->
     <TipTapContextMenu
       ref="contextMenuRef"
@@ -100,7 +104,7 @@
       :initial-columns="tableDialogColumns"
       @confirm="handleTableSizeConfirm"
     />
-    
+
     <!-- 反向链接面板 -->
     <BacklinkPanel
       :show="showBacklinks"
@@ -223,9 +227,12 @@ const tableDialogVisible = ref(false);
 const tableDialogMode = ref<'insert' | 'resize'>('insert');
 const tableDialogRows = ref(4);
 const tableDialogColumns = ref(3);
-const editorContainerStyle = computed(() => ({
-  '--editor-line-height-value': String(props.lineHeight)
-}) as CSSProperties);
+const editorContainerStyle = computed(
+  () =>
+    ({
+      '--editor-line-height-value': String(props.lineHeight)
+    }) as CSSProperties
+);
 
 // Wikilink 点击处理
 const handleWikilinkClick = (noteName: string) => {
@@ -250,21 +257,21 @@ const {
 const updateStats = (text: string) => {
   // 字符数：所有字符（包括空格、换行等）
   charCount.value = text.length;
-  
+
   // 词数统计：中文按字数，英文按单词数
   const trimmedText = text.trim();
-  
+
   if (!trimmedText) {
     wordCount.value = 0;
     return;
   }
-  
+
   // 中文字符（汉字）
   const chineseChars = trimmedText.match(/[\u4e00-\u9fa5]/g) || [];
-  
+
   // 英文单词（连续的字母数字字符）
   const englishWords = trimmedText.match(/[a-zA-Z0-9]+/g) || [];
-  
+
   // 总词数 = 中文字符数 + 英文单词数
   wordCount.value = chineseChars.length + englishWords.length;
 };
@@ -336,25 +343,21 @@ const {
   }
 });
 
-const {
-  getScrollPosition,
-  setScrollPosition,
-  scrollToWikilink
-} = useEditorSessionScroll({
-  getEditor: () => editor.value
-});
+const { getScrollPosition, setScrollPosition, scrollToWikilink } =
+  useEditorSessionScroll({
+    getEditor: () => editor.value
+  });
 
-const {
-  handleContextMenu,
-  handleSourceContextMenu
-} = useEditorContextMenu({
+const { handleContextMenu, handleSourceContextMenu } = useEditorContextMenu({
   isEnabled: () => props.showContextMenu,
   getContextMenu: () => contextMenuRef.value
 });
 
 function getEditorScrollContainer(view: EditorView): HTMLElement {
   const editorElement = view.dom as HTMLElement;
-  const contentElement = editorElement.closest('.editor-content') as HTMLElement | null;
+  const contentElement = editorElement.closest(
+    '.editor-content'
+  ) as HTMLElement | null;
 
   // `.editor-content` 才是设置了 overflow-auto 的真实滚动容器。
   // 图片刚挂载时 scrollHeight 还可能没有刷新，不能据此退回到 ProseMirror；
@@ -385,9 +388,7 @@ function scrollEditorSelectionIntoView(
         ? targetElement.getBoundingClientRect()
         : null;
       const hasTargetRect = !!targetRect && targetRect.height > 0;
-      const hasSelectionCoords = !(
-        coords.top === 0 && coords.bottom === 0
-      );
+      const hasSelectionCoords = !(coords.top === 0 && coords.bottom === 0);
 
       // 当 coords 为 (0,0) 时，说明位置对应的 DOM 节点尚未渲染（如 NodeView 还在挂载中），
       // 此时坐标无效，跳过滚动避免误判导致页面跳动
@@ -418,7 +419,10 @@ function scrollEditorSelectionIntoView(
         container.scrollTop -= containerRect.top + padding - visibleTop;
       }
     } catch (error) {
-      console.debug('[TipTapEditor] scroll selection into view skipped:', error);
+      console.debug(
+        '[TipTapEditor] scroll selection into view skipped:',
+        error
+      );
     }
   });
 }
@@ -456,7 +460,9 @@ function shouldParseClipboardAsMarkdown(text: string, html: string): boolean {
 }
 
 function extractClipboardHtmlFragment(html: string): string {
-  const fragmentMatch = html.match(/<!--StartFragment-->([\s\S]*?)<!--EndFragment-->/i);
+  const fragmentMatch = html.match(
+    /<!--StartFragment-->([\s\S]*?)<!--EndFragment-->/i
+  );
   return fragmentMatch ? fragmentMatch[1] : html;
 }
 
@@ -517,7 +523,10 @@ function normalizePastedLinks(fragment: DocumentFragment): void {
     if (!label) return;
 
     if (looksLikeProjectPath(label) || isLocalPathHref(href)) {
-      anchor.setAttribute('href', looksLikeProjectPath(label) ? label : normalizeLocalHref(href));
+      anchor.setAttribute(
+        'href',
+        looksLikeProjectPath(label) ? label : normalizeLocalHref(href)
+      );
       anchor.removeAttribute('target');
       anchor.removeAttribute('rel');
     }
@@ -525,7 +534,12 @@ function normalizePastedLinks(fragment: DocumentFragment): void {
 }
 
 function shouldRenderMarkdownLink(label: string, href: string): boolean {
-  return looksLikeProjectPath(label) || isLocalPathHref(href) || isExternalHref(href) || href.trim().startsWith('#');
+  return (
+    looksLikeProjectPath(label) ||
+    isLocalPathHref(href) ||
+    isExternalHref(href) ||
+    href.trim().startsWith('#')
+  );
 }
 
 function getRenderableMarkdownHref(label: string, href: string): string {
@@ -557,7 +571,9 @@ function replaceMarkdownLinksInTextNode(node: Text): void {
     }
 
     if (match.index > lastIndex) {
-      fragment.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+      fragment.appendChild(
+        document.createTextNode(text.slice(lastIndex, match.index))
+      );
     }
 
     const anchor = document.createElement('a');
@@ -579,7 +595,8 @@ function replaceMarkdownLinksInTextNode(node: Text): void {
 function normalizeMarkdownLinksInTextNodes(fragment: DocumentFragment): void {
   const walker = document.createTreeWalker(fragment, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
-      const parent = node.parentNode instanceof Element ? node.parentNode : null;
+      const parent =
+        node.parentNode instanceof Element ? node.parentNode : null;
       if (parent?.closest('a, code, pre')) return NodeFilter.FILTER_REJECT;
       return hasMarkdownLinkText(node.nodeValue || '')
         ? NodeFilter.FILTER_ACCEPT
@@ -643,14 +660,22 @@ function isLikelyCodexOrderedList(list: Element): boolean {
   });
 }
 
-function normalizeOrderedLists(fragment: DocumentFragment, plainText: string): void {
+function normalizeOrderedLists(
+  fragment: DocumentFragment,
+  plainText: string
+): void {
   fragment.querySelectorAll('ul').forEach((list) => {
     const style = list.getAttribute('style') || '';
     const type = list.getAttribute('type') || '';
-    const dataList = list.getAttribute('data-list') || list.getAttribute('data-list-type') || '';
+    const dataList =
+      list.getAttribute('data-list') ||
+      list.getAttribute('data-list-type') ||
+      '';
     const className = list.className || '';
     const looksOrdered =
-      /\blist-style(?:-type)?\s*:\s*(?:decimal|lower-alpha|upper-alpha|lower-roman|upper-roman)\b/i.test(style) ||
+      /\blist-style(?:-type)?\s*:\s*(?:decimal|lower-alpha|upper-alpha|lower-roman|upper-roman)\b/i.test(
+        style
+      ) ||
       type === '1' ||
       dataList.toLowerCase() === 'ordered' ||
       /\bordered\b/i.test(String(className));
@@ -663,10 +688,14 @@ function normalizeOrderedLists(fragment: DocumentFragment, plainText: string): v
   const orderedItemCount = plainText.match(ORDERED_LIST_RE)?.length || 0;
   if (orderedItemCount < 2) return;
 
-  const targetList = Array.from(fragment.querySelectorAll('ul')).find((list) => {
-    const itemCount = Array.from(list.children).filter((child) => child.tagName === 'LI').length;
-    return itemCount === orderedItemCount;
-  });
+  const targetList = Array.from(fragment.querySelectorAll('ul')).find(
+    (list) => {
+      const itemCount = Array.from(list.children).filter(
+        (child) => child.tagName === 'LI'
+      ).length;
+      return itemCount === orderedItemCount;
+    }
+  );
 
   if (targetList) {
     replaceElementTag(targetList, 'ol');
@@ -675,19 +704,21 @@ function normalizeOrderedLists(fragment: DocumentFragment, plainText: string): v
 
 function removePastedPresentationElements(fragment: DocumentFragment): void {
   fragment
-    .querySelectorAll([
-      'button',
-      'svg',
-      '[aria-hidden="true"]',
-      '[hidden]',
-      '.code-toolbar',
-      '.image-controls',
-      '.resize-handle',
-      '.image-context-menu',
-      '.ProseMirror-separator',
-      '.ProseMirror-trailingBreak'
-    ].join(', '))
-    .forEach(element => element.remove());
+    .querySelectorAll(
+      [
+        'button',
+        'svg',
+        '[aria-hidden="true"]',
+        '[hidden]',
+        '.code-toolbar',
+        '.image-controls',
+        '.resize-handle',
+        '.image-context-menu',
+        '.ProseMirror-separator',
+        '.ProseMirror-trailingBreak'
+      ].join(', ')
+    )
+    .forEach((element) => element.remove());
 
   fragment.querySelectorAll('[style]').forEach((element) => {
     const style = element.getAttribute('style') || '';
@@ -715,22 +746,26 @@ function normalizePastedImageNodeViews(fragment: DocumentFragment): void {
     'data-image-scale'
   ];
 
-  fragment.querySelectorAll('.image-wrapper[data-node-view-wrapper]').forEach((wrapper) => {
-    const sourceImage = Array.from(wrapper.querySelectorAll('img')).find((image) => (
-      !image.classList.contains('ProseMirror-separator') && Boolean(image.getAttribute('src'))
-    ));
-    if (!sourceImage) {
-      wrapper.remove();
-      return;
-    }
+  fragment
+    .querySelectorAll('.image-wrapper[data-node-view-wrapper]')
+    .forEach((wrapper) => {
+      const sourceImage = Array.from(wrapper.querySelectorAll('img')).find(
+        (image) =>
+          !image.classList.contains('ProseMirror-separator') &&
+          Boolean(image.getAttribute('src'))
+      );
+      if (!sourceImage) {
+        wrapper.remove();
+        return;
+      }
 
-    const semanticImage = document.createElement('img');
-    preservedAttributes.forEach((attribute) => {
-      const value = sourceImage.getAttribute(attribute);
-      if (value) semanticImage.setAttribute(attribute, value);
+      const semanticImage = document.createElement('img');
+      preservedAttributes.forEach((attribute) => {
+        const value = sourceImage.getAttribute(attribute);
+        if (value) semanticImage.setAttribute(attribute, value);
+      });
+      wrapper.replaceWith(semanticImage);
     });
-    wrapper.replaceWith(semanticImage);
-  });
 }
 
 function trimLeadingListItemBreaks(fragment: DocumentFragment): void {
@@ -747,7 +782,10 @@ function trimLeadingListItemBreaks(fragment: DocumentFragment): void {
 
     while (container.firstChild) {
       const first = container.firstChild;
-      if (first.nodeType === Node.TEXT_NODE && !(first.nodeValue || '').trim()) {
+      if (
+        first.nodeType === Node.TEXT_NODE &&
+        !(first.nodeValue || '').trim()
+      ) {
         first.remove();
         continue;
       }
@@ -772,7 +810,10 @@ function normalizePastedRichHtml(html: string, plainText: string): string {
   normalizeMarkdownLinksInTextNodes(template.content);
   normalizeOrderedLists(template.content, plainText);
 
-  return richHtmlToEditorHtml(sanitizeHtml(template.innerHTML), workspaceRoot.value);
+  return richHtmlToEditorHtml(
+    sanitizeHtml(template.innerHTML),
+    workspaceRoot.value
+  );
 }
 
 function linkProjectFilePathsInEditor(): void {
@@ -788,14 +829,23 @@ function linkProjectFilePathsInEditor(): void {
 
   state.doc.descendants((node, pos) => {
     if (!node.isText || !node.text) return;
-    if (node.marks.some((mark) => mark.type.name === 'code' || mark.type.name === 'link')) return;
+    if (
+      node.marks.some(
+        (mark) => mark.type.name === 'code' || mark.type.name === 'link'
+      )
+    )
+      return;
 
     PROJECT_FILE_PATH_RE.lastIndex = 0;
     let match: RegExpExecArray | null;
 
     while ((match = PROJECT_FILE_PATH_RE.exec(node.text))) {
       const href = match[0];
-      tr = tr.addMark(pos + match.index, pos + match.index + href.length, linkMark.create({ href }));
+      tr = tr.addMark(
+        pos + match.index,
+        pos + match.index + href.length,
+        linkMark.create({ href })
+      );
       changed = true;
     }
   });
@@ -845,11 +895,12 @@ const editor = useEditor({
       updateStats(text);
       emits('ready', editor);
       setCurrentCursorPos(editor.state.selection.from);
-      
+
       const editorElement = editor.view.dom;
       setupAnchorClickInterceptor(editorElement);
       editorElement.addEventListener(EDITOR_SELECTION_LAYOUT_EVENT, (event) => {
-        const detail = (event as CustomEvent<EditorSelectionLayoutDetail>).detail;
+        const detail = (event as CustomEvent<EditorSelectionLayoutDetail>)
+          .detail;
         scrollEditorSelectionIntoView(
           editor.view,
           3,
@@ -867,7 +918,7 @@ const editor = useEditor({
         }
       };
       editorElement.addEventListener('keydown', handleEditorKeyDown, true);
-      
+
       // 如果大纲面板已打开，设置滚动监听
       if (showOutline.value) {
         nextTick(() => {
@@ -926,10 +977,12 @@ const editor = useEditor({
           }
         }
       }
-      
+
       // 如果没有图片，处理文本粘贴
       const html = event.clipboardData?.getData('text/html') || '';
-      const explicitMarkdown = getExplicitMarkdownClipboardText(event.clipboardData ?? null);
+      const explicitMarkdown = getExplicitMarkdownClipboardText(
+        event.clipboardData ?? null
+      );
       const text = getMarkdownClipboardText(event.clipboardData ?? null);
       if (!text && !html) return false;
 
@@ -937,7 +990,10 @@ const editor = useEditor({
       // 不能因为存在富 HTML 就退回解析来源页面的展示层 DOM。
       if (explicitMarkdown.trim()) {
         try {
-          const parsedHtml = markdownToHtml(explicitMarkdown, workspaceRoot.value);
+          const parsedHtml = markdownToHtml(
+            explicitMarkdown,
+            workspaceRoot.value
+          );
           event.preventDefault();
           editor.value?.commands.insertContent(parsedHtml);
           linkProjectFilePathsInEditor();
@@ -958,7 +1014,10 @@ const editor = useEditor({
           linkProjectFilePathsInEditor();
           return true;
         } catch (error) {
-          console.error('Failed to parse preferred pasted Markdown text:', error);
+          console.error(
+            'Failed to parse preferred pasted Markdown text:',
+            error
+          );
         }
       }
 
@@ -1007,37 +1066,42 @@ const editor = useEditor({
           return false;
         }
       }
-      
+
       return false;
     },
     handleDrop: (view, event) => {
       const files = event.dataTransfer?.files;
       if (!files || files.length === 0) return false;
-      
-      const imageFiles = Array.from(files).filter(file => 
+
+      const imageFiles = Array.from(files).filter((file) =>
         file.type.startsWith('image/')
       );
-      
+
       if (imageFiles.length > 0 && props.currentFragmentId) {
         event.preventDefault();
-        
+
         // 获取拖放位置
-        const pos = view.posAtCoords({ left: event.clientX, top: event.clientY });
+        const pos = view.posAtCoords({
+          left: event.clientX,
+          top: event.clientY
+        });
         if (pos) {
           // 设置光标到拖放位置
-          view.dispatch(view.state.tr.setSelection(
-            TextSelection.create(view.state.doc, pos.pos)
-          ));
+          view.dispatch(
+            view.state.tr.setSelection(
+              TextSelection.create(view.state.doc, pos.pos)
+            )
+          );
         }
-        
+
         // 上传所有图片
         for (const file of imageFiles) {
           handleImageUpload(file, view);
         }
-        
+
         return true;
       }
-      
+
       return false;
     }
   },
@@ -1071,7 +1135,8 @@ const {
       sourceContent.value = jsonToMarkdown(json);
     }
   },
-  applySourceContent: () => editorPersistenceBridge.applySourceContentToEditor(editor.value),
+  applySourceContent: () =>
+    editorPersistenceBridge.applySourceContentToEditor(editor.value),
   setEditorEditable: (editable) => {
     if (editor.value) {
       editor.value.setEditable(editable);
@@ -1120,18 +1185,28 @@ const handleTableSizeConfirm = (size: { rows: number; columns: number }) => {
     if (sourceEditor && textarea) {
       const start = textarea.selectionStart;
       const end = textarea.selectionEnd;
-      const prefix = start === 0 || textarea.value[start - 1] === '\n' ? '' : '\n\n';
-      const suffix = end === textarea.value.length || textarea.value[end] === '\n' ? '\n' : '\n\n';
-      sourceEditor.insertText(`${prefix}${createTableMarkdown(size.rows, size.columns)}${suffix}`);
+      const prefix =
+        start === 0 || textarea.value[start - 1] === '\n' ? '' : '\n\n';
+      const suffix =
+        end === textarea.value.length || textarea.value[end] === '\n'
+          ? '\n'
+          : '\n\n';
+      sourceEditor.insertText(
+        `${prefix}${createTableMarkdown(size.rows, size.columns)}${suffix}`
+      );
     }
     return;
   }
 
-  editor.value?.chain().focus().insertTable({
-    rows: size.rows,
-    cols: size.columns,
-    withHeaderRow: true
-  }).run();
+  editor.value
+    ?.chain()
+    .focus()
+    .insertTable({
+      rows: size.rows,
+      cols: size.columns,
+      withHeaderRow: true
+    })
+    .run();
 };
 
 // 源码内容变更
@@ -1144,28 +1219,36 @@ watch(
   [() => props.content, () => props.currentFragmentId],
   ([newContent, newFragmentId], [, oldFragmentId]) => {
     editorPersistenceBridge.syncIncomingContent(newContent, editor.value, {
-      resetSelection: oldFragmentId !== undefined && newFragmentId !== oldFragmentId
+      resetSelection:
+        oldFragmentId !== undefined && newFragmentId !== oldFragmentId
     });
   }
 );
 
 // 监听禁用状态变化
-watch(() => props.disabled, (disabled) => {
-  if (editor.value) {
-    editor.value.setEditable(!disabled);
+watch(
+  () => props.disabled,
+  (disabled) => {
+    if (editor.value) {
+      editor.value.setEditable(!disabled);
+    }
   }
-});
+);
 
 // 监听暗色模式变化
-watch(() => props.dark, (isDark) => {
-  const editorElement = editorContentRef.value?.querySelector<HTMLElement>('.ProseMirror');
-  if (!editorElement) return;
-  if (isDark) {
-    editorElement.classList.add('dark');
-  } else {
-    editorElement.classList.remove('dark');
+watch(
+  () => props.dark,
+  (isDark) => {
+    const editorElement =
+      editorContentRef.value?.querySelector<HTMLElement>('.ProseMirror');
+    if (!editorElement) return;
+    if (isDark) {
+      editorElement.classList.add('dark');
+    } else {
+      editorElement.classList.remove('dark');
+    }
   }
-});
+);
 
 // 键盘快捷键
 const handleKeyDown = (event: KeyboardEvent) => {
@@ -1211,7 +1294,7 @@ onMounted(async () => {
   } catch (error) {
     console.error('Failed to get workspace root:', error);
   }
-  
+
   // 使用捕获阶段监听，优先级更高
   document.addEventListener('keydown', handleKeyDown, true);
 });
@@ -1259,46 +1342,52 @@ defineExpose({
 <style lang="scss" scoped>
 .editor-container {
   @apply relative overflow-hidden flex h-full;
+
   --editor-line-height: var(--editor-line-height-value, 1.6);
+
   background-color: var(--editor-bg);
-  transition: background-color 0.3s ease, color 0.3s ease;
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
 }
 
 .editor-main {
   @apply flex-1 flex min-w-0 flex-col overflow-hidden;
+
   transition: width 0.3s ease;
 }
 
 .editor-content {
   @apply flex-1 w-full min-w-0 max-w-full cursor-text overflow-auto;
+
+  position: relative;
   display: flex;
   min-height: 0;
-  position: relative;
+  padding-bottom: 0;
   background-color: var(--editor-bg);
   transition: background-color 0.3s ease;
-  padding-bottom: 0;
-  
+
   :deep(.ProseMirror) {
     @apply w-full min-w-0 max-w-full;
 
-    min-height: 100%;
     height: auto;
+    min-height: 100%;
   }
 }
 
 .dark-theme {
   :deep(.editor-status) {
+    color: var(--statusbar-text);
     background-color: var(--statusbar-bg);
     border-color: var(--statusbar-border);
-    color: var(--statusbar-text);
   }
 
   :deep(.action-btn) {
     color: var(--editor-text-secondary);
 
     &:hover {
-      background-color: var(--editor-hover-bg);
       color: var(--editor-text);
+      background-color: var(--editor-hover-bg);
     }
   }
 
@@ -1309,27 +1398,31 @@ defineExpose({
   }
 
   :deep(.code-block-wrapper) {
-    border-color: var(--code-block-border) !important;
     background: var(--code-block-bg) !important;
+    border-color: var(--code-block-border) !important;
   }
 }
 
 .editor-content-body {
   @apply flex-1;
+
   min-width: 0;
   min-height: 100%;
 }
 
 :deep(.tiptap-editor) {
   @apply box-border h-auto min-h-full max-w-full whitespace-pre-wrap overflow-y-visible min-w-0 outline-none;
+
   width: min(100%, 1080px);
-  margin: 0 auto;
   padding: 22px clamp(20px, 3.5vw, 44px) 76px;
+  margin: 0 auto;
   font-size: 15px;
   line-height: var(--editor-line-height);
   color: var(--editor-text);
   background-color: var(--editor-bg);
-  transition: background-color 0.3s ease, color 0.3s ease;
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
 
   > * {
     @apply box-border min-w-0 max-w-full;
@@ -1358,10 +1451,15 @@ defineExpose({
   }
 
   &.dark {
-    background-color: var(--editor-bg);
     color: var(--editor-text);
+    background-color: var(--editor-bg);
 
-    h1, h2, h3, h4, h5, h6 {
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
       color: var(--editor-text);
       transition: color 0.3s ease;
     }
@@ -1369,7 +1467,9 @@ defineExpose({
     code {
       color: var(--markdown-inline-code-text);
       background-color: var(--markdown-inline-code-bg);
-      transition: background-color 0.3s ease, color 0.3s ease;
+      transition:
+        background-color 0.3s ease,
+        color 0.3s ease;
     }
 
     /* 代码块内的 code 不应用内联样式 */
@@ -1385,36 +1485,43 @@ defineExpose({
     /* 暗色编辑区：代码块关键词高亮 */
     pre code .hljs-keyword,
     .code-block-wrapper .hljs-keyword {
-      color: #c4b5fd !important;
       font-weight: 600 !important;
+      color: #c4b5fd !important;
     }
+
     pre code .hljs-string,
     .code-block-wrapper .hljs-string {
       color: #4ade80 !important;
     }
+
     pre code .hljs-number,
     .code-block-wrapper .hljs-number {
       color: #fb923c !important;
     }
+
     pre code .hljs-comment,
     .code-block-wrapper .hljs-comment {
-      color: #9ca3af !important;
       font-style: italic !important;
+      color: #9ca3af !important;
     }
 
     blockquote {
       color: var(--editor-text);
       border-left-color: var(--markdown-quote-border);
-      transition: border-color 0.3s ease, color 0.3s ease;
+      transition:
+        border-color 0.3s ease,
+        color 0.3s ease;
     }
 
     hr {
       @apply border-[#727377];
+
       transition: border-color 0.3s ease;
     }
 
     a {
       @apply text-[#82AAFF];
+
       transition: color 0.3s ease;
 
       &:hover {
@@ -1424,32 +1531,37 @@ defineExpose({
 
     .wikilink-decoration {
       @apply text-purple-400;
-      background-color: rgba(168, 85, 247, 0.15);
+
+      background-color: rgb(168 85 247 / 15%);
 
       &:hover {
         @apply text-purple-300;
-        background-color: rgba(168, 85, 247, 0.25);
+
+        background-color: rgb(168 85 247 / 25%);
       }
     }
 
     .wikilink-bracket-hidden {
       @apply opacity-0;
-      font-size: 0;
-      width: 0;
+
       display: inline-block;
+      width: 0;
       overflow: hidden;
+      font-size: 0;
     }
 
     .markdown-link-bracket-hidden {
       @apply opacity-0;
-      font-size: 0;
-      width: 0;
+
       display: inline-block;
+      width: 0;
       overflow: hidden;
+      font-size: 0;
     }
 
     .markdown-link-text {
       @apply text-[#82AAFF] underline;
+
       transition: color 0.2s ease;
 
       &:hover {
@@ -1459,6 +1571,7 @@ defineExpose({
 
     .invalid-link {
       @apply text-[#9ca3af];
+
       font-family: inherit;
       font-size: inherit;
       cursor: text;
@@ -1467,6 +1580,7 @@ defineExpose({
     code.invalid-link-display,
     span.invalid-link-text {
       @apply bg-transparent text-[#9ca3af];
+
       padding: 0;
       font-family: inherit;
       font-size: inherit;
@@ -1478,9 +1592,12 @@ defineExpose({
       border-color: var(--markdown-heading-border);
       transition: border-color 0.3s ease;
 
-      th, td {
+      th,
+      td {
         border-color: var(--markdown-heading-border);
-        transition: border-color 0.3s ease, background-color 0.3s ease;
+        transition:
+          border-color 0.3s ease,
+          background-color 0.3s ease;
       }
 
       th {
@@ -1489,8 +1606,9 @@ defineExpose({
     }
 
     .task-list {
-      input[type="checkbox"] {
+      input[type='checkbox'] {
         @apply border-[#727377];
+
         transition: border-color 0.3s ease;
 
         &:checked {
@@ -1500,13 +1618,14 @@ defineExpose({
     }
 
     // TipTap 标准任务列表暗色模式
-    ul[data-type="taskList"],
+    ul[data-type='taskList'],
     ul.task-list {
-      li[data-type="taskItem"],
+      li[data-type='taskItem'],
       li.task-item {
         > label {
-          input[type="checkbox"] {
+          input[type='checkbox'] {
             @apply border-[#727377];
+
             transition: border-color 0.3s ease;
 
             &:checked {
@@ -1520,16 +1639,28 @@ defineExpose({
     ::selection {
       @apply bg-[#5d6dfd] bg-opacity-40;
     }
+
+    img:not(.ProseMirror-separator) {
+      box-shadow: 0 10px 28px rgb(0 0 0 / 28%);
+    }
+
+    :deep(.search-highlight) {
+      @apply bg-yellow-600/40 text-yellow-100;
+    }
+
+    :deep(.search-highlight-current) {
+      @apply bg-amber-500/50;
+    }
   }
 
   h1 {
+    padding-bottom: 0.28em;
     margin-top: 1.25em;
     margin-bottom: 0.48em;
-    padding-bottom: 0.28em;
-    color: var(--markdown-heading);
     font-size: 1.82em;
     font-weight: 750;
     line-height: 1.22;
+    color: var(--markdown-heading);
     letter-spacing: -0.025em;
     border-bottom: 1px solid var(--markdown-heading-border);
     transition: color 0.3s ease;
@@ -1538,10 +1669,10 @@ defineExpose({
   h2 {
     margin-top: 1.1em;
     margin-bottom: 0.42em;
-    color: var(--markdown-heading);
     font-size: 1.42em;
     font-weight: 720;
     line-height: 1.28;
+    color: var(--markdown-heading);
     letter-spacing: -0.018em;
     transition: color 0.3s ease;
   }
@@ -1549,41 +1680,41 @@ defineExpose({
   h3 {
     margin-top: 1em;
     margin-bottom: 0.38em;
-    color: var(--markdown-heading);
     font-size: 1.22em;
     font-weight: 700;
     line-height: 1.35;
+    color: var(--markdown-heading);
     transition: color 0.3s ease;
   }
 
   h4 {
     margin-top: 0.9em;
     margin-bottom: 0.34em;
-    color: var(--markdown-heading);
     font-size: 1.12em;
     font-weight: 680;
     line-height: 1.4;
+    color: var(--markdown-heading);
     transition: color 0.3s ease;
   }
 
   h5 {
     margin-top: 0.82em;
     margin-bottom: 0.3em;
-    color: var(--markdown-heading);
     font-size: 1em;
     font-weight: 680;
     line-height: 1.4;
+    color: var(--markdown-heading);
     transition: color 0.3s ease;
   }
 
   h6 {
     margin-top: 0.78em;
     margin-bottom: 0.3em;
-    color: var(--markdown-muted);
     font-size: 0.95em;
     font-weight: 680;
-    letter-spacing: 0.01em;
     line-height: 1.4;
+    color: var(--markdown-muted);
+    letter-spacing: 0.01em;
     transition: color 0.3s ease;
   }
 
@@ -1595,8 +1726,8 @@ defineExpose({
   }
 
   p {
-    margin: 0 0 0.5em;
     min-height: calc(var(--editor-line-height) * 1em);
+    margin: 0 0 0.5em;
     line-height: var(--editor-line-height);
     transition: color 0.3s ease;
   }
@@ -1639,13 +1770,17 @@ defineExpose({
 
   code {
     @apply font-mono;
+
     padding: 0.16em 0.38em;
-    color: var(--markdown-inline-code-text);
     font-size: 0.88em;
+    color: var(--markdown-inline-code-text);
     background-color: var(--markdown-inline-code-bg);
-    border: 1px solid color-mix(in srgb, var(--markdown-heading-border) 74%, transparent);
+    border: 1px solid
+      color-mix(in srgb, var(--markdown-heading-border) 74%, transparent);
     border-radius: 5px;
-    transition: background-color 0.3s ease, color 0.3s ease;
+    transition:
+      background-color 0.3s ease,
+      color 0.3s ease;
   }
 
   /* 代码块内的 code 不应用内联样式 */
@@ -1665,61 +1800,64 @@ defineExpose({
   /* 亮色编辑区：代码块关键词高亮 */
   pre code .hljs-keyword,
   .code-block-wrapper .hljs-keyword {
-    color: #7c3aed !important;
     font-weight: 600 !important;
+    color: #7c3aed !important;
   }
+
   pre code .hljs-string,
   .code-block-wrapper .hljs-string {
     color: #16a34a !important;
   }
+
   pre code .hljs-number,
   .code-block-wrapper .hljs-number {
     color: #ea580c !important;
   }
+
   pre code .hljs-comment,
   .code-block-wrapper .hljs-comment {
-    color: #6b7280 !important;
     font-style: italic !important;
+    color: #6b7280 !important;
   }
 
-  ul:not([data-type="taskList"]) {
-    margin: 0.25em 0 0.65em;
+  ul:not([data-type='taskList']) {
     padding-left: 1.5rem !important;
+    margin: 0.25em 0 0.65em;
     list-style: disc !important;
     list-style-position: outside !important;
 
     li {
+      display: list-item !important;
       margin-bottom: 0.2em;
       line-height: var(--editor-line-height);
-      transition: color 0.3s ease;
-      display: list-item !important;
       list-style: inherit !important;
+      transition: color 0.3s ease;
     }
 
     > li::marker {
-      content: '-  ';
-      color: var(--search-result-accent);
       font-weight: 700;
+      color: var(--search-result-accent);
+      content: '-  ';
     }
   }
 
   ol {
-    margin: 0.25em 0 0.65em;
     padding-left: 1.6rem !important;
+    margin: 0.25em 0 0.65em;
     list-style: decimal !important;
     list-style-position: outside !important;
 
     li {
+      display: list-item !important;
       margin-bottom: 0.2em;
       line-height: var(--editor-line-height);
-      transition: color 0.3s ease;
-      display: list-item !important;
       list-style: inherit !important;
+      transition: color 0.3s ease;
     }
 
     > li::marker {
-      color: var(--search-result-accent);
       font-weight: 650;
+      color: var(--search-result-accent);
     }
   }
 
@@ -1732,11 +1870,14 @@ defineExpose({
       > label {
         @apply flex items-center mr-2;
 
-        input[type="checkbox"] {
+        input[type='checkbox'] {
           @apply mr-2 cursor-pointer;
+
           width: 16px;
           height: 16px;
-          transition: border-color 0.3s ease, background-color 0.3s ease;
+          transition:
+            border-color 0.3s ease,
+            background-color 0.3s ease;
 
           &:checked {
             @apply bg-blue-600 border-blue-600;
@@ -1746,39 +1887,45 @@ defineExpose({
 
       > div {
         @apply flex-1;
+
         line-height: var(--editor-line-height);
       }
     }
   }
 
   // TipTap 标准任务列表样式
-  ul[data-type="taskList"],
+  ul[data-type='taskList'],
   ul.task-list {
     @apply list-none mb-3;
+
     padding-left: 0 !important;
     list-style: none !important;
 
-    li[data-type="taskItem"],
+    li[data-type='taskItem'],
     li.task-item {
       @apply mb-1;
+
       display: flex !important;
       align-items: center !important;
       list-style: none !important;
 
       > label {
-        margin-right: 6px;
-        flex-shrink: 0;
         display: flex !important;
+        flex-shrink: 0;
         align-items: center !important;
         height: 16px;
+        margin-right: 6px;
 
-        input[type="checkbox"] {
+        input[type='checkbox'] {
           @apply cursor-pointer;
+
+          flex-shrink: 0;
           width: 16px;
           height: 16px;
-          flex-shrink: 0;
           margin: 0;
-          transition: border-color 0.3s ease, background-color 0.3s ease;
+          transition:
+            border-color 0.3s ease,
+            background-color 0.3s ease;
 
           &:checked {
             @apply bg-blue-600 border-blue-600;
@@ -1804,16 +1951,23 @@ defineExpose({
   }
 
   blockquote {
-    margin: 0.85em 0;
     padding: 0.62em 0.9em 0.62em 1em;
-    color: var(--editor-text);
+    margin: 0.85em 0;
     font-style: normal;
     line-height: var(--editor-line-height);
+    color: var(--editor-text);
     background: var(--markdown-quote-bg);
-    border: 1px solid color-mix(in srgb, var(--markdown-quote-border) 24%, var(--markdown-heading-border));
+    border: 1px solid
+      color-mix(
+        in srgb,
+        var(--markdown-quote-border) 24%,
+        var(--markdown-heading-border)
+      );
     border-left: 4px solid var(--markdown-quote-border);
     border-radius: 0 9px 9px 0;
-    transition: border-color 0.3s ease, color 0.3s ease;
+    transition:
+      border-color 0.3s ease,
+      color 0.3s ease;
 
     p:last-child {
       margin-bottom: 0;
@@ -1823,7 +1977,13 @@ defineExpose({
   hr {
     height: 1px;
     margin: 1.7em 0;
-    background: linear-gradient(90deg, transparent, var(--markdown-heading-border) 12%, var(--markdown-heading-border) 88%, transparent);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--markdown-heading-border) 12%,
+      var(--markdown-heading-border) 88%,
+      transparent
+    );
     border: 0;
     transition: border-color 0.3s ease;
   }
@@ -1831,11 +1991,17 @@ defineExpose({
   a {
     color: var(--search-result-accent);
     text-decoration: underline;
-    text-decoration-color: color-mix(in srgb, var(--search-result-accent) 38%, transparent);
     text-decoration-thickness: 1px;
+    text-decoration-color: color-mix(
+      in srgb,
+      var(--search-result-accent) 38%,
+      transparent
+    );
     text-underline-offset: 3px;
     cursor: pointer;
-    transition: color 0.2s ease, text-decoration-color 0.2s ease;
+    transition:
+      color 0.2s ease,
+      text-decoration-color 0.2s ease;
 
     &:hover {
       color: var(--el-color-primary);
@@ -1845,36 +2011,41 @@ defineExpose({
 
   .wikilink-decoration {
     @apply text-purple-600 cursor-pointer;
-    background-color: rgba(147, 51, 234, 0.1);
+
     padding: 2px 4px;
+    font-weight: 500;
+    background-color: rgb(147 51 234 / 10%);
     border-radius: 3px;
     transition: all 0.2s ease;
-    font-weight: 500;
 
     &:hover {
       @apply text-purple-800;
-      background-color: rgba(147, 51, 234, 0.2);
+
+      background-color: rgb(147 51 234 / 20%);
     }
   }
 
   .wikilink-bracket-hidden {
     @apply opacity-0;
-    font-size: 0;
-    width: 0;
+
     display: inline-block;
+    width: 0;
     overflow: hidden;
+    font-size: 0;
   }
 
   .markdown-link-bracket-hidden {
     @apply opacity-0;
-    font-size: 0;
-    width: 0;
+
     display: inline-block;
+    width: 0;
     overflow: hidden;
+    font-size: 0;
   }
 
   .markdown-link-text {
     @apply text-blue-600 underline cursor-pointer;
+
     transition: color 0.2s ease;
 
     &:hover {
@@ -1884,6 +2055,7 @@ defineExpose({
 
   .invalid-link {
     @apply text-panel-text-secondary;
+
     font-family: inherit;
     font-size: inherit;
     cursor: text;
@@ -1892,6 +2064,7 @@ defineExpose({
   code.invalid-link-display,
   span.invalid-link-text {
     @apply bg-transparent text-panel-text-secondary;
+
     padding: 0;
     font-family: inherit;
     font-size: inherit;
@@ -1909,26 +2082,32 @@ defineExpose({
     border-radius: 9px;
     transition: border-color 0.3s ease;
 
-    th, td {
+    th,
+    td {
       padding: 0.52em 0.72em;
+      line-height: 1.5;
       text-align: left;
       border-right: 1px solid var(--markdown-heading-border);
       border-bottom: 1px solid var(--markdown-heading-border);
-      line-height: 1.5;
-      transition: border-color 0.3s ease, background-color 0.3s ease, color 0.3s ease;
+      transition:
+        border-color 0.3s ease,
+        background-color 0.3s ease,
+        color 0.3s ease;
     }
 
-    th[align='center'], td[align='center'] {
+    th[align='center'],
+    td[align='center'] {
       @apply text-center;
     }
 
-    th[align='right'], td[align='right'] {
+    th[align='right'],
+    td[align='right'] {
       @apply text-right;
     }
 
     th {
-      color: var(--markdown-heading);
       font-weight: 650;
+      color: var(--markdown-heading);
       background: var(--markdown-table-header);
     }
 
@@ -1952,16 +2131,13 @@ defineExpose({
     box-shadow: 0 8px 24px rgb(15 23 42 / 8%);
   }
 
-  &.dark img:not(.ProseMirror-separator) {
-    box-shadow: 0 10px 28px rgb(0 0 0 / 28%);
-  }
-
   &:focus {
     @apply outline-none;
   }
 
   p.is-editor-empty:first-child::before {
     @apply text-panel-text-secondary float-left h-0 pointer-events-none;
+
     content: attr(data-placeholder);
     transition: color 0.3s ease;
   }
@@ -1976,16 +2152,6 @@ defineExpose({
 
   :deep(.search-highlight-current) {
     @apply bg-amber-300 font-medium;
-  }
-
-  &.dark {
-    :deep(.search-highlight) {
-      @apply bg-yellow-600/40 text-yellow-100;
-    }
-
-    :deep(.search-highlight-current) {
-      @apply bg-amber-500/50;
-    }
   }
 }
 </style>

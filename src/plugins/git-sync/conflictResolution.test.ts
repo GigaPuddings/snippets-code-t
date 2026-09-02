@@ -14,7 +14,9 @@ const logger = {
   error: vi.fn()
 };
 
-const createDeps = (overrides: GitConflictResolutionDeps = {}): Required<GitConflictResolutionDeps> => ({
+const createDeps = (
+  overrides: GitConflictResolutionDeps = {}
+): Required<GitConflictResolutionDeps> => ({
   forcePush: vi.fn(async () => ({
     success: true,
     files_pushed: 1,
@@ -108,7 +110,10 @@ describe('git conflict resolution actions', () => {
     });
 
     expect(deps.writeConflictFile).toHaveBeenCalledWith('a.md', 'edited local');
-    expect(deps.writeConflictFile).not.toHaveBeenCalledWith('b.md', 'ignored remote edit');
+    expect(deps.writeConflictFile).not.toHaveBeenCalledWith(
+      'b.md',
+      'ignored remote edit'
+    );
     expect(deps.resolveConflictsBatch).toHaveBeenCalledWith([
       ['a.md', ConflictStrategy.KeepLocal],
       ['b.md', ConflictStrategy.KeepRemote]

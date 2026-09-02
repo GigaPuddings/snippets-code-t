@@ -57,8 +57,8 @@
 | 工作区布局 | `<workspace>/.snippets-code/workspace.json` | 设备/工作区状态 | `markdown/workspace.rs` |
 | Markdown 元数据缓存 | `<workspace>/.snippets-code/cache.json` | 可重建索引 | `markdown/cache_manager.rs` |
 | 核心与插件 SQL | `<data-root>/snippets.db` | 同时混合持久状态和可重建索引 | `db/init.rs` |
-| 插件包 | `<data-root>/plugins/<plugin-id>/...` | 可重新安装的代码和资源 | `app_config.rs` |
-| 通用插件 KV | 改造前为 `<data-root>/plugins/<plugin-id>/data.json` | v1 已迁移到 `<data-root>/state/plugins/<plugin-id>/data.json`，首次访问兼容迁移旧文件 | `app_config.rs` |
+| 插件包 | `<data-root>/packages/plugins/<plugin-id>/...` | 可重新安装的代码和资源；旧 `<data-root>/plugins/<plugin-id>` 仅作为兼容迁移来源 | `app_config.rs` |
+| 通用插件 KV | 改造前为 `<data-root>/plugins/<plugin-id>/data.json` | v1 已迁移到 `<data-root>/state/plugins/<plugin-id>/data.json`，后续不得写回插件包目录 | `app_config.rs` |
 | 本地 AI 配置/历史 | 改造前为 `<data-root>/.snippets-code/local-ai*.json` | v1 已迁至 `<data-root>/state/plugins/local-ai/`；服务日志迁至平台日志目录 | `plugins/local_ai.rs` |
 | 图标缓存 | `snippets.db.icon_cache` 和各实体的 `icon` 字段 | Base64 文本形式的可重建缓存 | `icon.rs`、`db/icon_cache.rs` |
 | 壁纸与录屏中间数据 | `app_cache_dir/<plugin-id>/...` | 可清理缓存/临时数据 | `wallpaper_switcher.rs`、`screen_recorder.rs` |
@@ -139,7 +139,7 @@ desktop-files 在每次启用运行时时都会调用 `refresh_desktop_files_cac
 | 清理图标缓存 | 删除 `icon_cache`，将实体图标引用置空并后台补齐 | 来源索引文本、所有访问历史、手动项、配置和内容 |
 | 清理某来源历史 | 仅删除 `app:path:*`、`bookmark:url:*`、`file:path:*` 或 `markdown:path:*` | 索引、图标、配置和内容 |
 | 重置全部检索来源 | 重建 app/bookmark/desktop 扫描项 | 访问历史、手动项、插件配置、Markdown 内容 |
-| 禁用或普通卸载插件 | 停止运行时；卸载只删除插件包 | 插件状态、插件数据库、用户配置、历史和现有索引 |
+| 禁用或普通卸载插件 | 停止运行时；卸载只删除插件包 | 插件持久状态、插件数据库、用户配置、历史和现有索引 |
 
 `search_history` 使用规范化路径或 URL 作为稳定键，索引重建后继续参与 frecency 排序。设置页已经将“重建检索数据”“清理使用历史”“清理图标缓存”拆为三个独立动作，并在确认文案中说明保留边界。
 
@@ -305,7 +305,7 @@ CREATE TABLE index_meta (
 
 规则：
 
-- `<packages>/plugins/<id>` 只读、可替换。
+- `<data-root>/packages/plugins/<id>` 只读、可替换。
 - `<state>/plugins/<id>` 是插件持久数据，更新时保留。
 - `<app-cache>/plugins/<id>` 是可删除缓存。
 - 插件禁用只停止运行时，不删除持久数据。
@@ -337,8 +337,8 @@ CREATE TABLE index_meta (
 | 重建桌面索引 | 保留 | 保留 | 保留 | 仅重建 file | 可复用，按指纹失效 | 保留 |
 | 清除某来源使用历史 | 保留 | 保留 | 删除对应历史前缀 | 保留 | 保留 | 保留 |
 | 禁用插件 | 保留 | 保留 | 保留 | 可保留或卸载内存 | 保留 | 保留 |
-| 卸载插件，保留数据 | 保留 | 保留插件状态 | 保留 | 删除可重建插件索引 | 删除插件缓存 | 删除包 |
-| 卸载并删除数据 | 删除该插件内容 | 删除该插件配置 | 删除该插件历史/覆盖 | 删除 | 删除 | 删除包 |
+| 卸载插件，保留数据 | 保留 | 保留插件持久状态 | 保留 | 保留现有索引 | 保留插件缓存 | 删除包 |
+| 卸载并删除数据 | 删除该插件持久状态 | 删除该插件配置 | 删除该插件历史/覆盖 | 删除该插件索引 | 删除该插件缓存 | 删除包 |
 | 恢复应用出厂设置 | 默认不碰工作区 | 删除 | 删除 | 删除 | 删除 | 可选删除 |
 | 删除工作区 | 单独二次确认 | 删除 vault 状态 | 删除 vault 历史 | 删除 vault 索引 | 删除 vault 缓存 | 不相关 |
 

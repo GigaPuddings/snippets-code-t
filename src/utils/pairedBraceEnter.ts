@@ -47,7 +47,10 @@ function getOpeningTagName(lineBeforeCursor: string): string | null {
   return tagName;
 }
 
-function startsWithClosingTag(lineAfterCursor: string, tagName: string): boolean {
+function startsWithClosingTag(
+  lineAfterCursor: string,
+  tagName: string
+): boolean {
   const trimmed = lineAfterCursor.trimStart();
   if (tagName === '') return trimmed.startsWith('</>');
   return new RegExp(`^</\\s*${escapeRegExp(tagName)}\\s*>`).test(trimmed);
@@ -55,7 +58,9 @@ function startsWithClosingTag(lineAfterCursor: string, tagName: string): boolean
 
 function getOpeningDelimiter(lineBeforeCursor: string): string | null {
   const lastNonWhitespace = lineBeforeCursor.trimEnd().at(-1);
-  return lastNonWhitespace && PAIRS[lastNonWhitespace] ? lastNonWhitespace : null;
+  return lastNonWhitespace && PAIRS[lastNonWhitespace]
+    ? lastNonWhitespace
+    : null;
 }
 
 export function createPairedBraceEnterEdit(
@@ -79,7 +84,9 @@ export function createPairedBraceEnterEdit(
   if (openingTagName !== null) {
     const pairedTag = startsWithClosingTag(lineAfterCursor, openingTagName);
     return {
-      insert: pairedTag ? `\n${innerIndent}\n${baseIndent}` : `\n${innerIndent}`,
+      insert: pairedTag
+        ? `\n${innerIndent}\n${baseIndent}`
+        : `\n${innerIndent}`,
       cursorOffset: 1 + innerIndent.length
     };
   }
@@ -87,11 +94,14 @@ export function createPairedBraceEnterEdit(
   const openingDelimiter = getOpeningDelimiter(lineBeforeCursor);
   if (!openingDelimiter) return null;
 
-  const pairedDelimiter =
-    lineAfterCursor.trimStart().startsWith(PAIRS[openingDelimiter]);
+  const pairedDelimiter = lineAfterCursor
+    .trimStart()
+    .startsWith(PAIRS[openingDelimiter]);
 
   return {
-    insert: pairedDelimiter ? `\n${innerIndent}\n${baseIndent}` : `\n${innerIndent}`,
+    insert: pairedDelimiter
+      ? `\n${innerIndent}\n${baseIndent}`
+      : `\n${innerIndent}`,
     cursorOffset: 1 + innerIndent.length
   };
 }

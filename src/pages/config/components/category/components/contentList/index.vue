@@ -8,7 +8,10 @@
     >
       <template #first>
         <!-- 折叠态不显示边条/箭头；展开态仅显示列表，无折叠把手 -->
-        <div v-if="!layoutStore.effectiveContentListCollapsed" class="left-panel transparent-input">
+        <div
+          v-if="!layoutStore.effectiveContentListCollapsed"
+          class="left-panel transparent-input"
+        >
           <div class="left-panel__content">
             <ContentSearchBar
               v-model:searchText="searchText"
@@ -55,7 +58,6 @@
       @close="showFilterPanel = false"
     />
 
-
     <!-- Delete Confirmation Dialog -->
     <ConfirmDialog
       v-model="showDeleteDialog"
@@ -65,9 +67,11 @@
       type="danger"
       @confirm="confirmDelete"
     >
-      <div>{{ $t('contentItem.deleteConfirm', { name: deleteTarget?.title }) }}</div>
+      <div>
+        {{ $t('contentItem.deleteConfirm', { name: deleteTarget?.title }) }}
+      </div>
     </ConfirmDialog>
-    
+
     <!-- Backlink Update Dialog (for deletion) -->
     <BacklinkUpdateDialog
       v-model="showBacklinkUpdateDialog"
@@ -79,7 +83,7 @@
       :cancel-text="$t('common.cancel')"
       @confirm="confirmDeleteWithBacklinks"
     />
-    
+
     <!-- Change Category Dialog -->
     <SelectConfirmDialog
       v-model="showCategoryDialog"
@@ -101,11 +105,13 @@
       @confirm="confirmTypeConversion"
     >
       <div>
-        {{ $t(
-          typeConversionTargetType === 'note'
-            ? 'category.convertToNoteConfirm'
-            : 'category.convertToCodeConfirm'
-        ) }}
+        {{
+          $t(
+            typeConversionTargetType === 'note'
+              ? 'category.convertToNoteConfirm'
+              : 'category.convertToCodeConfirm'
+          )
+        }}
       </div>
     </ConfirmDialog>
   </main>
@@ -118,7 +124,11 @@ import { useI18n } from 'vue-i18n';
 import Splitter from '@/components/Splitter/index.vue';
 import FragmentTypeSelector from '@/components/FragmentTypeSelector/index.vue';
 import FilterPanel from './FilterPanel.vue';
-import { ConfirmDialog, SelectConfirmDialog, BacklinkUpdateDialog } from '@/components/UI';
+import {
+  ConfirmDialog,
+  SelectConfirmDialog,
+  BacklinkUpdateDialog
+} from '@/components/UI';
 import ContentSearchBar from './components/ContentSearchBar.vue';
 import ContentListView from './components/ContentListView.vue';
 import { useContentList } from './composables/useContentList';
@@ -145,8 +155,6 @@ const { t } = useI18n();
 defineOptions({
   name: 'ContentList'
 });
-
-
 
 // 使用内容列表 Composable
 const {
@@ -193,21 +201,21 @@ const showFilterPanel = ref<boolean>(false);
  */
 function toggleFilterPanel(): void {
   if (!showFilterPanel.value) {
-    const currentFilter: SearchFilter = { 
+    const currentFilter: SearchFilter = {
       type: panelFilter.value.type || 'all',
       sortBy: panelFilter.value.sortBy,
       sortOrder: panelFilter.value.sortOrder
     };
-    
+
     if (tagFilter.value) {
       currentFilter.tags = [tagFilter.value];
     } else if (panelFilter.value.tags) {
       currentFilter.tags = [...panelFilter.value.tags];
     }
-    
+
     panelFilter.value = currentFilter;
   }
-  
+
   showFilterPanel.value = !showFilterPanel.value;
 }
 
@@ -217,7 +225,7 @@ function toggleFilterPanel(): void {
  */
 function handleFilterUpdate(filter: SearchFilter): void {
   updateFilter(filter);
-  
+
   if (!filter.tags || filter.tags.length === 0) {
     if (route.query.tag) {
       const { tag, ...restQuery } = route.query;
@@ -269,7 +277,7 @@ const categoryOptions = computed<CategoryOption[]>(() => {
     { label: t('contentItem.uncategorized'), value: 0 },
     // 过滤掉系统分类（如"未分类"），只显示用户创建的分类
     ...store.categories
-      .filter(category => !category.isSystem)
+      .filter((category) => !category.isSystem)
       .map((category) => ({
         label: category.name,
         value: category.id as number
@@ -283,22 +291,22 @@ const refreshHandler = getDebouncedHandler('contentList-refresh', 200);
 // 监听数据刷新事件（Git Pull 完成后的无感刷新）
 const handleRefreshData = async (event: Event) => {
   const customEvent = event as CustomEvent;
-  
+
   // 使用防抖处理，避免重复刷新
   await refreshHandler.handle(async () => {
     try {
       // 重新加载当前分类的文件列表
       const categoryId = route.params.cid as string | undefined;
-      
+
       // 保存当前的搜索文本，以便刷新后恢复
       const currentSearchText = searchText.value;
-      
+
       // git-pull 事件：后端会先发送 files-changed-batch，此处做兜底全量刷新
       if (customEvent.detail?.source === 'git-pull') {
         await queryFragments(categoryId, currentSearchText);
         return;
       }
-      
+
       // 处理批量文件变更事件
       if (customEvent.detail?.source === 'files-changed-batch') {
         // 先重建搜索索引，等待完成后再刷新列表
@@ -307,12 +315,12 @@ const handleRefreshData = async (event: Event) => {
         } catch (err) {
           console.error('[ContentList] 重建搜索索引失败:', err);
         }
-        
+
         // 刷新列表（保持搜索状态）
         await queryFragments(categoryId, currentSearchText);
         return;
       }
-      
+
       // 其他事件：正常刷新列表（保持搜索状态）
       await queryFragments(categoryId, currentSearchText);
     } catch (error) {

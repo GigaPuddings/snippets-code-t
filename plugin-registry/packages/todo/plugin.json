@@ -14,22 +14,14 @@
   "category": "automation",
   "enabledByDefault": true,
   "capabilities": {
-    "routeNames": [
-      "Todo"
-    ],
-    "settingsTabs": [
-      "todo"
-    ]
+    "routeNames": ["Todo"],
+    "settingsTabs": ["todo"]
   },
-  "permissions": [
-    "command:*"
-  ],
+  "permissions": ["command:*"],
   "compatibleAppVersion": ">=2.1.42",
   "entry": {
     "frontend": "dist/frontend.js",
-    "styles": [
-      "dist/assets/runtime-entry-BYb55s7X.css"
-    ]
+    "styles": ["dist/assets/runtime-entry-BYb55s7X.css"]
   },
   "minAppVersion": "2.1.42",
   "repository": "https://github.com/GigaPuddings/snippets-code-plugin-todo",

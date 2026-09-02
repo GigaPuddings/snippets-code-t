@@ -3,7 +3,10 @@ import type { PluginCategory, PluginStateMap, PluginId } from '@/plugins/types';
 import type {
   LocalPluginPackage,
   PluginI18nText,
-  PluginPackageManifest
+  PluginNativeHostSecurity,
+  PluginPackageManifest,
+  PluginPackageSignature,
+  PluginPublisherDescriptor
 } from '@/plugins/protocol';
 
 export interface PluginResourceStatus {
@@ -33,6 +36,10 @@ export interface PluginMarketplaceItem {
   /** 镜像下载地址列表（GitHub 代理），当 packageUrl 下载失败或超时时自动尝试 */
   mirrorUrls?: string[];
   packageSubdir?: string;
+  sha256?: string;
+  signature?: PluginPackageSignature;
+  publisher?: PluginPublisherDescriptor;
+  nativeHost?: PluginNativeHostSecurity;
   minAppVersion?: string;
   compatibleAppVersion?: string;
   manifest?: PluginPackageManifest;
@@ -123,16 +130,20 @@ export async function installPluginPackageFromUrl(
   overwrite = false,
   packageSubdir?: string,
   expectedSizeBytes?: number,
+  expectedSha256?: string,
   mirrorUrls?: string[],
   pluginId?: string
 ): Promise<LocalPluginPackage> {
   return await invoke<LocalPluginPackage>('install_plugin_package_from_url', {
-    expectedSizeBytes,
-    packageUrl,
-    packageSubdir,
-    overwrite,
-    mirrorUrls: mirrorUrls ?? [],
-    pluginId
+    request: {
+      expectedSha256,
+      expectedSizeBytes,
+      packageUrl,
+      packageSubdir,
+      overwrite,
+      mirrorUrls: mirrorUrls ?? [],
+      pluginId
+    }
   });
 }
 

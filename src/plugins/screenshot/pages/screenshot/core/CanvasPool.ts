@@ -3,18 +3,18 @@
  * 复用 canvas 对象减少创建销毁开销
  */
 export class CanvasPool {
-  private static instance: CanvasPool
-  private pool: HTMLCanvasElement[] = []
-  private maxPoolSize = 5 // 最大池大小
-  private inUse = new Set<HTMLCanvasElement>()
+  private static instance: CanvasPool;
+  private pool: HTMLCanvasElement[] = [];
+  private maxPoolSize = 5; // 最大池大小
+  private inUse = new Set<HTMLCanvasElement>();
 
   private constructor() {}
 
   static getInstance(): CanvasPool {
     if (!CanvasPool.instance) {
-      CanvasPool.instance = new CanvasPool()
+      CanvasPool.instance = new CanvasPool();
     }
-    return CanvasPool.instance
+    return CanvasPool.instance;
   }
 
   /**
@@ -25,37 +25,38 @@ export class CanvasPool {
    */
   acquire(width: number, height: number): HTMLCanvasElement {
     // 尝试从池中获取合适的 canvas
-    const index = this.pool.findIndex(canvas => 
-      canvas.width >= width && 
-      canvas.height >= height &&
-      !this.inUse.has(canvas)
-    )
+    const index = this.pool.findIndex(
+      (canvas) =>
+        canvas.width >= width &&
+        canvas.height >= height &&
+        !this.inUse.has(canvas)
+    );
 
-    let canvas: HTMLCanvasElement
+    let canvas: HTMLCanvasElement;
 
     if (index !== -1) {
       // 从池中取出
-      canvas = this.pool[index]
-      this.pool.splice(index, 1)
+      canvas = this.pool[index];
+      this.pool.splice(index, 1);
     } else {
       // 创建新的 canvas
-      canvas = document.createElement('canvas')
+      canvas = document.createElement('canvas');
     }
 
     // 设置尺寸
-    canvas.width = width
-    canvas.height = height
+    canvas.width = width;
+    canvas.height = height;
 
     // 清空内容
-    const ctx = canvas.getContext('2d')
+    const ctx = canvas.getContext('2d');
     if (ctx) {
-      ctx.clearRect(0, 0, width, height)
+      ctx.clearRect(0, 0, width, height);
     }
 
     // 标记为使用中
-    this.inUse.add(canvas)
+    this.inUse.add(canvas);
 
-    return canvas
+    return canvas;
   }
 
   /**
@@ -64,20 +65,20 @@ export class CanvasPool {
    */
   release(canvas: HTMLCanvasElement): void {
     if (!this.inUse.has(canvas)) {
-      return
+      return;
     }
 
     // 从使用中移除
-    this.inUse.delete(canvas)
+    this.inUse.delete(canvas);
 
     // 如果池未满，放回池中
     if (this.pool.length < this.maxPoolSize) {
       // 清空内容以释放内存
-      const ctx = canvas.getContext('2d')
+      const ctx = canvas.getContext('2d');
       if (ctx) {
-        ctx.clearRect(0, 0, canvas.width, canvas.height)
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
       }
-      this.pool.push(canvas)
+      this.pool.push(canvas);
     }
     // 否则让 GC 回收
   }
@@ -86,8 +87,8 @@ export class CanvasPool {
    * 清空池
    */
   clear(): void {
-    this.pool = []
-    this.inUse.clear()
+    this.pool = [];
+    this.inUse.clear();
   }
 
   /**
@@ -97,6 +98,6 @@ export class CanvasPool {
     return {
       poolSize: this.pool.length,
       inUse: this.inUse.size
-    }
+    };
   }
 }

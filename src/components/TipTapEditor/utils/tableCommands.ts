@@ -1,5 +1,9 @@
 import type { Editor } from '@tiptap/core';
-import { Fragment, type Node as ProseMirrorNode, type ResolvedPos } from '@tiptap/pm/model';
+import {
+  Fragment,
+  type Node as ProseMirrorNode,
+  type ResolvedPos
+} from '@tiptap/pm/model';
 import { TextSelection } from '@tiptap/pm/state';
 
 export interface TableInfo {
@@ -28,7 +32,7 @@ export function getCurrentTableInfo(editor: Editor): TableInfo | null {
 
   const table = $from.node(tableDepth);
   let columns = 0;
-  table.forEach(row => {
+  table.forEach((row) => {
     columns = Math.max(columns, row.childCount);
   });
 
@@ -47,10 +51,18 @@ const createEmptyCell = (template: ProseMirrorNode): ProseMirrorNode => {
   if (cell) return cell;
 
   const paragraph = template.type.schema.nodes.paragraph?.create();
-  return template.type.create(template.attrs, paragraph ? Fragment.from(paragraph) : undefined);
+  return template.type.create(
+    template.attrs,
+    paragraph ? Fragment.from(paragraph) : undefined
+  );
 };
 
-const positionInCell = (tablePos: number, table: ProseMirrorNode, rowIndex: number, columnIndex: number) => {
+const positionInCell = (
+  tablePos: number,
+  table: ProseMirrorNode,
+  rowIndex: number,
+  columnIndex: number
+) => {
   let rowPos = tablePos + 1;
   for (let index = 0; index < rowIndex; index++) {
     rowPos += table.child(index).nodeSize;
@@ -66,13 +78,20 @@ const positionInCell = (tablePos: number, table: ProseMirrorNode, rowIndex: numb
 };
 
 /** 调整当前表格尺寸，保留左上区域的已有内容，并从右侧/底部增删。 */
-export function resizeCurrentTable(editor: Editor, requestedRows: number, requestedColumns: number): boolean {
+export function resizeCurrentTable(
+  editor: Editor,
+  requestedRows: number,
+  requestedColumns: number
+): boolean {
   const info = getCurrentTableInfo(editor);
   const rows = Math.max(1, Math.trunc(requestedRows));
   const columns = Math.max(1, Math.trunc(requestedColumns));
-  if (!info || (rows === info.rows && columns === info.columns)) return Boolean(info);
+  if (!info || (rows === info.rows && columns === info.columns))
+    return Boolean(info);
 
-  const sourceRows = Array.from({ length: info.table.childCount }, (_, index) => info.table.child(index));
+  const sourceRows = Array.from({ length: info.table.childCount }, (_, index) =>
+    info.table.child(index)
+  );
   const rowTemplate = sourceRows[0];
   if (!rowTemplate || rowTemplate.childCount === 0) return false;
 
@@ -83,16 +102,28 @@ export function resizeCurrentTable(editor: Editor, requestedRows: number, reques
     const cells: ProseMirrorNode[] = [];
 
     for (let columnIndex = 0; columnIndex < columns; columnIndex++) {
-      const existingCell = !isNewRow && columnIndex < sourceRow.childCount
-        ? sourceRow.child(columnIndex)
-        : null;
+      const existingCell =
+        !isNewRow && columnIndex < sourceRow.childCount
+          ? sourceRow.child(columnIndex)
+          : null;
       const template = isNewRow
-        ? sourceRows[sourceRows.length - 1].child(Math.min(columnIndex, sourceRows[sourceRows.length - 1].childCount - 1))
+        ? sourceRows[sourceRows.length - 1].child(
+            Math.min(
+              columnIndex,
+              sourceRows[sourceRows.length - 1].childCount - 1
+            )
+          )
         : sourceRow.child(Math.min(columnIndex, sourceRow.childCount - 1));
       cells.push(existingCell ?? createEmptyCell(template));
     }
 
-    resizedRows.push(sourceRow.type.create(sourceRow.attrs, Fragment.fromArray(cells), sourceRow.marks));
+    resizedRows.push(
+      sourceRow.type.create(
+        sourceRow.attrs,
+        Fragment.fromArray(cells),
+        sourceRow.marks
+      )
+    );
   }
 
   const resizedTable = info.table.type.create(
@@ -107,7 +138,12 @@ export function resizeCurrentTable(editor: Editor, requestedRows: number, reques
   );
   const rowIndex = Math.min(info.rowIndex, rows - 1);
   const columnIndex = Math.min(info.columnIndex, columns - 1);
-  const selectionPos = positionInCell(info.tablePos, resizedTable, rowIndex, columnIndex);
+  const selectionPos = positionInCell(
+    info.tablePos,
+    resizedTable,
+    rowIndex,
+    columnIndex
+  );
   tr.setSelection(TextSelection.near(tr.doc.resolve(selectionPos)));
   editor.view.dispatch(tr.scrollIntoView());
   editor.commands.focus();
@@ -123,12 +159,18 @@ export function setCurrentTableColumnAlignment(
   if (!info) return false;
 
   const rows: ProseMirrorNode[] = [];
-  info.table.forEach(row => {
+  info.table.forEach((row) => {
     const cells: ProseMirrorNode[] = [];
     row.forEach((cell, _offset, columnIndex) => {
-      cells.push(columnIndex === info.columnIndex
-        ? cell.type.create({ ...cell.attrs, textAlign: alignment }, cell.content, cell.marks)
-        : cell);
+      cells.push(
+        columnIndex === info.columnIndex
+          ? cell.type.create(
+              { ...cell.attrs, textAlign: alignment },
+              cell.content,
+              cell.marks
+            )
+          : cell
+      );
     });
     rows.push(row.type.create(row.attrs, Fragment.fromArray(cells), row.marks));
   });
@@ -160,6 +202,9 @@ export function createTableMarkdown(rows: number, columns: number): string {
   const columnCount = Math.max(1, Math.trunc(columns));
   const emptyRow = `| ${Array(columnCount).fill('').join(' | ')} |`;
   const separator = `| ${Array(columnCount).fill('---').join(' | ')} |`;
-  const body = Array.from({ length: Math.max(0, rowCount - 1) }, () => emptyRow);
+  const body = Array.from(
+    { length: Math.max(0, rowCount - 1) },
+    () => emptyRow
+  );
   return [emptyRow, separator, ...body].join('\n');
 }

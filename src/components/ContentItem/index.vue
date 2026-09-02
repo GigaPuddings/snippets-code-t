@@ -359,6 +359,7 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
 <style scoped lang="scss">
 @mixin commonLink {
   @apply block rounded-lg cursor-pointer transition-colors duration-200 ease-out border-b-transparent;
+
   position: relative;
   border: 1px solid transparent;
 }
@@ -368,12 +369,12 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
 
   &.is-dragging {
     z-index: 1;
-    border-color: transparent;
     background: color-mix(
       in srgb,
       var(--search-result-active) 42%,
       transparent
     );
+    border-color: transparent;
     box-shadow: none;
 
     .content-item-wrapper {
@@ -406,31 +407,31 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
   left: -1000px;
   z-index: 99999;
   display: flex;
+  gap: 7px;
+  align-items: center;
   width: max-content;
   max-width: 220px;
   min-height: 36px;
   padding: 6px 10px 6px 7px;
-  align-items: center;
-  gap: 7px;
   color: var(--panel-text);
+  pointer-events: none;
   background: color-mix(in srgb, var(--panel-bg) 97%, transparent);
+  backdrop-filter: blur(12px);
   border: 1px solid
     color-mix(in srgb, var(--search-result-accent) 26%, var(--panel-border));
   border-radius: 9px;
   box-shadow: var(--fragment-drag-shadow);
-  backdrop-filter: blur(12px);
-  pointer-events: none;
 }
 
 :global(.fragment-drag-preview__icon) {
   display: grid;
+  flex: 0 0 24px;
+  place-items: center;
   width: 24px;
   height: 24px;
-  flex: 0 0 24px;
   color: var(--search-result-accent);
   background: color-mix(in srgb, var(--search-result-active) 72%, transparent);
   border-radius: 7px;
-  place-items: center;
 }
 
 :global(.fragment-drag-preview__icon svg) {
@@ -438,20 +439,20 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
   height: 15px;
   fill: none;
   stroke: currentcolor;
-  stroke-width: 1.7;
   stroke-linecap: round;
   stroke-linejoin: round;
+  stroke-width: 1.7;
 }
 
 :global(.fragment-drag-preview__title) {
   display: block;
+  flex: 1;
   min-width: 0;
   overflow: hidden;
-  flex: 1;
-  color: var(--panel-text);
   font-size: 12px;
   font-weight: 600;
   line-height: 1.25;
+  color: var(--panel-text);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -460,14 +461,14 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
   @apply bg-hover dark:bg-hover border-panel;
 
   .fragment-type-icon {
+    background-color: rgb(0 0 0 / 8%);
     transform: scale(1.05);
-    background-color: rgba(0, 0, 0, 0.08);
   }
 
   .content-item-tags {
     .tag-item {
-      background-color: rgba(0, 0, 0, 0.08);
       color: #4a9eff;
+      background-color: rgb(0 0 0 / 8%);
     }
   }
 }
@@ -492,8 +493,9 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
     .content-item-header {
       .content-item-title {
         @apply truncate;
-        color: var(--categories-text-color);
+
         font-weight: 600;
+        color: var(--categories-text-color);
       }
 
       .fragment-type-icon {
@@ -549,11 +551,13 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
 
     .content-item-title {
       @apply truncate text-panel flex-1 font-medium;
+
       transition: none;
     }
 
     .fragment-type-icon {
       @apply flex-shrink-0 w-5 h-5 rounded flex items-center justify-center;
+
       transition:
         background-color 0.2s ease,
         color 0.2s ease,
@@ -561,8 +565,8 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
 
       &.type-code,
       &.type-note {
-        background-color: rgba(0, 0, 0, 0.04);
         color: #666;
+        background-color: rgb(0 0 0 / 4%);
       }
     }
   }
@@ -580,17 +584,18 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
 
     .tag-item {
       @apply inline-flex items-center px-1.5 py-0.5 rounded text-[10px] cursor-pointer flex-shrink-0;
-      background-color: rgba(0, 0, 0, 0.04);
+
+      max-width: 60px;
+      overflow: hidden;
+      line-height: 1.2;
       color: #666;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      background-color: rgb(0 0 0 / 4%);
       transition:
         background-color 0.2s ease,
         border-color 0.2s ease,
         color 0.2s ease;
-      line-height: 1.2;
-      max-width: 60px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
     }
 
     .more-tags {
@@ -612,13 +617,13 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
 :global(.dark) {
   .link:not(.active):hover {
     .fragment-type-icon {
-      background-color: rgba(255, 255, 255, 0.1);
+      background-color: rgb(255 255 255 / 10%);
     }
 
     .content-item-tags {
       .tag-item {
-        background-color: rgba(255, 255, 255, 0.1);
         color: #4a9eff;
+        background-color: rgb(255 255 255 / 10%);
       }
     }
   }
@@ -626,15 +631,15 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
   .fragment-type-icon {
     &.type-code,
     &.type-note {
-      background-color: rgba(255, 255, 255, 0.06);
       color: #999;
+      background-color: rgb(255 255 255 / 6%);
     }
   }
 
   .content-item-tags {
     .tag-item {
-      background-color: rgba(255, 255, 255, 0.06);
       color: #999;
+      background-color: rgb(255 255 255 / 6%);
     }
   }
 

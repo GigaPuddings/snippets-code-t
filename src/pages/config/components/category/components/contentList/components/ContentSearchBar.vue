@@ -16,8 +16,12 @@
           />
         </template>
       </el-input>
-      
-      <el-tooltip effect="light" :content="$t('search.filterPanel')" placement="bottom">
+
+      <el-tooltip
+        effect="light"
+        :content="$t('search.filterPanel')"
+        placement="bottom"
+      >
         <div class="filter-button-wrapper" @click="$emit('toggle-filter')">
           <Filter
             class="content-search-filter"
@@ -26,13 +30,19 @@
             size="18"
             :strokeWidth="2"
           />
-          <span v-if="activeFilterCount > 0" class="filter-badge">{{ activeFilterCount }}</span>
+          <span v-if="activeFilterCount > 0" class="filter-badge">
+            {{ activeFilterCount }}
+          </span>
         </div>
       </el-tooltip>
 
       <GitContributionMiniEntry />
-      
-      <el-tooltip effect="light" :content="$t('category.newSnippet')" placement="bottom">
+
+      <el-tooltip
+        effect="light"
+        :content="$t('category.newSnippet')"
+        placement="bottom"
+      >
         <Plus
           class="content-search-add"
           theme="outline"
@@ -42,7 +52,7 @@
         />
       </el-tooltip>
     </div>
-    
+
     <!-- Search Syntax Helper -->
     <SearchSyntaxHelper
       :visible="showSyntaxHelper"
@@ -89,9 +99,12 @@ const showSyntaxHelper = ref<boolean>(false);
 const localSearchText = ref<string>(props.searchText);
 
 // 同步 props 到本地状态
-watch(() => props.searchText, (newValue) => {
-  localSearchText.value = newValue;
-});
+watch(
+  () => props.searchText,
+  (newValue) => {
+    localSearchText.value = newValue;
+  }
+);
 
 // 同步本地状态到 props
 watch(localSearchText, (newValue) => {
@@ -140,19 +153,22 @@ function handleSyntaxInsert(syntax: string): void {
 
   .filter-button-wrapper {
     @apply relative cursor-pointer;
-    
+
     .content-search-filter {
       display: inline-flex;
-      width: 32px;
-      height: 30px;
       align-items: center;
       justify-content: center;
+      width: 32px;
+      height: 30px;
       color: var(--categories-text-color);
       background: transparent;
       border: 1px solid transparent;
       border-radius: 6px;
       outline: none;
-      transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+      transition:
+        background 0.16s ease,
+        border-color 0.16s ease,
+        color 0.16s ease;
 
       &:hover,
       &:focus-visible {
@@ -164,28 +180,29 @@ function handleSyntaxInsert(syntax: string): void {
         @apply text-blue-500 dark:text-blue-400;
       }
     }
-    
+
     .filter-badge {
       @apply absolute -top-1 -right-1;
       @apply bg-blue-500 text-white;
       @apply text-xs font-medium;
       @apply rounded-full;
       @apply flex items-center justify-center;
+
       min-width: 16px;
       height: 16px;
       padding: 0 4px;
       font-size: 10px;
       line-height: 1;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+      box-shadow: 0 1px 3px rgb(0 0 0 / 30%);
     }
   }
 
   .content-search-add {
     display: inline-flex;
-    width: 32px;
-    height: 30px;
     align-items: center;
     justify-content: center;
+    width: 32px;
+    height: 30px;
     margin-right: 0.5rem;
     color: var(--categories-text-color);
     cursor: pointer;
@@ -193,7 +210,10 @@ function handleSyntaxInsert(syntax: string): void {
     border: 1px solid transparent;
     border-radius: 6px;
     outline: none;
-    transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+    transition:
+      background 0.16s ease,
+      border-color 0.16s ease,
+      color 0.16s ease;
 
     &:hover,
     &:focus-visible {

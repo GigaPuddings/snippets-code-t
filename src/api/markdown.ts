@@ -18,7 +18,10 @@ export async function createMarkdownFile(
   metadata: Partial<MarkdownFile>
 ): Promise<string> {
   try {
-    const result = await invoke<string>('create_markdown_file', { category, metadata });
+    const result = await invoke<string>('create_markdown_file', {
+      category,
+      metadata
+    });
     return result;
   } catch (error) {
     throw new Error(`创建文件失败: ${error}`);
@@ -30,7 +33,9 @@ export async function createMarkdownFile(
  * @param filePath 文件路径
  * @returns Markdown 文件数据
  */
-export async function readMarkdownFile(filePath: string): Promise<MarkdownFile> {
+export async function readMarkdownFile(
+  filePath: string
+): Promise<MarkdownFile> {
   try {
     return await invoke<MarkdownFile>('read_markdown_file', { filePath });
   } catch (error) {
@@ -51,7 +56,11 @@ export async function updateMarkdownFile(
   metadata?: Partial<MarkdownFile>
 ): Promise<string | null> {
   try {
-    const newPath = await invoke<string | null>('update_markdown_file', { filePath, content, metadata });
+    const newPath = await invoke<string | null>('update_markdown_file', {
+      filePath,
+      content,
+      metadata
+    });
     return newPath;
   } catch (error) {
     throw new Error(`更新文件失败: ${error}`);
@@ -76,9 +85,15 @@ export async function deleteMarkdownFile(filePath: string): Promise<void> {
  * @param newCategory 新分类名称（空字符串表示"未分类"）
  * @returns 新文件路径
  */
-export async function moveMarkdownFile(filePath: string, newCategory: string): Promise<string> {
+export async function moveMarkdownFile(
+  filePath: string,
+  newCategory: string
+): Promise<string> {
   try {
-    return await invoke<string>('move_markdown_file', { filePath, newCategory });
+    return await invoke<string>('move_markdown_file', {
+      filePath,
+      newCategory
+    });
   } catch (error) {
     throw new Error(`移动文件失败: ${error}`);
   }
@@ -89,9 +104,13 @@ export async function moveMarkdownFile(filePath: string, newCategory: string): P
  * @param query 搜索查询字符串
  * @returns 匹配的文件列表
  */
-export async function searchMarkdownFiles(query: string): Promise<MarkdownFile[]> {
+export async function searchMarkdownFiles(
+  query: string
+): Promise<MarkdownFile[]> {
   try {
-    return await invoke<MarkdownFile[]>('search_markdown_files_optimized', { query });
+    return await invoke<MarkdownFile[]>('search_markdown_files_optimized', {
+      query
+    });
   } catch (error) {
     throw new Error(`搜索失败: ${error}`);
   }
@@ -235,7 +254,10 @@ export async function deleteCategory(name: string): Promise<void> {
  * @param oldName 旧名称
  * @param newName 新名称
  */
-export async function renameCategory(oldName: string, newName: string): Promise<void> {
+export async function renameCategory(
+  oldName: string,
+  newName: string
+): Promise<void> {
   try {
     await invoke('rename_category_folder', { oldName, newName });
   } catch (error) {
@@ -248,9 +270,13 @@ export async function renameCategory(oldName: string, newName: string): Promise<
  * @param category 分类 ID（0 表示未分类，null 表示所有文件）
  * @returns 文件列表
  */
-export async function getFilesByCategory(category: number | null): Promise<MarkdownFile[]> {
+export async function getFilesByCategory(
+  category: number | null
+): Promise<MarkdownFile[]> {
   try {
-    const result = await invoke<MarkdownFile[]>('get_files_by_category', { category });
+    const result = await invoke<MarkdownFile[]>('get_files_by_category', {
+      category
+    });
     return result;
   } catch (error) {
     throw new Error(`获取文件列表失败: ${error}`);
@@ -263,7 +289,9 @@ export async function getFilesByCategory(category: number | null): Promise<Markd
  */
 export async function getAllFiles(): Promise<MarkdownFile[]> {
   try {
-    const result = await invoke<MarkdownFile[]>('get_files_by_category', { category: null });
+    const result = await invoke<MarkdownFile[]>('get_files_by_category', {
+      category: null
+    });
     return result;
   } catch (error) {
     throw new Error(`获取所有文件失败: ${error}`);
@@ -277,7 +305,10 @@ export async function getAllFiles(): Promise<MarkdownFile[]> {
  * @param filePath 文件路径
  * @param favorite 是否收藏
  */
-export async function toggleFavorite(filePath: string, favorite: boolean): Promise<void> {
+export async function toggleFavorite(
+  filePath: string,
+  favorite: boolean
+): Promise<void> {
   try {
     await invoke('toggle_favorite', { filePath, favorite });
   } catch (error) {
@@ -318,7 +349,9 @@ export async function ignoreNextChange(filePath: string): Promise<void> {
  * @param title 笔记标题
  * @returns 匹配的文件，如果不存在则返回 null
  */
-export async function findFileByTitle(title: string): Promise<MarkdownFile | null> {
+export async function findFileByTitle(
+  title: string
+): Promise<MarkdownFile | null> {
   try {
     return await invoke<MarkdownFile | null>('find_file_by_title', { title });
   } catch (error) {
@@ -344,7 +377,10 @@ export async function getAllFileTitles(): Promise<string[]> {
  * @param newTitle 新标题
  * @returns 更新的文件数量
  */
-export async function updateWikilinks(oldTitle: string, newTitle: string): Promise<number> {
+export async function updateWikilinks(
+  oldTitle: string,
+  newTitle: string
+): Promise<number> {
   try {
     return await invoke<number>('update_wikilinks', { oldTitle, newTitle });
   } catch (error) {
@@ -357,7 +393,9 @@ export async function updateWikilinks(oldTitle: string, newTitle: string): Promi
  * @param title 笔记标题
  * @returns 包含该 wikilink 的文件列表
  */
-export async function findFilesWithWikilink(title: string): Promise<MarkdownFile[]> {
+export async function findFilesWithWikilink(
+  title: string
+): Promise<MarkdownFile[]> {
   try {
     return await invoke<MarkdownFile[]>('find_files_with_wikilink', { title });
   } catch (error) {
@@ -411,7 +449,6 @@ export async function setSyncEnabled(enabled: boolean): Promise<void> {
     throw new Error(`设置同步开关状态失败: ${error}`);
   }
 }
-
 
 /**
  * 重建搜索索引

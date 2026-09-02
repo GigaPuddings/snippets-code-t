@@ -3,8 +3,16 @@
     <!-- 加载中提示 -->
     <div v-if="isScanning" class="scanning-overlay">
       <div class="scanning-content">
-        <LoadingIcon class="scanning-icon" theme="outline" size="48" :strokeWidth="3" spin />
-        <div class="scanning-text">{{ scanStage || $t('progress.preparing') }}</div>
+        <LoadingIcon
+          class="scanning-icon"
+          theme="outline"
+          size="48"
+          :strokeWidth="3"
+          spin
+        />
+        <div class="scanning-text">
+          {{ scanStage || $t('progress.preparing') }}
+        </div>
         <div class="scanning-progress">{{ scanCurrent }}/{{ scanTotal }}</div>
       </div>
     </div>
@@ -168,7 +176,16 @@
     type="danger"
     @confirm="confirmDelete"
   >
-    <div>{{ $t('retrieve.deleteConfirm', { name: searchEngines[deleteIndex]?.name || searchEngines[deleteIndex]?.keyword || '' }) }}</div>
+    <div>
+      {{
+        $t('retrieve.deleteConfirm', {
+          name:
+            searchEngines[deleteIndex]?.name ||
+            searchEngines[deleteIndex]?.keyword ||
+            ''
+        })
+      }}
+    </div>
   </ConfirmDialog>
 </template>
 
@@ -278,7 +295,7 @@ onMounted(async () => {
   await checkScanStatus();
   // 设置事件监听
   await setupScanListeners();
-  
+
   try {
     searchEngines.value = await invoke('get_search_engines');
     defaultSearchEngines.value = await invoke('get_default_engines');
@@ -306,7 +323,7 @@ const checkScanStatus = async () => {
       total: number;
       completed: boolean;
     }>('get_scan_progress_state');
-    
+
     if (!state.completed && state.stage) {
       isScanning.value = true;
       scanStage.value = state.stage;
@@ -328,7 +345,7 @@ const setupScanListeners = async () => {
     scanCurrent.value = event.payload.current;
     scanTotal.value = event.payload.total;
   });
-  
+
   unlistenComplete = await listen('scan-complete', async () => {
     isScanning.value = false;
     // 扫描完成后重新加载数据
@@ -417,8 +434,10 @@ const handleDelete = (index: number) => {
 
 const confirmDelete = async () => {
   if (deleteIndex.value === -1) return;
-  
-  const updatedEngines = searchEngines.value.filter((_, idx) => idx !== deleteIndex.value);
+
+  const updatedEngines = searchEngines.value.filter(
+    (_, idx) => idx !== deleteIndex.value
+  );
   searchEngines.value = updatedEngines;
 
   // 如果删除的是默认搜索引擎，且还有其他引擎，则将第一个设为默认
@@ -499,17 +518,17 @@ const handleIconError = async (engine: SearchEngineConfig) => {
   @apply absolute inset-0 z-50 flex items-center justify-center bg-white/90 dark:bg-[rgba(30,30,30,0.9)];
 
   backdrop-filter: blur(4px);
-  
+
   .scanning-content {
     @apply flex flex-col items-center gap-3 p-6 rounded-lg border border-panel;
 
     background: var(--search-bg-color);
     box-shadow: 0 12px 30px rgb(15 23 42 / 14%);
-    
+
     .scanning-icon {
       @apply text-blue-500;
     }
-    
+
     .scanning-text {
       @apply text-base font-medium text-panel;
     }

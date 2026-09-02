@@ -121,12 +121,15 @@ describe('inline Markdown input rules', () => {
     [boldUnderscoreInputRegex, '前缀__加粗__', '加粗'],
     [italicStarInputRegex, '前缀*斜体*', '斜体'],
     [italicUnderscoreInputRegex, '前缀_斜体_', '斜体']
-  ])('keeps the unwrapped text in the final capture group', (regex, input, content) => {
-    const match = regex.exec(input);
+  ])(
+    'keeps the unwrapped text in the final capture group',
+    (regex, input, content) => {
+      const match = regex.exec(input);
 
-    expect(match).not.toBeNull();
-    expect(match?.at(-1)).toBe(content);
-  });
+      expect(match).not.toBeNull();
+      expect(match?.at(-1)).toBe(content);
+    }
+  );
 
   it('does not treat bold delimiters as italic input', () => {
     expect(italicStarInputRegex.test('**加粗**')).toBe(false);
@@ -136,23 +139,28 @@ describe('inline Markdown input rules', () => {
   it.each([
     ['*斜体*', 'italic', '斜体'],
     ['**加粗**', 'bold', '加粗']
-  ])('converts completed %s syntax after a document transaction', (input, markName, content) => {
-    const doc = schema.node('doc', null, [
-      schema.node('paragraph', null, schema.text(input))
-    ]);
-    const state = EditorState.create({
-      schema,
-      doc,
-      selection: TextSelection.create(doc, input.length + 1)
-    });
+  ])(
+    'converts completed %s syntax after a document transaction',
+    (input, markName, content) => {
+      const doc = schema.node('doc', null, [
+        schema.node('paragraph', null, schema.text(input))
+      ]);
+      const state = EditorState.create({
+        schema,
+        doc,
+        selection: TextSelection.create(doc, input.length + 1)
+      });
 
-    const transaction = convertCompletedInlineMarkdown(state);
+      const transaction = convertCompletedInlineMarkdown(state);
 
-    expect(transaction).not.toBeNull();
-    expect(transaction?.doc.textContent).toBe(content);
-    expect(transaction?.doc.firstChild?.firstChild?.marks[0]?.type.name).toBe(markName);
-    expect(transaction?.storedMarks).toEqual([]);
-  });
+      expect(transaction).not.toBeNull();
+      expect(transaction?.doc.textContent).toBe(content);
+      expect(transaction?.doc.firstChild?.firstChild?.marks[0]?.type.name).toBe(
+        markName
+      );
+      expect(transaction?.storedMarks).toEqual([]);
+    }
+  );
 
   it('keeps following text outside the converted italic mark', () => {
     const input = '*斜体*';
@@ -168,7 +176,9 @@ describe('inline Markdown input rules', () => {
     expect(converted).not.toBeNull();
 
     const convertedState = state.apply(converted as Transaction);
-    const withPlainText = convertedState.apply(convertedState.tr.insertText('普通文本'));
+    const withPlainText = convertedState.apply(
+      convertedState.tr.insertText('普通文本')
+    );
     const paragraph = withPlainText.doc.firstChild;
 
     expect(paragraph?.childCount).toBe(2);

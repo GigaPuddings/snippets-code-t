@@ -260,11 +260,9 @@ pub fn reset_software(app_handle: tauri::AppHandle, reset_type: String) -> Resul
             RESET_IN_PROGRESS.store(false, Ordering::Release);
             return Err(error);
         }
-    } else {
-        if let Err(error) = db::clear_show_progress_on_restart(&app_handle) {
-            RESET_IN_PROGRESS.store(false, Ordering::Release);
-            return Err(error);
-        }
+    } else if let Err(error) = db::clear_show_progress_on_restart(&app_handle) {
+        RESET_IN_PROGRESS.store(false, Ordering::Release);
+        return Err(error);
     }
     log_reset_step(
         &normalized_reset_type,

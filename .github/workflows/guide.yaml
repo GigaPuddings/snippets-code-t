@@ -70,5 +70,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_REF_NAME: ${{ github.ref_name }}
-        run: node scripts/updater.mjs 
-
+        run: node scripts/updater.mjs

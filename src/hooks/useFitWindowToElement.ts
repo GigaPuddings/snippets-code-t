@@ -13,7 +13,9 @@ import {
  * When results appear the native window grows; when they disappear it shrinks
  * back to the input box.
  */
-export function useFitWindowToElement(elementRef: Ref<HTMLElement | null>): void {
+export function useFitWindowToElement(
+  elementRef: Ref<HTMLElement | null>
+): void {
   const appWindow = getCurrentWindow();
   let resizeObserver: ResizeObserver | null = null;
   let animationFrameId: number | null = null;

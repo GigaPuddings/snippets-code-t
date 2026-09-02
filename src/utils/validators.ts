@@ -3,7 +3,13 @@
  * 提供各种数据类型的验证功能
  */
 
-import type { Fragment, Category, SearchEngine, App, Bookmark } from '@/types/database';
+import type {
+  Fragment,
+  Category,
+  SearchEngine,
+  App,
+  Bookmark
+} from '@/types/database';
 
 /**
  * 检查值是否为对象
@@ -26,17 +32,29 @@ export function validateFragment(data: unknown): data is Fragment {
 
   // 必填字段验证
   if (typeof fragment.id !== 'number') return false;
-  if (typeof fragment.title !== 'string' || fragment.title.trim() === '') return false;
+  if (typeof fragment.title !== 'string' || fragment.title.trim() === '')
+    return false;
   if (typeof fragment.content !== 'string') return false;
   if (fragment.type !== 'code' && fragment.type !== 'note') return false;
-  if (!['plain', 'markdown', 'html'].includes(fragment.format || '')) return false;
+  if (!['plain', 'markdown', 'html'].includes(fragment.format || ''))
+    return false;
   if (typeof fragment.category_id !== 'number') return false;
 
   // 可选字段验证
-  if (fragment.tags !== undefined && typeof fragment.tags !== 'string') return false;
-  if (fragment.metadata !== undefined && typeof fragment.metadata !== 'string') return false;
-  if (fragment.created_at !== undefined && typeof fragment.created_at !== 'string') return false;
-  if (fragment.updated_at !== undefined && typeof fragment.updated_at !== 'string') return false;
+  if (fragment.tags !== undefined && typeof fragment.tags !== 'string')
+    return false;
+  if (fragment.metadata !== undefined && typeof fragment.metadata !== 'string')
+    return false;
+  if (
+    fragment.created_at !== undefined &&
+    typeof fragment.created_at !== 'string'
+  )
+    return false;
+  if (
+    fragment.updated_at !== undefined &&
+    typeof fragment.updated_at !== 'string'
+  )
+    return false;
 
   return true;
 }
@@ -53,13 +71,19 @@ export function validateCategory(data: unknown): data is Category {
 
   // 必填字段验证
   if (typeof category.id !== 'number') return false;
-  if (typeof category.name !== 'string' || category.name.trim() === '') return false;
+  if (typeof category.name !== 'string' || category.name.trim() === '')
+    return false;
   if (typeof category.isSystem !== 'boolean') return false;
   if (typeof category.createdAt !== 'string') return false;
 
   // 可选字段验证
-  if (category.parent_id !== undefined && typeof category.parent_id !== 'number') return false;
-  if (category.order !== undefined && typeof category.order !== 'number') return false;
+  if (
+    category.parent_id !== undefined &&
+    typeof category.parent_id !== 'number'
+  )
+    return false;
+  if (category.order !== undefined && typeof category.order !== 'number')
+    return false;
 
   return true;
 }
@@ -76,8 +100,10 @@ export function validateSearchEngine(data: unknown): data is SearchEngine {
 
   // 必填字段验证
   if (typeof engine.id !== 'number') return false;
-  if (typeof engine.name !== 'string' || engine.name.trim() === '') return false;
-  if (typeof engine.keyword !== 'string' || engine.keyword.trim() === '') return false;
+  if (typeof engine.name !== 'string' || engine.name.trim() === '')
+    return false;
+  if (typeof engine.keyword !== 'string' || engine.keyword.trim() === '')
+    return false;
   if (typeof engine.url !== 'string' || engine.url.trim() === '') return false;
   if (typeof engine.enabled !== 'boolean') return false;
 
@@ -89,8 +115,10 @@ export function validateSearchEngine(data: unknown): data is SearchEngine {
   }
 
   // 可选字段验证
-  if (engine.icon !== undefined && typeof engine.icon !== 'string') return false;
-  if (engine.order !== undefined && typeof engine.order !== 'number') return false;
+  if (engine.icon !== undefined && typeof engine.icon !== 'string')
+    return false;
+  if (engine.order !== undefined && typeof engine.order !== 'number')
+    return false;
 
   return true;
 }
@@ -108,12 +136,14 @@ export function validateApp(data: unknown): data is App {
   // 必填字段验证
   if (typeof app.id !== 'number') return false;
   if (typeof app.title !== 'string' || app.title.trim() === '') return false;
-  if (typeof app.content !== 'string' || app.content.trim() === '') return false;
+  if (typeof app.content !== 'string' || app.content.trim() === '')
+    return false;
   if (typeof app.usage_count !== 'number' || app.usage_count < 0) return false;
 
   // 可选字段验证
   if (app.icon !== undefined && typeof app.icon !== 'string') return false;
-  if (app.created_at !== undefined && typeof app.created_at !== 'string') return false;
+  if (app.created_at !== undefined && typeof app.created_at !== 'string')
+    return false;
 
   return true;
 }
@@ -130,9 +160,12 @@ export function validateBookmark(data: unknown): data is Bookmark {
 
   // 必填字段验证
   if (typeof bookmark.id !== 'number') return false;
-  if (typeof bookmark.title !== 'string' || bookmark.title.trim() === '') return false;
-  if (typeof bookmark.content !== 'string' || bookmark.content.trim() === '') return false;
-  if (typeof bookmark.usage_count !== 'number' || bookmark.usage_count < 0) return false;
+  if (typeof bookmark.title !== 'string' || bookmark.title.trim() === '')
+    return false;
+  if (typeof bookmark.content !== 'string' || bookmark.content.trim() === '')
+    return false;
+  if (typeof bookmark.usage_count !== 'number' || bookmark.usage_count < 0)
+    return false;
 
   // URL 格式验证
   try {
@@ -142,8 +175,13 @@ export function validateBookmark(data: unknown): data is Bookmark {
   }
 
   // 可选字段验证
-  if (bookmark.icon !== undefined && typeof bookmark.icon !== 'string') return false;
-  if (bookmark.created_at !== undefined && typeof bookmark.created_at !== 'string') return false;
+  if (bookmark.icon !== undefined && typeof bookmark.icon !== 'string')
+    return false;
+  if (
+    bookmark.created_at !== undefined &&
+    typeof bookmark.created_at !== 'string'
+  )
+    return false;
 
   return true;
 }

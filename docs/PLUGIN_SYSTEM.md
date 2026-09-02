@@ -136,13 +136,32 @@ Current package manifest shape:
     "backend": "dist/backend.exe",
     "backendKind": "native-host"
   },
+  "storage": {
+    "schemaVersion": 1,
+    "indexSchemaVersion": 1,
+    "extractorVersion": 1
+  },
   "permissions": ["network", "workspace:read", "backend:*"],
   "dependencies": ["example-runtime-resource"],
   "compatibleAppVersion": ">=1.5.6"
 }
 ```
 
-Local package directory:
+`storage` is optional for plugins that do not own persistent data or search
+indexes. When it is present, `schemaVersion`, `indexSchemaVersion`, and
+`extractorVersion` must all be non-negative integers. Invalid storage contracts
+are rejected during manifest normalization and package installation.
+
+Default local package directory:
+
+```text
+<data-root>/packages/plugins/<plugin-id>/
+```
+
+Custom install roots continue to use `<custom-root>/plugins/<plugin-id>` so
+existing user-selected package roots remain compatible.
+
+Package contents:
 
 ```text
 plugin-id/
@@ -155,9 +174,9 @@ plugin-id/
   assets/
 ```
 
-The first loader implementation validates manifest shape and deduplicates plugins by id. The backend now scans the application-data `plugins` directory, reads each `plugin.json`, and passes `{ manifest, packagePath }` records into the frontend registry loader.
+The first loader implementation validates manifest shape and deduplicates plugins by id. The backend now scans `<data-root>/packages/plugins`, reads each `plugin.json`, and passes `{ manifest, packagePath }` records into the frontend registry loader.
 
-Local package installation currently accepts either an unpacked directory that contains `plugin.json` or a `.zip` package whose root, or single top-level directory, contains `plugin.json`. The installer copies it into the application-data plugin directory under its manifest `id`; uninstall removes that directory and clears the saved enabled state. It can execute local frontend entries for enabled plugins, but local backend entries are still not executed.
+Local package installation currently accepts either an unpacked directory that contains `plugin.json` or a `.zip` package whose root, or single top-level directory, contains `plugin.json`. The installer copies it into the package directory under its manifest `id`; uninstall removes that package directory and clears the saved enabled state. It can execute local frontend entries for enabled plugins, and native-host backend entries run only through the permission-gated `context.api.invokeBackend` bridge.
 
 Frontend local plugin entries now use `entry.frontend`. When an enabled local plugin is initialized, the runtime loads that module from the installed package directory and calls `activate(context)`.
 
@@ -171,7 +190,7 @@ The activation context exposes these registration methods:
 
 It also exposes `context.ui.h` and `context.ui.defineComponent` so simple local plugins can register Vue components without bundling their own copy of Vue.
 
-Each local plugin has an isolated JSON data file exposed through `context.storage.get`, `context.storage.set`, and `context.storage.delete`. Data is stored under the installed package directory and is removed with the plugin package.
+Each local plugin has an isolated JSON data file exposed through `context.storage.get`, `context.storage.set`, and `context.storage.delete`. Persistent state is stored under `<data-root>/state/plugins/<plugin-id>/data.json`, not inside the plugin package directory. Updating, disabling, or ordinary uninstalling a plugin preserves this state; only the explicit "uninstall and delete data" path removes plugin state, index data, and cache.
 
 Plugin packages and marketplace entries may declare `dependencies`. The plugin
 settings page installs missing dependencies first. This is used by
@@ -179,12 +198,18 @@ settings page installs missing dependencies first. This is used by
 runtime and model files live in `screenshot-rapidocr` and are installed
 automatically with the screenshot/OCR plugin.
 
-Marketplace entries with `packageUrl` also declare `sizeBytes`. The settings
-page shows the package size before install and listens for
+Marketplace entries with `packageUrl` also declare `sizeBytes` and, for stable
+published packages, `sha256`. The settings page shows the package size before install and listens for
 `plugin-install-progress` events while downloading, extracting, and installing
 remote packages. Installer, registry refresh, enable/disable, uninstall, and
 hotkey activation paths all emit plugin-prefixed logs so failed installs or
 silent shortcut issues can be traced from the app log.
+
+Remote package installation validates SHA-256 when the marketplace entry
+provides `sha256`. Mutable development branch archives that require
+`packageSubdir` are allowed without `sha256` only for local development
+examples; published official packages must pin immutable release artifacts or
+tags and provide integrity metadata.
 
 `context.api.invoke` is permission-gated. A local plugin must declare `command:<tauri-command-name>` or `command:*` in `permissions` before it can call a Tauri command through the provided context API.
 
@@ -194,6 +219,11 @@ host backend declared by `entry.backend`. A local plugin must declare
 boundary for official plugin backends that need independent fixes: the main app
 ships only the loader, permission check, and protocol bridge; the plugin package
 ships the executable backend.
+
+Third-party plugins must not receive `command:*` or `backend:*` by default.
+Existing official packages that still declare wildcard command permissions are
+treated as compatibility debt and should be replaced by explicit command lists
+as their backend and frontend boundaries stabilize.
 
 Native host backend protocol:
 
@@ -315,8 +345,8 @@ installer does not carry the OCR runtime and model files. The OCR backend now
 searches application-data plugin resource roots first:
 
 ```text
-<app-data>/plugins/screenshot/resources/rapidocr
-<app-data>/plugins/screenshot-rapidocr/resources/rapidocr
+<data-root>/packages/plugins/screenshot/resources/rapidocr
+<data-root>/packages/plugins/screenshot-rapidocr/resources/rapidocr
 ```
 
 Development fallback paths such as `src-tauri/resources/rapidocr` still work for
@@ -338,8 +368,8 @@ Custom screen recording keeps FFmpeg outside the core installer as
 bundled resource roots, development resource folders, and finally `PATH`:
 
 ```text
-<app-data>/plugins/screen-recorder/resources/ffmpeg/ffmpeg.exe
-<app-data>/plugins/screen-recorder-ffmpeg/resources/ffmpeg/ffmpeg.exe
+<data-root>/packages/plugins/screen-recorder/resources/ffmpeg/ffmpeg.exe
+<data-root>/packages/plugins/screen-recorder-ffmpeg/resources/ffmpeg/ffmpeg.exe
 src-tauri/resources/ffmpeg/ffmpeg.exe
 PATH:ffmpeg
 ```
@@ -356,8 +386,8 @@ Offline translation no longer statically imports `@huggingface/transformers`.
 Instead, it loads the ESM runtime from an installed local plugin resource:
 
 ```text
-<app-data>/plugins/translation-offline-runtime/resources/transformers/transformers.min.js
-<app-data>/plugins/translation/resources/transformers/transformers.min.js
+<data-root>/packages/plugins/translation-offline-runtime/resources/transformers/transformers.min.js
+<data-root>/packages/plugins/translation/resources/transformers/transformers.min.js
 ```
 
 If the runtime package is not installed, offline translation fails with an
@@ -401,6 +431,7 @@ Marketplace entries use schema version `1`:
       "category": "capture",
       "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/archive/refs/tags/v1.5.6.zip",
       "sizeBytes": 694267,
+      "sha256": "64 hex characters",
       "dependencies": ["screenshot-rapidocr"],
       "status": "included"
     }
@@ -412,9 +443,9 @@ Marketplace entries use schema version `1`:
 `http://localhost`, `http://127.0.0.1`, or `http://[::1]`. A per-plugin
 repository archive should contain a single root directory with `plugin.json`.
 `packageSubdir` is still supported for development and multi-package archives.
-The installer downloads the archive, extracts it to a temporary directory,
-locates `plugin.json`, and installs that package into
-`<app-data>/plugins/<plugin-id>`.
+The installer downloads the archive, verifies SHA-256 when declared, extracts it
+to a temporary directory, locates `plugin.json`, and installs that package into
+`<data-root>/packages/plugins/<plugin-id>`.
 
 The plugin settings page fetches this manifest through
 `fetch_plugin_marketplace`, supports keyword search across plugin metadata, and
@@ -469,7 +500,7 @@ workspace behavior remain app core.
 
 The settings marketplace treats `included` official entries that have
 `packageUrl` as installable packages, then installs their manifest and compiled
-frontend runtime into `<app-data>/plugins/<plugin-id>`.
+frontend runtime into `<data-root>/packages/plugins/<plugin-id>`.
 
 Official plugin routes, settings tabs, titlebar actions, host components, window
 shortcuts, and search providers are not statically registered. After a
@@ -483,12 +514,53 @@ Official plugins can now move backend implementation out of the main Tauri
 binary by shipping a native host executable in their own package repository.
 The app-level contract is intentionally small:
 
-1. The marketplace installs or updates `<app-data>/plugins/<plugin-id>`.
+1. The marketplace installs or updates `<data-root>/packages/plugins/<plugin-id>`.
 2. `plugin.json` declares `entry.backend`, `entry.backendKind: "native-host"`,
    and the required `backend:<command>` permissions.
 3. The frontend calls `context.api.invokeBackend`.
 4. The main app validates plugin enabled state, permissions, and package path,
    then runs the plugin's backend executable.
+
+Current security checks:
+
+- `context.api.invoke` is gated in the frontend by `command:<name>` or
+  `command:*`.
+- `context.api.invokeBackend` is gated in the frontend and again in Rust by
+  `backend:<name>` or `backend:*`.
+- Rust re-reads the installed manifest before native-host execution, verifies
+  the plugin is enabled, validates the backend relative path, canonicalizes both
+  package and executable paths, and rejects executables outside the package.
+- Remote marketplace installs verify package SHA-256 when `sha256` is declared.
+
+Reserved security metadata:
+
+```json
+{
+  "publisher": {
+    "id": "publisher-id",
+    "name": "Publisher",
+    "publicKeyId": "minisign-key-id",
+    "trusted": true
+  },
+  "signature": {
+    "algorithm": "minisign",
+    "keyId": "minisign-key-id",
+    "value": "base64-or-armored-signature"
+  },
+  "nativeHost": {
+    "signature": {
+      "algorithm": "minisign",
+      "keyId": "minisign-key-id",
+      "value": "base64-or-armored-signature"
+    }
+  }
+}
+```
+
+These fields are reserved for signed plugin packages, trusted publishers, and
+native-host executable signatures. They are not enforced yet, so third-party
+marketplace enablement must remain blocked or curated until signature
+verification is implemented.
 
 This means a screenshot backend bug can be fixed by publishing a new
 `snippets-code-plugin-screenshot` tag and updating the marketplace entry. Users

@@ -16,4 +16,3 @@ export const activate = (context: PluginFrontendRuntimeContext): void => {
     component: defineAsyncComponent(() => import('./settings/index.vue'))
   });
 };
-

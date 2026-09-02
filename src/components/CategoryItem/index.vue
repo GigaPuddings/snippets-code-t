@@ -403,6 +403,7 @@ const confirmDelete = async () => {
 <style scoped lang="scss">
 @mixin commonLink {
   @apply rounded-md text-sm block my-1 last:mb-0 px-3 py-[6px] truncate cursor-pointer hover:bg-hover dark:hover:bg-hover dark:text-panel;
+
   position: relative;
   border: 1px solid transparent;
 }
@@ -411,23 +412,33 @@ const confirmDelete = async () => {
   @include commonLink();
 
   display: flex;
-  min-height: 34px;
+  gap: 8px;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  transition: color 0.16s ease, background 0.16s ease, border-color 0.16s ease,
-    box-shadow 0.16s ease, opacity 0.16s ease, transform 0.16s ease;
+  min-height: 34px;
 
   /* 禁止选中 */
   user-select: none;
+  transition:
+    color 0.16s ease,
+    background 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    opacity 0.16s ease,
+    transform 0.16s ease;
 
   &.is-drop-target {
     color: var(--categories-text-color);
     background: linear-gradient(
       90deg,
       color-mix(in srgb, var(--search-result-active) 94%, transparent),
-      color-mix(in srgb, var(--search-result-active) 62%, var(--categories-panel-bg))
+      color-mix(
+        in srgb,
+        var(--search-result-active) 62%,
+        var(--categories-panel-bg)
+      )
     );
+
     /* 内描边始终绘制在滚动容器内，避免右边框被 overflow 裁切。 */
     border-color: transparent;
     box-shadow:
@@ -436,15 +447,27 @@ const confirmDelete = async () => {
 
     .category-folder-icon {
       color: var(--search-result-accent);
-      background: color-mix(in srgb, var(--search-result-accent) 14%, transparent);
+      background: color-mix(
+        in srgb,
+        var(--search-result-accent) 14%,
+        transparent
+      );
       transform: scale(1.08);
     }
   }
 
   &.is-invalid-drop-target {
     color: var(--categories-info-text-color);
-    background: color-mix(in srgb, var(--categories-panel-bg-hover) 56%, transparent);
-    border-color: color-mix(in srgb, var(--categories-border-color) 72%, transparent);
+    background: color-mix(
+      in srgb,
+      var(--categories-panel-bg-hover) 56%,
+      transparent
+    );
+    border-color: color-mix(
+      in srgb,
+      var(--categories-border-color) 72%,
+      transparent
+    );
     opacity: 0.72;
   }
 }
@@ -455,26 +478,30 @@ const confirmDelete = async () => {
 
 .category-folder-icon {
   display: grid;
+  flex: 0 0 24px;
+  place-items: center;
   width: 24px;
   height: 24px;
-  flex: 0 0 24px;
   border-radius: 7px;
-  transition: color 0.16s ease, background-color 0.16s ease, transform 0.16s ease;
-  place-items: center;
+  transition:
+    color 0.16s ease,
+    background-color 0.16s ease,
+    transform 0.16s ease;
 }
 
 .drop-action {
   display: inline-flex;
-  padding: 3px 7px;
-  align-items: center;
-  gap: 5px;
   flex: 0 0 auto;
-  color: var(--search-result-accent);
+  gap: 5px;
+  align-items: center;
+  padding: 3px 7px;
   font-size: 10px;
   font-weight: 600;
   line-height: 1;
+  color: var(--search-result-accent);
   background: color-mix(in srgb, var(--search-card-bg) 82%, transparent);
-  border: 1px solid color-mix(in srgb, var(--search-result-accent) 25%, transparent);
+  border: 1px solid
+    color-mix(in srgb, var(--search-result-accent) 25%, transparent);
   border-radius: 999px;
   animation: drop-action-enter 0.16s ease-out;
 
@@ -507,9 +534,9 @@ const confirmDelete = async () => {
 .active {
   @include commonLink();
 
+  color: var(--categories-text-color);
   background-color: var(--search-result-active);
   border-color: var(--search-result-active-border);
-  color: var(--categories-text-color);
 
   :deep(.i-icon),
   svg {

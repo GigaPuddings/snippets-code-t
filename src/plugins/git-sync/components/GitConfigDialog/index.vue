@@ -8,77 +8,105 @@
   >
     <div class="config-dialog">
       <p class="dialog-desc">{{ $t('settings.gitSync.detectConfigDesc') }}</p>
-      
+
       <!-- 检测到的配置列表 -->
       <div class="config-list">
         <!-- 本地配置 -->
-        <div 
-          v-if="hasLocalConfig" 
+        <div
+          v-if="hasLocalConfig"
           class="config-item"
           :class="{ 'config-item--selected': selectedConfig === 'local' }"
           @click="selectedConfig = 'local'"
         >
           <div class="config-item-header">
             <el-radio v-model="selectedConfig" value="local" />
-            <span class="config-item-title">{{ $t('settings.gitSync.localConfig') }}</span>
-            <el-tag type="success" size="small">{{ $t('settings.gitSync.recommended') }}</el-tag>
+            <span class="config-item-title">
+              {{ $t('settings.gitSync.localConfig') }}
+            </span>
+            <el-tag type="success" size="small">
+              {{ $t('settings.gitSync.recommended') }}
+            </el-tag>
           </div>
           <div class="config-item-content">
             <div class="config-field">
-              <span class="config-label">{{ $t('settings.gitSync.userName') }}:</span>
-              <span class="config-value">{{ systemConfig.local_user_name }}</span>
+              <span class="config-label">
+                {{ $t('settings.gitSync.userName') }}:
+              </span>
+              <span class="config-value">
+                {{ systemConfig.local_user_name }}
+              </span>
             </div>
             <div class="config-field">
-              <span class="config-label">{{ $t('settings.gitSync.userEmail') }}:</span>
-              <span class="config-value">{{ systemConfig.local_user_email }}</span>
+              <span class="config-label">
+                {{ $t('settings.gitSync.userEmail') }}:
+              </span>
+              <span class="config-value">
+                {{ systemConfig.local_user_email }}
+              </span>
             </div>
             <div v-if="systemConfig.remote_url" class="config-field">
-              <span class="config-label">{{ $t('settings.gitSync.remoteUrl') }}:</span>
+              <span class="config-label">
+                {{ $t('settings.gitSync.remoteUrl') }}:
+              </span>
               <span class="config-value">{{ systemConfig.remote_url }}</span>
             </div>
           </div>
         </div>
-        
+
         <!-- 全局配置 -->
-        <div 
-          v-if="hasGlobalConfig" 
+        <div
+          v-if="hasGlobalConfig"
           class="config-item"
           :class="{ 'config-item--selected': selectedConfig === 'global' }"
           @click="selectedConfig = 'global'"
         >
           <div class="config-item-header">
             <el-radio v-model="selectedConfig" value="global" />
-            <span class="config-item-title">{{ $t('settings.gitSync.globalConfig') }}</span>
+            <span class="config-item-title">
+              {{ $t('settings.gitSync.globalConfig') }}
+            </span>
           </div>
           <div class="config-item-content">
             <div class="config-field">
-              <span class="config-label">{{ $t('settings.gitSync.userName') }}:</span>
-              <span class="config-value">{{ systemConfig.global_user_name }}</span>
+              <span class="config-label">
+                {{ $t('settings.gitSync.userName') }}:
+              </span>
+              <span class="config-value">
+                {{ systemConfig.global_user_name }}
+              </span>
             </div>
             <div class="config-field">
-              <span class="config-label">{{ $t('settings.gitSync.userEmail') }}:</span>
-              <span class="config-value">{{ systemConfig.global_user_email }}</span>
+              <span class="config-label">
+                {{ $t('settings.gitSync.userEmail') }}:
+              </span>
+              <span class="config-value">
+                {{ systemConfig.global_user_email }}
+              </span>
             </div>
           </div>
         </div>
-        
+
         <!-- 手动配置 -->
-        <div 
+        <div
           class="config-item"
           :class="{ 'config-item--selected': selectedConfig === 'manual' }"
           @click="selectedConfig = 'manual'"
         >
           <div class="config-item-header">
             <el-radio v-model="selectedConfig" value="manual" />
-            <span class="config-item-title">{{ $t('settings.gitSync.manualConfig') }}</span>
+            <span class="config-item-title">
+              {{ $t('settings.gitSync.manualConfig') }}
+            </span>
           </div>
           <div class="config-item-content">
-            <p class="config-desc">{{ $t('settings.gitSync.manualConfigDesc') }}</p>
+            <p class="config-desc">
+              {{ $t('settings.gitSync.manualConfigDesc') }}
+            </p>
           </div>
         </div>
       </div>
     </div>
-    
+
     <template #footer>
       <div class="dialog-footer">
         <CustomButton @click="handleClose">
@@ -107,7 +135,10 @@ interface Props {
 
 interface Emits {
   (e: 'update:modelValue', value: boolean): void;
-  (e: 'confirm', config: { type: 'local' | 'global' | 'manual'; data?: SystemGitConfig }): void;
+  (
+    e: 'confirm',
+    config: { type: 'local' | 'global' | 'manual'; data?: SystemGitConfig }
+  ): void;
 }
 
 const props = defineProps<Props>();
@@ -122,12 +153,16 @@ const selectedConfig = ref<'local' | 'global' | 'manual'>('local');
 
 // 是否有本地配置
 const hasLocalConfig = computed(() => {
-  return !!(props.systemConfig.local_user_name && props.systemConfig.local_user_email);
+  return !!(
+    props.systemConfig.local_user_name && props.systemConfig.local_user_email
+  );
 });
 
 // 是否有全局配置
 const hasGlobalConfig = computed(() => {
-  return !!(props.systemConfig.global_user_name && props.systemConfig.global_user_email);
+  return !!(
+    props.systemConfig.global_user_name && props.systemConfig.global_user_email
+  );
 });
 
 // 初始化选择

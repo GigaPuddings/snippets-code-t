@@ -4,9 +4,20 @@
  */
 import { logger } from '@/utils/logger';
 import { Extension, InputRule } from '@tiptap/core';
-import { markInputRule, nodeInputRule, textblockTypeInputRule, wrappingInputRule } from '@tiptap/core';
+import {
+  markInputRule,
+  nodeInputRule,
+  textblockTypeInputRule,
+  wrappingInputRule
+} from '@tiptap/core';
 import type { NodeType } from '@tiptap/pm/model';
-import { Plugin, PluginKey, TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state';
+import {
+  Plugin,
+  PluginKey,
+  TextSelection,
+  type EditorState,
+  type Transaction
+} from '@tiptap/pm/state';
 
 // 调试日志开关
 const DEBUG = false;
@@ -19,7 +30,8 @@ const log = (message: string, ...args: unknown[]) => {
 
 // markInputRule 使用最后一个捕获组作为实际文本，因此每种分隔符必须使用独立
 // 规则，并保证最后一组始终是去掉 Markdown 分隔符后的内容。
-export const boldStarInputRegex = /(?<!\*)(\*\*(?!\s|\*)((?:[^*]+))\*\*(?!\*))$/;
+export const boldStarInputRegex =
+  /(?<!\*)(\*\*(?!\s|\*)((?:[^*]+))\*\*(?!\*))$/;
 export const boldUnderscoreInputRegex = /(?<!_)(__(?!\s|_)((?:[^_]+))__(?!_))$/;
 export const italicStarInputRegex = /(?<!\*)(\*(?!\s|\*)((?:[^*]+))\*(?!\*))$/;
 export const italicUnderscoreInputRegex = /(?<!_)(_(?!\s|_)((?:[^_]+))_(?!_))$/;
@@ -37,7 +49,9 @@ const inlineMarkRules = [
  * 输入法组合输入不会始终经过 ProseMirror 的 handleTextInput。这里在文档事务完成后
  * 再检查一次光标前的完整 Markdown，保证 `*文本*` / `**文本**` 都能即时转换。
  */
-export function convertCompletedInlineMarkdown(state: EditorState): Transaction | null {
+export function convertCompletedInlineMarkdown(
+  state: EditorState
+): Transaction | null {
   const { selection } = state;
   const { $from } = selection;
 
@@ -50,7 +64,12 @@ export function convertCompletedInlineMarkdown(state: EditorState): Transaction 
     return null;
   }
 
-  const textBefore = $from.parent.textBetween(0, $from.parentOffset, '', '\ufffc');
+  const textBefore = $from.parent.textBetween(
+    0,
+    $from.parentOffset,
+    '',
+    '\ufffc'
+  );
 
   for (const rule of inlineMarkRules) {
     const match = rule.find.exec(textBefore);
@@ -102,18 +121,22 @@ export function createProtectedCodeBlockInputRule(type: NodeType): InputRule {
         return null;
       }
 
-      if (!$start.node(-1).canReplaceWith($start.index(-1), $start.indexAfter(-1), type)) {
+      if (
+        !$start
+          .node(-1)
+          .canReplaceWith($start.index(-1), $start.indexAfter(-1), type)
+      ) {
         return null;
       }
 
       state.tr
         .delete(range.from, range.to)
         .setBlockType(range.from, range.from, type, {
-          language: match[1] || null,
+          language: match[1] || null
         });
 
       return;
-    },
+    }
   });
 }
 
@@ -127,39 +150,39 @@ export const EnhancedMarkdown = Extension.create({
       textblockTypeInputRule({
         find: /^(#{1})\s+(.*)$/,
         type: this.editor.schema.nodes.heading,
-        getAttributes: () => ({ level: 1 }),
+        getAttributes: () => ({ level: 1 })
       }),
       textblockTypeInputRule({
         find: /^(#{2})\s+(.*)$/,
         type: this.editor.schema.nodes.heading,
-        getAttributes: () => ({ level: 2 }),
+        getAttributes: () => ({ level: 2 })
       }),
       textblockTypeInputRule({
         find: /^(#{3})\s+(.*)$/,
         type: this.editor.schema.nodes.heading,
-        getAttributes: () => ({ level: 3 }),
+        getAttributes: () => ({ level: 3 })
       }),
       textblockTypeInputRule({
         find: /^(#{4})\s+(.*)$/,
         type: this.editor.schema.nodes.heading,
-        getAttributes: () => ({ level: 4 }),
+        getAttributes: () => ({ level: 4 })
       }),
       textblockTypeInputRule({
         find: /^(#{5})\s+(.*)$/,
         type: this.editor.schema.nodes.heading,
-        getAttributes: () => ({ level: 5 }),
+        getAttributes: () => ({ level: 5 })
       }),
       textblockTypeInputRule({
         find: /^(#{6})\s+(.*)$/,
         type: this.editor.schema.nodes.heading,
-        getAttributes: () => ({ level: 6 }),
+        getAttributes: () => ({ level: 6 })
       }),
 
       // ==================== 引用块规则 ====================
       // 仅在用户输入 "> " 后触发（避免输入单个 ">" 就触发并导致 setBlockType 报错）
       wrappingInputRule({
         find: /^>\s$/,
-        type: this.editor.schema.nodes.blockquote,
+        type: this.editor.schema.nodes.blockquote
       }),
 
       // ==================== 任务列表规则 ====================
@@ -167,26 +190,26 @@ export const EnhancedMarkdown = Extension.create({
       wrappingInputRule({
         // 支持 -[x]、- [x]、-[]、- [] 等格式
         find: /^-\s*\[x\]\s*/i,
-        type: this.editor.schema.nodes.taskList,
+        type: this.editor.schema.nodes.taskList
       }),
       wrappingInputRule({
         // 支持 -[ ]、- [ ]、-[ ]、- [ ] 等格式
         find: /^-\s*\[\s?\]\s*/,
-        type: this.editor.schema.nodes.taskList,
+        type: this.editor.schema.nodes.taskList
       }),
 
       // ==================== 无序列表规则 ====================
       // 使用 negative lookahead 排除 -[ 和 - [ 的情况（留给任务列表）
       wrappingInputRule({
         find: /^(?![-*]\s*\[)[-*+]\s$/,
-        type: this.editor.schema.nodes.bulletList,
+        type: this.editor.schema.nodes.bulletList
       }),
 
       // ==================== 有序列表规则 ====================
       wrappingInputRule({
         // 必须输入到空格才触发
         find: /^\d+\.\s$/,
-        type: this.editor.schema.nodes.orderedList,
+        type: this.editor.schema.nodes.orderedList
       }),
 
       // ==================== 水平线规则 ====================
@@ -194,43 +217,43 @@ export const EnhancedMarkdown = Extension.create({
       // 不要求必须有结尾空格，只要连续 3 个或以上即可
       nodeInputRule({
         find: /^(-{3,}|\*{3,}|_{3,})$/,
-        type: this.editor.schema.nodes.horizontalRule,
+        type: this.editor.schema.nodes.horizontalRule
       }),
 
       // ==================== 行内 Mark 规则 ====================
       // 加粗：**text** 或 __text__
       markInputRule({
         find: boldStarInputRegex,
-        type: this.editor.schema.marks.bold,
+        type: this.editor.schema.marks.bold
       }),
       markInputRule({
         find: boldUnderscoreInputRegex,
-        type: this.editor.schema.marks.bold,
+        type: this.editor.schema.marks.bold
       }),
       // 斜体：*text* 或 _text_
       markInputRule({
         find: italicStarInputRegex,
-        type: this.editor.schema.marks.italic,
+        type: this.editor.schema.marks.italic
       }),
       markInputRule({
         find: italicUnderscoreInputRegex,
-        type: this.editor.schema.marks.italic,
+        type: this.editor.schema.marks.italic
       }),
       // 删除线：~~text~~
       markInputRule({
         find: /~~([^~]+)~~$/,
-        type: this.editor.schema.marks.strike,
+        type: this.editor.schema.marks.strike
       }),
       // 行内代码：`text`
       markInputRule({
         find: /`([^`]+)`$/,
-        type: this.editor.schema.marks.code,
+        type: this.editor.schema.marks.code
       }),
 
       // ==================== 代码块规则 ====================
       // 仅在输入 ```、```vue、```flutter 等后再输入空格时触发，
       // 避免输入第 3 个 ` 就立刻自动转换。
-      createProtectedCodeBlockInputRule(this.editor.schema.nodes.codeBlock),
+      createProtectedCodeBlockInputRule(this.editor.schema.nodes.codeBlock)
     ];
   },
 
@@ -240,8 +263,10 @@ export const EnhancedMarkdown = Extension.create({
         key: new PluginKey('completedInlineMarkdownConverter'),
         appendTransaction: (transactions, _oldState, newState) => {
           if (
-            !transactions.some(transaction => transaction.docChanged) ||
-            transactions.some(transaction => transaction.getMeta(INLINE_MARK_CONVERSION_META))
+            !transactions.some((transaction) => transaction.docChanged) ||
+            transactions.some((transaction) =>
+              transaction.getMeta(INLINE_MARK_CONVERSION_META)
+            )
           ) {
             return null;
           }
@@ -291,7 +316,7 @@ export const EnhancedMarkdown = Extension.create({
               '*': 'bulletList',
               '+': 'bulletList',
               '`': 'codeBlock',
-              '1': 'orderedList',
+              '1': 'orderedList'
             };
 
             const expectedNext = markdownTriggers[text];
@@ -299,12 +324,16 @@ export const EnhancedMarkdown = Extension.create({
               return false;
             }
 
-            log('换行后 Markdown 处理: 检测到行首 Markdown 触发', { text, textInLine, expectedNext });
+            log('换行后 Markdown 处理: 检测到行首 Markdown 触发', {
+              text,
+              textInLine,
+              expectedNext
+            });
 
             // 不阻止输入，让输入规则自然触发
             return false;
-          },
-        },
+          }
+        }
       }),
 
       // ==================== 键盘输入监听（调试用）================
@@ -314,8 +343,8 @@ export const EnhancedMarkdown = Extension.create({
           handleTextInput: (_view, _from, _to, text) => {
             log('handleTextInput: 监听文本输入', { text });
             return false;
-          },
-        },
+          }
+        }
       }),
 
       // ==================== 行内代码处理 ====================
@@ -329,18 +358,36 @@ export const EnhancedMarkdown = Extension.create({
 
             const { state } = view;
             const { doc, tr } = state;
-            const textBefore = doc.textBetween(Math.max(0, from - 100), from, '\n', '\n');
+            const textBefore = doc.textBetween(
+              Math.max(0, from - 100),
+              from,
+              '\n',
+              '\n'
+            );
             const lastBacktickIndex = textBefore.lastIndexOf('`');
-            log('行内代码处理: 检测到反引号输入', { textBefore, lastBacktickIndex });
+            log('行内代码处理: 检测到反引号输入', {
+              textBefore,
+              lastBacktickIndex
+            });
 
             if (lastBacktickIndex !== -1) {
-              const backtickPos = from - (textBefore.length - lastBacktickIndex);
-              const codeText = doc.textBetween(backtickPos + 1, from, '\n', '\n');
+              const backtickPos =
+                from - (textBefore.length - lastBacktickIndex);
+              const codeText = doc.textBetween(
+                backtickPos + 1,
+                from,
+                '\n',
+                '\n'
+              );
 
               if (codeText && !codeText.includes('\n') && codeText.trim()) {
                 tr.delete(backtickPos, to);
                 tr.insertText(codeText, backtickPos);
-                tr.addMark(backtickPos, backtickPos + codeText.length, state.schema.marks.code.create());
+                tr.addMark(
+                  backtickPos,
+                  backtickPos + codeText.length,
+                  state.schema.marks.code.create()
+                );
                 view.dispatch(tr);
                 log('行内代码处理: 成功转换为行内代码', { codeText });
                 return true;
@@ -348,9 +395,9 @@ export const EnhancedMarkdown = Extension.create({
             }
 
             return false;
-          },
-        },
-      }),
+          }
+        }
+      })
 
       // ==================== 引用块退出处理 ====================
       // 注意：Tiptap/ProseMirror 原生支持用方向键退出块级元素，
@@ -435,5 +482,5 @@ export const EnhancedMarkdown = Extension.create({
       }),
       */
     ];
-  },
+  }
 });

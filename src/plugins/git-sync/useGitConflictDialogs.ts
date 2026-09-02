@@ -30,7 +30,10 @@ export function useGitConflictDialogs(deps: GitConflictDialogsDeps = {}) {
   const showManualMergeDialog = ref(false);
   const conflictFiles = ref<string[]>([]);
   const untrackedFiles = ref<string[]>([]);
-  const mergeFileList = computed(() => [...conflictFiles.value, ...untrackedFiles.value]);
+  const mergeFileList = computed(() => [
+    ...conflictFiles.value,
+    ...untrackedFiles.value
+  ]);
 
   const persistConflictState = () => {
     saveGitConflictState(storage, conflictFiles.value);

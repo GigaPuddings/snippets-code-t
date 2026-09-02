@@ -20,7 +20,7 @@
         <code>tag:tag1 tag:tag2</code>
         <span>{{ $t('searchSyntax.multipleTags') }}</span>
       </div>
-      
+
       <!-- Created date filters -->
       <div class="helper-item" @click="$emit('insert', 'created:today')">
         <code>created:today</code>
@@ -43,10 +43,10 @@
         <span>{{ $t('searchSyntax.afterDateDesc') }}</span>
       </div>
       <div class="helper-item" @click="$emit('insert', 'created:<2024-12-31')">
-        <code>created:<2024-12-31</code>
+        <code>created:&lt;2024-12-31</code>
         <span>{{ $t('searchSyntax.beforeDateDesc') }}</span>
       </div>
-      
+
       <!-- Updated date filters -->
       <div class="helper-item" @click="$emit('insert', 'updated:today')">
         <code>updated:today</code>
@@ -64,7 +64,7 @@
         <code>updated:>2024-01-01</code>
         <span>{{ $t('searchSyntax.afterDateDesc') }}</span>
       </div>
-      
+
       <!-- Combined search example -->
       <div class="helper-item" @click="$emit('insert', 'type:code tag:')">
         <code>type:code tag:...</code>
@@ -103,28 +103,29 @@ defineEmits<{
 
 .search-helper {
   @apply absolute left-0 right-0 mt-1 overflow-hidden z-50;
-  background: #ffffff;
+
+  max-height: 400px;
+  padding: 2px;
+  overflow-y: auto;
+  font-size: 12px;
+  background: #fff;
   border: 1px solid #e0e0e0;
   border-radius: 6px;
-  padding: 2px;
-  font-size: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  max-height: 400px;
-  overflow-y: auto;
-  
+  box-shadow: 0 2px 8px rgb(0 0 0 / 10%);
+
   // 自定义滚动条
   &::-webkit-scrollbar {
     width: 6px;
   }
-  
+
   &::-webkit-scrollbar-track {
     background: transparent;
   }
-  
+
   &::-webkit-scrollbar-thumb {
     background: #d1d5db;
     border-radius: 3px;
-    
+
     &:hover {
       background: #9ca3af;
     }
@@ -133,28 +134,30 @@ defineEmits<{
 
 .helper-item {
   @apply flex items-center cursor-pointer;
+
   padding: 5px 8px;
   line-height: 1.4;
-  transition: background-color 0.12s ease;
   border-radius: 4px;
-  
+  transition: background-color 0.12s ease;
+
   &:hover {
     background: #f5f5f5;
   }
-  
+
   code {
     @apply flex-shrink-0 font-mono;
-    color: #4b5563;
-    font-size: 11px;
+
     min-width: 150px;
-    font-weight: 500;
-  }
-  
-  span {
-    color: #9ca3af;
     font-size: 11px;
-    white-space: nowrap;
+    font-weight: 500;
+    color: #4b5563;
+  }
+
+  span {
     margin-left: 8px;
+    font-size: 11px;
+    color: #9ca3af;
+    white-space: nowrap;
   }
 }
 
@@ -163,26 +166,26 @@ defineEmits<{
   .search-helper {
     background: #1f2937;
     border-color: #374151;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-    
+    box-shadow: 0 2px 8px rgb(0 0 0 / 40%);
+
     &::-webkit-scrollbar-thumb {
       background: #4b5563;
-      
+
       &:hover {
         background: #6b7280;
       }
     }
   }
-  
+
   .helper-item {
     &:hover {
       background: #374151;
     }
-    
+
     code {
       color: #d1d5db;
     }
-    
+
     span {
       color: #6b7280;
     }

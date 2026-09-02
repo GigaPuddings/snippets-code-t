@@ -13,7 +13,12 @@ interface UseSearchResultActionsOptions {
 }
 
 export function canCopySearchResultSnippet(item: ContentType): boolean {
-  return item.type === 'code' && !['app', 'bookmark', 'search', 'file', 'tool'].includes(item.summarize ?? '');
+  return (
+    item.type === 'code' &&
+    !['app', 'bookmark', 'search', 'file', 'tool'].includes(
+      item.summarize ?? ''
+    )
+  );
 }
 
 export function useSearchResultActions(options: UseSearchResultActionsOptions) {
@@ -51,7 +56,9 @@ export function useSearchResultActions(options: UseSearchResultActionsOptions) {
 
   async function openFileItem(item: ContentType) {
     await runAfterClosingSearchWindow(() =>
-      invoke('open_file_with_default_app', { filePath: getSearchResultLaunchPath(item) })
+      invoke('open_file_with_default_app', {
+        filePath: getSearchResultLaunchPath(item)
+      })
     );
   }
 
@@ -111,7 +118,9 @@ export function useSearchResultActions(options: UseSearchResultActionsOptions) {
 
   async function runPrimaryAction(item: ContentType) {
     try {
-      await invoke('add_search_history', { id: getPrimarySearchHistoryKey(item) });
+      await invoke('add_search_history', {
+        id: getPrimarySearchHistoryKey(item)
+      });
     } catch (error) {
       logger.error('[搜索窗口] Failed to add search history:', error);
     }

@@ -23,7 +23,10 @@ const setSelectionAfterInsertedNode = (
   tr.setSelection(TextSelection.near(tr.doc.resolve(nextPos), 1));
 };
 
-const replaceSelectionWithNode = (editor: Editor, node: ProseMirrorNode): boolean => {
+const replaceSelectionWithNode = (
+  editor: Editor,
+  node: ProseMirrorNode
+): boolean => {
   const { from, to } = editor.state.selection;
 
   return editor
@@ -43,7 +46,11 @@ export const toggleCodeBlockForSelection = (editor: Editor): boolean => {
 
   if (state.selection.empty || editor.isActive('codeBlock')) {
     const alreadyInCodeBlock = editor.isActive('codeBlock');
-    const result = editor.chain().focus().toggleNode('codeBlock', 'paragraph').run();
+    const result = editor
+      .chain()
+      .focus()
+      .toggleNode('codeBlock', 'paragraph')
+      .run();
 
     // 创建新代码块后，确保光标聚焦在代码块内容区域内并滚动到光标位置
     if (!alreadyInCodeBlock && result) {
@@ -79,7 +86,10 @@ const runDefaultListToggle = (editor: Editor, kind: ListKind): boolean => {
   return editor.chain().focus().toggleList(kind, itemType).run();
 };
 
-export const toggleListForSelection = (editor: Editor, kind: ListKind): boolean => {
+export const toggleListForSelection = (
+  editor: Editor,
+  kind: ListKind
+): boolean => {
   const { state } = editor;
 
   if (state.selection.empty || editor.isActive(kind)) {
@@ -89,7 +99,7 @@ export const toggleListForSelection = (editor: Editor, kind: ListKind): boolean 
   const selectedText = getSelectionText(editor);
   const lines = selectedText
     .split('\n')
-    .map(line => line.trim())
+    .map((line) => line.trim())
     .filter(Boolean);
 
   if (lines.length === 0) {
@@ -97,14 +107,15 @@ export const toggleListForSelection = (editor: Editor, kind: ListKind): boolean 
   }
 
   const listType = state.schema.nodes[kind];
-  const itemType = state.schema.nodes[kind === 'taskList' ? 'taskItem' : 'listItem'];
+  const itemType =
+    state.schema.nodes[kind === 'taskList' ? 'taskItem' : 'listItem'];
   const paragraphType = state.schema.nodes.paragraph;
 
   if (!listType || !itemType || !paragraphType) {
     return runDefaultListToggle(editor, kind);
   }
 
-  const listItems = lines.map(line => {
+  const listItems = lines.map((line) => {
     const paragraph = paragraphType.create(null, state.schema.text(line));
     const attrs = kind === 'taskList' ? { checked: false } : null;
     return itemType.create(attrs, paragraph);

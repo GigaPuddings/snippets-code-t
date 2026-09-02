@@ -11,62 +11,95 @@
     @close="handleDialogClose"
   >
     <div class="dialog-content">
-          <!-- 重命名场景 -->
-          <p v-if="!isDeleteMode" class="message">
-            {{ $t('dialog.updateBacklinks.message', { oldTitle: fragmentTitle, newTitle: newFragmentTitle, count: backlinkCount }) }}
-          </p>
-          
-          <!-- 删除场景 -->
-          <div v-else>
-            <p class="message">
-              {{ $t('backlinks.deleteMessage', { title: fragmentTitle, count: backlinkCount }) }}
-            </p>
-            <div class="delete-options">
-              <p class="options-title">{{ $t('backlinks.deleteOptions') }}</p>
-              <label class="option-item">
-                <input type="radio" v-model="deleteOption" value="deleteOnly" />
-                <span>{{ $t('backlinks.deleteOnly') }}</span>
-              </label>
-              <label class="option-item">
-                <input type="radio" v-model="deleteOption" value="deleteAndRemoveLinks" />
-                <span>{{ $t('backlinks.deleteAndRemoveLinks') }}</span>
-              </label>
-            </div>
-          </div>
-          
-          <div v-if="backlinkFragments.length > 0" class="backlink-list">
-            <p class="list-title">{{ $t('dialog.updateBacklinks.affectedFragments') }}</p>
-            <ul class="backlink-items">
-              <li v-for="fragment in backlinkFragments" :key="fragment.id" class="backlink-item">
-                <span class="fragment-title">{{ fragment.title }}</span>
-                <span class="occurrence-count">({{ fragment.occurrences }} {{ $t('dialog.updateBacklinks.occurrences') }})</span>
-              </li>
-            </ul>
-          </div>
-          
-          <div v-if="updating" class="progress">
-            <div class="progress-bar">
-              <div class="progress-fill" :style="{ width: `${progress}%` }"></div>
-            </div>
-            <p class="progress-text">{{ $t('dialog.updateBacklinks.updating') }} {{ progress }}%</p>
-          </div>
-          
-          <div v-if="result" class="result">
-            <p v-if="result.successCount > 0" class="success">
-              ✓ {{ $t('dialog.updateBacklinks.successCount', { count: result.successCount }) }}
-            </p>
-            <p v-if="result.failureCount > 0" class="error">
-              ✗ {{ $t('dialog.updateBacklinks.failureCount', { count: result.failureCount }) }}
-            </p>
-          </div>
+      <!-- 重命名场景 -->
+      <p v-if="!isDeleteMode" class="message">
+        {{
+          $t('dialog.updateBacklinks.message', {
+            oldTitle: fragmentTitle,
+            newTitle: newFragmentTitle,
+            count: backlinkCount
+          })
+        }}
+      </p>
+
+      <!-- 删除场景 -->
+      <div v-else>
+        <p class="message">
+          {{
+            $t('backlinks.deleteMessage', {
+              title: fragmentTitle,
+              count: backlinkCount
+            })
+          }}
+        </p>
+        <div class="delete-options">
+          <p class="options-title">{{ $t('backlinks.deleteOptions') }}</p>
+          <label class="option-item">
+            <input type="radio" v-model="deleteOption" value="deleteOnly" />
+            <span>{{ $t('backlinks.deleteOnly') }}</span>
+          </label>
+          <label class="option-item">
+            <input
+              type="radio"
+              v-model="deleteOption"
+              value="deleteAndRemoveLinks"
+            />
+            <span>{{ $t('backlinks.deleteAndRemoveLinks') }}</span>
+          </label>
+        </div>
+      </div>
+
+      <div v-if="backlinkFragments.length > 0" class="backlink-list">
+        <p class="list-title">
+          {{ $t('dialog.updateBacklinks.affectedFragments') }}
+        </p>
+        <ul class="backlink-items">
+          <li
+            v-for="fragment in backlinkFragments"
+            :key="fragment.id"
+            class="backlink-item"
+          >
+            <span class="fragment-title">{{ fragment.title }}</span>
+            <span class="occurrence-count">
+              ({{ fragment.occurrences }}
+              {{ $t('dialog.updateBacklinks.occurrences') }})
+            </span>
+          </li>
+        </ul>
+      </div>
+
+      <div v-if="updating" class="progress">
+        <div class="progress-bar">
+          <div class="progress-fill" :style="{ width: `${progress}%` }"></div>
+        </div>
+        <p class="progress-text">
+          {{ $t('dialog.updateBacklinks.updating') }} {{ progress }}%
+        </p>
+      </div>
+
+      <div v-if="result" class="result">
+        <p v-if="result.successCount > 0" class="success">
+          ✓
+          {{
+            $t('dialog.updateBacklinks.successCount', {
+              count: result.successCount
+            })
+          }}
+        </p>
+        <p v-if="result.failureCount > 0" class="error">
+          ✗
+          {{
+            $t('dialog.updateBacklinks.failureCount', {
+              count: result.failureCount
+            })
+          }}
+        </p>
+      </div>
     </div>
 
     <template #footer>
       <div class="dialog-footer">
-        <CustomButton
-          v-if="!updating && !result"
-          @click="handleCancel"
-        >
+        <CustomButton v-if="!updating && !result" @click="handleCancel">
           {{ cancelText || $t('common.cancel') }}
         </CustomButton>
         <CustomButton
@@ -76,11 +109,7 @@
         >
           {{ confirmText || $t('dialog.updateBacklinks.confirm') }}
         </CustomButton>
-        <CustomButton
-          v-if="result"
-          type="primary"
-          @click="handleClose"
-        >
+        <CustomButton v-if="result" type="primary" @click="handleClose">
           {{ $t('common.close') }}
         </CustomButton>
       </div>
@@ -89,7 +118,10 @@
 </template>
 
 <script setup lang="ts">
-import { updateBacklinks, type UpdateBacklinksResult } from '@/utils/wikilink-updater';
+import {
+  updateBacklinks,
+  type UpdateBacklinksResult
+} from '@/utils/wikilink-updater';
 import CommonDialog from './CommonDialog.vue';
 import CustomButton from './CustomButton.vue';
 
@@ -99,7 +131,11 @@ interface Props {
   fragmentTitle: string;
   newFragmentTitle?: string;
   backlinkCount: number;
-  backlinkFragments: Array<{ id: number | string; title: string; occurrences: number }>;
+  backlinkFragments: Array<{
+    id: number | string;
+    title: string;
+    occurrences: number;
+  }>;
   confirmText?: string;
   cancelText?: string;
 }
@@ -127,13 +163,16 @@ const skipCancelOnClose = ref(false);
 const isDeleteMode = computed(() => !props.newFragmentTitle);
 
 // 当对话框显示时重置状态
-watch(() => props.modelValue, (visible) => {
-  if (visible) {
-    result.value = null;
-    progress.value = 0;
-    deleteOption.value = 'deleteOnly';
+watch(
+  () => props.modelValue,
+  (visible) => {
+    if (visible) {
+      result.value = null;
+      progress.value = 0;
+      deleteOption.value = 'deleteOnly';
+    }
   }
-});
+);
 
 const handleConfirm = async () => {
   if (isDeleteMode.value) {
@@ -145,7 +184,7 @@ const handleConfirm = async () => {
     // 重命名模式：执行反向链接更新
     updating.value = true;
     progress.value = 0;
-    
+
     try {
       // 模拟进度更新
       const progressInterval = setInterval(() => {
@@ -153,17 +192,20 @@ const handleConfirm = async () => {
           progress.value += 10;
         }
       }, 100);
-      
+
       // 执行更新
-      const updateResult = await updateBacklinks(props.fragmentTitle, props.newFragmentTitle);
-      
+      const updateResult = await updateBacklinks(
+        props.fragmentTitle,
+        props.newFragmentTitle
+      );
+
       clearInterval(progressInterval);
       progress.value = 100;
       result.value = updateResult;
-      
+
       // 等待一小段时间让用户看到结果
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
       emit('confirm', true);
       closeDialog();
     } catch (error) {
@@ -172,7 +214,7 @@ const handleConfirm = async () => {
         successCount: 0,
         failureCount: props.backlinkFragments.length,
         updatedIds: [],
-        failures: props.backlinkFragments.map(f => ({
+        failures: props.backlinkFragments.map((f) => ({
           id: f.id,
           title: f.title,
           error: error instanceof Error ? error.message : String(error)
@@ -240,11 +282,11 @@ export default {
 
 .option-item {
   @apply flex items-center gap-2 py-1 cursor-pointer;
-  
-  input[type="radio"] {
+
+  input[type='radio'] {
     @apply cursor-pointer;
   }
-  
+
   span {
     @apply text-sm text-panel-text-secondary;
   }

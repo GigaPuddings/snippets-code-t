@@ -60,19 +60,30 @@ export function useGitRuntimeController(deps: GitRuntimeControllerDeps) {
     modalMsg: deps.modalMsg
   });
 
-  const reportConflictFlowError = (context: 'conflict' | 'manual-merge', error: unknown) => {
+  const reportConflictFlowError = (
+    context: 'conflict' | 'manual-merge',
+    error: unknown
+  ) => {
     if (error === 'cancel') return;
 
     const errorMsg = String(error).replace(/^Error:\s*/, '');
 
     if (context === 'manual-merge') {
       logger.error('[GitSync] 手动合并失败:', error);
-      deps.modalMsg(`${deps.t('settings.gitSync.mergeFailed')}: ${errorMsg}`, 'error', 'top-right');
+      deps.modalMsg(
+        `${deps.t('settings.gitSync.mergeFailed')}: ${errorMsg}`,
+        'error',
+        'top-right'
+      );
       return;
     }
 
     logger.error('[GitSync] 冲突处理失败:', error);
-    deps.modalMsg(`${deps.t('settings.gitSync.conflictResolutionFailed')}: ${errorMsg}`, 'error', 'top-right');
+    deps.modalMsg(
+      `${deps.t('settings.gitSync.conflictResolutionFailed')}: ${errorMsg}`,
+      'error',
+      'top-right'
+    );
   };
 
   const flow = useGitConflictFlow({
@@ -141,7 +152,11 @@ export function useGitRuntimeController(deps: GitRuntimeControllerDeps) {
   const handleRepoNotFoundIgnore = () => {
     repoNotFound.ignore();
     logger.info('[GitSync] 用户选择忽略仓库不存在错误');
-    deps.modalMsg(deps.t('settings.gitSync.repoNotFoundIgnored'), 'info', 'bottom-right');
+    deps.modalMsg(
+      deps.t('settings.gitSync.repoNotFoundIgnored'),
+      'info',
+      'bottom-right'
+    );
   };
 
   return {

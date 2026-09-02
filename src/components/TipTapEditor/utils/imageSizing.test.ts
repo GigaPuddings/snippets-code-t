@@ -12,7 +12,9 @@ describe('image sizing', () => {
   });
 
   it('prefers the stored relative scale', () => {
-    expect(resolveImageScalePercent({ 'data-image-scale': 80, width: 320 }, 640, 100)).toBe(80);
+    expect(
+      resolveImageScalePercent({ 'data-image-scale': 80, width: 320 }, 640, 100)
+    ).toBe(80);
   });
 
   it('migrates a legacy pixel width using the natural image width', () => {

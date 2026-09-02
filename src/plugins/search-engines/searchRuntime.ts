@@ -5,7 +5,9 @@ import type { usePluginStore } from '@/store';
 
 type PluginStore = ReturnType<typeof usePluginStore>;
 
-export const loadSearchEngines = async (pluginStore: PluginStore): Promise<SearchEngine[]> => {
+export const loadSearchEngines = async (
+  pluginStore: PluginStore
+): Promise<SearchEngine[]> => {
   if (!pluginStore.isEnabled('search-engines')) {
     return [];
   }
@@ -14,13 +16,14 @@ export const loadSearchEngines = async (pluginStore: PluginStore): Promise<Searc
   return Array.isArray(engines) ? engines : [];
 };
 
-export const listenSearchEngineUpdates = async (onUpdate: (engines: SearchEngine[]) => void): Promise<UnlistenFn> => (
+export const listenSearchEngineUpdates = async (
+  onUpdate: (engines: SearchEngine[]) => void
+): Promise<UnlistenFn> =>
   listen('search-engines-updated', (event: { payload: unknown }) => {
     if (Array.isArray(event.payload)) {
       onUpdate(event.payload as SearchEngine[]);
     }
-  })
-);
+  });
 
 export const findSearchEngine = (
   engines: SearchEngine[],
@@ -34,8 +37,9 @@ export const findSearchEngine = (
 
   const keyword = parts[0];
   const query = parts.slice(1).join(' ');
-  const engine = engines.find((item) => item.name === keyword)
-    ?? engines.find((item) => item.keyword === keyword);
+  const engine =
+    engines.find((item) => item.name === keyword) ??
+    engines.find((item) => item.keyword === keyword);
 
   return engine ? { engine, query } : null;
 };
@@ -51,7 +55,10 @@ export const createEngineShortcutResult = (
   icon: engine.icon
 });
 
-export const openSearchEngine = async (engine: SearchEngine, query: string): Promise<void> => {
+export const openSearchEngine = async (
+  engine: SearchEngine,
+  query: string
+): Promise<void> => {
   const searchUrl = engine.url.replace('%s', encodeURIComponent(query || ''));
   await invoke('open_url', { url: searchUrl });
   await invoke('show_hide_window_command', { label: 'search' });
@@ -60,11 +67,10 @@ export const openSearchEngine = async (engine: SearchEngine, query: string): Pro
 export const getDefaultSearchEngine = (
   pluginStore: PluginStore,
   engines: SearchEngine[]
-): SearchEngine | undefined => (
+): SearchEngine | undefined =>
   pluginStore.isEnabled('search-engines')
     ? engines.find((engine) => engine.enabled)
-    : undefined
-);
+    : undefined;
 
 export const createDefaultSearchResult = (
   engine: SearchEngine,

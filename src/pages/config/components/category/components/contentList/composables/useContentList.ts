@@ -41,9 +41,9 @@ export interface UseContentListReturn {
 
 /**
  * 内容列表管理 Composable
- * 
+ *
  * @returns UseContentListReturn
- * 
+ *
  * @example
  * ```typescript
  * const {
@@ -56,27 +56,29 @@ export interface UseContentListReturn {
 export function useContentList(): UseContentListReturn {
   const route = useRoute();
   const store = useConfigurationStore();
-  
+
   const searchText = ref<string>('');
   const panelFilter = ref<SearchFilter>({ type: 'all' });
   const tagFilter = ref<string | null>(null);
   const isLoadingFragments = ref<boolean>(false);
 
   // 从搜索文本解析的筛选条件
-  const searchFilter = computed<SearchFilter>(() => parseSearchText(searchText.value));
+  const searchFilter = computed<SearchFilter>(() =>
+    parseSearchText(searchText.value)
+  );
 
   // 合并所有筛选条件
   const combinedFilter = computed<SearchFilter>(() => {
-    const filter: SearchFilter = { 
-      ...searchFilter.value, 
-      ...panelFilter.value 
+    const filter: SearchFilter = {
+      ...searchFilter.value,
+      ...panelFilter.value
     };
-    
+
     // 如果 searchFilter 有 type，且 panelFilter 的 type 是默认值 'all'，则使用 searchFilter 的 type
     if (searchFilter.value.type && panelFilter.value.type === 'all') {
       filter.type = searchFilter.value.type;
     }
-    
+
     // 处理标签合并
     if (panelFilter.value.tags && panelFilter.value.tags.length > 0) {
       filter.tags = [...panelFilter.value.tags];
@@ -85,7 +87,7 @@ export function useContentList(): UseContentListReturn {
     } else if (searchFilter.value.tags) {
       filter.tags = [...searchFilter.value.tags];
     }
-    
+
     return filter;
   });
 
@@ -93,17 +95,19 @@ export function useContentList(): UseContentListReturn {
   const activeFilterCount = computed<number>(() => {
     const filter = combinedFilter.value;
     let count = 0;
-    
+
     if (filter.text) count++;
     if (filter.type && filter.type !== 'all') count++;
     if (filter.tags && filter.tags.length > 0) count += filter.tags.length;
     if (filter.language) count++;
     if (filter.framework) count++;
     if (filter.kind) count++;
-    if (filter.createdPreset || filter.createdAfter || filter.createdBefore) count++;
-    if (filter.updatedPreset || filter.updatedAfter || filter.updatedBefore) count++;
+    if (filter.createdPreset || filter.createdAfter || filter.createdBefore)
+      count++;
+    if (filter.updatedPreset || filter.updatedAfter || filter.updatedBefore)
+      count++;
     if (filter.sortBy) count++;
-    
+
     return count;
   });
 
@@ -126,7 +130,7 @@ export function useContentList(): UseContentListReturn {
     // 统一使用前端过滤器处理所有情况
     // 后端搜索只负责文本搜索，前端负责语法过滤（type:, tag:, created:, updated:）
     const result = applyFilter(store.contents, combinedFilter.value);
-    
+
     // 应用排序（如果有指定排序方式）
     if (combinedFilter.value.sortBy) {
       return applySorting(
@@ -135,7 +139,7 @@ export function useContentList(): UseContentListReturn {
         combinedFilter.value.sortOrder || 'desc'
       );
     }
-    
+
     // 默认排序：按更新时间降序（最新的在前面）
     return applySorting(result, 'updated', 'desc');
   });
@@ -144,16 +148,19 @@ export function useContentList(): UseContentListReturn {
    * 查询片段列表
    * 后端现在直接返回包含 categoryId 和 categoryName 的数据
    */
-  const queryFragments = async (cid?: string, search?: string): Promise<void> => {
+  const queryFragments = async (
+    cid?: string,
+    search?: string
+  ): Promise<void> => {
     // 避免重复加载
     if (isLoadingFragments.value) {
       return;
     }
-    
+
     isLoadingFragments.value = true;
     try {
       let categoryId: number | undefined;
-      
+
       if (!cid) {
         // 没有 cid，获取所有文件
         categoryId = undefined;
@@ -161,12 +168,12 @@ export function useContentList(): UseContentListReturn {
         // 使用数字 ID
         categoryId = Number(cid);
       }
-      
+
       // 使用传入的搜索文本，如果没有则使用当前的 searchText
       const searchQuery = search !== undefined ? search : searchText.value;
-      
+
       const result = await getFragmentList(categoryId, searchQuery);
-      
+
       // 直接使用后端返回的数据，无需额外处理
       store.contents = result as ContentType[];
     } catch (error) {
@@ -179,9 +186,12 @@ export function useContentList(): UseContentListReturn {
   /**
    * 防抖版本的查询函数，用于搜索文本变化时
    */
-  const debouncedQueryFragments = debounce((cid: string | undefined, search: string) => {
-    queryFragments(cid, search);
-  }, 300);
+  const debouncedQueryFragments = debounce(
+    (cid: string | undefined, search: string) => {
+      queryFragments(cid, search);
+    },
+    300
+  );
 
   /**
    * 更新筛选条件
@@ -189,7 +199,7 @@ export function useContentList(): UseContentListReturn {
    */
   const updateFilter = (filter: SearchFilter): void => {
     panelFilter.value = { ...filter };
-    
+
     if (!filter.tags || filter.tags.length === 0) {
       tagFilter.value = null;
     }
@@ -208,7 +218,7 @@ export function useContentList(): UseContentListReturn {
     (newCid, oldCid) => {
       const tag = route.query.tag as string | undefined;
       tagFilter.value = tag || null;
-      
+
       // 当 cid 改变时，或首次加载时（oldCid === undefined），都重新加载列表数据
       // 不区分是否在内容页：在内容页刷新时也必须加载列表，否则会显示「暂无片段内容」
       if (newCid !== oldCid || oldCid === undefined) {
@@ -223,11 +233,11 @@ export function useContentList(): UseContentListReturn {
   // 监听搜索文本变化
   watch(searchText, (newSearchText) => {
     const cid = route.params.cid as string | undefined;
-    
+
     // 解析搜索文本，提取纯文本部分（去除语法前缀）
     const parsedFilter = parseSearchText(newSearchText);
     const textQuery = parsedFilter.text || '';
-    
+
     // 使用防抖版本的查询函数
     // 如果有文本搜索，传递给后端；否则传递空字符串加载所有文件
     debouncedQueryFragments(cid, textQuery);

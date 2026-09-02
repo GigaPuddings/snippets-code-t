@@ -14,25 +14,15 @@
   "category": "search",
   "enabledByDefault": true,
   "capabilities": {
-    "routeNames": [
-      "Retrieve"
-    ],
-    "settingsTabs": [
-      "retrieve"
-    ],
-    "searchSources": [
-      "web-search"
-    ]
+    "routeNames": ["Retrieve"],
+    "settingsTabs": ["retrieve"],
+    "searchSources": ["web-search"]
   },
-  "permissions": [
-    "command:*"
-  ],
+  "permissions": ["command:*"],
   "compatibleAppVersion": ">=2.1.55",
   "entry": {
     "frontend": "dist/frontend.js",
-    "styles": [
-      "dist/assets/runtime-entry-XgI-L6hB.css"
-    ]
+    "styles": ["dist/assets/runtime-entry-XgI-L6hB.css"]
   },
   "minAppVersion": "2.1.55",
   "repository": "https://github.com/GigaPuddings/snippets-code-plugin-search-engines",

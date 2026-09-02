@@ -4,14 +4,18 @@
     <div class="panel-header">
       <h3 class="panel-title">{{ $t('settings.attachment.title') }}</h3>
     </div>
-    
+
     <!-- 可滚动内容 -->
     <main class="panel-content">
       <!-- 编辑器行距 -->
       <section class="summarize-section">
         <div class="summarize-label">
-          <div class="summarize-label-title">{{ $t('settings.editorLineHeight') }}</div>
-          <div class="summarize-label-desc">{{ $t('settings.editorLineHeightDesc') }}</div>
+          <div class="summarize-label-title">
+            {{ $t('settings.editorLineHeight') }}
+          </div>
+          <div class="summarize-label-desc">
+            {{ $t('settings.editorLineHeightDesc') }}
+          </div>
         </div>
         <div class="summarize-input-wrapper line-height-control">
           <el-slider
@@ -22,15 +26,21 @@
             :show-tooltip="false"
             @change="changeEditorLineHeight"
           />
-          <span class="line-height-value">{{ editorLineHeightDraft.toFixed(2) }}</span>
+          <span class="line-height-value">
+            {{ editorLineHeightDraft.toFixed(2) }}
+          </span>
         </div>
       </section>
 
       <!-- 图片默认缩放 -->
       <section class="summarize-section">
         <div class="summarize-label">
-          <div class="summarize-label-title">{{ $t('settings.attachment.defaultImageScale') }}</div>
-          <div class="summarize-label-desc">{{ $t('settings.attachment.defaultImageScaleHint') }}</div>
+          <div class="summarize-label-title">
+            {{ $t('settings.attachment.defaultImageScale') }}
+          </div>
+          <div class="summarize-label-desc">
+            {{ $t('settings.attachment.defaultImageScaleHint') }}
+          </div>
         </div>
         <div class="summarize-input-wrapper image-scale-control">
           <el-slider
@@ -42,15 +52,21 @@
             :disabled="isSaving"
             @change="changeDefaultImageScale"
           />
-          <span class="image-scale-value">{{ config.defaultImageScalePercent }}%</span>
+          <span class="image-scale-value">
+            {{ config.defaultImageScalePercent }}%
+          </span>
         </div>
       </section>
 
       <!-- 图片响应式适配 -->
       <section class="summarize-section">
         <div class="summarize-label">
-          <div class="summarize-label-title">{{ $t('settings.attachment.responsiveImages') }}</div>
-          <div class="summarize-label-desc">{{ $t('settings.attachment.responsiveImagesHint') }}</div>
+          <div class="summarize-label-title">
+            {{ $t('settings.attachment.responsiveImages') }}
+          </div>
+          <div class="summarize-label-desc">
+            {{ $t('settings.attachment.responsiveImagesHint') }}
+          </div>
         </div>
         <div class="summarize-input-wrapper">
           <CustomSwitch
@@ -58,7 +74,9 @@
             :disabled="isSaving"
             :active-text="$t('common.on')"
             :inactive-text="$t('common.off')"
-            @change="(value) => toggleAttachmentOption('responsiveImages', value)"
+            @change="
+              (value) => toggleAttachmentOption('responsiveImages', value)
+            "
           />
         </div>
       </section>
@@ -66,8 +84,12 @@
       <!-- 图片附件路径 -->
       <section class="summarize-section">
         <div class="summarize-label">
-          <div class="summarize-label-title">{{ $t('settings.attachment.showImagePath') }}</div>
-          <div class="summarize-label-desc">{{ $t('settings.attachment.showImagePathHint') }}</div>
+          <div class="summarize-label-title">
+            {{ $t('settings.attachment.showImagePath') }}
+          </div>
+          <div class="summarize-label-desc">
+            {{ $t('settings.attachment.showImagePathHint') }}
+          </div>
         </div>
         <div class="summarize-input-wrapper">
           <CustomSwitch
@@ -83,8 +105,12 @@
       <!-- 附件路径模板 -->
       <section class="summarize-section transparent-input">
         <div class="summarize-label">
-          <div class="summarize-label-title">{{ $t('settings.attachment.pathTemplate') }}</div>
-          <div class="summarize-label-desc">{{ $t('settings.attachment.pathTemplateHint') }}</div>
+          <div class="summarize-label-title">
+            {{ $t('settings.attachment.pathTemplate') }}
+          </div>
+          <div class="summarize-label-desc">
+            {{ $t('settings.attachment.pathTemplateHint') }}
+          </div>
         </div>
         <div class="summarize-input-wrapper">
           <el-input
@@ -96,41 +122,49 @@
           />
         </div>
       </section>
-      
+
       <!-- 文件名生成格式 -->
       <section class="summarize-section transparent-input">
         <div class="summarize-label">
-          <div class="summarize-label-title">{{ $t('settings.attachment.filenameFormat') }}</div>
-          <div class="summarize-label-desc">{{ $t('settings.attachment.filenameFormatHint') }}</div>
+          <div class="summarize-label-title">
+            {{ $t('settings.attachment.filenameFormat') }}
+          </div>
+          <div class="summarize-label-desc">
+            {{ $t('settings.attachment.filenameFormatHint') }}
+          </div>
         </div>
         <div class="summarize-input-wrapper">
-          <el-select 
+          <el-select
             class="summarize-input !w-64"
             v-model="config.filenameFormat"
             :disabled="isSaving"
             @change="handleConfigChange"
           >
-            <el-option 
-              :label="$t('settings.attachment.formatObsidian')" 
-              value="obsidian" 
+            <el-option
+              :label="$t('settings.attachment.formatObsidian')"
+              value="obsidian"
             />
-            <el-option 
-              :label="$t('settings.attachment.formatSimple')" 
-              value="simple" 
+            <el-option
+              :label="$t('settings.attachment.formatSimple')"
+              value="simple"
             />
-            <el-option 
-              :label="$t('settings.attachment.formatUuid')" 
-              value="uuid" 
+            <el-option
+              :label="$t('settings.attachment.formatUuid')"
+              value="uuid"
             />
           </el-select>
         </div>
       </section>
-      
+
       <!-- 路径预览 -->
       <section class="summarize-section transparent-input">
         <div class="summarize-label">
-          <div class="summarize-label-title">{{ $t('settings.attachment.pathPreview') }}</div>
-          <div class="summarize-label-desc">{{ $t('settings.attachment.pathPreviewHint') }}</div>
+          <div class="summarize-label-title">
+            {{ $t('settings.attachment.pathPreview') }}
+          </div>
+          <div class="summarize-label-desc">
+            {{ $t('settings.attachment.pathPreviewHint') }}
+          </div>
         </div>
         <div class="summarize-input-wrapper">
           <div class="preview-box">
@@ -143,7 +177,10 @@
 </template>
 
 <script setup lang="ts">
-import { getAttachmentConfig, updateAttachmentConfig } from '@/plugins/attachments/api';
+import {
+  getAttachmentConfig,
+  updateAttachmentConfig
+} from '@/plugins/attachments/api';
 import { CustomSwitch } from '@/components/UI';
 import { useConfigurationStore } from '@/store';
 import type { AttachmentConfig } from '@/types/models';
@@ -172,15 +209,17 @@ const editorLineHeightDraft = ref(configurationStore.editorLineHeight);
 const previewPath = computed(() => {
   const exampleName = t('settings.attachment.exampleNoteName');
   const exampleFile = generateExampleFilename(config.value.filenameFormat);
-  return config.value.pathTemplate
-    .replace('${noteFileName}', exampleName) + exampleFile;
+  return (
+    config.value.pathTemplate.replace('${noteFileName}', exampleName) +
+    exampleFile
+  );
 });
 
 function generateExampleFilename(format: string): string {
   const now = new Date();
   const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
   const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '');
-  
+
   switch (format) {
     case 'snippets-code':
       return `Pasted image ${dateStr}${timeStr}.png`;
@@ -195,7 +234,7 @@ function generateExampleFilename(format: string): string {
 
 async function handleConfigChange() {
   if (isSaving.value) return; // 防止重复保存
-  
+
   isSaving.value = true;
   try {
     await updateAttachmentConfig(config.value);
@@ -210,7 +249,10 @@ async function handleConfigChange() {
 
 const changeDefaultImageScale = async (value: number | number[]) => {
   const nextValue = Array.isArray(value) ? value[0] : value;
-  config.value.defaultImageScalePercent = Math.min(200, Math.max(25, Math.round(nextValue)));
+  config.value.defaultImageScalePercent = Math.min(
+    200,
+    Math.max(25, Math.round(nextValue))
+  );
   await handleConfigChange();
 };
 
@@ -232,9 +274,12 @@ const changeEditorLineHeight = async (value: number | number[]) => {
   }
 };
 
-watch(() => configurationStore.editorLineHeight, (value) => {
-  editorLineHeightDraft.value = value;
-});
+watch(
+  () => configurationStore.editorLineHeight,
+  (value) => {
+    editorLineHeightDraft.value = value;
+  }
+);
 
 onMounted(async () => {
   isLoading.value = true;

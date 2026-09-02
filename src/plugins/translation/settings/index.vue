@@ -4,184 +4,268 @@
     <div class="panel-header">
       <h3 class="panel-title">{{ $t('translation.title') }}</h3>
     </div>
-    
+
     <!-- 可滚动内容 -->
     <main class="panel-content">
-    <!-- 默认翻译引擎 -->
-    <section class="summarize-section">
-      <div class="summarize-label">
-        <div class="summarize-label-title">{{ $t('translation.defaultEngine') }}</div>
-        <div class="summarize-label-desc">{{ $t('translation.defaultEngineDesc') }}</div>
-      </div>
-      <div class="summarize-input-wrapper">
-        <el-select class="summarize-input !w-36" v-model="defaultEngine" @change="saveDefaultEngine">
-          <el-option
-            v-for="item in engineOptions"
-            :key="item.value"
-            :label="item.label"
-            :value="item.value"
-          />
-        </el-select>
-      </div>
-    </section>
-
-    <!-- 离线翻译模型 -->
-    <section class="summarize-section">
-      <div class="summarize-label">
-        <div class="summarize-label-title">{{ $t('translation.offlineModel') }}</div>
-        <div class="summarize-label-desc">{{ $t('translation.offlineModelDesc') }}</div>
-      </div>
-      <div class="summarize-input-wrapper">
-        <div class="flex flex-wrap items-center gap-3">
-          <span class="min-w-0 break-words text-sm font-medium" :class="modelStatusClass">{{ modelStatusText }}</span>
-          <CustomButton
-            v-if="!runtimeAvailable && !isLoading"
-            type="primary"
-            size="small"
-            :loading="isInstallingRuntime"
-            @click="installOfflineRuntime"
-          >
-            {{ $t('translation.installRuntime') }}
-          </CustomButton>
-          <CustomButton
-            v-if="runtimeAvailable && !modelCached && !isLoading && !isInstallingRuntime"
-            type="primary"
-            size="small"
-            @click="loadModel"
-          >
-            {{ $t('translation.loadModel') }}
-          </CustomButton>
-          <CustomButton
-            v-if="runtimeAvailable && modelCached && !modelLoaded && !backendActivated && !isLoading && !isInstallingRuntime"
-            type="primary"
-            size="small"
-            @click="activateModel"
-          >
-            {{ $t('translation.activateModel') }}
-          </CustomButton>
-          <CustomButton
-            v-if="modelCached && !isLoading && !isInstallingRuntime"
-            type="default"
-            size="small"
-            @click="deleteModel"
-            :loading="isDeleting"
-          >
-            {{ $t('translation.deleteModel') }}
-          </CustomButton>
+      <!-- 默认翻译引擎 -->
+      <section class="summarize-section">
+        <div class="summarize-label">
+          <div class="summarize-label-title">
+            {{ $t('translation.defaultEngine') }}
+          </div>
+          <div class="summarize-label-desc">
+            {{ $t('translation.defaultEngineDesc') }}
+          </div>
         </div>
-      </div>
-    </section>
-    
-    <!-- 多文件下载进度（独立区块） -->
-    <section v-if="isLoading" class="summarize-section">
-      <div class="summarize-label">
-        <div class="summarize-label-title">{{ $t('translation.downloadProgress') }}</div>
-        <div class="summarize-label-desc">{{ $t('translation.downloadProgressDesc') }}</div>
-      </div>
-      <div class="summarize-input-wrapper flex-col !items-start">
-        <div class="w-full space-y-2">
-          <div 
-            v-for="file in fileStatuses" 
-            :key="file.file"
-            class="flex items-center gap-3 py-1"
+        <div class="summarize-input-wrapper">
+          <el-select
+            class="summarize-input !w-36"
+            v-model="defaultEngine"
+            @change="saveDefaultEngine"
           >
-            <span class="w-5 text-center">
-              <span v-if="file.status === 'done'" class="text-green-500 text-base">✓</span>
-              <span v-else-if="file.status === 'error'" class="text-red-500 text-base">✗</span>
-              <span v-else-if="file.status === 'downloading'" class="text-yellow-500 text-base">↓</span>
-              <span v-else class="text-panel-text-secondary text-base">○</span>
+            <el-option
+              v-for="item in engineOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
+          </el-select>
+        </div>
+      </section>
+
+      <!-- 离线翻译模型 -->
+      <section class="summarize-section">
+        <div class="summarize-label">
+          <div class="summarize-label-title">
+            {{ $t('translation.offlineModel') }}
+          </div>
+          <div class="summarize-label-desc">
+            {{ $t('translation.offlineModelDesc') }}
+          </div>
+        </div>
+        <div class="summarize-input-wrapper">
+          <div class="flex flex-wrap items-center gap-3">
+            <span
+              class="min-w-0 break-words text-sm font-medium"
+              :class="modelStatusClass"
+            >
+              {{ modelStatusText }}
             </span>
-            <span class="w-64 truncate text-sm text-panel-text-secondary" :title="file.file">
-              {{ file.file }}
-            </span>
-            <span class="w-16 text-right text-xs text-panel-text-secondary">{{ file.size }}</span>
-            <div class="w-24">
-              <el-progress 
-                v-if="file.status === 'downloading'"
-                :percentage="file.progress" 
-                :stroke-width="6"
-                :show-text="true"
-                :text-inside="false"
-              />
-              <span v-else-if="file.status === 'done'" class="text-green-500 text-xs">{{ $t('translation.completed') }}</span>
-              <span v-else-if="file.status === 'error'" class="text-red-500 text-xs">{{ $t('translation.failed') }}</span>
-              <span v-else class="text-panel-text-secondary text-xs">{{ $t('translation.waiting') }}</span>
-            </div>
+            <CustomButton
+              v-if="!runtimeAvailable && !isLoading"
+              type="primary"
+              size="small"
+              :loading="isInstallingRuntime"
+              @click="installOfflineRuntime"
+            >
+              {{ $t('translation.installRuntime') }}
+            </CustomButton>
+            <CustomButton
+              v-if="
+                runtimeAvailable &&
+                !modelCached &&
+                !isLoading &&
+                !isInstallingRuntime
+              "
+              type="primary"
+              size="small"
+              @click="loadModel"
+            >
+              {{ $t('translation.loadModel') }}
+            </CustomButton>
+            <CustomButton
+              v-if="
+                runtimeAvailable &&
+                modelCached &&
+                !modelLoaded &&
+                !backendActivated &&
+                !isLoading &&
+                !isInstallingRuntime
+              "
+              type="primary"
+              size="small"
+              @click="activateModel"
+            >
+              {{ $t('translation.activateModel') }}
+            </CustomButton>
+            <CustomButton
+              v-if="modelCached && !isLoading && !isInstallingRuntime"
+              type="default"
+              size="small"
+              @click="deleteModel"
+              :loading="isDeleting"
+            >
+              {{ $t('translation.deleteModel') }}
+            </CustomButton>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <!-- 模型信息（仅在已缓存或已加载时显示） -->
-    <section class="summarize-section !mt-2" v-if="showModelInfo && !isLoading">
-      <div class="summarize-label">
-        <div class="summarize-label-title">{{ $t('translation.modelInfo') }}</div>
-        <div class="summarize-label-desc">{{ $t('translation.modelInfoDesc') }}</div>
-      </div>
-      <div class="summarize-input-wrapper">
-        <div class="model-info-card">
-          <div class="info-row">
-            <div class="info-item">
-              <span class="info-label">{{ $t('translation.modelName') }}</span>
-              <span class="info-value">Xenova/opus-mt-en-zh</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">{{ $t('translation.modelSize') }}</span>
-              <span class="info-value">{{ modelCacheInfo.estimatedSize || '~300MB' }}</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">{{ $t('translation.supportLang') }}</span>
-              <span class="info-value">{{ $t('translation.enToZh') }}</span>
+      <!-- 多文件下载进度（独立区块） -->
+      <section v-if="isLoading" class="summarize-section">
+        <div class="summarize-label">
+          <div class="summarize-label-title">
+            {{ $t('translation.downloadProgress') }}
+          </div>
+          <div class="summarize-label-desc">
+            {{ $t('translation.downloadProgressDesc') }}
+          </div>
+        </div>
+        <div class="summarize-input-wrapper flex-col !items-start">
+          <div class="w-full space-y-2">
+            <div
+              v-for="file in fileStatuses"
+              :key="file.file"
+              class="flex items-center gap-3 py-1"
+            >
+              <span class="w-5 text-center">
+                <span
+                  v-if="file.status === 'done'"
+                  class="text-green-500 text-base"
+                >
+                  ✓
+                </span>
+                <span
+                  v-else-if="file.status === 'error'"
+                  class="text-red-500 text-base"
+                >
+                  ✗
+                </span>
+                <span
+                  v-else-if="file.status === 'downloading'"
+                  class="text-yellow-500 text-base"
+                >
+                  ↓
+                </span>
+                <span v-else class="text-panel-text-secondary text-base">
+                  ○
+                </span>
+              </span>
+              <span
+                class="w-64 truncate text-sm text-panel-text-secondary"
+                :title="file.file"
+              >
+                {{ file.file }}
+              </span>
+              <span class="w-16 text-right text-xs text-panel-text-secondary">
+                {{ file.size }}
+              </span>
+              <div class="w-24">
+                <el-progress
+                  v-if="file.status === 'downloading'"
+                  :percentage="file.progress"
+                  :stroke-width="6"
+                  :show-text="true"
+                  :text-inside="false"
+                />
+                <span
+                  v-else-if="file.status === 'done'"
+                  class="text-green-500 text-xs"
+                >
+                  {{ $t('translation.completed') }}
+                </span>
+                <span
+                  v-else-if="file.status === 'error'"
+                  class="text-red-500 text-xs"
+                >
+                  {{ $t('translation.failed') }}
+                </span>
+                <span v-else class="text-panel-text-secondary text-xs">
+                  {{ $t('translation.waiting') }}
+                </span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <!-- 使用说明 -->
-    <section class="summarize-section !mt-2">
-      <div class="summarize-label">
-        <div class="summarize-label-title">{{ $t('translation.usage') }}</div>
-        <div class="summarize-label-desc">{{ $t('translation.usageDesc') }}</div>
-      </div>
-      <div class="summarize-input-wrapper">
-        <div class="usage-tips">
-          <div class="tip-item">
-            <span class="tip-icon">•</span>
-            <span class="tip-text">{{ $t('translation.usageTip1') }}</span>
+      <!-- 模型信息（仅在已缓存或已加载时显示） -->
+      <section
+        class="summarize-section !mt-2"
+        v-if="showModelInfo && !isLoading"
+      >
+        <div class="summarize-label">
+          <div class="summarize-label-title">
+            {{ $t('translation.modelInfo') }}
           </div>
-          <div class="tip-item">
-            <span class="tip-icon">•</span>
-            <span class="tip-text">{{ $t('translation.usageTip2') }}</span>
-          </div>
-          <div class="tip-item">
-            <span class="tip-icon">•</span>
-            <span class="tip-text">{{ $t('translation.usageTip3') }}</span>
-          </div>
-          <div class="tip-item">
-            <span class="tip-icon">•</span>
-            <span class="tip-text">{{ $t('translation.usageTip4') }}</span>
+          <div class="summarize-label-desc">
+            {{ $t('translation.modelInfoDesc') }}
           </div>
         </div>
-      </div>
-    </section>
-  </main>
+        <div class="summarize-input-wrapper">
+          <div class="model-info-card">
+            <div class="info-row">
+              <div class="info-item">
+                <span class="info-label">
+                  {{ $t('translation.modelName') }}
+                </span>
+                <span class="info-value">Xenova/opus-mt-en-zh</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">
+                  {{ $t('translation.modelSize') }}
+                </span>
+                <span class="info-value">
+                  {{ modelCacheInfo.estimatedSize || '~300MB' }}
+                </span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">
+                  {{ $t('translation.supportLang') }}
+                </span>
+                <span class="info-value">{{ $t('translation.enToZh') }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 使用说明 -->
+      <section class="summarize-section !mt-2">
+        <div class="summarize-label">
+          <div class="summarize-label-title">{{ $t('translation.usage') }}</div>
+          <div class="summarize-label-desc">
+            {{ $t('translation.usageDesc') }}
+          </div>
+        </div>
+        <div class="summarize-input-wrapper">
+          <div class="usage-tips">
+            <div class="tip-item">
+              <span class="tip-icon">•</span>
+              <span class="tip-text">{{ $t('translation.usageTip1') }}</span>
+            </div>
+            <div class="tip-item">
+              <span class="tip-icon">•</span>
+              <span class="tip-text">{{ $t('translation.usageTip2') }}</span>
+            </div>
+            <div class="tip-item">
+              <span class="tip-icon">•</span>
+              <span class="tip-text">{{ $t('translation.usageTip3') }}</span>
+            </div>
+            <div class="tip-item">
+              <span class="tip-icon">•</span>
+              <span class="tip-text">{{ $t('translation.usageTip4') }}</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { invoke } from '@tauri-apps/api/core'
-import { CustomButton } from '@/components/UI'
+import { ref, computed, nextTick, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { invoke } from '@tauri-apps/api/core';
+import { CustomButton } from '@/components/UI';
 import {
   DEFAULT_PLUGIN_MARKETPLACE_URL,
   fetchPluginMarketplace,
   installPluginPackageFromUrl,
   installTranslationOfflineRuntimeResources,
   type PluginMarketplaceItem
-} from '@/api/plugins'
-import modal from '@/utils/modal'
+} from '@/api/plugins';
+import modal from '@/utils/modal';
 import {
   isOfflineTranslatorReady,
   isOfflineTranslatorInitializing,
@@ -195,32 +279,35 @@ import {
   verifyOfflineTranslatorRuntime,
   type ModelCacheInfo,
   type FileDownloadStatus
-} from '@/plugins/translation/utils/offlineTranslator'
-import { logger } from '@/utils/logger'
+} from '@/plugins/translation/utils/offlineTranslator';
+import { logger } from '@/utils/logger';
 
 defineOptions({
   name: 'Translation'
-})
+});
 
-const { t } = useI18n()
+const { t } = useI18n();
 
-const OFFLINE_RUNTIME_PLUGIN_ID = 'translation-offline-runtime'
+const OFFLINE_RUNTIME_PLUGIN_ID = 'translation-offline-runtime';
 
 // 状态
-const defaultEngine = ref<'google' | 'bing' | 'offline' | 'local-ai'>('bing')
-const modelLoaded = ref(false)  // 内存中是否已加载
-const backendActivated = ref(false)  // 后端激活状态（用户是否启用了离线翻译）
-const modelCacheInfo = ref<ModelCacheInfo>({ isCached: false, cacheType: 'none' })
-const isLoading = ref(false)
-const isDeleting = ref(false)
-const runtimeAvailable = ref(false)
-const isInstallingRuntime = ref(false)
+const defaultEngine = ref<'google' | 'bing' | 'offline' | 'local-ai'>('bing');
+const modelLoaded = ref(false); // 内存中是否已加载
+const backendActivated = ref(false); // 后端激活状态（用户是否启用了离线翻译）
+const modelCacheInfo = ref<ModelCacheInfo>({
+  isCached: false,
+  cacheType: 'none'
+});
+const isLoading = ref(false);
+const isDeleting = ref(false);
+const runtimeAvailable = ref(false);
+const isInstallingRuntime = ref(false);
 
 // 文件下载状态列表
-const fileStatuses = ref<FileDownloadStatus[]>([])
+const fileStatuses = ref<FileDownloadStatus[]>([]);
 
 // 模型是否已缓存（通过前端检测本地缓存）
-const modelCached = computed(() => modelCacheInfo.value.isCached)
+const modelCached = computed(() => modelCacheInfo.value.isCached);
 
 // 翻译引擎选项
 const engineOptions = computed(() => [
@@ -228,335 +315,389 @@ const engineOptions = computed(() => [
   { value: 'bing', label: t('translation.bing') },
   { value: 'offline', label: t('translation.offline') },
   { value: 'local-ai', label: t('translation.localAi') }
-])
+]);
 
 // 模型状态文本
 const modelStatusText = computed(() => {
-  if (isLoading.value) return t('translation.modelLoading')
-  if (isInstallingRuntime.value) return t('translation.runtimeInstalling')
-  if (!runtimeAvailable.value) return t('translation.runtimeMissing')
-  if (modelLoaded.value) return t('translation.modelReady')  // 内存已加载
-  if (modelCached.value && backendActivated.value) return t('translation.modelActivated')  // 已激活（懒加载）
-  if (modelCached.value) return t('translation.modelCached')  // 已缓存（未激活）
-  return t('translation.modelNotLoaded')
-})
+  if (isLoading.value) return t('translation.modelLoading');
+  if (isInstallingRuntime.value) return t('translation.runtimeInstalling');
+  if (!runtimeAvailable.value) return t('translation.runtimeMissing');
+  if (modelLoaded.value) return t('translation.modelReady'); // 内存已加载
+  if (modelCached.value && backendActivated.value)
+    return t('translation.modelActivated'); // 已激活（懒加载）
+  if (modelCached.value) return t('translation.modelCached'); // 已缓存（未激活）
+  return t('translation.modelNotLoaded');
+});
 
 // 模型状态样式
 const modelStatusClass = computed(() => {
-  if (isLoading.value) return 'text-yellow-500'
-  if (isInstallingRuntime.value) return 'text-yellow-500'
-  if (!runtimeAvailable.value) return 'text-red-500'
-  if (modelLoaded.value) return 'text-green-500'
-  if (modelCached.value && backendActivated.value) return 'text-green-500'  // 已激活
-  if (modelCached.value) return 'text-blue-500'  // 已缓存
-  return 'text-panel-text-secondary'
-})
+  if (isLoading.value) return 'text-yellow-500';
+  if (isInstallingRuntime.value) return 'text-yellow-500';
+  if (!runtimeAvailable.value) return 'text-red-500';
+  if (modelLoaded.value) return 'text-green-500';
+  if (modelCached.value && backendActivated.value) return 'text-green-500'; // 已激活
+  if (modelCached.value) return 'text-blue-500'; // 已缓存
+  return 'text-panel-text-secondary';
+});
 
 // 显示模型信息（已缓存或已加载）
-const showModelInfo = computed(() => modelLoaded.value || modelCached.value)
+const showModelInfo = computed(() => modelLoaded.value || modelCached.value);
 
 // 初始化文件状态列表
 const initFileStatuses = () => {
-  const files = getModelFiles()
-  fileStatuses.value = files.map(f => ({
+  const files = getModelFiles();
+  fileStatuses.value = files.map((f) => ({
     file: f.name,
     progress: 0,
     status: 'pending' as const,
     size: f.size
-  }))
-}
+  }));
+};
 
 // 更新文件状态
-const updateFileStatus = (fileName: string, progress: number, status: FileDownloadStatus['status']) => {
-  const file = fileStatuses.value.find(f => fileName.includes(f.file) || f.file.includes(fileName))
+const updateFileStatus = (
+  fileName: string,
+  progress: number,
+  status: FileDownloadStatus['status']
+) => {
+  const file = fileStatuses.value.find(
+    (f) => fileName.includes(f.file) || f.file.includes(fileName)
+  );
   if (file) {
-    file.progress = progress
-    file.status = status
+    file.progress = progress;
+    file.status = status;
   }
-}
+};
 
 const refreshRuntimeAvailability = async () => {
-  const runtimeCandidates = await getOfflineRuntimeCandidates()
-  runtimeAvailable.value = runtimeCandidates.length > 0
-  return runtimeAvailable.value
-}
+  const runtimeCandidates = await getOfflineRuntimeCandidates();
+  runtimeAvailable.value = runtimeCandidates.length > 0;
+  return runtimeAvailable.value;
+};
 
 const installOfflineRuntime = async () => {
-  isInstallingRuntime.value = true
+  isInstallingRuntime.value = true;
   try {
-    const marketplace = await fetchPluginMarketplace(DEFAULT_PLUGIN_MARKETPLACE_URL)
-    const marketplaceItems = Array.isArray(marketplace.plugins) ? marketplace.plugins : []
-    const runtimeItem = marketplaceItems.find((item) => item.id === OFFLINE_RUNTIME_PLUGIN_ID)
+    const marketplace = await fetchPluginMarketplace(
+      DEFAULT_PLUGIN_MARKETPLACE_URL
+    );
+    const marketplaceItems = Array.isArray(marketplace.plugins)
+      ? marketplace.plugins
+      : [];
+    const runtimeItem = marketplaceItems.find(
+      (item) => item.id === OFFLINE_RUNTIME_PLUGIN_ID
+    );
 
     if (!runtimeItem) {
-      throw new Error(t('translation.runtimeMarketplaceMissing'))
+      throw new Error(t('translation.runtimeMarketplaceMissing'));
     }
 
-    await installMarketplaceItemWithDependencies(runtimeItem, marketplaceItems)
-    if (!await refreshRuntimeAvailability()) {
-      logger.info('[翻译设置] 运行时资源包缺少 runtime 文件，开始补全资源')
-      await installTranslationOfflineRuntimeResources()
+    await installMarketplaceItemWithDependencies(runtimeItem, marketplaceItems);
+    if (!(await refreshRuntimeAvailability())) {
+      logger.info('[翻译设置] 运行时资源包缺少 runtime 文件，开始补全资源');
+      await installTranslationOfflineRuntimeResources();
     }
 
-    if (!await refreshRuntimeAvailability()) {
-      throw new Error(t('translation.runtimeInstallVerifyFailed'))
+    if (!(await refreshRuntimeAvailability())) {
+      throw new Error(t('translation.runtimeInstallVerifyFailed'));
     }
 
     try {
-      await verifyOfflineTranslatorRuntime()
+      await verifyOfflineTranslatorRuntime();
     } catch (error) {
-      runtimeAvailable.value = false
-      logger.error('[翻译设置] 运行时文件存在但动态加载验证失败:', error)
-      throw new Error(t('translation.runtimeLoadVerifyFailed'))
+      runtimeAvailable.value = false;
+      logger.error('[翻译设置] 运行时文件存在但动态加载验证失败:', error);
+      throw new Error(t('translation.runtimeLoadVerifyFailed'));
     }
 
     // 先结束安装态并让最终状态完成渲染，再显示成功提示，避免生产环境中
     // 同一帧出现“安装成功”和“安装中/运行时未安装”的矛盾信息。
-    isInstallingRuntime.value = false
-    await nextTick()
-    modal.msg(t('translation.runtimeInstallSuccess'))
+    isInstallingRuntime.value = false;
+    await nextTick();
+    modal.msg(t('translation.runtimeInstallSuccess'));
   } catch (error) {
-    logger.error('[翻译设置] 安装离线翻译运行时失败:', error)
-    isInstallingRuntime.value = false
-    await nextTick()
+    logger.error('[翻译设置] 安装离线翻译运行时失败:', error);
+    isInstallingRuntime.value = false;
+    await nextTick();
     modal.msg(
-      error instanceof Error ? error.message : t('translation.runtimeInstallFailed'),
+      error instanceof Error
+        ? error.message
+        : t('translation.runtimeInstallFailed'),
       'error'
-    )
+    );
   } finally {
-    isInstallingRuntime.value = false
+    isInstallingRuntime.value = false;
   }
-}
+};
 
 const getMarketplaceDependencies = (item: PluginMarketplaceItem): string[] =>
   Array.isArray(item.dependencies)
-    ? item.dependencies.filter((dependencyId) => typeof dependencyId === 'string' && Boolean(dependencyId.trim()))
-    : []
+    ? item.dependencies.filter(
+        (dependencyId) =>
+          typeof dependencyId === 'string' && Boolean(dependencyId.trim())
+      )
+    : [];
 
 const shouldInstallMarketplaceItem = (item: PluginMarketplaceItem): boolean =>
-  Boolean(item.packageUrl && item.status !== 'included')
+  Boolean(item.packageUrl && item.status !== 'included');
 
 const installMarketplaceItemWithDependencies = async (
   item: PluginMarketplaceItem,
   marketplaceItems: PluginMarketplaceItem[],
   visited = new Set<string>()
 ): Promise<void> => {
-  if (visited.has(item.id)) return
+  if (visited.has(item.id)) return;
 
-  visited.add(item.id)
+  visited.add(item.id);
   try {
     for (const dependencyId of getMarketplaceDependencies(item)) {
-      const dependency = marketplaceItems.find((candidate) => candidate.id === dependencyId)
+      const dependency = marketplaceItems.find(
+        (candidate) => candidate.id === dependencyId
+      );
       if (!dependency) {
-        throw new Error(t('plugins.dependencyMissing', { id: dependencyId }))
+        throw new Error(t('plugins.dependencyMissing', { id: dependencyId }));
       }
-      await installMarketplaceItemWithDependencies(dependency, marketplaceItems, visited)
+      await installMarketplaceItemWithDependencies(
+        dependency,
+        marketplaceItems,
+        visited
+      );
     }
 
     if (item.packageUrl && shouldInstallMarketplaceItem(item)) {
       logger.info('[翻译设置] 开始安装离线翻译运行时资源包', {
         pluginId: item.id,
         packageUrl: item.packageUrl
-      })
+      });
       await installPluginPackageFromUrl(
         item.packageUrl,
         true,
         item.packageSubdir,
-        item.sizeBytes
-      )
+        item.sizeBytes,
+        item.sha256
+      );
     }
   } finally {
-    visited.delete(item.id)
+    visited.delete(item.id);
   }
-}
+};
 
 // 保存默认引擎到后端
 const saveDefaultEngine = async (value: string) => {
   try {
-    await invoke('set_translation_engine', { engine: value })
-    modal.msg(t('translation.engineSaved'))
+    await invoke('set_translation_engine', { engine: value });
+    modal.msg(t('translation.engineSaved'));
   } catch (error) {
-    logger.info('Failed to save translation engine:', error)
-    modal.msg(t('translation.engineSaveFailed'), 'error')
+    logger.info('Failed to save translation engine:', error);
+    modal.msg(t('translation.engineSaveFailed'), 'error');
   }
-}
+};
 
 // 加载模型（下载）
 const loadModel = async () => {
-  logger.info('[翻译设置] 开始下载离线模型...')
-  if (!await refreshRuntimeAvailability()) {
-    modal.msg(t('translation.runtimeMissingInstallFirst'), 'error')
-    return
+  logger.info('[翻译设置] 开始下载离线模型...');
+  if (!(await refreshRuntimeAvailability())) {
+    modal.msg(t('translation.runtimeMissingInstallFirst'), 'error');
+    return;
   }
 
   try {
-    await installTranslationOfflineRuntimeResources()
-    await refreshRuntimeAvailability()
+    await installTranslationOfflineRuntimeResources();
+    await refreshRuntimeAvailability();
   } catch (error) {
-    logger.error('[翻译设置] 修复离线翻译运行时失败:', error)
-    modal.msg(error instanceof Error && error.message ? error.message : t('translation.runtimeInstallFailed'), 'error')
-    return
+    logger.error('[翻译设置] 修复离线翻译运行时失败:', error);
+    modal.msg(
+      error instanceof Error && error.message
+        ? error.message
+        : t('translation.runtimeInstallFailed'),
+      'error'
+    );
+    return;
   }
 
-  isLoading.value = true
-  initFileStatuses()
+  isLoading.value = true;
+  initFileStatuses();
 
   // 设置进度回调
   setProgressCallback((progress) => {
-    const fileName = progress.file || ''
+    const fileName = progress.file || '';
     if (progress.status === 'initiate') {
-      updateFileStatus(fileName, 0, 'downloading')
-    } else if (progress.status === 'progress' && progress.progress !== undefined) {
-      updateFileStatus(fileName, Math.round(progress.progress), 'downloading')
+      updateFileStatus(fileName, 0, 'downloading');
+    } else if (
+      progress.status === 'progress' &&
+      progress.progress !== undefined
+    ) {
+      updateFileStatus(fileName, Math.round(progress.progress), 'downloading');
     } else if (progress.status === 'done') {
-      updateFileStatus(fileName, 100, 'done')
+      updateFileStatus(fileName, 100, 'done');
     }
-  })
+  });
 
   try {
-    await warmupOfflineTranslator()
+    await warmupOfflineTranslator();
     // 标记所有文件为完成
-    fileStatuses.value.forEach(f => {
-      if (f.status !== 'done') f.status = 'done'
-      f.progress = 100
-    })
-    modelLoaded.value = true
-    backendActivated.value = true
-    modelCacheInfo.value = await getModelCacheInfo()
+    fileStatuses.value.forEach((f) => {
+      if (f.status !== 'done') f.status = 'done';
+      f.progress = 100;
+    });
+    modelLoaded.value = true;
+    backendActivated.value = true;
+    modelCacheInfo.value = await getModelCacheInfo();
     // 下载完成后自动激活（因为 Transformers.js 下载和加载是一体的）
-    logger.info('[翻译设置] 模型下载并加载成功，更新后端激活状态为 true')
-    await invoke('set_offline_model_activated', { activated: true })
-    modal.msg(t('translation.modelLoadSuccess'))
+    logger.info('[翻译设置] 模型下载并加载成功，更新后端激活状态为 true');
+    await invoke('set_offline_model_activated', { activated: true });
+    modal.msg(t('translation.modelLoadSuccess'));
   } catch (error) {
-    logger.error('[翻译设置] 模型下载失败:', error)
+    logger.error('[翻译设置] 模型下载失败:', error);
     // 标记未完成的文件为错误
-    fileStatuses.value.forEach(f => {
+    fileStatuses.value.forEach((f) => {
       if (f.status === 'downloading' || f.status === 'pending') {
-        f.status = 'error'
+        f.status = 'error';
       }
-    })
-    modelLoaded.value = false
-    modal.msg(error instanceof Error && error.message ? error.message : t('translation.modelLoadFailed'), 'error')
+    });
+    modelLoaded.value = false;
+    modal.msg(
+      error instanceof Error && error.message
+        ? error.message
+        : t('translation.modelLoadFailed'),
+      'error'
+    );
   } finally {
-    isLoading.value = false
-    setProgressCallback(null)
+    isLoading.value = false;
+    setProgressCallback(null);
     // 最终检查真实状态
-    modelLoaded.value = isOfflineTranslatorReady()
-    modelCacheInfo.value = await getModelCacheInfo()
-    logger.info(`[翻译设置] 最终状态 - 内存加载: ${modelLoaded.value}, 缓存存在: ${modelCacheInfo.value.isCached}`)
+    modelLoaded.value = isOfflineTranslatorReady();
+    modelCacheInfo.value = await getModelCacheInfo();
+    logger.info(
+      `[翻译设置] 最终状态 - 内存加载: ${modelLoaded.value}, 缓存存在: ${modelCacheInfo.value.isCached}`
+    );
   }
-}
+};
 
 // 激活模型（从缓存加载到内存）
 const activateModel = async () => {
-  logger.info('[翻译设置] 开始激活离线模型...')
-  if (!await refreshRuntimeAvailability()) {
-    modal.msg(t('translation.runtimeMissingInstallFirst'), 'error')
-    return
+  logger.info('[翻译设置] 开始激活离线模型...');
+  if (!(await refreshRuntimeAvailability())) {
+    modal.msg(t('translation.runtimeMissingInstallFirst'), 'error');
+    return;
   }
 
   try {
-    await installTranslationOfflineRuntimeResources()
-    await refreshRuntimeAvailability()
+    await installTranslationOfflineRuntimeResources();
+    await refreshRuntimeAvailability();
   } catch (error) {
-    logger.error('[翻译设置] 修复离线翻译运行时失败:', error)
-    modal.msg(error instanceof Error && error.message ? error.message : t('translation.runtimeInstallFailed'), 'error')
-    return
+    logger.error('[翻译设置] 修复离线翻译运行时失败:', error);
+    modal.msg(
+      error instanceof Error && error.message
+        ? error.message
+        : t('translation.runtimeInstallFailed'),
+      'error'
+    );
+    return;
   }
 
-  isLoading.value = true
+  isLoading.value = true;
 
   try {
-    await warmupOfflineTranslator()
-    modelLoaded.value = true
-    backendActivated.value = true
-    logger.info('[翻译设置] 模型激活成功，更新后端激活状态为 true')
-    await invoke('set_offline_model_activated', { activated: true })
-    modal.msg(t('translation.modelLoadSuccess'))
+    await warmupOfflineTranslator();
+    modelLoaded.value = true;
+    backendActivated.value = true;
+    logger.info('[翻译设置] 模型激活成功，更新后端激活状态为 true');
+    await invoke('set_offline_model_activated', { activated: true });
+    modal.msg(t('translation.modelLoadSuccess'));
   } catch (error) {
-    logger.error('[翻译设置] 模型激活失败:', error)
-    modelLoaded.value = false
-    modal.msg(error instanceof Error && error.message ? error.message : t('translation.modelLoadFailed'), 'error')
+    logger.error('[翻译设置] 模型激活失败:', error);
+    modelLoaded.value = false;
+    modal.msg(
+      error instanceof Error && error.message
+        ? error.message
+        : t('translation.modelLoadFailed'),
+      'error'
+    );
   } finally {
-    isLoading.value = false
-    modelLoaded.value = isOfflineTranslatorReady()
-    logger.info(`[翻译设置] 激活后状态 - 内存加载: ${modelLoaded.value}`)
+    isLoading.value = false;
+    modelLoaded.value = isOfflineTranslatorReady();
+    logger.info(`[翻译设置] 激活后状态 - 内存加载: ${modelLoaded.value}`);
   }
-}
+};
 
 // 删除模型
 const deleteModel = async () => {
-  logger.info('[翻译设置] 开始删除离线模型...')
-  isDeleting.value = true
+  logger.info('[翻译设置] 开始删除离线模型...');
+  isDeleting.value = true;
   try {
-    await disposeOfflineTranslator()
-    await clearModelCache()
-    modelLoaded.value = false
-    backendActivated.value = false
-    modelCacheInfo.value = { isCached: false, cacheType: 'none' }
+    await disposeOfflineTranslator();
+    await clearModelCache();
+    modelLoaded.value = false;
+    backendActivated.value = false;
+    modelCacheInfo.value = { isCached: false, cacheType: 'none' };
     // 更新后端激活状态
-    logger.info('[翻译设置] 模型删除成功，更新后端激活状态为 false')
-    await invoke('set_offline_model_activated', { activated: false })
-    modal.msg(t('translation.modelDeleted'))
+    logger.info('[翻译设置] 模型删除成功，更新后端激活状态为 false');
+    await invoke('set_offline_model_activated', { activated: false });
+    modal.msg(t('translation.modelDeleted'));
   } catch (error) {
-    logger.error('[翻译设置] 模型删除失败:', error)
-    modal.msg(t('translation.modelDeleteFailed'), 'error')
+    logger.error('[翻译设置] 模型删除失败:', error);
+    modal.msg(t('translation.modelDeleteFailed'), 'error');
   } finally {
-    isDeleting.value = false
-    modelLoaded.value = isOfflineTranslatorReady()
-    modelCacheInfo.value = await getModelCacheInfo()
-    logger.info(`[翻译设置] 删除后状态 - 内存加载: ${modelLoaded.value}, 缓存存在: ${modelCacheInfo.value.isCached}`)
+    isDeleting.value = false;
+    modelLoaded.value = isOfflineTranslatorReady();
+    modelCacheInfo.value = await getModelCacheInfo();
+    logger.info(
+      `[翻译设置] 删除后状态 - 内存加载: ${modelLoaded.value}, 缓存存在: ${modelCacheInfo.value.isCached}`
+    );
   }
-}
+};
 
 // 初始化
 onMounted(async () => {
-  logger.info('[翻译设置] 页面初始化...')
-  await refreshRuntimeAvailability()
-  
+  logger.info('[翻译设置] 页面初始化...');
+  await refreshRuntimeAvailability();
+
   // 从后端读取默认引擎设置
   try {
-    const saved = await invoke<string>('get_translation_engine')
-    logger.info(`[翻译设置] 从后端获取翻译引擎: ${saved}`)
+    const saved = await invoke<string>('get_translation_engine');
+    logger.info(`[翻译设置] 从后端获取翻译引擎: ${saved}`);
     if (saved && ['google', 'bing', 'offline', 'local-ai'].includes(saved)) {
-      defaultEngine.value = saved as 'google' | 'bing' | 'offline' | 'local-ai'
+      defaultEngine.value = saved as 'google' | 'bing' | 'offline' | 'local-ai';
     }
   } catch (error) {
-    logger.error('[翻译设置] 获取翻译引擎失败:', error)
+    logger.error('[翻译设置] 获取翻译引擎失败:', error);
   }
 
   // 检查前端实际状态
-  const memoryLoaded = isOfflineTranslatorReady()
-  const initializing = isOfflineTranslatorInitializing()
-  modelCacheInfo.value = await getModelCacheInfo()
-  logger.info(`[翻译设置] 前端状态 - 内存加载: ${memoryLoaded}, 正在初始化: ${initializing}, 缓存存在: ${modelCacheInfo.value.isCached}`)
+  const memoryLoaded = isOfflineTranslatorReady();
+  const initializing = isOfflineTranslatorInitializing();
+  modelCacheInfo.value = await getModelCacheInfo();
+  logger.info(
+    `[翻译设置] 前端状态 - 内存加载: ${memoryLoaded}, 正在初始化: ${initializing}, 缓存存在: ${modelCacheInfo.value.isCached}`
+  );
 
-  modelLoaded.value = memoryLoaded
-  isLoading.value = initializing
+  modelLoaded.value = memoryLoaded;
+  isLoading.value = initializing;
 
   // 获取后端激活状态
   try {
-    const activated = await invoke<boolean>('get_offline_model_activated')
-    logger.info(`[翻译设置] 后端激活状态: ${activated}`)
-    backendActivated.value = activated
-    
+    const activated = await invoke<boolean>('get_offline_model_activated');
+    logger.info(`[翻译设置] 后端激活状态: ${activated}`);
+    backendActivated.value = activated;
+
     // 后端已激活但缓存不存在 → 重置后端状态（模型被手动删除了）
     if (activated && !modelCacheInfo.value.isCached) {
-      logger.info('[翻译设置] 后端已激活但缓存不存在，重置后端状态')
-      await invoke('set_offline_model_activated', { activated: false })
-      backendActivated.value = false
+      logger.info('[翻译设置] 后端已激活但缓存不存在，重置后端状态');
+      await invoke('set_offline_model_activated', { activated: false });
+      backendActivated.value = false;
     }
-    
+
     // 内存已加载但后端未标记 → 同步后端状态
     if (!activated && memoryLoaded) {
-      logger.info('[翻译设置] 内存已加载但后端未标记，同步后端状态为 true')
-      await invoke('set_offline_model_activated', { activated: true })
-      backendActivated.value = true
+      logger.info('[翻译设置] 内存已加载但后端未标记，同步后端状态为 true');
+      await invoke('set_offline_model_activated', { activated: true });
+      backendActivated.value = true;
     }
   } catch (error) {
-    logger.error('[翻译设置] 处理激活状态失败:', error)
+    logger.error('[翻译设置] 处理激活状态失败:', error);
   }
-})
+});
 </script>
 
 <style scoped lang="scss">

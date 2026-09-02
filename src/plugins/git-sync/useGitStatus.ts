@@ -8,7 +8,13 @@ import { logger } from '@/utils/logger';
 /**
  * Git 同步状态类型
  */
-export type GitSyncState = 'idle' | 'syncing' | 'synced' | 'has_changes' | 'error' | 'disabled';
+export type GitSyncState =
+  | 'idle'
+  | 'syncing'
+  | 'synced'
+  | 'has_changes'
+  | 'error'
+  | 'disabled';
 
 /**
  * Git 状态返回接口
@@ -89,20 +95,19 @@ const isGitPluginDisabledError = (error: unknown): boolean => {
   return (
     normalized.includes("插件 'git-sync' 未启用") ||
     normalized.includes('插件 "git-sync" 未启用') ||
-    (normalized.includes("plugin 'git-sync'") && (
-      normalized.includes('disabled') ||
-      normalized.includes('not enabled') ||
-      normalized.includes('未启用')
-    ))
+    (normalized.includes("plugin 'git-sync'") &&
+      (normalized.includes('disabled') ||
+        normalized.includes('not enabled') ||
+        normalized.includes('未启用')))
   );
 };
 
 /**
  * Git 状态管理组合式函数
  * 管理标题栏 Git 同步状态显示
- * 
+ *
  * @returns Git 状态相关的状态和方法
- * 
+ *
  * @example
  * ```typescript
  * const { syncState, pendingFilesCount, formattedLastSyncTime, refreshStatus } = useGitStatus();
@@ -119,7 +124,7 @@ export function useGitStatus(): UseGitStatusReturn {
   const formattedLastSyncTime = computed(() => {
     void formatTick.value; // 依赖 tick，每分钟触发更新（同时会更新 formatNowMs）
     if (!lastSyncTime.value) return '';
-    
+
     const syncTime = new Date(lastSyncTime.value);
     const diffMs = formatNowMs.value - syncTime.getTime();
     const diffMins = Math.floor(diffMs / 60000);
@@ -130,7 +135,7 @@ export function useGitStatus(): UseGitStatusReturn {
     if (diffMins < 60) return `${diffMins}分钟前`;
     if (diffHours < 24) return `${diffHours}小时前`;
     if (diffDays < 7) return `${diffDays}天前`;
-    
+
     // 超过一周显示具体日期
     return syncTime.toLocaleDateString('zh-CN');
   });
@@ -216,7 +221,7 @@ export function useGitStatus(): UseGitStatusReturn {
     try {
       const settings = await getGitSettings();
       gitSettings.value = settings;
-      
+
       if (settings.enabled) {
         // 如果启用且没有正在同步，设置为 idle
         if (syncState.value === 'disabled') {
@@ -257,7 +262,7 @@ export function useGitStatus(): UseGitStatusReturn {
     stateDescription,
     // 导出内部方法供外部调用
     _setSyncState: setSyncState,
-    _setLastSyncTime: setLastSyncTime,
+    _setLastSyncTime: setLastSyncTime
   };
 }
 
@@ -283,55 +288,63 @@ export function setupGitStatusListener(): void {
   // 监听 pull 开始
   listen('git-pull-start', () => {
     syncState.value = 'syncing';
-  }).then(unlisten => {
+  }).then((unlisten) => {
     unlistenPull = unlisten;
   });
 
   // 监听 push 开始
   listen('git-push-start', () => {
     syncState.value = 'syncing';
-  }).then(unlisten => {
+  }).then((unlisten) => {
     unlistenPush = unlisten;
   });
 
   // 监听同步完成（带防抖，避免与 workspace-changed 同时触发）
-  listen<{ success: boolean; last_sync_time?: string }>('git-sync-complete', (event) => {
-    if (event.payload.success) {
-      syncState.value = 'syncing';
-      if (event.payload.last_sync_time) {
-        lastSyncTime.value = event.payload.last_sync_time;
-      }
-    } else {
-      syncState.value = 'error';
-    }
-
-    // 清除之前的防抖定时器
-    if (syncCompleteDebounceTimer !== null) {
-      clearTimeout(syncCompleteDebounceTimer);
-    }
-
-    // 防抖 1 秒后刷新状态（避免与 workspace-changed 事件同时触发）
-    syncCompleteDebounceTimer = setTimeout(() => {
-      syncCompleteDebounceTimer = null;
-      logger.debug('[GitStatus] git-sync-complete 防抖时间到，刷新状态');
-      getGitStatus().then(status => {
-        gitStatus.value = status;
-        if (status.has_changes) {
-          syncState.value = 'has_changes';
-        } else {
-          syncState.value = 'synced';
+  listen<{ success: boolean; last_sync_time?: string }>(
+    'git-sync-complete',
+    (event) => {
+      if (event.payload.success) {
+        syncState.value = 'syncing';
+        if (event.payload.last_sync_time) {
+          lastSyncTime.value = event.payload.last_sync_time;
         }
-      }).catch(error => {
-        if (isWorkspaceNotSetError(error) || isGitPluginDisabledError(error)) {
-          gitStatus.value = null;
-          syncState.value = 'disabled';
-          return;
-        }
-        logger.error('[GitStatus] git-sync-complete 后刷新状态失败', error);
+      } else {
         syncState.value = 'error';
-      });
-    }, 1000);
-  }).then(unlisten => {
+      }
+
+      // 清除之前的防抖定时器
+      if (syncCompleteDebounceTimer !== null) {
+        clearTimeout(syncCompleteDebounceTimer);
+      }
+
+      // 防抖 1 秒后刷新状态（避免与 workspace-changed 事件同时触发）
+      syncCompleteDebounceTimer = setTimeout(() => {
+        syncCompleteDebounceTimer = null;
+        logger.debug('[GitStatus] git-sync-complete 防抖时间到，刷新状态');
+        getGitStatus()
+          .then((status) => {
+            gitStatus.value = status;
+            if (status.has_changes) {
+              syncState.value = 'has_changes';
+            } else {
+              syncState.value = 'synced';
+            }
+          })
+          .catch((error) => {
+            if (
+              isWorkspaceNotSetError(error) ||
+              isGitPluginDisabledError(error)
+            ) {
+              gitStatus.value = null;
+              syncState.value = 'disabled';
+              return;
+            }
+            logger.error('[GitStatus] git-sync-complete 后刷新状态失败', error);
+            syncState.value = 'error';
+          });
+      }, 1000);
+    }
+  ).then((unlisten) => {
     unlistenSyncComplete = unlisten;
   });
 
@@ -352,7 +365,9 @@ export function initWorkspaceChangeListener(
 ): void {
   listen('git-workspace-changed', () => {
     eventCount++; // 统计：收到事件
-    logger.debug(`[GitStatus] 收到 git-workspace-changed 事件（累计: ${eventCount}），防抖刷新`);
+    logger.debug(
+      `[GitStatus] 收到 git-workspace-changed 事件（累计: ${eventCount}），防抖刷新`
+    );
 
     // 清除之前的定时器
     if (debounceTimer !== null) {
@@ -365,13 +380,15 @@ export function initWorkspaceChangeListener(
       requestCount++; // 统计：执行请求
       const merged = eventCount - requestCount;
       if (merged > 0) {
-        logger.debug(`[GitStatus] 防抖时间到，执行刷新（合并了 ${merged} 个事件，累计收到 ${eventCount}，已执行 ${requestCount}）`);
+        logger.debug(
+          `[GitStatus] 防抖时间到，执行刷新（合并了 ${merged} 个事件，累计收到 ${eventCount}，已执行 ${requestCount}）`
+        );
       } else {
         logger.debug('[GitStatus] 防抖时间到，执行刷新');
       }
       await refreshFn();
     }, debounceMs);
-  }).then(unlisten => {
+  }).then((unlisten) => {
     unlistenWorkspaceChanged = unlisten;
   });
 }
@@ -419,11 +436,15 @@ export function cleanupGitStatusListener(): void {
 /**
  * 获取 Git 状态统计信息（用于调试）
  */
-export function getGitStatusStats(): { eventCount: number; requestCount: number; mergedCount: number } {
+export function getGitStatusStats(): {
+  eventCount: number;
+  requestCount: number;
+  mergedCount: number;
+} {
   return {
     eventCount,
     requestCount,
-    mergedCount: Math.max(0, eventCount - requestCount),
+    mergedCount: Math.max(0, eventCount - requestCount)
   };
 }
 
@@ -438,9 +459,9 @@ export function resetGitStatusStats(): void {
 
 /**
  * 启动定时刷新 Git 状态
- * 
+ *
  * @param intervalMs - 刷新间隔（毫秒），默认 30 秒
- * 
+ *
  * @example
  * ```typescript
  * // 每分钟刷新一次
@@ -449,10 +470,10 @@ export function resetGitStatusStats(): void {
  */
 export function startGitStatusPolling(intervalMs: number = 30000): void {
   if (refreshTimer) return;
-  
+
   // 先立即刷新一次
   useGitStatus().refreshStatus();
-  
+
   // 设置定时刷新
   refreshTimer = setInterval(() => {
     useGitStatus().refreshStatus();
@@ -461,7 +482,7 @@ export function startGitStatusPolling(intervalMs: number = 30000): void {
 
 /**
  * 停止定时刷新 Git 状态
- * 
+ *
  * @example
  * ```typescript
  * stopGitStatusPolling();

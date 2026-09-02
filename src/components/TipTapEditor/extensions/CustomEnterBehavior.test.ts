@@ -86,7 +86,7 @@ describe('exitBulletListOnMarkerSpace', () => {
     const editor = createListEditor(doc, findCursorAtEnd(doc, '-'));
 
     expect(exitBulletListOnMarkerSpace(editor)).toBe(true);
-    expect(editor.getJSON().content?.map(node => node.type)).toEqual([
+    expect(editor.getJSON().content?.map((node) => node.type)).toEqual([
       'bulletList',
       'paragraph',
       'paragraph'
@@ -194,7 +194,7 @@ describe('code block keyboard behavior', () => {
     const editor = createListEditor(doc, findCodeBlockCursor(doc, code.length));
 
     expect(handleCodeBlockExitShortcut(editor)).toBe(true);
-    expect(editor.getJSON().content?.map(node => node.type)).toEqual([
+    expect(editor.getJSON().content?.map((node) => node.type)).toEqual([
       'codeBlock',
       'paragraph'
     ]);
@@ -210,7 +210,9 @@ describe('code block keyboard behavior', () => {
     const editor = createListEditor(doc, findCodeBlockCursor(doc, 3));
 
     expect(handleCodeBlockExitShortcut(editor)).toBe(true);
-    expect(editor.getJSON().content?.map(node => node.type)).toEqual(['codeBlock']);
+    expect(editor.getJSON().content?.map((node) => node.type)).toEqual([
+      'codeBlock'
+    ]);
     expect(editor.state.doc.firstChild?.textContent).toBe(code);
     expect(editor.state.selection.$from.parent.type.name).toBe('codeBlock');
     editor.destroy();
@@ -269,14 +271,18 @@ describe('continueOrderedListAfterTable', () => {
     expect(result.transaction).toBeDefined();
     expect(result.transaction?.doc.firstChild?.type.name).toBe('orderedList');
     expect(result.transaction?.doc.firstChild?.childCount).toBe(2);
-    expect(result.transaction?.selection.$from.parent.type.name).toBe('paragraph');
+    expect(result.transaction?.selection.$from.parent.type.name).toBe(
+      'paragraph'
+    );
   });
 
   it('exits a nested table from the end of non-empty cell text with one Enter', () => {
     const cellText = '表格内容';
     const cellParagraph = schema.node('paragraph', null, schema.text(cellText));
     const table = schema.node('table', null, [
-      schema.node('tableRow', null, [schema.node('tableCell', null, [cellParagraph])])
+      schema.node('tableRow', null, [
+        schema.node('tableCell', null, [cellParagraph])
+      ])
     ]);
     const doc = schema.node('doc', null, [
       schema.node('orderedList', { start: 3 }, [
@@ -301,12 +307,18 @@ describe('continueOrderedListAfterTable', () => {
   it('continues numbering when a top-level table follows an ordered list', () => {
     const cellParagraph = schema.node('paragraph', null, schema.text('结果'));
     const table = schema.node('table', null, [
-      schema.node('tableRow', null, [schema.node('tableCell', null, [cellParagraph])])
+      schema.node('tableRow', null, [
+        schema.node('tableCell', null, [cellParagraph])
+      ])
     ]);
     const doc = schema.node('doc', null, [
       schema.node('orderedList', { start: 5 }, [
-        schema.node('listItem', null, [schema.node('paragraph', null, schema.text('第五项'))]),
-        schema.node('listItem', null, [schema.node('paragraph', null, schema.text('第六项'))])
+        schema.node('listItem', null, [
+          schema.node('paragraph', null, schema.text('第五项'))
+        ]),
+        schema.node('listItem', null, [
+          schema.node('paragraph', null, schema.text('第六项'))
+        ])
       ]),
       table
     ]);
@@ -326,7 +338,9 @@ describe('continueOrderedListAfterTable', () => {
   it('inserts a normal paragraph after a table outside a list', () => {
     const cellParagraph = schema.node('paragraph', null, schema.text('单元格'));
     const table = schema.node('table', null, [
-      schema.node('tableRow', null, [schema.node('tableCell', null, [cellParagraph])])
+      schema.node('tableRow', null, [
+        schema.node('tableCell', null, [cellParagraph])
+      ])
     ]);
     const doc = schema.node('doc', null, [table]);
 

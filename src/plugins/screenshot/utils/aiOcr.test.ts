@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  parseAiOcrResponse,
-  shouldRetryAiOcrResult
-} from './aiOcr';
+import { parseAiOcrResponse, shouldRetryAiOcrResult } from './aiOcr';
 
 describe('AI OCR response parsing', () => {
   it('normalizes fenced JSON into structured sections', () => {
@@ -73,5 +70,4 @@ describe('AI OCR response parsing', () => {
       })
     ).toBe(false);
   });
-
 });

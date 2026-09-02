@@ -38,7 +38,9 @@ describe('useGitConflictConfirm', () => {
     const promise = confirm.confirmCancelConflict();
 
     await nextTick();
-    expect(confirm.options.value.title).toBe('settings.gitSync.cancelConflictTitle');
+    expect(confirm.options.value.title).toBe(
+      'settings.gitSync.cancelConflictTitle'
+    );
 
     confirm.handleResult('close');
 

@@ -39,6 +39,23 @@ export interface PluginStorageContract {
   extractorVersion: number;
 }
 
+export interface PluginPackageSignature {
+  algorithm: 'minisign' | string;
+  value: string;
+  keyId?: string;
+}
+
+export interface PluginPublisherDescriptor {
+  id: string;
+  name?: string;
+  trusted?: boolean;
+  publicKeyId?: string;
+}
+
+export interface PluginNativeHostSecurity {
+  signature?: PluginPackageSignature;
+}
+
 export interface PluginPackageManifest {
   schemaVersion: PluginManifestSchemaVersion;
   id: PluginId;
@@ -52,6 +69,9 @@ export interface PluginPackageManifest {
   resources?: PluginResourceDescriptor;
   entry?: PluginPackageEntry;
   storage?: PluginStorageContract;
+  signature?: PluginPackageSignature;
+  publisher?: PluginPublisherDescriptor;
+  nativeHost?: PluginNativeHostSecurity;
   permissions?: string[];
   dependencies?: string[];
   resourceFor?: string;

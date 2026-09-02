@@ -15,26 +15,45 @@
         <!-- 编辑器控制按钮（仅笔记类型显示） -->
         <div v-if="currentEditorType === 'note'" class="editor-controls">
           <!-- 阅读模式切换按钮 -->
-          <button v-if="editorViewMode !== 'reading'" class="control-btn" @click="toggleToReadingMode"
-            :title="$t('noteEditor.toggleReading')">
+          <button
+            v-if="editorViewMode !== 'reading'"
+            class="control-btn"
+            @click="toggleToReadingMode"
+            :title="$t('noteEditor.toggleReading')"
+          >
             <svg viewBox="0 0 24 24" width="18" height="18">
-              <path fill="currentColor"
-                d="M21,5C19.89,4.65 18.67,4.5 17.5,4.5C15.55,4.5 13.45,4.9 12,6C10.55,4.9 8.45,4.5 6.5,4.5C4.55,4.5 2.45,4.9 1,6V20.65C1,20.9 1.25,21.15 1.5,21.15C1.6,21.15 1.65,21.1 1.75,21.1C3.1,20.45 5.05,20 6.5,20C8.45,20 10.55,20.4 12,21.5C13.35,20.65 15.8,20 17.5,20C19.15,20 20.85,20.3 22.25,21.05C22.35,21.1 22.4,21.1 22.5,21.1C22.75,21.1 23,20.85 23,20.6V6C22.4,5.55 21.75,5.25 21,5M21,18.5C19.9,18.15 18.7,18 17.5,18C15.8,18 13.35,18.65 12,19.5V8C13.35,7.15 15.8,6.5 17.5,6.5C18.7,6.5 19.9,6.65 21,7V18.5Z" />
+              <path
+                fill="currentColor"
+                d="M21,5C19.89,4.65 18.67,4.5 17.5,4.5C15.55,4.5 13.45,4.9 12,6C10.55,4.9 8.45,4.5 6.5,4.5C4.55,4.5 2.45,4.9 1,6V20.65C1,20.9 1.25,21.15 1.5,21.15C1.6,21.15 1.65,21.1 1.75,21.1C3.1,20.45 5.05,20 6.5,20C8.45,20 10.55,20.4 12,21.5C13.35,20.65 15.8,20 17.5,20C19.15,20 20.85,20.3 22.25,21.05C22.35,21.1 22.4,21.1 22.5,21.1C22.75,21.1 23,20.85 23,20.6V6C22.4,5.55 21.75,5.25 21,5M21,18.5C19.9,18.15 18.7,18 17.5,18C15.8,18 13.35,18.65 12,19.5V8C13.35,7.15 15.8,6.5 17.5,6.5C18.7,6.5 19.9,6.65 21,7V18.5Z"
+              />
             </svg>
           </button>
 
-          <button v-else class="control-btn" @click="toggleToEditingMode" :title="$t('noteEditor.toggleEditing')">
+          <button
+            v-else
+            class="control-btn"
+            @click="toggleToEditingMode"
+            :title="$t('noteEditor.toggleEditing')"
+          >
             <svg viewBox="0 0 24 24" width="18" height="18">
-              <path fill="currentColor"
-                d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z" />
+              <path
+                fill="currentColor"
+                d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z"
+              />
             </svg>
           </button>
 
           <!-- 大纲按钮 -->
-          <button class="control-btn" @click="toggleOutline" :title="$t('noteEditor.outline')">
+          <button
+            class="control-btn"
+            @click="toggleOutline"
+            :title="$t('noteEditor.outline')"
+          >
             <svg viewBox="0 0 24 24" width="18" height="18">
-              <path fill="currentColor"
-                d="M3,9H17V7H3V9M3,13H17V11H3V13M3,17H17V15H3V17M19,17H21V15H19V17M19,7V9H21V7H19M19,13H21V11H19V13Z" />
+              <path
+                fill="currentColor"
+                d="M3,9H17V7H3V9M3,13H17V11H3V13M3,17H17V15H3V17M19,17H21V15H19V17M19,7V9H21V7H19M19,13H21V11H19V13Z"
+              />
             </svg>
           </button>
         </div>
@@ -46,11 +65,15 @@
             :title="t('content.aiAssistant')"
             @click="showAiAssist = true"
           >
-            <span>✦</span>{{ t('content.aiAssistant') }}
+            <span>✦</span>
+            {{ t('content.aiAssistant') }}
           </button>
           <span class="content-more" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="18" height="18">
-              <path fill="currentColor" d="M12,8A2,2 0 1,0 12,4A2,2 0 0,0 12,8M12,10A2,2 0 1,0 12,14A2,2 0 0,0 12,10M12,16A2,2 0 1,0 12,20A2,2 0 0,0 12,16Z" />
+              <path
+                fill="currentColor"
+                d="M12,8A2,2 0 1,0 12,4A2,2 0 0,0 12,8M12,10A2,2 0 1,0 12,14A2,2 0 0,0 12,10M12,16A2,2 0 1,0 12,20A2,2 0 0,0 12,16Z"
+              />
             </svg>
           </span>
         </div>
@@ -58,29 +81,50 @@
 
       <!-- 标签输入 -->
       <div v-if="state.currentContent" class="content-tags">
-        <TagInput v-model="state.tags" :existing-tags="allTags" @update:model-value="handleTagsChange" />
+        <TagInput
+          v-model="state.tags"
+          :existing-tags="allTags"
+          @update:model-value="handleTagsChange"
+        />
       </div>
-
     </div>
 
     <!-- 创建新笔记确认对话框 -->
-    <ConfirmDialog v-model="showCreateNoteDialog" :title="$t('common.tip')" :confirm-text="$t('common.create')"
-      :cancel-text="$t('common.cancel')" @confirm="confirmCreateNote">
-      <div>{{ t('category.createNoteConfirm', { name: pendingNoteName }) }}</div>
+    <ConfirmDialog
+      v-model="showCreateNoteDialog"
+      :title="$t('common.tip')"
+      :confirm-text="$t('common.create')"
+      :cancel-text="$t('common.cancel')"
+      @confirm="confirmCreateNote"
+    >
+      <div>
+        {{ t('category.createNoteConfirm', { name: pendingNoteName }) }}
+      </div>
     </ConfirmDialog>
 
     <!-- 未保存更改确认对话框 -->
-    <ConfirmDialog v-model="showUnsavedDialog" :title="$t('common.warning')" :confirm-text="$t('common.save')"
-      :cancel-text="$t('category.discardChanges')" type="warning" @confirm="confirmSaveBeforeNavigation"
-      @cancel="discardChangesAndNavigate">
+    <ConfirmDialog
+      v-model="showUnsavedDialog"
+      :title="$t('common.warning')"
+      :confirm-text="$t('common.save')"
+      :cancel-text="$t('category.discardChanges')"
+      type="warning"
+      @confirm="confirmSaveBeforeNavigation"
+      @cancel="discardChangesAndNavigate"
+    >
       <div>{{ t('category.unsavedChanges') }}</div>
     </ConfirmDialog>
 
     <!-- 反向链接更新对话框 -->
-    <BacklinkUpdateDialog v-model="showBacklinkDialog" :fragment-title="backlinkUpdateData?.oldTitle || ''"
-      :new-fragment-title="backlinkUpdateData?.newTitle || ''" :backlink-count="backlinkStats?.count || 0"
-      :backlink-fragments="backlinkStats?.fragments || []" @confirm="handleBacklinkUpdateConfirm"
-      @cancel="handleBacklinkUpdateCancel" />
+    <BacklinkUpdateDialog
+      v-model="showBacklinkDialog"
+      :fragment-title="backlinkUpdateData?.oldTitle || ''"
+      :new-fragment-title="backlinkUpdateData?.newTitle || ''"
+      :backlink-count="backlinkStats?.count || 0"
+      :backlink-fragments="backlinkStats?.fragments || []"
+      @confirm="handleBacklinkUpdateConfirm"
+      @cancel="handleBacklinkUpdateCancel"
+    />
 
     <AiAssistDialog
       v-model="showAiAssist"
@@ -226,7 +270,11 @@ import { searchMarkdownFiles } from '@/api/markdown';
 import { debounce } from '@/utils';
 import { logger } from '@/utils/logger';
 import { parseFragment } from '@/utils/fragment';
-import { handleSaveError, handleLoadError, handleEditorError } from '@/utils/error-handler';
+import {
+  handleSaveError,
+  handleLoadError,
+  handleEditorError
+} from '@/utils/error-handler';
 import { useI18n } from 'vue-i18n';
 import modal from '@/utils/modal';
 import TagInput from '@/components/TagInput/index.vue';
@@ -245,7 +293,10 @@ import {
   normalizeAiMarkdown
 } from '@/components/TipTapEditor/utils/markdown';
 import { getWorkspaceRoot } from '@/api/markdown';
-import { syncAttachmentsOnRename, cleanupUnusedAttachments } from '@/plugins/attachments/api';
+import {
+  syncAttachmentsOnRename,
+  cleanupUnusedAttachments
+} from '@/plugins/attachments/api';
 import {
   convertFragmentContent,
   FRAGMENT_TYPE_CONVERSION_REQUEST_EVENT,
@@ -319,7 +370,12 @@ const beginEditorLoading = () => {
 };
 
 const finishEditorLoading = (generation: number) => {
-  if (generation !== editorLoadingGeneration || state.editorError || state.isEditorDeferred) return;
+  if (
+    generation !== editorLoadingGeneration ||
+    state.editorError ||
+    state.isEditorDeferred
+  )
+    return;
 
   const showEditor = () => {
     if (generation !== editorLoadingGeneration) return;
@@ -414,7 +470,6 @@ const aiSelection = reactive({
 // 工作区根目录
 const workspaceRoot = ref<string>('');
 
-
 // 笔记内容在状态层一律以 Markdown 保存；TipTap 仅接收由 Markdown 转换得到的 HTML。
 // 旧版本遗留的 HTML 内容仍可正常打开，以便在下一次保存时迁移为 Markdown。
 const noteEditorDisplayContent = computed(() => {
@@ -435,11 +490,15 @@ const pluginStore = usePluginStore();
 const isDark = computed(() => store.effectiveDark);
 const showEditorLoading = computed(() => {
   if (!route.params.id || state.editorError) return false;
-  return state.isEditorLoading || state.isEditorDeferred || !state.isEditorReady;
+  return (
+    state.isEditorLoading || state.isEditorDeferred || !state.isEditorReady
+  );
 });
-const editorLoadingMessage = computed(() => (
-  state.isEditorDeferred ? t('category.preparingEditor') : t('category.loadingEditor')
-));
+const editorLoadingMessage = computed(() =>
+  state.isEditorDeferred
+    ? t('category.preparingEditor')
+    : t('category.loadingEditor')
+);
 
 const notifyFileEditIfGitSyncEnabled = async () => {
   if (!pluginStore.initialized) {
@@ -479,18 +538,22 @@ const allTags = computed(() => {
   const tagsSet = new Set<string>();
   store.contents.forEach((content: ContentType) => {
     if (content.tags && Array.isArray(content.tags)) {
-      content.tags.forEach(tag => tagsSet.add(tag));
+      content.tags.forEach((tag) => tagsSet.add(tag));
     }
   });
   return Array.from(tagsSet);
 });
 
 const normalizeFragmentId = (id: string) => id.replace(/^markdown:/i, '');
-const normalizePathForCompare = (id: string | number) => decodeURIComponent(String(id)).replace(/\\/g, '/');
+const normalizePathForCompare = (id: string | number) =>
+  decodeURIComponent(String(id)).replace(/\\/g, '/');
 
 const removeMissingContentFromList = (id: string | number): void => {
   const normalizedId = normalizePathForCompare(id);
-  store.contents = store.contents.filter((content: ContentType) => normalizePathForCompare(content.id) !== normalizedId);
+  store.contents = store.contents.filter(
+    (content: ContentType) =>
+      normalizePathForCompare(content.id) !== normalizedId
+  );
 };
 
 const resetMissingContentState = (id: string | number, notify = true): void => {
@@ -514,7 +577,9 @@ const resetMissingContentState = (id: string | number, notify = true): void => {
 const goBackToContentList = async (): Promise<void> => {
   const currentCid = route.params.cid as string | undefined;
   await router.replace({
-    path: currentCid ? `/config/category/contentList/${currentCid}` : '/config/category/contentList'
+    path: currentCid
+      ? `/config/category/contentList/${currentCid}`
+      : '/config/category/contentList'
   });
 };
 
@@ -561,9 +626,10 @@ const hasUnsavedChanges = () => state.contentChanged || titleDirty.value;
 const tipTapEditorRef = ref<any>(null);
 
 const finishMountedEditorLoading = () => {
-  const hasMountedEditor = currentEditorType.value === 'note'
-    ? Boolean(tipTapEditorRef.value?.getEditor?.())
-    : Boolean(codeMirrorEditorRef.value?.getView?.());
+  const hasMountedEditor =
+    currentEditorType.value === 'note'
+      ? Boolean(tipTapEditorRef.value?.getEditor?.())
+      : Boolean(codeMirrorEditorRef.value?.getView?.());
 
   if (hasMountedEditor) {
     finishEditorLoadingAfterPaint();
@@ -638,7 +704,10 @@ const getEditorMetadata = (): FragmentMetadata => {
     if (editor) {
       // 获取字数统计
       const text = editor.getText();
-      const wordCount = text.trim().split(/\s+/).filter((word: string) => word.length > 0).length;
+      const wordCount = text
+        .trim()
+        .split(/\s+/)
+        .filter((word: string) => word.length > 0).length;
 
       // 获取光标位置
       const { from } = editor.state.selection;
@@ -662,7 +731,11 @@ const getEditorMetadata = (): FragmentMetadata => {
 };
 
 // 序列化内容（根据 format 字段）
-const serializeContent = (content: string, _format: ContentFormat, editorType: 'code' | 'note'): string => {
+const serializeContent = (
+  content: string,
+  _format: ContentFormat,
+  editorType: 'code' | 'note'
+): string => {
   // 如果是笔记类型，需要将内容转换为 Markdown 保存
   if (editorType === 'note') {
     // 检查内容是否为空或仅包含空白
@@ -679,7 +752,8 @@ const serializeContent = (content: string, _format: ContentFormat, editorType: '
     }
 
     // 检测内容是否为 HTML（需要转换）；否则假定已是 Markdown，直接返回
-    const isHtmlContent = content.trim().startsWith('<') && content.includes('</');
+    const isHtmlContent =
+      content.trim().startsWith('<') && content.includes('</');
 
     // 编辑器未就绪时的回退：绝不把 HTML 写入磁盘，统一转为 Markdown
     if (!tipTapEditorRef.value) {
@@ -739,7 +813,10 @@ const handleTagsChange = (newTags: string[]) => {
 };
 
 // 保存内容的核心逻辑（提取公共部分）
-const performSave = async (data: Partial<ContentType> = {}, options: { updateRoute?: boolean } = {}) => {
+const performSave = async (
+  data: Partial<ContentType> = {},
+  options: { updateRoute?: boolean } = {}
+) => {
   if (!state.currentContent) return;
 
   const { updateRoute = true } = options;
@@ -768,10 +845,12 @@ const performSave = async (data: Partial<ContentType> = {}, options: { updateRou
   // 2) 与最近一次成功保存的哈希比较（防重复保存）
   const originalContent = state.currentContent.content || '';
   const normalizedContentChanged =
-    normalizeForDirtyCheck(serializedContent) !== normalizeForDirtyCheck(originalContent);
+    normalizeForDirtyCheck(serializedContent) !==
+    normalizeForDirtyCheck(originalContent);
 
   const currentContentHash = computeContentHash(serializedContent);
-  const hashChangedFromLastSaved = currentContentHash !== state.lastSavedContentHash;
+  const hashChangedFromLastSaved =
+    currentContentHash !== state.lastSavedContentHash;
 
   const contentChanged = normalizedContentChanged && hashChangedFromLastSaved;
 
@@ -786,9 +865,18 @@ const performSave = async (data: Partial<ContentType> = {}, options: { updateRou
 
   // 标题改变且内容有变化时，如果是 Markdown 格式，同步附件
   let finalContent = serializedContent;
-  if (titleChanged && contentChanged && oldTitle && state.currentContent.format === 'markdown') {
+  if (
+    titleChanged &&
+    contentChanged &&
+    oldTitle &&
+    state.currentContent.format === 'markdown'
+  ) {
     try {
-      const updatedContent = await syncAttachmentsOnRename(oldTitle, newTitle, finalContent);
+      const updatedContent = await syncAttachmentsOnRename(
+        oldTitle,
+        newTitle,
+        finalContent
+      );
 
       // 只有在内容实际改变时才显示通知（说明有附件被同步）
       if (updatedContent !== finalContent) {
@@ -796,7 +884,10 @@ const performSave = async (data: Partial<ContentType> = {}, options: { updateRou
 
         // 更新编辑器内容以反映路径变化
         if (editorType === 'note') {
-          const updatedHtml = markdownToHtml(updatedContent, workspaceRoot.value);
+          const updatedHtml = markdownToHtml(
+            updatedContent,
+            workspaceRoot.value
+          );
           // state 层保持 Markdown；HTML 只用于驱动 TipTap 视图。
           state.editorContent = updatedContent;
 
@@ -846,11 +937,16 @@ const performSave = async (data: Partial<ContentType> = {}, options: { updateRou
   // 清理未使用的附件（如果是 Markdown 格式）
   if (state.currentContent.format === 'markdown') {
     try {
-      const deletedCount = await cleanupUnusedAttachments(state.title, finalContent);
+      const deletedCount = await cleanupUnusedAttachments(
+        state.title,
+        finalContent
+      );
       // 只有在实际删除了文件时才显示通知
       if (deletedCount > 0) {
         modal.success(
-          t('settings.attachment.unusedCleanupSuccessMessage', { count: deletedCount }),
+          t('settings.attachment.unusedCleanupSuccessMessage', {
+            count: deletedCount
+          }),
           'top-right'
         );
       }
@@ -864,7 +960,7 @@ const performSave = async (data: Partial<ContentType> = {}, options: { updateRou
   if (newPath && newPath !== state.currentContent.id) {
     // 更新 store 中的文件 ID（路径）
     const oldId = state.currentContent.id;
-    const contentIndex = store.contents.findIndex(c => c.id === oldId);
+    const contentIndex = store.contents.findIndex((c) => c.id === oldId);
     if (contentIndex !== -1) {
       store.contents[contentIndex] = {
         ...store.contents[contentIndex],
@@ -967,7 +1063,10 @@ const saveContent = async (data: Partial<ContentType> = {}) => {
 };
 
 // 使用 debounce，保留 cancel 方法
-const debouncedSave = debounce(saveContent as (...args: unknown[]) => unknown, 300);
+const debouncedSave = debounce(
+  saveContent as (...args: unknown[]) => unknown,
+  300
+);
 
 // 处理反向链接更新确认
 const handleBacklinkUpdateConfirm = async () => {
@@ -998,7 +1097,9 @@ const handleBacklinkUpdateCancel = async () => {
 };
 
 // 保存内容但不检查反向链接（用于反向链接对话框确认后）
-const saveContentWithoutBacklinkCheck = async (data: Partial<ContentType> = {}) => {
+const saveContentWithoutBacklinkCheck = async (
+  data: Partial<ContentType> = {}
+) => {
   if (!state.currentContent || state.isLoading) return;
 
   try {
@@ -1056,7 +1157,12 @@ const handleTitleInput = (value: string) => {
 };
 
 const rollbackTitleDraft = () => {
-  const fallback = (originalTitle.value || state.currentContent?.title || state.title || 'New Fragment').trim();
+  const fallback = (
+    originalTitle.value ||
+    state.currentContent?.title ||
+    state.title ||
+    'New Fragment'
+  ).trim();
   const restored = fallback || 'New Fragment';
   draftTitle.value = restored;
   state.title = restored;
@@ -1106,7 +1212,7 @@ const computeContentHash = (content: string): string => {
   const normalized = normalizeForDirtyCheck(content);
   let hash = 5381;
   for (let i = 0; i < normalized.length; i++) {
-    hash = ((hash << 5) + hash) + normalized.charCodeAt(i);
+    hash = (hash << 5) + hash + normalized.charCodeAt(i);
     hash |= 0;
   }
   return `${normalized.length}:${hash}`;
@@ -1119,8 +1225,11 @@ const handleFragmentTypeConversionRequest = (event: Event): void => {
   const customEvent = event as CustomEvent<FragmentTypeConversionRequestDetail>;
   const detail = customEvent.detail;
 
-  if (!state.currentContent ||
-      normalizePathForCompare(state.currentContent.id) !== normalizePathForCompare(detail.id)) {
+  if (
+    !state.currentContent ||
+    normalizePathForCompare(state.currentContent.id) !==
+      normalizePathForCompare(detail.id)
+  ) {
     return;
   }
 
@@ -1136,7 +1245,7 @@ const handleFragmentTypeConversionRequest = (event: Event): void => {
         if (Date.now() > saveDeadline) {
           throw new Error('Timed out waiting for the current fragment to save');
         }
-        await new Promise(resolve => setTimeout(resolve, 20));
+        await new Promise((resolve) => setTimeout(resolve, 20));
       }
 
       const currentContentId = state.currentContent?.id ?? requestedContentId;
@@ -1155,15 +1264,21 @@ const handleFragmentTypeConversionRequest = (event: Event): void => {
         detail.targetType,
         typeof language === 'string' ? language : undefined
       );
-      const converted = await convertFragmentType(currentContentId, detail.targetType, {
-        title: state.title,
-        content: convertedContent,
-        metadata: state.currentContent?.metadata,
-        tags: state.tags
-      });
-      const newPath = normalizePathForCompare(converted.id) !== normalizePathForCompare(currentContentId)
-        ? String(converted.id)
-        : null;
+      const converted = await convertFragmentType(
+        currentContentId,
+        detail.targetType,
+        {
+          title: state.title,
+          content: convertedContent,
+          metadata: state.currentContent?.metadata,
+          tags: state.tags
+        }
+      );
+      const newPath =
+        normalizePathForCompare(converted.id) !==
+        normalizePathForCompare(currentContentId)
+          ? String(converted.id)
+          : null;
 
       state.currentContent = {
         ...state.currentContent,
@@ -1180,7 +1295,9 @@ const handleFragmentTypeConversionRequest = (event: Event): void => {
       titleDirty.value = false;
 
       const previousIndex = store.contents.findIndex(
-        item => normalizePathForCompare(item.id) === normalizePathForCompare(currentContentId)
+        (item) =>
+          normalizePathForCompare(item.id) ===
+          normalizePathForCompare(currentContentId)
       );
       if (previousIndex !== -1) {
         store.contents[previousIndex] = {
@@ -1221,9 +1338,13 @@ const handleFragmentTypeConversionRequest = (event: Event): void => {
 };
 
 const handleFragmentCategoryMoveRequest = (event: Event): void => {
-  const detail = (event as CustomEvent<FragmentCategoryMoveRequestDetail>).detail;
-  if (!state.currentContent ||
-      normalizePathForCompare(state.currentContent.id) !== normalizePathForCompare(detail.id)) {
+  const detail = (event as CustomEvent<FragmentCategoryMoveRequestDetail>)
+    .detail;
+  if (
+    !state.currentContent ||
+    normalizePathForCompare(state.currentContent.id) !==
+      normalizePathForCompare(detail.id)
+  ) {
     return;
   }
 
@@ -1237,7 +1358,7 @@ const handleFragmentCategoryMoveRequest = (event: Event): void => {
         if (Date.now() > saveDeadline) {
           throw new Error('Timed out waiting for the current fragment to save');
         }
-        await new Promise(resolve => setTimeout(resolve, 20));
+        await new Promise((resolve) => setTimeout(resolve, 20));
       }
 
       commitTitleChange();
@@ -1259,7 +1380,8 @@ const handleFragmentCategoryMoveRequest = (event: Event): void => {
       };
 
       const previousIndex = store.contents.findIndex(
-        item => normalizePathForCompare(item.id) === normalizePathForCompare(oldId)
+        (item) =>
+          normalizePathForCompare(item.id) === normalizePathForCompare(oldId)
       );
       if (previousIndex !== -1) {
         store.contents[previousIndex] = {
@@ -1331,7 +1453,8 @@ const captureAiSelection = () => {
         hideAiSelection();
         return;
       }
-      const coords = view.coordsAtPos(selection.to) ?? view.coordsAtPos(selection.from);
+      const coords =
+        view.coordsAtPos(selection.to) ?? view.coordsAtPos(selection.from);
       aiSelection.text = view.state.sliceDoc(selection.from, selection.to);
       aiSelection.type = 'code';
       aiSelection.from = selection.from;
@@ -1353,7 +1476,11 @@ const captureAiSelection = () => {
     const domSelection = window.getSelection();
     const range = domSelection?.rangeCount ? domSelection.getRangeAt(0) : null;
     const rect = range?.getBoundingClientRect();
-    aiSelection.text = editor.state.doc.textBetween(selection.from, selection.to, '\n');
+    aiSelection.text = editor.state.doc.textBetween(
+      selection.from,
+      selection.to,
+      '\n'
+    );
     aiSelection.type = 'note';
     aiSelection.from = selection.from;
     aiSelection.to = selection.to;
@@ -1385,7 +1512,8 @@ const replaceAiSelection = (value: string) => {
   } else {
     const editor = tipTapEditorRef.value?.getEditor?.();
     if (!editor) return;
-    editor.chain()
+    editor
+      .chain()
       .focus()
       .setTextSelection({ from: aiSelection.from, to: aiSelection.to })
       .insertContent(markdownToHtml(value, workspaceRoot.value))
@@ -1415,7 +1543,9 @@ const handleWikilinkClick = async (noteName: string) => {
 
     if (fragments.length > 0) {
       // 精确匹配标题（不区分大小写）
-      const exactMatch = fragments.find(f => f.title.toLowerCase() === noteName.toLowerCase());
+      const exactMatch = fragments.find(
+        (f) => f.title.toLowerCase() === noteName.toLowerCase()
+      );
       const targetFragment = exactMatch || fragments[0];
 
       // 如果有未保存的更改，先保存（取消防抖，避免 300ms 后重复保存）
@@ -1446,7 +1576,10 @@ const handleWikilinkClick = async (noteName: string) => {
 };
 
 // 处理反向链接导航
-const handleBacklinkNavigate = async (fragmentId: number | string, searchTitle: string) => {
+const handleBacklinkNavigate = async (
+  fragmentId: number | string,
+  searchTitle: string
+) => {
   try {
     // 如果有未保存的更改，先保存（取消防抖，避免 300ms 后重复保存）
     if (hasUnsavedChanges()) {
@@ -1486,7 +1619,12 @@ const handleBacklinkNavigate = async (fragmentId: number | string, searchTitle: 
             attempts++;
 
             // 等待编辑器加载完成且引用存在
-            if (state.isEditorReady && !state.isEditorLoading && tipTapEditorRef.value && currentEditorType.value === 'note') {
+            if (
+              state.isEditorReady &&
+              !state.isEditorLoading &&
+              tipTapEditorRef.value &&
+              currentEditorType.value === 'note'
+            ) {
               resolve(true);
             } else if (attempts >= maxAttempts) {
               console.warn('[Content] 等待编辑器超时，状态:', {
@@ -1517,7 +1655,9 @@ const handleBacklinkNavigate = async (fragmentId: number | string, searchTitle: 
       } else if (!searchTitle) {
         console.warn('[Content] 没有提供搜索标题');
       } else {
-        console.warn('[Content] 无法滚动到 wikilink，编辑器引用不存在或非笔记类型');
+        console.warn(
+          '[Content] 无法滚动到 wikilink，编辑器引用不存在或非笔记类型'
+        );
       }
     } else {
       console.error('[Content] 未找到目标片段');
@@ -1542,9 +1682,10 @@ const confirmCreateNote = async () => {
       currentCategoryId = Number(route.params.cid);
     } else if (state.currentContent?.category_id) {
       // 从当前内容获取分类ID
-      currentCategoryId = typeof state.currentContent.category_id === 'number'
-        ? state.currentContent.category_id
-        : Number(state.currentContent.category_id);
+      currentCategoryId =
+        typeof state.currentContent.category_id === 'number'
+          ? state.currentContent.category_id
+          : Number(state.currentContent.category_id);
     } else {
       // 默认为未分类（ID: 0）
       currentCategoryId = 0;
@@ -1603,7 +1744,9 @@ const fetchContentById = async (id: string) => {
       state.editorContent = newContent;
       state.contentChanged = false;
       state.lastSavedAt = null;
-      state.lastSavedContentHash = computeContentHash(parsedContent.content || '');
+      state.lastSavedContentHash = computeContentHash(
+        parsedContent.content || ''
+      );
       // 若 TipTap watch 未触发，显式 setContent
       await nextTick();
       if (currentEditorType.value === 'note' && tipTapEditorRef.value) {
@@ -1630,7 +1773,9 @@ const fetchContentById = async (id: string) => {
     failEditorLoading();
   } finally {
     if (loadGeneration === contentLoadGeneration) {
-      nextTick(() => { state.isInitializing = false; });
+      nextTick(() => {
+        state.isInitializing = false;
+      });
     }
   }
 };
@@ -1670,9 +1815,13 @@ const fetchContent = async () => {
 
       state.contentChanged = false;
       state.lastSavedAt = null;
-      state.lastSavedContentHash = computeContentHash(parsedContent.content || '');
+      state.lastSavedContentHash = computeContentHash(
+        parsedContent.content || ''
+      );
 
-      const isNewEmptyContent = parsedContent.title === 'New Fragment' && !parsedContent.content?.trim();
+      const isNewEmptyContent =
+        parsedContent.title === 'New Fragment' &&
+        !parsedContent.content?.trim();
 
       // 新建空内容先让标题输入框获得主线程；完整编辑器在用户输入停顿后挂载。
       state.isEditorDeferred = isNewEmptyContent;
@@ -1687,7 +1836,9 @@ const fetchContent = async () => {
       // 如果是新建的内容，自动聚焦并选中标题输入框中的默认标题
       if (parsedContent.title === 'New Fragment' && titleInputRef.value) {
         nextTick(() => {
-          const inputElement = titleInputRef.value?.$el?.querySelector('input') || titleInputRef.value?.input;
+          const inputElement =
+            titleInputRef.value?.$el?.querySelector('input') ||
+            titleInputRef.value?.input;
           if (inputElement) {
             inputElement.focus();
             inputElement.select();
@@ -1714,9 +1865,13 @@ const fetchContent = async () => {
 };
 
 // 反序列化内容（根据 format 字段）
-const deserializeContent = (content: string, _format: ContentFormat): string => {
+const deserializeContent = (
+  content: string,
+  _format: ContentFormat
+): string => {
   // 兼容性处理：检测内容是否为 HTML
-  const isHtmlContent = content.trim().startsWith('<') && content.includes('</');
+  const isHtmlContent =
+    content.trim().startsWith('<') && content.includes('</');
 
   // 笔记状态层始终持有 Markdown；HTML 仅在 noteEditorDisplayContent 中转换后传给 TipTap。
   // 这样可避免加载、AI 替换、附件重命名等入口把两种格式混在同一个状态字段里。
@@ -1853,12 +2008,25 @@ const handleRefreshData = async (event: Event) => {
     const modifiedFiles = modified || [];
     const createdFiles = created || [];
     const deletedFiles = deleted || [];
-    console.log('[Content] 📦 files-changed-batch, 当前文件:', currentFileId, '创建文件:', createdFiles, '修改文件:', modifiedFiles, '删除文件:', deletedFiles);
+    console.log(
+      '[Content] 📦 files-changed-batch, 当前文件:',
+      currentFileId,
+      '创建文件:',
+      createdFiles,
+      '修改文件:',
+      modifiedFiles,
+      '删除文件:',
+      deletedFiles
+    );
 
     const normalizedId = currentFileId.replace(/\\/g, '/');
     const isCurrentDeleted = deletedFiles.some((f: string) => {
       const normalizedF = f.replace(/\\/g, '/');
-      return normalizedId === normalizedF || normalizedId.endsWith(normalizedF) || normalizedF.endsWith(normalizedId);
+      return (
+        normalizedId === normalizedF ||
+        normalizedId.endsWith(normalizedF) ||
+        normalizedF.endsWith(normalizedId)
+      );
     });
 
     if (isCurrentDeleted) {
@@ -1872,15 +2040,25 @@ const handleRefreshData = async (event: Event) => {
 
     shouldReload = modifiedFiles.some((f: string) => {
       const normalizedF = f.replace(/\\/g, '/');
-      return normalizedId === normalizedF || normalizedId.endsWith(normalizedF) || normalizedF.endsWith(normalizedId);
+      return (
+        normalizedId === normalizedF ||
+        normalizedId.endsWith(normalizedF) ||
+        normalizedF.endsWith(normalizedId)
+      );
     });
-  } else if (source === 'force-pull' || source === 'manual-merge' || source === 'force-push') {
+  } else if (
+    source === 'force-pull' ||
+    source === 'manual-merge' ||
+    source === 'force-push'
+  ) {
     shouldReload = true;
   }
 
   if (shouldReload) {
     if (hasUnsavedChanges()) {
-      console.log('[Content] ⚠️ 当前文件被外部修改，但存在未保存的本地更改，跳过重载');
+      console.log(
+        '[Content] ⚠️ 当前文件被外部修改，但存在未保存的本地更改，跳过重载'
+      );
     } else {
       console.log('[Content] 🔄 检测到当前文件被外部修改，重新加载内容');
       await fetchContentById(currentFileId);
@@ -1897,7 +2075,9 @@ const handleDirsChanged = async (event: Event) => {
     renamed: Array<{ from: string; to: string }>;
   }>;
   const { deleted } = customEvent.detail;
-  console.log(`[Content] dirs-changed-batch: -${deleted.length}，检查当前内容是否受影响`);
+  console.log(
+    `[Content] dirs-changed-batch: -${deleted.length}，检查当前内容是否受影响`
+  );
 
   if (!state.currentContent) {
     console.log('[Content] ⏭️ dirs-changed: 无当前内容，跳过');
@@ -1911,11 +2091,14 @@ const handleDirsChanged = async (event: Event) => {
   const wsRoot = workspaceRoot.value.replace(/\\/g, '/');
   const isInDeletedDir = deleted.some((deletedPath: string) => {
     // deletedPath 是相对路径，需拼接 workspaceRoot 转绝对路径后再比较
-    const absDeletedPath = deletedPath.startsWith('/') || deletedPath.match(/^[A-Za-z]:/)
-      ? deletedPath.replace(/\\/g, '/')
-      : `${wsRoot}/${deletedPath}`.replace(/\\/g, '/').replace(/\/+/g, '/');
-    return normalizedCurrentId === absDeletedPath ||
-      normalizedCurrentId.startsWith(absDeletedPath + '/');
+    const absDeletedPath =
+      deletedPath.startsWith('/') || deletedPath.match(/^[A-Za-z]:/)
+        ? deletedPath.replace(/\\/g, '/')
+        : `${wsRoot}/${deletedPath}`.replace(/\\/g, '/').replace(/\/+/g, '/');
+    return (
+      normalizedCurrentId === absDeletedPath ||
+      normalizedCurrentId.startsWith(absDeletedPath + '/')
+    );
   });
 
   if (isInDeletedDir) {
@@ -2021,8 +2204,8 @@ onMounted(async () => {
         min-width: 0;
 
         :deep(.el-input__wrapper) {
-          padding-left: 3px;
           padding-right: 3px;
+          padding-left: 3px;
         }
       }
 
@@ -2054,7 +2237,9 @@ onMounted(async () => {
 
   box-sizing: border-box;
   background: var(--editor-surface-bg);
-  transition: border-color 0.2s ease, background-color 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease;
 }
 
 .editor-surface--loading {
@@ -2084,7 +2269,11 @@ onMounted(async () => {
   i {
     width: 3px;
     height: 2px;
-    background: color-mix(in srgb, var(--panel-text-secondary) 42%, transparent);
+    background: color-mix(
+      in srgb,
+      var(--panel-text-secondary) 42%,
+      transparent
+    );
     border-radius: 999px;
     animation: snippet-gutter 1.6s ease-in-out infinite;
   }
@@ -2157,7 +2346,8 @@ onMounted(async () => {
   height: 11px;
   background: var(--el-color-primary);
   border-radius: 999px;
-  box-shadow: 0 0 5px color-mix(in srgb, var(--el-color-primary) 36%, transparent);
+  box-shadow: 0 0 5px
+    color-mix(in srgb, var(--el-color-primary) 36%, transparent);
   animation: snippet-cursor 1.1s steps(1, end) infinite;
 }
 
@@ -2284,7 +2474,9 @@ onMounted(async () => {
   white-space: nowrap;
   background: color-mix(in srgb, var(--el-color-primary) 8%, transparent);
   border: 1px solid color-mix(in srgb, var(--el-color-primary) 28%, transparent);
-  transition: background-color 0.15s ease, transform 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    transform 0.15s ease;
 
   span {
     display: inline-grid;

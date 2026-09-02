@@ -18,13 +18,18 @@ import { LocalImage } from '../extensions/LocalImage';
 import { SearchHighlight } from '../extensions/SearchHighlight';
 import type { AnyExtension } from '@tiptap/core';
 
-const parseTableAlignment = (value: unknown): 'left' | 'center' | 'right' | null => {
-  return value === 'left' || value === 'center' || value === 'right' ? value : null;
+const parseTableAlignment = (
+  value: unknown
+): 'left' | 'center' | 'right' | null => {
+  return value === 'left' || value === 'center' || value === 'right'
+    ? value
+    : null;
 };
 
 const MarkdownStarterKit = StarterKit.extend({
   addExtensions() {
-    const parent = (this as unknown as { parent?: () => AnyExtension[] }).parent;
+    const parent = (this as unknown as { parent?: () => AnyExtension[] })
+      .parent;
     return (parent?.() ?? []).map((extension: AnyExtension) => {
       if (extension.name === 'bold' || extension.name === 'italic') {
         return extension.extend({
@@ -43,7 +48,8 @@ const AlignedTableCell = TableCell.extend({
       ...this.parent?.(),
       textAlign: {
         default: null,
-        parseHTML: (element: HTMLElement) => parseTableAlignment(element.getAttribute('align')),
+        parseHTML: (element: HTMLElement) =>
+          parseTableAlignment(element.getAttribute('align')),
         renderHTML: (attributes: Record<string, unknown>) => {
           const alignment = parseTableAlignment(attributes.textAlign);
           return alignment ? { align: alignment } : {};
@@ -59,7 +65,8 @@ const AlignedTableHeader = TableHeader.extend({
       ...this.parent?.(),
       textAlign: {
         default: null,
-        parseHTML: (element: HTMLElement) => parseTableAlignment(element.getAttribute('align')),
+        parseHTML: (element: HTMLElement) =>
+          parseTableAlignment(element.getAttribute('align')),
         renderHTML: (attributes: Record<string, unknown>) => {
           const alignment = parseTableAlignment(attributes.textAlign);
           return alignment ? { align: alignment } : {};
@@ -86,9 +93,9 @@ export function createEditorExtensions(
       // 禁用 StarterKit 自带的 codeBlock，使用自定义的
       codeBlock: false,
       // 禁用默认的 Link，使用自定义的
-      link: false,
+      link: false
     }),
-    LocalImage,  // 使用自定义的本地图片扩展（StarterKit 不包含 Image，所以不需要禁用）
+    LocalImage, // 使用自定义的本地图片扩展（StarterKit 不包含 Image，所以不需要禁用）
     CodeBlockHighlight.configure({
       languageClassPrefix: 'language-',
       HTMLAttributes: {
@@ -105,7 +112,8 @@ export function createEditorExtensions(
           ...this.parent?.(),
           'data-original-url': {
             default: null,
-            parseHTML: (element: HTMLElement) => element.getAttribute('data-original-url'),
+            parseHTML: (element: HTMLElement) =>
+              element.getAttribute('data-original-url'),
             renderHTML: (attributes: Record<string, unknown>) => {
               if (!attributes['data-original-url']) {
                 return {};
@@ -118,7 +126,7 @@ export function createEditorExtensions(
         };
       }
     }).configure({
-      openOnClick: false,  // 禁用默认的点击打开行为，我们自己处理
+      openOnClick: false, // 禁用默认的点击打开行为，我们自己处理
       autolink: false,
       HTMLAttributes: {
         class: 'editor-link',
@@ -128,12 +136,12 @@ export function createEditorExtensions(
       validate: (href: string) => {
         // 允许锚点链接（目录链接）
         if (href.startsWith('#')) return true;
-        
+
         // 如果已经有协议，验证是否为 http/https
         if (href.includes('://')) {
           return /^https?:\/\//.test(href);
         }
-        
+
         // 如果没有协议，认为是有效的（会在后续自动补全）
         return true;
       }

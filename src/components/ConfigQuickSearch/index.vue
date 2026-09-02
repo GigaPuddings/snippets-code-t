@@ -6,9 +6,18 @@
         class="config-search-overlay"
         @mousedown.self="close"
       >
-        <section class="config-search-panel" @mousedown.stop @keydown="handleKeydown">
+        <section
+          class="config-search-panel"
+          @mousedown.stop
+          @keydown="handleKeydown"
+        >
           <div class="config-search-input-row">
-            <Search class="config-search-icon" theme="outline" size="18" :strokeWidth="3" />
+            <Search
+              class="config-search-icon"
+              theme="outline"
+              size="18"
+              :strokeWidth="3"
+            />
             <input
               ref="inputRef"
               v-model="searchText"
@@ -29,12 +38,20 @@
 
           <div ref="bodyRef" class="config-search-body">
             <div v-if="!searchText.trim()" class="config-search-empty">
-              <div class="config-search-empty-title">{{ $t('configSearch.emptyTitle') }}</div>
-              <div class="config-search-empty-text">{{ $t('configSearch.emptyText') }}</div>
+              <div class="config-search-empty-title">
+                {{ $t('configSearch.emptyTitle') }}
+              </div>
+              <div class="config-search-empty-text">
+                {{ $t('configSearch.emptyText') }}
+              </div>
             </div>
             <div v-else-if="!visibleResults.length" class="config-search-empty">
-              <div class="config-search-empty-title">{{ $t('search.noResults') }}</div>
-              <div class="config-search-empty-text">{{ $t('search.suggestRelax') }}</div>
+              <div class="config-search-empty-title">
+                {{ $t('search.noResults') }}
+              </div>
+              <div class="config-search-empty-text">
+                {{ $t('search.suggestRelax') }}
+              </div>
             </div>
             <div v-else class="config-search-results">
               <button
@@ -46,12 +63,22 @@
                 @mouseenter="activeIndex = index"
                 @click="openResult(item)"
               >
-                <span class="config-search-result-icon">{{ getResultGlyph(item) }}</span>
-                <span class="config-search-result-main">
-                  <span class="config-search-result-title" v-html="getDisplayTitle(item)"></span>
-                  <span class="config-search-result-content" v-html="getDisplayContentHighlighted(item)"></span>
+                <span class="config-search-result-icon">
+                  {{ getResultGlyph(item) }}
                 </span>
-                <span class="config-search-result-type">{{ getTypeLabelText(item) }}</span>
+                <span class="config-search-result-main">
+                  <span
+                    class="config-search-result-title"
+                    v-html="getDisplayTitle(item)"
+                  ></span>
+                  <span
+                    class="config-search-result-content"
+                    v-html="getDisplayContentHighlighted(item)"
+                  ></span>
+                </span>
+                <span class="config-search-result-type">
+                  {{ getTypeLabelText(item) }}
+                </span>
               </button>
             </div>
           </div>
@@ -74,7 +101,10 @@ import { useI18n } from 'vue-i18n';
 import { getCategories } from '@/api/fragment';
 import { useSearch } from '@/hooks/useSearch';
 import { getPrimarySearchHistoryKey } from '@/hooks/searchRanking';
-import { getRawSearchResultId, useSearchResultDisplay } from '@/pages/search/composables/useSearchResultDisplay';
+import {
+  getRawSearchResultId,
+  useSearchResultDisplay
+} from '@/pages/search/composables/useSearchResultDisplay';
 import { useConfigurationStore } from '@/store';
 import modal from '@/utils/modal';
 
@@ -102,23 +132,17 @@ const bodyRef = ref<HTMLElement | null>(null);
 const activeIndex = ref(0);
 const categories = ref<CategoryType[]>([]);
 
-const {
-  searchText,
-  searchResults,
-  clearSearch,
-  addSearchHistory
-} = useSearch({
+const { searchText, searchResults, clearSearch, addSearchHistory } = useSearch({
   debounceMs: 180,
   initialDeepSearch: true
 });
 
-const {
-  getDisplayTitle,
-  getDisplayContentHighlighted,
-  getTypeLabel
-} = useSearchResultDisplay(() => searchText.value, t);
+const { getDisplayTitle, getDisplayContentHighlighted, getTypeLabel } =
+  useSearchResultDisplay(() => searchText.value, t);
 
-const normalizedQuery = computed(() => searchText.value.trim().toLocaleLowerCase());
+const normalizedQuery = computed(() =>
+  searchText.value.trim().toLocaleLowerCase()
+);
 
 const folderResults = computed<ConfigSearchResult[]>(() => {
   const query = normalizedQuery.value;
@@ -185,12 +209,17 @@ function scrollActiveIntoView(): void {
       return;
     }
 
-    if (activeIndex.value === visibleResults.value.length - 1 && bodyRef.value) {
+    if (
+      activeIndex.value === visibleResults.value.length - 1 &&
+      bodyRef.value
+    ) {
       bodyRef.value.scrollTop = bodyRef.value.scrollHeight;
       return;
     }
 
-    const activeElement = bodyRef.value?.querySelector('.config-search-result.active') as HTMLElement | null;
+    const activeElement = bodyRef.value?.querySelector(
+      '.config-search-result.active'
+    ) as HTMLElement | null;
     activeElement?.scrollIntoView({ block: 'nearest' });
   });
 }
@@ -281,7 +310,12 @@ async function openResult(item: ConfigSearchResult): Promise<void> {
 
     await addSearchHistory(getPrimarySearchHistoryKey(item));
 
-    if (item.summarize === 'code' || item.summarize === 'note' || item.type === 'code' || item.type === 'note') {
+    if (
+      item.summarize === 'code' ||
+      item.summarize === 'note' ||
+      item.type === 'code' ||
+      item.type === 'note'
+    ) {
       await openConfigContent(item);
       close();
       return;
@@ -300,7 +334,9 @@ async function openResult(item: ConfigSearchResult): Promise<void> {
     }
 
     if (item.summarize === 'file') {
-      await invoke('open_file_with_default_app', { filePath: item.metadata?.file_path || item.content });
+      await invoke('open_file_with_default_app', {
+        filePath: item.metadata?.file_path || item.content
+      });
       close();
       return;
     }
@@ -335,14 +371,16 @@ async function openResult(item: ConfigSearchResult): Promise<void> {
   background: var(--search-bg-color);
   border: 1px solid var(--search-border-color);
   border-radius: 10px;
-  box-shadow: 0 24px 70px rgb(15 23 42 / 22%), 0 8px 22px rgb(15 23 42 / 10%);
+  box-shadow:
+    0 24px 70px rgb(15 23 42 / 22%),
+    0 8px 22px rgb(15 23 42 / 10%);
 }
 
 .config-search-input-row {
   display: flex;
-  height: 54px;
-  align-items: center;
   gap: 10px;
+  align-items: center;
+  height: 54px;
   padding: 0 14px;
   border-bottom: 1px solid var(--search-border-color);
 }
@@ -355,8 +393,8 @@ async function openResult(item: ConfigSearchResult): Promise<void> {
 .config-search-input {
   flex: 1;
   min-width: 0;
-  color: var(--search-text-color);
   font-size: 16px;
+  color: var(--search-text-color);
   background: transparent;
   border: 0;
   outline: none;
@@ -368,10 +406,10 @@ async function openResult(item: ConfigSearchResult): Promise<void> {
 
 .config-search-clear {
   display: flex;
-  width: 28px;
-  height: 28px;
   align-items: center;
   justify-content: center;
+  width: 28px;
+  height: 28px;
   color: var(--search-info-text-color);
   cursor: pointer;
   background: transparent;
@@ -387,9 +425,9 @@ async function openResult(item: ConfigSearchResult): Promise<void> {
 .config-search-shortcut {
   flex-shrink: 0;
   padding: 2px 6px;
-  color: var(--search-info-text-color);
   font-size: 11px;
   font-weight: 700;
+  color: var(--search-info-text-color);
   background: var(--search-soft-bg);
   border: 1px solid var(--search-border-color);
   border-radius: 6px;
@@ -398,31 +436,31 @@ async function openResult(item: ConfigSearchResult): Promise<void> {
 .config-search-body {
   min-height: 276px;
   max-height: 452px;
-  overflow-y: auto;
   padding: 8px;
+  overflow-y: auto;
 }
 
 .config-search-empty {
   display: flex;
-  min-height: 260px;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  min-height: 260px;
   text-align: center;
 }
 
 .config-search-empty-title {
-  color: var(--search-text-color);
   font-size: 14px;
   font-weight: 700;
+  color: var(--search-text-color);
 }
 
 .config-search-empty-text {
   max-width: 360px;
   margin-top: 8px;
-  color: var(--search-info-text-color);
   font-size: 12px;
   line-height: 20px;
+  color: var(--search-info-text-color);
 }
 
 .config-search-results {
@@ -434,10 +472,10 @@ async function openResult(item: ConfigSearchResult): Promise<void> {
 .config-search-result {
   position: relative;
   display: grid;
-  min-height: 54px;
   grid-template-columns: 34px minmax(0, 1fr) auto;
-  align-items: center;
   gap: 10px;
+  align-items: center;
+  min-height: 54px;
   padding: 7px 10px;
   color: var(--search-text-color);
   text-align: left;
@@ -466,13 +504,13 @@ async function openResult(item: ConfigSearchResult): Promise<void> {
 
 .config-search-result-icon {
   display: flex;
-  width: 30px;
-  height: 30px;
   align-items: center;
   justify-content: center;
-  color: var(--search-result-accent);
+  width: 30px;
+  height: 30px;
   font-size: 11px;
   font-weight: 800;
+  color: var(--search-result-accent);
   background: var(--search-card-bg);
   border: 1px solid var(--search-border-color);
   border-radius: 8px;
@@ -485,19 +523,19 @@ async function openResult(item: ConfigSearchResult): Promise<void> {
 .config-search-result-title {
   display: block;
   overflow: hidden;
-  color: var(--search-text-color);
   font-size: 13px;
   font-weight: 700;
+  color: var(--search-text-color);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .config-search-result-content {
   display: block;
-  overflow: hidden;
   margin-top: 3px;
-  color: var(--search-info-text-color);
+  overflow: hidden;
   font-size: 12px;
+  color: var(--search-info-text-color);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -505,8 +543,8 @@ async function openResult(item: ConfigSearchResult): Promise<void> {
 .config-search-result-type {
   flex-shrink: 0;
   padding: 2px 7px;
-  color: var(--search-info-text-color);
   font-size: 11px;
+  color: var(--search-info-text-color);
   background: var(--search-card-bg);
   border: 1px solid var(--search-border-color);
   border-radius: 999px;
@@ -514,13 +552,13 @@ async function openResult(item: ConfigSearchResult): Promise<void> {
 
 .config-search-footer {
   display: flex;
-  height: 34px;
+  gap: 14px;
   align-items: center;
   justify-content: flex-end;
-  gap: 14px;
+  height: 34px;
   padding: 0 12px;
-  color: var(--search-info-text-color);
   font-size: 11px;
+  color: var(--search-info-text-color);
   border-top: 1px solid var(--search-border-color);
 }
 
@@ -529,7 +567,9 @@ async function openResult(item: ConfigSearchResult): Promise<void> {
   transition: opacity 0.16s ease;
 
   .config-search-panel {
-    transition: transform 0.16s ease, opacity 0.16s ease;
+    transition:
+      transform 0.16s ease,
+      opacity 0.16s ease;
   }
 }
 
@@ -544,8 +584,8 @@ async function openResult(item: ConfigSearchResult): Promise<void> {
 }
 
 :deep(.highlight) {
-  color: var(--search-result-accent);
   font-weight: 700;
+  color: var(--search-result-accent);
   background: rgb(95 116 243 / 12%);
   border-radius: 3px;
 }

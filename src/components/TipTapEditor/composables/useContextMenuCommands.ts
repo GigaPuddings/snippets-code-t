@@ -2,7 +2,10 @@ import type { Editor } from '@tiptap/vue-3';
 import type { ResolvedPos } from '@tiptap/pm/model';
 import { TextSelection } from '@tiptap/pm/state';
 import { formatCodeText } from '@/utils/codeFormatter';
-import { toggleCodeBlockForSelection, toggleListForSelection } from '../utils/markdownCommands';
+import {
+  toggleCodeBlockForSelection,
+  toggleListForSelection
+} from '../utils/markdownCommands';
 import type { SourceEditorExpose, ViewMode } from '../types';
 
 type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
@@ -25,7 +28,8 @@ interface UseContextMenuCommandsOptions {
   formatCodeText?: CodeFormatter;
 }
 
-const isSourceMode = (options: UseContextMenuCommandsOptions) => options.getViewMode() === 'source';
+const isSourceMode = (options: UseContextMenuCommandsOptions) =>
+  options.getViewMode() === 'source';
 
 function findCodeBlockDepth($pos: ResolvedPos): number {
   for (let depth = $pos.depth; depth > 0; depth--) {
@@ -82,7 +86,10 @@ const insertSourceExternalLink = (sourceEditor: SourceEditorExpose) => {
 
   if (selectedText) {
     sourceEditor.insertText(`[${selectedText}]()`);
-    textarea.setSelectionRange(start + selectedText.length + 3, start + selectedText.length + 3);
+    textarea.setSelectionRange(
+      start + selectedText.length + 3,
+      start + selectedText.length + 3
+    );
   } else {
     sourceEditor.insertText('[]()');
     textarea.setSelectionRange(start + 1, start + 1);
@@ -93,86 +100,102 @@ const insertSourceExternalLink = (sourceEditor: SourceEditorExpose) => {
 export function useContextMenuCommands(options: UseContextMenuCommandsOptions) {
   const hide = options.hide;
   const translate = options.translate ?? ((key: string) => key);
-  const promptUrl = options.promptUrl ?? ((message, defaultValue) => window.prompt(message, defaultValue));
-  const execCommand = options.execCommand ?? ((commandId: string) => document.execCommand(commandId));
+  const promptUrl =
+    options.promptUrl ??
+    ((message, defaultValue) => window.prompt(message, defaultValue));
+  const execCommand =
+    options.execCommand ??
+    ((commandId: string) => document.execCommand(commandId));
   const clipboard = options.clipboard ?? navigator.clipboard;
   const notify = options.notify ?? (() => undefined);
   const formatter = options.formatCodeText ?? formatCodeText;
 
-  const toggleBold = () => runMarkdownCommand(
-    options,
-    sourceEditor => sourceEditor.wrapSelection('**', '**'),
-    editor => editor.chain().focus().toggleBold().run()
-  );
+  const toggleBold = () =>
+    runMarkdownCommand(
+      options,
+      (sourceEditor) => sourceEditor.wrapSelection('**', '**'),
+      (editor) => editor.chain().focus().toggleBold().run()
+    );
 
-  const toggleItalic = () => runMarkdownCommand(
-    options,
-    sourceEditor => sourceEditor.wrapSelection('*', '*'),
-    editor => editor.chain().focus().toggleItalic().run()
-  );
+  const toggleItalic = () =>
+    runMarkdownCommand(
+      options,
+      (sourceEditor) => sourceEditor.wrapSelection('*', '*'),
+      (editor) => editor.chain().focus().toggleItalic().run()
+    );
 
-  const toggleStrike = () => runMarkdownCommand(
-    options,
-    sourceEditor => sourceEditor.wrapSelection('~~', '~~'),
-    editor => editor.chain().focus().toggleStrike().run()
-  );
+  const toggleStrike = () =>
+    runMarkdownCommand(
+      options,
+      (sourceEditor) => sourceEditor.wrapSelection('~~', '~~'),
+      (editor) => editor.chain().focus().toggleStrike().run()
+    );
 
-  const toggleCode = () => runMarkdownCommand(
-    options,
-    sourceEditor => sourceEditor.wrapSelection('`', '`'),
-    editor => editor.chain().focus().toggleCode().run()
-  );
+  const toggleCode = () =>
+    runMarkdownCommand(
+      options,
+      (sourceEditor) => sourceEditor.wrapSelection('`', '`'),
+      (editor) => editor.chain().focus().toggleCode().run()
+    );
 
-  const clearFormat = () => runMarkdownCommand(
-    options,
-    () => undefined,
-    editor => editor.chain().focus().clearNodes().unsetAllMarks().run()
-  );
+  const clearFormat = () =>
+    runMarkdownCommand(
+      options,
+      () => undefined,
+      (editor) => editor.chain().focus().clearNodes().unsetAllMarks().run()
+    );
 
-  const toggleBulletList = () => runMarkdownCommand(
-    options,
-    sourceEditor => sourceEditor.insertLinePrefix('- '),
-    editor => toggleListForSelection(editor, 'bulletList')
-  );
+  const toggleBulletList = () =>
+    runMarkdownCommand(
+      options,
+      (sourceEditor) => sourceEditor.insertLinePrefix('- '),
+      (editor) => toggleListForSelection(editor, 'bulletList')
+    );
 
-  const toggleOrderedList = () => runMarkdownCommand(
-    options,
-    sourceEditor => sourceEditor.insertLinePrefix('1. '),
-    editor => toggleListForSelection(editor, 'orderedList')
-  );
+  const toggleOrderedList = () =>
+    runMarkdownCommand(
+      options,
+      (sourceEditor) => sourceEditor.insertLinePrefix('1. '),
+      (editor) => toggleListForSelection(editor, 'orderedList')
+    );
 
-  const toggleTaskList = () => runMarkdownCommand(
-    options,
-    sourceEditor => sourceEditor.insertLinePrefix('- [ ] '),
-    editor => toggleListForSelection(editor, 'taskList')
-  );
+  const toggleTaskList = () =>
+    runMarkdownCommand(
+      options,
+      (sourceEditor) => sourceEditor.insertLinePrefix('- [ ] '),
+      (editor) => toggleListForSelection(editor, 'taskList')
+    );
 
-  const setHeading = (level: HeadingLevel) => runMarkdownCommand(
-    options,
-    sourceEditor => sourceEditor.insertLinePrefix(`${'#'.repeat(level)} `),
-    editor => editor.chain().focus().setHeading({ level }).run()
-  );
+  const setHeading = (level: HeadingLevel) =>
+    runMarkdownCommand(
+      options,
+      (sourceEditor) => sourceEditor.insertLinePrefix(`${'#'.repeat(level)} `),
+      (editor) => editor.chain().focus().setHeading({ level }).run()
+    );
 
-  const setParagraph = () => runMarkdownCommand(
-    options,
-    () => undefined,
-    editor => editor.chain().focus().setParagraph().run()
-  );
+  const setParagraph = () =>
+    runMarkdownCommand(
+      options,
+      () => undefined,
+      (editor) => editor.chain().focus().setParagraph().run()
+    );
 
-  const toggleBlockquote = () => runMarkdownCommand(
-    options,
-    sourceEditor => sourceEditor.insertLinePrefix('> '),
-    editor => editor.chain().focus().toggleBlockquote().run()
-  );
+  const toggleBlockquote = () =>
+    runMarkdownCommand(
+      options,
+      (sourceEditor) => sourceEditor.insertLinePrefix('> '),
+      (editor) => editor.chain().focus().toggleBlockquote().run()
+    );
 
-  const insertCodeBlock = () => runMarkdownCommand(
-    options,
-    sourceEditor => {
-      sourceEditor.insertText('```\n\n```');
-      focusInsertedCodeFence(sourceEditor);
-    },
-    editor => toggleCodeBlockForSelection(editor)
-  );
+  const insertCodeBlock = () =>
+    runMarkdownCommand(
+      options,
+      (sourceEditor) => {
+        sourceEditor.insertText('```\n\n```');
+        focusInsertedCodeFence(sourceEditor);
+      },
+      (editor) => toggleCodeBlockForSelection(editor)
+    );
 
   const formatCodeBlock = async () => {
     const editor = options.getEditor();
@@ -210,9 +233,18 @@ export function useContextMenuCommands(options: UseContextMenuCommandsOptions) {
 
       if (result.formatted !== code) {
         const oldOffset = selection.from - contentStart;
-        const nextOffset = Math.min(Math.max(0, oldOffset), result.formatted.length);
-        const tr = state.tr.insertText(result.formatted, contentStart, contentEnd);
-        tr.setSelection(TextSelection.create(tr.doc, contentStart + nextOffset));
+        const nextOffset = Math.min(
+          Math.max(0, oldOffset),
+          result.formatted.length
+        );
+        const tr = state.tr.insertText(
+          result.formatted,
+          contentStart,
+          contentEnd
+        );
+        tr.setSelection(
+          TextSelection.create(tr.doc, contentStart + nextOffset)
+        );
         editor.view.dispatch(tr.scrollIntoView());
       }
     } catch (error) {
@@ -228,11 +260,12 @@ export function useContextMenuCommands(options: UseContextMenuCommandsOptions) {
     }
   };
 
-  const insertHorizontalRule = () => runMarkdownCommand(
-    options,
-    sourceEditor => sourceEditor.insertText('\n---\n'),
-    editor => editor.chain().focus().setHorizontalRule().run()
-  );
+  const insertHorizontalRule = () =>
+    runMarkdownCommand(
+      options,
+      (sourceEditor) => sourceEditor.insertText('\n---\n'),
+      (editor) => editor.chain().focus().setHorizontalRule().run()
+    );
 
   const handleAddLink = () => {
     const sourceEditor = options.getSourceEditor();
@@ -251,7 +284,12 @@ export function useContextMenuCommands(options: UseContextMenuCommandsOptions) {
             editor.chain().focus().setLink({ href: url.trim() }).run();
           }
         } else {
-          editor.chain().focus().insertContent('[[]]').setTextSelection(from + 2).run();
+          editor
+            .chain()
+            .focus()
+            .insertContent('[[]]')
+            .setTextSelection(from + 2)
+            .run();
         }
       }
     }
@@ -269,12 +307,16 @@ export function useContextMenuCommands(options: UseContextMenuCommandsOptions) {
         const selectedText = editor.state.doc.textBetween(from, to, ' ');
 
         if (selectedText && selectedText.trim()) {
-          editor.chain().focus()
+          editor
+            .chain()
+            .focus()
             .insertContent(`[${selectedText}]()`)
             .setTextSelection(from + selectedText.length + 3)
             .run();
         } else {
-          editor.chain().focus()
+          editor
+            .chain()
+            .focus()
             .insertContent('[]()')
             .setTextSelection(from + 1)
             .run();
@@ -299,12 +341,12 @@ export function useContextMenuCommands(options: UseContextMenuCommandsOptions) {
     const sourceEditor = options.getSourceEditor();
     if (isSourceMode(options) && sourceEditor) {
       sourceEditor.focus();
-      clipboard.readText().then(text => {
+      clipboard.readText().then((text) => {
         options.getSourceEditor()?.insertText(text);
       });
     } else {
       options.getEditor()?.chain().focus().run();
-      clipboard.readText().then(text => {
+      clipboard.readText().then((text) => {
         options.getEditor()?.chain().focus().insertContent(text).run();
       });
     }

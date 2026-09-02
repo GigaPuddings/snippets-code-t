@@ -117,11 +117,13 @@ export const exportRecording = (
   trimEndMs?: number
 ): Promise<RecordingExportResult> =>
   invokeWithLog('screen_recorder_export_recording', {
-    format: settings.format,
-    fps: settings.fps,
-    quality: settings.quality,
-    savePath: settings.savePath,
-    durationMs,
-    trimStartMs,
-    trimEndMs
+    request: {
+      format: settings.format,
+      fps: settings.fps,
+      quality: settings.quality,
+      savePath: settings.savePath,
+      durationMs,
+      trimStartMs,
+      trimEndMs
+    }
   });

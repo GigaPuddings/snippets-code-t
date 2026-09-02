@@ -72,7 +72,6 @@ div:focus {
   outline: none;
 }
 
-
 // 自定义滚动条样式（包括虚拟滚动）
 .local-list,
 .vue-recycle-scroller__item-view,
@@ -108,26 +107,26 @@ div:focus {
   }
 
   &::-webkit-scrollbar-thumb {
+    min-width: 44px;
+    min-height: 44px;
     background: transparent;
     background-clip: padding-box;
     border: 2px solid transparent;
-    min-width: 44px;
-    min-height: 44px;
     border-radius: 4px;
     transition: background 0.3s;
   }
 
   // 鼠标悬停时显示滚动条
   &:hover {
-    scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+    scrollbar-color: rgb(0 0 0 / 20%) transparent;
 
     &::-webkit-scrollbar-thumb {
-      background: rgba(0, 0, 0, 0.2);
+      background: rgb(0 0 0 / 20%);
       background-clip: padding-box;
     }
 
     &::-webkit-scrollbar-thumb:hover {
-      background: rgba(0, 0, 0, 0.34);
+      background: rgb(0 0 0 / 34%);
       background-clip: padding-box;
     }
   }
@@ -177,15 +176,15 @@ html.dark .form-panel,
 html.dark .code-block-shell,
 html.dark .message-list {
   &:hover {
-    scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+    scrollbar-color: rgb(255 255 255 / 20%) transparent;
 
     &::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.2);
+      background: rgb(255 255 255 / 20%);
       background-clip: padding-box;
     }
 
     &::-webkit-scrollbar-thumb:hover {
-      background: rgba(255, 255, 255, 0.4);
+      background: rgb(255 255 255 / 40%);
       background-clip: padding-box;
     }
   }

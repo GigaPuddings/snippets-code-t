@@ -65,25 +65,25 @@ export const Wikilink = Mark.create<WikilinkOptions>({
 
   // @ts-expect-error - Custom commands for wikilink, type is complex
   addCommands() {
-    const self = this;
+    const extensionName = this.name;
     return {
       setWikilink:
         (noteName: string) =>
         // @ts-expect-error - TipTap commands type is complex, this is a known pattern in the codebase
         ({ commands }) => {
-          return commands.setMark(self.name, { noteName });
+          return commands.setMark(extensionName, { noteName });
         },
       toggleWikilink:
         (noteName: string) =>
         // @ts-expect-error - TipTap commands type is complex
         ({ commands }) => {
-          return commands.toggleMark(self.name, { noteName });
+          return commands.toggleMark(extensionName, { noteName });
         },
       unsetWikilink:
         () =>
         // @ts-expect-error - TipTap commands type is complex
         ({ commands }) => {
-          return commands.unsetMark(self.name);
+          return commands.unsetMark(extensionName);
         }
     };
   },
@@ -105,7 +105,7 @@ export const Wikilink = Mark.create<WikilinkOptions>({
         key: new PluginKey('wikilink'),
         appendTransaction: (transactions, _oldState, _newState) => {
           // 检查是否有文档内容变化
-          const docChanged = transactions.some(tr => tr.docChanged);
+          const docChanged = transactions.some((tr) => tr.docChanged);
           if (docChanged) {
             // 文档变化时清除缓存，强制重新计算
             cachedDecorations = null;
@@ -131,8 +131,9 @@ export const Wikilink = Mark.create<WikilinkOptions>({
 
             const decorations: ReturnType<typeof Decoration.inline>[] = [];
             const doc = state.doc;
-            const isFocused = state.selection.from !== state.selection.to ||
-                            document.activeElement?.classList.contains('ProseMirror');
+            const isFocused =
+              state.selection.from !== state.selection.to ||
+              document.activeElement?.classList.contains('ProseMirror');
 
             doc.descendants((node, pos) => {
               if (!node.isText) {
@@ -140,7 +141,9 @@ export const Wikilink = Mark.create<WikilinkOptions>({
               }
 
               // 检查节点是否有 code mark（在反引号内）
-              const hasCodeMark = node.marks.some((mark) => mark.type.name === 'code');
+              const hasCodeMark = node.marks.some(
+                (mark) => mark.type.name === 'code'
+              );
               if (hasCodeMark) {
                 return;
               }
@@ -155,7 +158,8 @@ export const Wikilink = Mark.create<WikilinkOptions>({
                 const from = pos + match.index;
                 const to = from + match[0].length;
 
-                const cursorInside = selection.from >= from && selection.from <= to;
+                const cursorInside =
+                  selection.from >= from && selection.from <= to;
 
                 const baseDecorationSpec = {
                   class: 'wikilink-decoration',
@@ -197,12 +201,16 @@ export const Wikilink = Mark.create<WikilinkOptions>({
           handleClick: (_view, _pos, event: MouseEvent): boolean => {
             const target = event.target as HTMLElement;
 
-            const wikilinkElement = target.classList.contains('wikilink-decoration')
+            const wikilinkElement = target.classList.contains(
+              'wikilink-decoration'
+            )
               ? target
               : target.closest('.wikilink-decoration');
 
             if (wikilinkElement) {
-              const noteName = (wikilinkElement as HTMLElement).getAttribute('data-note-name');
+              const noteName = (wikilinkElement as HTMLElement).getAttribute(
+                'data-note-name'
+              );
               if (noteName && onLinkClick && (event.ctrlKey || event.metaKey)) {
                 event.preventDefault();
                 event.stopPropagation();
@@ -217,15 +225,24 @@ export const Wikilink = Mark.create<WikilinkOptions>({
             click: (_view, event: MouseEvent): boolean => {
               const target = event.target as HTMLElement;
 
-              const wikilinkElement = target.classList.contains('wikilink-decoration')
+              const wikilinkElement = target.classList.contains(
+                'wikilink-decoration'
+              )
                 ? target
                 : target.closest('.wikilink-decoration');
 
               if (wikilinkElement) {
-                const noteName = (wikilinkElement as HTMLElement).getAttribute('data-note-name');
-                const editorElement = (event.currentTarget as HTMLElement | null);
-                const isReadonly = editorElement?.getAttribute('contenteditable') === 'false';
-                if (noteName && onLinkClick && (isReadonly || event.ctrlKey || event.metaKey)) {
+                const noteName = (wikilinkElement as HTMLElement).getAttribute(
+                  'data-note-name'
+                );
+                const editorElement = event.currentTarget as HTMLElement | null;
+                const isReadonly =
+                  editorElement?.getAttribute('contenteditable') === 'false';
+                if (
+                  noteName &&
+                  onLinkClick &&
+                  (isReadonly || event.ctrlKey || event.metaKey)
+                ) {
                   event.preventDefault();
                   event.stopPropagation();
                   onLinkClick(noteName);

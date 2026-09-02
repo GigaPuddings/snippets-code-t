@@ -14,26 +14,15 @@
   "category": "search",
   "enabledByDefault": true,
   "capabilities": {
-    "routeNames": [
-      "Local"
-    ],
-    "settingsTabs": [
-      "local"
-    ],
-    "searchSources": [
-      "apps",
-      "bookmarks"
-    ]
+    "routeNames": ["Local"],
+    "settingsTabs": ["local"],
+    "searchSources": ["apps", "bookmarks"]
   },
-  "permissions": [
-    "command:*"
-  ],
+  "permissions": ["command:*"],
   "compatibleAppVersion": ">=2.1.54",
   "entry": {
     "frontend": "dist/frontend.js",
-    "styles": [
-      "dist/assets/runtime-entry-C-cqCHga.css"
-    ]
+    "styles": ["dist/assets/runtime-entry-C-cqCHga.css"]
   },
   "storage": {
     "schemaVersion": 1,

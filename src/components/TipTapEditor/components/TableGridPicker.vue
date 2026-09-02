@@ -74,13 +74,12 @@ const previewRows = ref(props.rows);
 const previewColumns = ref(props.columns);
 const manualRows = ref(props.rows);
 const manualColumns = ref(props.columns);
-const cells = computed(() => Array.from(
-  { length: props.gridRows * props.gridColumns },
-  (_, index) => ({
+const cells = computed(() =>
+  Array.from({ length: props.gridRows * props.gridColumns }, (_, index) => ({
     row: Math.floor(index / props.gridColumns) + 1,
     column: (index % props.gridColumns) + 1
-  })
-));
+  }))
+);
 
 watch(
   () => [props.rows, props.columns] as const,
@@ -126,16 +125,20 @@ const submitManual = () => {
 <style scoped lang="scss">
 .table-grid-picker {
   @apply absolute left-0 top-8 z-20 rounded border;
+
   width: 136px;
   padding: 18px 10px 10px;
   color: var(--panel-text);
   background: var(--panel-bg);
   border-color: var(--panel-border);
-  box-shadow: 0 5px 14px rgb(15 23 42 / 14%), 0 1px 4px rgb(15 23 42 / 8%);
+  box-shadow:
+    0 5px 14px rgb(15 23 42 / 14%),
+    0 1px 4px rgb(15 23 42 / 8%);
 }
 
 .table-grid-picker::before {
   @apply absolute -top-1 left-3 h-2 w-2 rotate-45 border-l border-t;
+
   content: '';
   background: var(--panel-bg);
   border-color: var(--panel-border);
@@ -147,21 +150,38 @@ const submitManual = () => {
 
 .table-grid-picker__cell {
   @apply h-[13px] w-[13px] border p-0;
+
   background: transparent;
   border-color: var(--panel-border);
 
   &.header {
-    background: color-mix(in srgb, var(--panel-text-secondary) 22%, transparent);
+    background: color-mix(
+      in srgb,
+      var(--panel-text-secondary) 22%,
+      transparent
+    );
   }
 
   &.active {
-    background: color-mix(in srgb, var(--panel-text-secondary) 62%, var(--panel-bg));
-    border-color: color-mix(in srgb, var(--panel-text-secondary) 72%, var(--panel-border));
+    background: color-mix(
+      in srgb,
+      var(--panel-text-secondary) 62%,
+      var(--panel-bg)
+    );
+    border-color: color-mix(
+      in srgb,
+      var(--panel-text-secondary) 72%,
+      var(--panel-border)
+    );
   }
 
   &.header.active {
     background: color-mix(in srgb, var(--panel-text) 76%, var(--panel-bg));
-    border-color: color-mix(in srgb, var(--panel-text) 76%, var(--panel-border));
+    border-color: color-mix(
+      in srgb,
+      var(--panel-text) 76%,
+      var(--panel-border)
+    );
   }
 
   &:focus-visible {
@@ -171,13 +191,15 @@ const submitManual = () => {
 
 .table-grid-picker__manual {
   @apply mt-2.5 flex items-center justify-center gap-1 border-t pt-2.5 text-sm;
+
   border-color: var(--panel-border);
 
   input {
     @apply h-6 w-7 rounded-sm border bg-transparent px-0.5 text-center text-xs outline-none;
+
     color: var(--panel-text);
-    border-color: var(--panel-border);
     appearance: textfield;
+    border-color: var(--panel-border);
 
     &:focus {
       border-color: var(--el-color-primary);

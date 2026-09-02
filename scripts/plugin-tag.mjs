@@ -3,9 +3,15 @@ import { execFileSync, execSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import readline from 'node:readline';
-import { MARKETPLACE_PATH, pluginRepositories, ROOT } from './plugin-release-config.mjs';
+import {
+  MARKETPLACE_PATH,
+  pluginRepositories,
+  ROOT
+} from './plugin-release-config.mjs';
 
-const packageJson = JSON.parse(await readFile(resolve(ROOT, 'package.json'), 'utf8'));
+const packageJson = JSON.parse(
+  await readFile(resolve(ROOT, 'package.json'), 'utf8')
+);
 const REMOTE_MARKETPLACE_URL =
   'https://raw.githubusercontent.com/GigaPuddings/snippets-code-t/main/plugin-registry/marketplace/marketplace.json';
 const REMOTE_MARKETPLACE_API_URL =
@@ -35,7 +41,10 @@ function readOption(name) {
 function readListOption(name) {
   const value = readOption(name);
   return value
-    ? value.split(/[,\s]+/).map((item) => item.trim()).filter(Boolean)
+    ? value
+        .split(/[,\s]+/)
+        .map((item) => item.trim())
+        .filter(Boolean)
     : [];
 }
 
@@ -51,29 +60,32 @@ const options = {
   minAppVersion: readOption('--min-app-version')
 };
 
-const question = (query) => new Promise((resolveQuestion, rejectQuestion) => {
-  const cleanup = () => rl.off('close', onClose);
-  const onClose = () => {
-    cleanup();
-    rejectQuestion(new Error('未收到输入，插件发布已取消'));
-  };
-
-  rl.once('close', onClose);
-  try {
-    rl.question(query, (answer) => {
+const question = (query) =>
+  new Promise((resolveQuestion, rejectQuestion) => {
+    const cleanup = () => rl.off('close', onClose);
+    const onClose = () => {
       cleanup();
-      resolveQuestion(answer);
-    });
-  } catch {
-    cleanup();
-    rejectQuestion(new Error('未收到输入，插件发布已取消'));
-  }
-});
+      rejectQuestion(new Error('未收到输入，插件发布已取消'));
+    };
+
+    rl.once('close', onClose);
+    try {
+      rl.question(query, (answer) => {
+        cleanup();
+        resolveQuestion(answer);
+      });
+    } catch {
+      cleanup();
+      rejectQuestion(new Error('未收到输入，插件发布已取消'));
+    }
+  });
 
 function formatPluginOption(row) {
   const kind = row.plugin.kind === 'resource' ? 'resource' : 'feature';
   const marker = row.needsUpdate ? '*' : ' ';
-  const reason = row.updateReasons.length ? ` ${row.updateReasons.join(', ')}` : '';
+  const reason = row.updateReasons.length
+    ? ` ${row.updateReasons.join(', ')}`
+    : '';
   return `${marker} ${row.plugin.id.padEnd(28)} ${row.version.padEnd(10)} ${kind.padEnd(8)} ${row.name}${reason}`;
 }
 
@@ -84,12 +96,18 @@ function clearSelect(lines) {
 
 async function selectPlugins(rows) {
   if (options.only.length > 0) {
-    const selectedRows = options.only.map((id) => rows.find((row) => row.plugin.id === id));
-    const missingIds = options.only.filter((_id, index) => !selectedRows[index]);
+    const selectedRows = options.only.map((id) =>
+      rows.find((row) => row.plugin.id === id)
+    );
+    const missingIds = options.only.filter(
+      (_id, index) => !selectedRows[index]
+    );
     if (missingIds.length > 0) {
       throw new Error(`未知插件 ID: ${missingIds.join(', ')}`);
     }
-    return [...new Map(selectedRows.map((row) => [row.plugin.id, row])).values()];
+    return [
+      ...new Map(selectedRows.map((row) => [row.plugin.id, row])).values()
+    ];
   }
 
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
@@ -105,7 +123,9 @@ async function selectPlugins(rows) {
 
   const render = () => {
     if (renderedLines > 0) clearSelect(renderedLines);
-    console.log('\n请选择要更新的插件，使用 ↑/↓ 切换，Space 多选，a 全选/取消，Enter 确认，Esc 取消:');
+    console.log(
+      '\n请选择要更新的插件，使用 ↑/↓ 切换，Space 多选，a 全选/取消，Enter 确认，Esc 取消:'
+    );
     console.log('* 表示检测到相关本地文件有改动\n');
     for (const [optionIndex, row] of rows.entries()) {
       const marker = optionIndex === index ? '>' : ' ';
@@ -149,7 +169,9 @@ async function selectPlugins(rows) {
         const selectedRows = selectedIndexes
           .sort((left, right) => left - right)
           .map((selectedIndex) => rows[selectedIndex]);
-        console.log(`\n已选择: ${selectedRows.map((row) => row.plugin.id).join(', ')}`);
+        console.log(
+          `\n已选择: ${selectedRows.map((row) => row.plugin.id).join(', ')}`
+        );
         resolveSelect(selectedRows);
       } else if (key.name === 'escape' || (key.ctrl && key.name === 'c')) {
         cleanup();
@@ -170,7 +192,9 @@ function run(command, args, options = {}) {
       stdio: options.inherit ? 'inherit' : 'pipe'
     })?.trim();
   } catch (error) {
-    throw new Error(`执行命令失败: ${command} ${args.join(' ')}\n${error.message}`);
+    throw new Error(
+      `执行命令失败: ${command} ${args.join(' ')}\n${error.message}`
+    );
   }
 }
 
@@ -195,7 +219,10 @@ const normalizeRepoPath = (path) => path.replaceAll('\\', '/');
 const pathStartsWith = (path, dir) => {
   const normalizedPath = normalizeRepoPath(path);
   const normalizedDir = normalizeRepoPath(dir).replace(/\/+$/g, '');
-  return normalizedPath === normalizedDir || normalizedPath.startsWith(`${normalizedDir}/`);
+  return (
+    normalizedPath === normalizedDir ||
+    normalizedPath.startsWith(`${normalizedDir}/`)
+  );
 };
 
 function pluginRelevantDirs(plugin) {
@@ -208,14 +235,16 @@ function pluginRelevantDirs(plugin) {
 
 function pluginChangedPaths(plugin, changedPaths) {
   const dirs = pluginRelevantDirs(plugin);
-  return changedPaths.filter((path) => dirs.some((dir) => pathStartsWith(path, dir)));
+  return changedPaths.filter((path) =>
+    dirs.some((dir) => pathStartsWith(path, dir))
+  );
 }
 
 function versionNeedsSync(marketplaceItem, manifest) {
   return Boolean(
     marketplaceItem?.version &&
-    manifest?.version &&
-    marketplaceItem.version !== manifest.version
+      manifest?.version &&
+      marketplaceItem.version !== manifest.version
   );
 }
 
@@ -225,9 +254,11 @@ async function getMarketplaceItemsById() {
 }
 
 async function getSourceManifest(plugin) {
-  const manifestPath = plugin.resourceSourceDir && existsSync(resolve(ROOT, plugin.resourceSourceDir, 'plugin.json'))
-    ? resolve(ROOT, plugin.resourceSourceDir, 'plugin.json')
-    : resolve(ROOT, plugin.sourceDir, 'plugin.json');
+  const manifestPath =
+    plugin.resourceSourceDir &&
+    existsSync(resolve(ROOT, plugin.resourceSourceDir, 'plugin.json'))
+      ? resolve(ROOT, plugin.resourceSourceDir, 'plugin.json')
+      : resolve(ROOT, plugin.sourceDir, 'plugin.json');
   if (!existsSync(manifestPath)) return null;
   return await readJson(manifestPath);
 }
@@ -250,7 +281,10 @@ async function listPlugins(changedPaths = []) {
       plugin,
       marketplaceItem,
       manifest,
-      name: getPluginDisplayName(marketplaceItem) ?? getPluginDisplayName(manifest) ?? plugin.id,
+      name:
+        getPluginDisplayName(marketplaceItem) ??
+        getPluginDisplayName(manifest) ??
+        plugin.id,
       version: marketplaceItem?.version ?? manifest?.version ?? 'unknown',
       changedPaths: changed,
       updateReasons,
@@ -264,16 +298,23 @@ async function listPlugins(changedPaths = []) {
 function printPluginList(rows) {
   console.log('\n可发布插件列表:');
   for (const [index, row] of rows.entries()) {
-    console.log(`${String(index + 1).padStart(2, ' ')}. ${formatPluginOption(row)}`);
+    console.log(
+      `${String(index + 1).padStart(2, ' ')}. ${formatPluginOption(row)}`
+    );
   }
 }
 
 async function choosePluginsByText(rows) {
   printPluginList(rows);
-  const answer = (await question('\n请选择要更新的插件序号或 ID（多个用空格或逗号分隔，changed 选择有改动项）: ')).trim();
-  const values = answer === 'changed'
-    ? rows.filter((row) => row.needsUpdate).map((row) => row.plugin.id)
-    : answer.split(/[,\s]+/).filter(Boolean);
+  const answer = (
+    await question(
+      '\n请选择要更新的插件序号或 ID（多个用空格或逗号分隔，changed 选择有改动项）: '
+    )
+  ).trim();
+  const values =
+    answer === 'changed'
+      ? rows.filter((row) => row.needsUpdate).map((row) => row.plugin.id)
+      : answer.split(/[,\s]+/).filter(Boolean);
 
   const selectedRows = values.map((value) => {
     const index = Number(value);
@@ -296,19 +337,23 @@ async function confirmRelease(rows, versionsByPluginId) {
   console.log('\n即将发布插件:');
   for (const row of rows) {
     console.log(
-      `- ${row.plugin.id}: ${row.version} -> ${versionsByPluginId.get(row.plugin.id)} `
-      + `(min app ${versionsByPluginId.get(`${row.plugin.id}:minAppVersion`)}, `
-      + `GigaPuddings/${row.plugin.repo})`
+      `- ${row.plugin.id}: ${row.version} -> ${versionsByPluginId.get(row.plugin.id)} ` +
+        `(min app ${versionsByPluginId.get(`${row.plugin.id}:minAppVersion`)}, ` +
+        `GigaPuddings/${row.plugin.repo})`
     );
   }
-  console.log(`主仓库同步: ${options.pushMain ? `${options.commitCurrent ? 'git add -A' : 'git add 插件相关文件'} && git commit && git push origin main` : '已禁用'}`);
+  console.log(
+    `主仓库同步: ${options.pushMain ? `${options.commitCurrent ? 'git add -A' : 'git add 插件相关文件'} && git commit && git push origin main` : '已禁用'}`
+  );
 
   if (options.yes) {
     console.log('\n已按 --yes 跳过确认');
     return;
   }
 
-  const confirm = (await question('\n确认继续发布？(Y/n): ')).trim().toLowerCase();
+  const confirm = (await question('\n确认继续发布？(Y/n): '))
+    .trim()
+    .toLowerCase();
   if (confirm === 'n') {
     console.log('操作已取消');
     process.exit(0);
@@ -323,7 +368,9 @@ async function askVersion(row) {
     console.log(`新的插件版本号: ${options.version}`);
     return options.version;
   }
-  const version = (await question('请输入新的插件版本号 (例如: 2.0.4): ')).trim();
+  const version = (
+    await question('请输入新的插件版本号 (例如: 2.0.4): ')
+  ).trim();
   assertVersion(version);
   return version;
 }
@@ -380,11 +427,13 @@ function gitLines(args) {
 }
 
 function listMainRepoChanges() {
-  return [...new Set([
-    ...gitLines(['diff', '--name-only']),
-    ...gitLines(['diff', '--cached', '--name-only']),
-    ...gitLines(['ls-files', '--others', '--exclude-standard'])
-  ])];
+  return [
+    ...new Set([
+      ...gitLines(['diff', '--name-only']),
+      ...gitLines(['diff', '--cached', '--name-only']),
+      ...gitLines(['ls-files', '--others', '--exclude-standard'])
+    ])
+  ];
 }
 
 function assertMainRepoClean() {
@@ -396,14 +445,19 @@ function assertMainRepoClean() {
       return;
     }
     throw new Error(
-      `插件发布前工作区必须干净，请先提交或处理以下文件:\n${changes.join('\n')}\n`
-      + '如果这是上一次发布中断后留下的文件，请使用 pnpm plugins:tag -- --allow-dirty 恢复发布。'
+      `插件发布前工作区必须干净，请先提交或处理以下文件:\n${changes.join('\n')}\n` +
+        '如果这是上一次发布中断后留下的文件，请使用 pnpm plugins:tag -- --allow-dirty 恢复发布。'
     );
   }
 }
 
 async function confirmOverwritePluginTag(plugin, version) {
-  const output = run('git', ['ls-remote', '--tags', `git@github.com:GigaPuddings/${plugin.repo}.git`, `refs/tags/${version}`]);
+  const output = run('git', [
+    'ls-remote',
+    '--tags',
+    `git@github.com:GigaPuddings/${plugin.repo}.git`,
+    `refs/tags/${version}`
+  ]);
   if (!output) return false;
 
   if (options.forceTag) {
@@ -413,12 +467,16 @@ async function confirmOverwritePluginTag(plugin, version) {
 
   if (options.yes) {
     throw new Error(
-      `插件仓库标签 ${plugin.id} ${version} 已存在。请递增插件版本重新发布，`
-      + '或显式添加 --force-tag 覆盖标签。'
+      `插件仓库标签 ${plugin.id} ${version} 已存在。请递增插件版本重新发布，` +
+        '或显式添加 --force-tag 覆盖标签。'
     );
   }
 
-  const overwrite = (await question(`\n插件仓库标签 ${version} 已存在，是否覆盖？(y/N): `)).trim().toLowerCase();
+  const overwrite = (
+    await question(`\n插件仓库标签 ${version} 已存在，是否覆盖？(y/N): `)
+  )
+    .trim()
+    .toLowerCase();
   if (overwrite !== 'y') {
     console.log('操作已取消');
     process.exit(0);
@@ -431,13 +489,19 @@ async function confirmOverwritePluginTags(rows, versionsByPluginId) {
   for (const row of rows) {
     forceTagsByPluginId.set(
       row.plugin.id,
-      await confirmOverwritePluginTag(row.plugin, versionsByPluginId.get(row.plugin.id))
+      await confirmOverwritePluginTag(
+        row.plugin,
+        versionsByPluginId.get(row.plugin.id)
+      )
     );
   }
   return forceTagsByPluginId;
 }
 
-async function assertDependencyTagsAvailable(row, selectedPluginIds = new Set()) {
+async function assertDependencyTagsAvailable(
+  row,
+  selectedPluginIds = new Set()
+) {
   const dependencies = row.marketplaceItem?.dependencies ?? [];
   if (dependencies.length === 0) return;
 
@@ -446,7 +510,9 @@ async function assertDependencyTagsAvailable(row, selectedPluginIds = new Set())
     if (selectedPluginIds.has(dependencyId)) continue;
 
     const dependency = marketplaceItemsById.get(dependencyId);
-    const dependencyPlugin = pluginRepositories.find((plugin) => plugin.id === dependencyId);
+    const dependencyPlugin = pluginRepositories.find(
+      (plugin) => plugin.id === dependencyId
+    );
     if (!dependencyPlugin || !dependency?.version) continue;
 
     const output = run('git', [
@@ -457,8 +523,8 @@ async function assertDependencyTagsAvailable(row, selectedPluginIds = new Set())
     ]);
     if (!output) {
       throw new Error(
-        `${row.plugin.id}: 依赖 ${dependencyId} 的远程标签 ${dependency.version} 不存在，`
-        + `请先运行 pnpm plugins:tag 发布 ${dependencyId} ${dependency.version}`
+        `${row.plugin.id}: 依赖 ${dependencyId} 的远程标签 ${dependency.version} 不存在，` +
+          `请先运行 pnpm plugins:tag 发布 ${dependencyId} ${dependency.version}`
       );
     }
   }
@@ -490,9 +556,10 @@ function runBuildSteps(plugin, version) {
   if (plugin.packageCommand) {
     const [command, ...args] = plugin.packageCommand.split(' ');
     console.log(`\n正在生成 ${plugin.id} 资源包...`);
-    const versionArgs = command === 'pnpm'
-      ? ['--', '--version', version]
-      : ['--version', version];
+    const versionArgs =
+      command === 'pnpm'
+        ? ['--', '--version', version]
+        : ['--version', version];
     run(command, [...args, ...versionArgs], { inherit: true });
     return;
   }
@@ -522,15 +589,25 @@ function commitAndPushMainRepo(rows, versionsByPluginId) {
     run('git', ['add', '-A'], { inherit: true });
   } else {
     const pluginPaths = rows.flatMap((row) => pluginRelevantDirs(row.plugin));
-    run('git', ['add', '-A', '--', 'plugin-registry/marketplace/marketplace.json', ...pluginPaths], { inherit: true });
+    run(
+      'git',
+      [
+        'add',
+        '-A',
+        '--',
+        'plugin-registry/marketplace/marketplace.json',
+        ...pluginPaths
+      ],
+      { inherit: true }
+    );
     const unstagedChanges = [
       ...gitLines(['diff', '--name-only']),
       ...gitLines(['ls-files', '--others', '--exclude-standard'])
     ];
     if (unstagedChanges.length > 0) {
       throw new Error(
-        `插件发布产生了未纳入当前插件包的文件，请检查后重试:\n${unstagedChanges.join('\n')}\n`
-        + '如果这些文件也属于本次发布，请使用 --commit-current 让发布命令统一提交。'
+        `插件发布产生了未纳入当前插件包的文件，请检查后重试:\n${unstagedChanges.join('\n')}\n` +
+          '如果这些文件也属于本次发布，请使用 --commit-current 让发布命令统一提交。'
       );
     }
   }
@@ -542,7 +619,11 @@ function commitAndPushMainRepo(rows, versionsByPluginId) {
     const releaseLabel = rows
       .map((row) => `${row.plugin.id} ${versionsByPluginId.get(row.plugin.id)}`)
       .join(', ');
-    run('git', ['commit', '-m', `release(plugin): ${releaseLabel}`, '--no-verify'], { inherit: true });
+    run(
+      'git',
+      ['commit', '-m', `release(plugin): ${releaseLabel}`, '--no-verify'],
+      { inherit: true }
+    );
   }
 
   console.log('正在推送到 origin main...');
@@ -566,15 +647,18 @@ async function readRemoteMarketplaceRawJson(attempt) {
 }
 
 async function readRemoteMarketplaceApiJson(attempt) {
-  const response = await fetch(`${REMOTE_MARKETPLACE_API_URL}&release_check=${Date.now()}-${attempt}`, {
-    headers: {
-      accept: 'application/vnd.github+json',
-      'cache-control': 'no-cache',
-      'user-agent': 'snippets-code-plugin-release',
-      'x-github-api-version': '2022-11-28'
-    },
-    signal: AbortSignal.timeout(15000)
-  });
+  const response = await fetch(
+    `${REMOTE_MARKETPLACE_API_URL}&release_check=${Date.now()}-${attempt}`,
+    {
+      headers: {
+        accept: 'application/vnd.github+json',
+        'cache-control': 'no-cache',
+        'user-agent': 'snippets-code-plugin-release',
+        'x-github-api-version': '2022-11-28'
+      },
+      signal: AbortSignal.timeout(15000)
+    }
+  );
   if (!response.ok) {
     throw new Error(`api HTTP ${response.status}`);
   }
@@ -582,7 +666,10 @@ async function readRemoteMarketplaceApiJson(attempt) {
   if (typeof payload.content !== 'string') {
     throw new Error('api response missing content');
   }
-  const jsonText = Buffer.from(payload.content.replace(/\s/g, ''), 'base64').toString('utf8');
+  const jsonText = Buffer.from(
+    payload.content.replace(/\s/g, ''),
+    'base64'
+  ).toString('utf8');
   return JSON.parse(jsonText);
 }
 
@@ -609,12 +696,16 @@ async function readRemoteMarketplaceCandidates(attempt) {
 }
 
 function remoteMarketplaceMismatch(marketplace, rows, versionsByPluginId) {
-  const itemsById = new Map((marketplace.plugins ?? []).map((item) => [item.id, item]));
+  const itemsById = new Map(
+    (marketplace.plugins ?? []).map((item) => [item.id, item])
+  );
 
   for (const row of rows) {
     const item = itemsById.get(row.plugin.id);
     const version = versionsByPluginId.get(row.plugin.id);
-    const minAppVersion = versionsByPluginId.get(`${row.plugin.id}:minAppVersion`);
+    const minAppVersion = versionsByPluginId.get(
+      `${row.plugin.id}:minAppVersion`
+    );
     if (!item) {
       return `远程 marketplace 缺少插件 ${row.plugin.id}`;
     }
@@ -653,7 +744,9 @@ async function verifyRemoteMarketplacePublished(rows, versionsByPluginId) {
         );
         if (!mismatch) {
           if (attempt > 1 || candidate.source !== 'raw') {
-            console.log(`[Plugins] 远程 marketplace 校验通过: ${candidate.source}`);
+            console.log(
+              `[Plugins] 远程 marketplace 校验通过: ${candidate.source}`
+            );
           }
           return;
         }
@@ -702,17 +795,26 @@ async function main() {
     const versionsByPluginId = await askVersions(selectedRows);
     await confirmRelease(selectedRows, versionsByPluginId);
     await assertSelectedDependencyTagsAvailable(selectedRows);
-    const forceTagsByPluginId = await confirmOverwritePluginTags(selectedRows, versionsByPluginId);
+    const forceTagsByPluginId = await confirmOverwritePluginTags(
+      selectedRows,
+      versionsByPluginId
+    );
 
     for (const row of selectedRows) {
       const version = versionsByPluginId.get(row.plugin.id);
       runBuildSteps(row.plugin, version);
 
-      console.log(`\n正在同步 ${row.plugin.id} 插件仓库、标签和 marketplace...`);
+      console.log(
+        `\n正在同步 ${row.plugin.id} 插件仓库、标签和 marketplace...`
+      );
       run(
         'node',
         [
-          ...syncArgsFor(row.plugin, version, forceTagsByPluginId.get(row.plugin.id)),
+          ...syncArgsFor(
+            row.plugin,
+            version,
+            forceTagsByPluginId.get(row.plugin.id)
+          ),
           '--min-app-version',
           versionsByPluginId.get(`${row.plugin.id}:minAppVersion`)
         ],
@@ -740,11 +842,11 @@ async function main() {
     await verifyRemoteMarketplacePublished(selectedRows, versionsByPluginId);
 
     console.log(
-      `\n✨ 插件发布完成: ${
-        selectedRows
-          .map((row) => `${row.plugin.id} ${versionsByPluginId.get(row.plugin.id)}`)
-          .join(', ')
-      }`
+      `\n✨ 插件发布完成: ${selectedRows
+        .map(
+          (row) => `${row.plugin.id} ${versionsByPluginId.get(row.plugin.id)}`
+        )
+        .join(', ')}`
     );
   } catch (error) {
     console.error('❌ 错误:', error.message);

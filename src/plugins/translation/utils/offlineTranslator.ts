@@ -1,203 +1,231 @@
-import { convertFileSrc } from '@tauri-apps/api/core'
-import { getLocalPluginResourcePath } from '@/api/plugins'
-import { logger } from '@/utils/logger'
+import { convertFileSrc } from '@tauri-apps/api/core';
+import { getLocalPluginResourcePath } from '@/api/plugins';
+import { logger } from '@/utils/logger';
 
-type TranslationPipeline = (text: string) => Promise<unknown>
+type TranslationPipeline = (text: string) => Promise<unknown>;
 
 interface TransformersModule {
   pipeline: (
     task: string,
     model: string,
     options: Record<string, unknown>
-  ) => Promise<TranslationPipeline>
+  ) => Promise<TranslationPipeline>;
   env: {
-    useBrowserCache: boolean
-    allowRemoteModels: boolean
-    remoteHost?: string
-    remotePathTemplate?: string
-    allowLocalModels?: boolean
-    localModelPath?: string
+    useBrowserCache: boolean;
+    allowRemoteModels: boolean;
+    remoteHost?: string;
+    remotePathTemplate?: string;
+    allowLocalModels?: boolean;
+    localModelPath?: string;
     backends?: {
       onnx?: {
         wasm?: {
-          wasmPaths?: string | Record<string, string>
-          numThreads?: number
-        }
-      }
-    }
-  }
+          wasmPaths?: string | Record<string, string>;
+          numThreads?: number;
+        };
+      };
+    };
+  };
 }
 
-const TRANSFORMERS_RUNTIME_ENTRY = 'resources/transformers/transformers.min.js'
-const TRANSFORMERS_RUNTIME_PACKAGES = ['translation-offline-runtime', 'translation']
-const TRANSFORMERS_REMOTE_HOST = 'https://huggingface.co/'
-const TRANSFORMERS_REMOTE_PATH_TEMPLATE = '{model}/resolve/{revision}/'
-const DISABLED_LOCAL_MODEL_PATH = '/__snippets_code_disabled_transformers_local_models__/'
+const TRANSFORMERS_RUNTIME_ENTRY = 'resources/transformers/transformers.min.js';
+const TRANSFORMERS_RUNTIME_PACKAGES = [
+  'translation-offline-runtime',
+  'translation'
+];
+const TRANSFORMERS_REMOTE_HOST = 'https://huggingface.co/';
+const TRANSFORMERS_REMOTE_PATH_TEMPLATE = '{model}/resolve/{revision}/';
+const DISABLED_LOCAL_MODEL_PATH =
+  '/__snippets_code_disabled_transformers_local_models__/';
 const TRANSFORMERS_WASM_FILES = [
   'ort-wasm-simd-threaded.wasm',
   'ort-wasm-simd.wasm',
   'ort-wasm-threaded.wasm',
   'ort-wasm.wasm'
-]
+];
 const TRANSFORMERS_RUNTIME_RESOURCES = [
   TRANSFORMERS_RUNTIME_ENTRY,
-  ...TRANSFORMERS_WASM_FILES.map(fileName => `resources/transformers/${fileName}`)
-]
-let transformersModulePromise: Promise<TransformersModule> | null = null
+  ...TRANSFORMERS_WASM_FILES.map(
+    (fileName) => `resources/transformers/${fileName}`
+  )
+];
+let transformersModulePromise: Promise<TransformersModule> | null = null;
 
 export interface OfflineRuntimeCandidate {
-  pluginId: string
-  runtimePath: string
+  pluginId: string;
+  runtimePath: string;
 }
 
 /**
  * 只有入口脚本和全部 ONNX WASM 文件都存在时，运行时才算完整安装。
  * 避免生产环境中资源包只下载了一部分，却被界面误判为安装成功。
  */
-export async function getOfflineRuntimeCandidates(): Promise<OfflineRuntimeCandidate[]> {
-  const candidates: OfflineRuntimeCandidate[] = []
+export async function getOfflineRuntimeCandidates(): Promise<
+  OfflineRuntimeCandidate[]
+> {
+  const candidates: OfflineRuntimeCandidate[] = [];
 
   for (const pluginId of TRANSFORMERS_RUNTIME_PACKAGES) {
     const resourcePaths = await Promise.all(
-      TRANSFORMERS_RUNTIME_RESOURCES.map(relativePath =>
+      TRANSFORMERS_RUNTIME_RESOURCES.map((relativePath) =>
         getLocalPluginResourcePath(pluginId, relativePath)
       )
-    )
+    );
 
-    if (resourcePaths.every((resourcePath): resourcePath is string => Boolean(resourcePath))) {
-      candidates.push({ pluginId, runtimePath: resourcePaths[0] })
+    if (
+      resourcePaths.every((resourcePath): resourcePath is string =>
+        Boolean(resourcePath)
+      )
+    ) {
+      candidates.push({ pluginId, runtimePath: resourcePaths[0] });
     }
   }
 
-  return candidates
+  return candidates;
 }
 
 const getLastPathSeparator = (
   value: string
 ): { index: number; length: number } => {
-  const lowerValue = value.toLowerCase()
+  const lowerValue = value.toLowerCase();
   const separators = [
     { index: value.lastIndexOf('/'), length: 1 },
     { index: value.lastIndexOf('\\'), length: 1 },
     { index: lowerValue.lastIndexOf('%5c'), length: 3 },
     { index: lowerValue.lastIndexOf('%2f'), length: 3 }
-  ]
+  ];
 
   return separators.reduce(
-    (latest, current) => current.index > latest.index ? current : latest,
+    (latest, current) => (current.index > latest.index ? current : latest),
     { index: -1, length: 0 }
-  )
-}
+  );
+};
 
 export const getRuntimeBaseUrl = (runtimeUrl: string): string => {
-  const queryIndex = runtimeUrl.search(/[?#]/)
-  const cleanUrl = queryIndex >= 0 ? runtimeUrl.slice(0, queryIndex) : runtimeUrl
-  const separator = getLastPathSeparator(cleanUrl)
+  const queryIndex = runtimeUrl.search(/[?#]/);
+  const cleanUrl =
+    queryIndex >= 0 ? runtimeUrl.slice(0, queryIndex) : runtimeUrl;
+  const separator = getLastPathSeparator(cleanUrl);
   return separator.index >= 0
     ? cleanUrl.slice(0, separator.index + separator.length)
-    : cleanUrl
-}
+    : cleanUrl;
+};
 
-export const getRuntimeWasmPaths = (runtimeUrl: string): Record<string, string> => {
-  const runtimeBaseUrl = getRuntimeBaseUrl(runtimeUrl)
+export const getRuntimeWasmPaths = (
+  runtimeUrl: string
+): Record<string, string> => {
+  const runtimeBaseUrl = getRuntimeBaseUrl(runtimeUrl);
   return Object.fromEntries(
-    TRANSFORMERS_WASM_FILES.map((fileName) => [fileName, `${runtimeBaseUrl}${fileName}`])
-  )
-}
+    TRANSFORMERS_WASM_FILES.map((fileName) => [
+      fileName,
+      `${runtimeBaseUrl}${fileName}`
+    ])
+  );
+};
 
 const configureTransformersEnvironment = (
   env: TransformersModule['env'],
   runtimeUrl?: string
 ): void => {
-  env.useBrowserCache = true
-  env.allowRemoteModels = true
-  env.remoteHost = TRANSFORMERS_REMOTE_HOST
-  env.remotePathTemplate = TRANSFORMERS_REMOTE_PATH_TEMPLATE
-  env.allowLocalModels = false
-  env.localModelPath = DISABLED_LOCAL_MODEL_PATH
+  env.useBrowserCache = true;
+  env.allowRemoteModels = true;
+  env.remoteHost = TRANSFORMERS_REMOTE_HOST;
+  env.remotePathTemplate = TRANSFORMERS_REMOTE_PATH_TEMPLATE;
+  env.allowLocalModels = false;
+  env.localModelPath = DISABLED_LOCAL_MODEL_PATH;
 
   if (runtimeUrl) {
-    env.backends ??= {}
-    env.backends.onnx ??= {}
-    env.backends.onnx.wasm ??= {}
-    env.backends.onnx.wasm.wasmPaths = getRuntimeWasmPaths(runtimeUrl)
-    env.backends.onnx.wasm.numThreads = 1
+    env.backends ??= {};
+    env.backends.onnx ??= {};
+    env.backends.onnx.wasm ??= {};
+    env.backends.onnx.wasm.wasmPaths = getRuntimeWasmPaths(runtimeUrl);
+    env.backends.onnx.wasm.numThreads = 1;
   }
-}
+};
 
 async function loadTransformersModule(): Promise<TransformersModule> {
-  if (transformersModulePromise) return transformersModulePromise
+  if (transformersModulePromise) return transformersModulePromise;
 
   transformersModulePromise = (async () => {
-    const runtimeCandidates = await getOfflineRuntimeCandidates()
-    let lastLoadError: unknown = null
+    const runtimeCandidates = await getOfflineRuntimeCandidates();
+    let lastLoadError: unknown = null;
 
     for (const { pluginId, runtimePath } of runtimeCandidates) {
-      const runtimeUrl = convertFileSrc(runtimePath)
+      const runtimeUrl = convertFileSrc(runtimePath);
       try {
-        const module = await import(/* @vite-ignore */ runtimeUrl) as TransformersModule
-        configureTransformersEnvironment(module.env, runtimeUrl)
-        logger.info(`[离线翻译] 已从插件资源加载 Transformers runtime: ${pluginId}`, {
-          wasmPaths: module.env.backends?.onnx?.wasm?.wasmPaths,
-          numThreads: module.env.backends?.onnx?.wasm?.numThreads,
-          remoteHost: module.env.remoteHost,
-          remotePathTemplate: module.env.remotePathTemplate,
-          allowLocalModels: module.env.allowLocalModels,
-          localModelPath: module.env.localModelPath
-        })
-        return module
+        const module = (await import(
+          /* @vite-ignore */ runtimeUrl
+        )) as TransformersModule;
+        configureTransformersEnvironment(module.env, runtimeUrl);
+        logger.info(
+          `[离线翻译] 已从插件资源加载 Transformers runtime: ${pluginId}`,
+          {
+            wasmPaths: module.env.backends?.onnx?.wasm?.wasmPaths,
+            numThreads: module.env.backends?.onnx?.wasm?.numThreads,
+            remoteHost: module.env.remoteHost,
+            remotePathTemplate: module.env.remotePathTemplate,
+            allowLocalModels: module.env.allowLocalModels,
+            localModelPath: module.env.localModelPath
+          }
+        );
+        return module;
       } catch (error) {
-        lastLoadError = error
-        logger.warn(`[离线翻译] 无法加载插件运行时，尝试下一个候选包: ${pluginId}`, error)
+        lastLoadError = error;
+        logger.warn(
+          `[离线翻译] 无法加载插件运行时，尝试下一个候选包: ${pluginId}`,
+          error
+        );
       }
     }
 
     if (lastLoadError) {
-      throw lastLoadError
+      throw lastLoadError;
     }
 
-    throw new Error('离线翻译运行时未安装，请先安装 translation-offline-runtime 插件资源包')
+    throw new Error(
+      '离线翻译运行时未安装，请先安装 translation-offline-runtime 插件资源包'
+    );
   })().catch((error) => {
-    transformersModulePromise = null
-    throw error
-  })
+    transformersModulePromise = null;
+    throw error;
+  });
 
-  return transformersModulePromise
+  return transformersModulePromise;
 }
 
 /** 安装完成后仅验证运行时模块，不触发约 300MB 的模型下载。 */
 export async function verifyOfflineTranslatorRuntime(): Promise<void> {
-  await loadTransformersModule()
+  await loadTransformersModule();
 }
 
 // 翻译管道缓存
-let translatorEnZh: TranslationPipeline | null = null
-let isInitializing = false
-let initPromise: Promise<TranslationPipeline> | null = null
+let translatorEnZh: TranslationPipeline | null = null;
+let isInitializing = false;
+let initPromise: Promise<TranslationPipeline> | null = null;
 
 // 取消控制
-let abortController: AbortController | null = null
+let abortController: AbortController | null = null;
 
 // 进度回调
-let progressCallback: ((progress: ProgressInfo) => void) | null = null
+let progressCallback: ((progress: ProgressInfo) => void) | null = null;
 
 // 进度信息类型
 export interface ProgressInfo {
-  status: 'initiate' | 'progress' | 'done'
-  progress?: number
-  file?: string
+  status: 'initiate' | 'progress' | 'done';
+  progress?: number;
+  file?: string;
 }
 
 // 文件下载状态
 export interface FileDownloadStatus {
-  file: string
-  progress: number
-  status: 'pending' | 'downloading' | 'done' | 'error'
-  size?: string
+  file: string;
+  progress: number;
+  status: 'pending' | 'downloading' | 'done' | 'error';
+  size?: string;
 }
 
 // 模型配置 - 使用更小的模型
-const MODEL_EN_ZH = 'Xenova/opus-mt-en-zh'
+const MODEL_EN_ZH = 'Xenova/opus-mt-en-zh';
 
 // 模型文件列表（按下载顺序）
 const MODEL_FILES = [
@@ -207,65 +235,79 @@ const MODEL_FILES = [
   { name: 'generation_config.json', size: '~1KB' },
   { name: 'onnx/encoder_model_quantized.onnx', size: '~75MB' },
   { name: 'onnx/decoder_model_merged_quantized.onnx', size: '~220MB' }
-]
+];
 
 // 模型加载超时时间（毫秒）
-const MODEL_LOAD_TIMEOUT = 300000 // 5分钟，大文件需要更长时间
+const MODEL_LOAD_TIMEOUT = 300000; // 5分钟，大文件需要更长时间
 
 /**
  * 设置进度回调
  */
-export function setProgressCallback(callback: ((progress: ProgressInfo) => void) | null): void {
-  progressCallback = callback
+export function setProgressCallback(
+  callback: ((progress: ProgressInfo) => void) | null
+): void {
+  progressCallback = callback;
 }
 
 /**
  * 获取模型文件列表
  */
 export function getModelFiles(): typeof MODEL_FILES {
-  return MODEL_FILES
+  return MODEL_FILES;
 }
 
 /**
  * 带超时的 Promise
  */
-function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  message: string
+): Promise<T> {
   return Promise.race([
     promise,
-    new Promise<T>((_, reject) => 
+    new Promise<T>((_, reject) =>
       setTimeout(() => reject(new Error(message)), ms)
     )
-  ])
+  ]);
 }
 
 /**
  * 初始化英译中翻译器
  */
 async function getTranslator(): Promise<TranslationPipeline> {
-  if (translatorEnZh) return translatorEnZh
-  if (initPromise) return initPromise
+  if (translatorEnZh) return translatorEnZh;
+  if (initPromise) return initPromise;
 
-  isInitializing = true
-  logger.info('[离线翻译] 正在加载翻译模型...')
+  isInitializing = true;
+  logger.info('[离线翻译] 正在加载翻译模型...');
 
   initPromise = (async () => {
     try {
       // loadTransformersModule 内部已调用 configureTransformersEnvironment(env, runtimeUrl)
       // 完成 wasmPaths 等全部环境配置，此处无需重复调用
-      const { pipeline } = await loadTransformersModule()
-      
-      let lastLoggedFile = ''
-      
+      const { pipeline } = await loadTransformersModule();
+
+      let lastLoggedFile = '';
+
       const loadPromise = pipeline('translation', MODEL_EN_ZH, {
         dtype: 'q8',
         device: 'wasm',
         revision: 'main',
         local_files_only: false,
-        progress_callback: (progress: { status: string; progress?: number; file?: string }) => {
+        progress_callback: (progress: {
+          status: string;
+          progress?: number;
+          file?: string;
+        }) => {
           // 只在文件完成时打印日志，避免过多的进度日志
-          if (progress.status === 'done' && progress.file && progress.file !== lastLoggedFile) {
-            lastLoggedFile = progress.file
-            logger.info(`[离线翻译] 已加载: ${progress.file}`)
+          if (
+            progress.status === 'done' &&
+            progress.file &&
+            progress.file !== lastLoggedFile
+          ) {
+            lastLoggedFile = progress.file;
+            logger.info(`[离线翻译] 已加载: ${progress.file}`);
           }
           // 调用外部进度回调（用于设置页面显示下载进度）
           if (progressCallback) {
@@ -273,30 +315,30 @@ async function getTranslator(): Promise<TranslationPipeline> {
               status: progress.status as ProgressInfo['status'],
               progress: progress.progress,
               file: progress.file
-            })
+            });
           }
         }
-      })
-      
+      });
+
       const translator = await withTimeout(
         loadPromise,
         MODEL_LOAD_TIMEOUT,
         '模型加载超时，请检查网络连接后重试'
-      )
-      
-      translatorEnZh = translator as TranslationPipeline
-      logger.info('[离线翻译] 翻译模型加载完成')
-      isInitializing = false
-      return translatorEnZh
-    } catch (error) {
-      isInitializing = false
-      initPromise = null
-      logger.error('[离线翻译] 模型加载失败:', error)
-      throw error
-    }
-  })()
+      );
 
-  return initPromise
+      translatorEnZh = translator as TranslationPipeline;
+      logger.info('[离线翻译] 翻译模型加载完成');
+      isInitializing = false;
+      return translatorEnZh;
+    } catch (error) {
+      isInitializing = false;
+      initPromise = null;
+      logger.error('[离线翻译] 模型加载失败:', error);
+      throw error;
+    }
+  })();
+
+  return initPromise;
 }
 
 /**
@@ -305,67 +347,70 @@ async function getTranslator(): Promise<TranslationPipeline> {
  * @returns 翻译后的中文文本
  */
 export async function translateOffline(text: string): Promise<string> {
-  if (!text?.trim()) return text
+  if (!text?.trim()) return text;
 
   // 创建新的取消控制器
-  abortController = new AbortController()
-  const signal = abortController.signal
+  abortController = new AbortController();
+  const signal = abortController.signal;
 
   try {
-    const translator = await getTranslator()
-    
+    const translator = await getTranslator();
+
     // 检查是否已取消
     if (signal.aborted) {
-      throw new Error('翻译已取消')
+      throw new Error('翻译已取消');
     }
-    
+
     // 按段落分割翻译，保持格式
-    const paragraphs = text.split('\n')
-    const translatedParagraphs: string[] = []
+    const paragraphs = text.split('\n');
+    const translatedParagraphs: string[] = [];
 
     for (const paragraph of paragraphs) {
       // 每个段落翻译前检查是否取消
       if (signal.aborted) {
-        throw new Error('翻译已取消')
+        throw new Error('翻译已取消');
       }
-      
-      const trimmed = paragraph.trim()
+
+      const trimmed = paragraph.trim();
       if (!trimmed) {
-        translatedParagraphs.push('')
-        continue
+        translatedParagraphs.push('');
+        continue;
       }
 
       // 翻译单个段落
-      const result = await translator(trimmed)
-      
+      const result = await translator(trimmed);
+
       // 翻译后再次检查
       if (signal.aborted) {
-        throw new Error('翻译已取消')
+        throw new Error('翻译已取消');
       }
 
       // 提取翻译结果
       if (Array.isArray(result) && result.length > 0) {
-        const translated = (result[0] as any).translation_text || trimmed
-        translatedParagraphs.push(translated)
+        const translated = (result[0] as any).translation_text || trimmed;
+        translatedParagraphs.push(translated);
       } else {
-        translatedParagraphs.push(trimmed)
+        translatedParagraphs.push(trimmed);
       }
     }
 
-    return translatedParagraphs.join('\n')
+    return translatedParagraphs.join('\n');
   } catch (error) {
     if (error instanceof Error && error.message === '翻译已取消') {
-      logger.info('[离线翻译] 翻译已取消')
-      throw error
+      logger.info('[离线翻译] 翻译已取消');
+      throw error;
     }
-    if (error instanceof Error && error.message.includes('离线翻译运行时未安装')) {
-      logger.warn('[离线翻译] 运行时资源未安装')
-      throw error
+    if (
+      error instanceof Error &&
+      error.message.includes('离线翻译运行时未安装')
+    ) {
+      logger.warn('[离线翻译] 运行时资源未安装');
+      throw error;
     }
-    logger.error('[离线翻译] 翻译失败:', error)
-    throw new Error('离线翻译失败，请检查模型是否正确加载')
+    logger.error('[离线翻译] 翻译失败:', error);
+    throw new Error('离线翻译失败，请检查模型是否正确加载');
   } finally {
-    abortController = null
+    abortController = null;
   }
 }
 
@@ -374,9 +419,9 @@ export async function translateOffline(text: string): Promise<string> {
  */
 export function cancelOfflineTranslation(): void {
   if (abortController) {
-    abortController.abort()
-    abortController = null
-    logger.info('[离线翻译] 已发送取消信号')
+    abortController.abort();
+    abortController = null;
+    logger.info('[离线翻译] 已发送取消信号');
   }
 }
 
@@ -384,7 +429,7 @@ export function cancelOfflineTranslation(): void {
  * 检查是否有正在进行的翻译
  */
 export function isTranslationInProgress(): boolean {
-  return abortController !== null
+  return abortController !== null;
 }
 
 /**
@@ -392,31 +437,31 @@ export function isTranslationInProgress(): boolean {
  * @throws 如果加载失败会抛出异常
  */
 export async function warmupOfflineTranslator(): Promise<void> {
-  await getTranslator()
+  await getTranslator();
 }
 
 /**
  * 检查离线翻译是否可用（内存中已加载）
  */
 export function isOfflineTranslatorReady(): boolean {
-  return translatorEnZh !== null
+  return translatorEnZh !== null;
 }
 
 /**
  * 检查是否正在初始化
  */
 export function isOfflineTranslatorInitializing(): boolean {
-  return isInitializing
+  return isInitializing;
 }
 
 /**
  * 获取模型缓存信息
  */
 export interface ModelCacheInfo {
-  isCached: boolean
-  cacheType: 'indexeddb' | 'cache-storage' | 'none'
-  cacheName?: string
-  estimatedSize?: string
+  isCached: boolean;
+  cacheType: 'indexeddb' | 'cache-storage' | 'none';
+  cacheName?: string;
+  estimatedSize?: string;
 }
 
 /**
@@ -426,32 +471,34 @@ export async function getModelCacheInfo(): Promise<ModelCacheInfo> {
   try {
     // 检查 Cache Storage（Transformers.js 主要使用这个）
     if ('caches' in window) {
-      const cacheNames = await caches.keys()
-      logger.info(`[离线翻译] Cache Storage 列表: ${JSON.stringify(cacheNames)}`)
-      
+      const cacheNames = await caches.keys();
+      logger.info(
+        `[离线翻译] Cache Storage 列表: ${JSON.stringify(cacheNames)}`
+      );
+
       for (const name of cacheNames) {
         // Transformers.js 使用 'transformers-cache' 或类似名称
         if (name.includes('transformers') || name.includes('huggingface')) {
-          const cache = await caches.open(name)
-          const keys = await cache.keys()
-          logger.info(`[离线翻译] Cache "${name}" 包含 ${keys.length} 个文件`)
-          
+          const cache = await caches.open(name);
+          const keys = await cache.keys();
+          logger.info(`[离线翻译] Cache "${name}" 包含 ${keys.length} 个文件`);
+
           // 检查是否有 opus-mt-en-zh 模型文件
-          const hasModel = keys.some(req => 
-            req.url.includes('opus-mt-en-zh') || 
-            req.url.includes('Xenova')
-          )
+          const hasModel = keys.some(
+            (req) =>
+              req.url.includes('opus-mt-en-zh') || req.url.includes('Xenova')
+          );
           if (hasModel) {
             // 检查是否包含关键的 onnx 文件
-            const hasOnnx = keys.some(req => req.url.includes('.onnx'))
-            logger.info(`[离线翻译] 找到模型缓存，包含 ONNX: ${hasOnnx}`)
+            const hasOnnx = keys.some((req) => req.url.includes('.onnx'));
+            logger.info(`[离线翻译] 找到模型缓存，包含 ONNX: ${hasOnnx}`);
             if (hasOnnx) {
               return {
                 isCached: true,
                 cacheType: 'cache-storage',
                 cacheName: name,
                 estimatedSize: '~300MB'
-              }
+              };
             }
           }
         }
@@ -459,31 +506,34 @@ export async function getModelCacheInfo(): Promise<ModelCacheInfo> {
     }
 
     // 检查 IndexedDB
-    const databases = await indexedDB.databases()
-    logger.info(`[离线翻译] IndexedDB 列表: ${JSON.stringify(databases.map(d => d.name))}`)
-    
+    const databases = await indexedDB.databases();
+    logger.info(
+      `[离线翻译] IndexedDB 列表: ${JSON.stringify(databases.map((d) => d.name))}`
+    );
+
     for (const db of databases) {
-      if (db.name && (
-        db.name.includes('transformers') || 
-        db.name.includes('huggingface') ||
-        db.name.includes('onnx') ||
-        db.name.includes('localforage')
-      )) {
-        logger.info(`[离线翻译] 找到 IndexedDB 缓存: ${db.name}`)
+      if (
+        db.name &&
+        (db.name.includes('transformers') ||
+          db.name.includes('huggingface') ||
+          db.name.includes('onnx') ||
+          db.name.includes('localforage'))
+      ) {
+        logger.info(`[离线翻译] 找到 IndexedDB 缓存: ${db.name}`);
         return {
           isCached: true,
           cacheType: 'indexeddb',
           cacheName: db.name,
           estimatedSize: '~300MB'
-        }
+        };
       }
     }
 
-    logger.info('[离线翻译] 未找到模型缓存')
-    return { isCached: false, cacheType: 'none' }
+    logger.info('[离线翻译] 未找到模型缓存');
+    return { isCached: false, cacheType: 'none' };
   } catch (error) {
-    logger.warn('[离线翻译] 检查缓存失败:', error)
-    return { isCached: false, cacheType: 'none' }
+    logger.warn('[离线翻译] 检查缓存失败:', error);
+    return { isCached: false, cacheType: 'none' };
   }
 }
 
@@ -491,8 +541,8 @@ export async function getModelCacheInfo(): Promise<ModelCacheInfo> {
  * 检查模型缓存是否存在（简化版）
  */
 export async function isModelCached(): Promise<boolean> {
-  const info = await getModelCacheInfo()
-  return info.isCached
+  const info = await getModelCacheInfo();
+  return info.isCached;
 }
 
 /**
@@ -500,7 +550,7 @@ export async function isModelCached(): Promise<boolean> {
  * 只有模型已激活才能使用离线翻译
  */
 export function canUseOfflineTranslation(): boolean {
-  return translatorEnZh !== null
+  return translatorEnZh !== null;
 }
 
 /**
@@ -510,17 +560,17 @@ export async function disposeOfflineTranslator(): Promise<void> {
   // 清除内存中的翻译器实例
   if (translatorEnZh) {
     try {
-      await (translatorEnZh as any).dispose?.()
+      await (translatorEnZh as any).dispose?.();
     } catch (e) {
       // ignore
     }
   }
-  
+
   // 重置所有状态
-  translatorEnZh = null
-  initPromise = null
-  isInitializing = false
-  logger.info('[离线翻译] 翻译器已释放')
+  translatorEnZh = null;
+  initPromise = null;
+  isInitializing = false;
+  logger.info('[离线翻译] 翻译器已释放');
 }
 
 /**
@@ -529,28 +579,31 @@ export async function disposeOfflineTranslator(): Promise<void> {
 export async function clearModelCache(): Promise<void> {
   try {
     // 清除 IndexedDB 中的 transformers 缓存
-    const databases = await indexedDB.databases()
+    const databases = await indexedDB.databases();
     for (const db of databases) {
-      if (db.name && (db.name.includes('transformers') || db.name.includes('onnx'))) {
-        indexedDB.deleteDatabase(db.name)
-        logger.info(`[离线翻译] 已删除 IndexedDB: ${db.name}`)
+      if (
+        db.name &&
+        (db.name.includes('transformers') || db.name.includes('onnx'))
+      ) {
+        indexedDB.deleteDatabase(db.name);
+        logger.info(`[离线翻译] 已删除 IndexedDB: ${db.name}`);
       }
     }
 
     // 清除 Cache Storage
     if ('caches' in window) {
-      const cacheNames = await caches.keys()
+      const cacheNames = await caches.keys();
       for (const name of cacheNames) {
         if (name.includes('transformers') || name.includes('onnx')) {
-          await caches.delete(name)
-          logger.info(`[离线翻译] 已删除 Cache: ${name}`)
+          await caches.delete(name);
+          logger.info(`[离线翻译] 已删除 Cache: ${name}`);
         }
       }
     }
 
-    logger.info('[离线翻译] 模型缓存已清除')
+    logger.info('[离线翻译] 模型缓存已清除');
   } catch (error) {
-    logger.error('[离线翻译] 清除缓存失败:', error)
-    throw error
+    logger.error('[离线翻译] 清除缓存失败:', error);
+    throw error;
   }
 }

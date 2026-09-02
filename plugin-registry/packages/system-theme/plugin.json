@@ -14,25 +14,15 @@
   "category": "appearance",
   "enabledByDefault": true,
   "capabilities": {
-    "routeNames": [
-      "DarkMode"
-    ],
-    "hotkeys": [
-      "dark_mode"
-    ],
-    "trayItems": [
-      "dark_mode"
-    ]
+    "routeNames": ["DarkMode"],
+    "hotkeys": ["dark_mode"],
+    "trayItems": ["dark_mode"]
   },
-  "permissions": [
-    "command:*"
-  ],
+  "permissions": ["command:*"],
   "compatibleAppVersion": ">=2.1.42",
   "entry": {
     "frontend": "dist/frontend.js",
-    "styles": [
-      "dist/assets/runtime-entry-0QtmBkpf.css"
-    ]
+    "styles": ["dist/assets/runtime-entry-0QtmBkpf.css"]
   },
   "minAppVersion": "2.1.42",
   "repository": "https://github.com/GigaPuddings/snippets-code-plugin-system-theme",

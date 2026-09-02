@@ -18,58 +18,58 @@ export class ImageCompressor {
     maxHeight?: number
   ): Promise<string> {
     return new Promise((resolve, reject) => {
-      const img = new Image()
-      
+      const img = new Image();
+
       img.onload = () => {
         try {
-          let { width, height } = img
+          let { width, height } = img;
 
           // 计算缩放比例
           if (maxWidth && width > maxWidth) {
-            height = (height * maxWidth) / width
-            width = maxWidth
+            height = (height * maxWidth) / width;
+            width = maxWidth;
           }
           if (maxHeight && height > maxHeight) {
-            width = (width * maxHeight) / height
-            height = maxHeight
+            width = (width * maxHeight) / height;
+            height = maxHeight;
           }
 
           // 创建临时 canvas
-          const canvas = document.createElement('canvas')
-          canvas.width = Math.round(width)
-          canvas.height = Math.round(height)
-          
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.round(width);
+          canvas.height = Math.round(height);
+
           const ctx = canvas.getContext('2d', {
             alpha: false, // 不需要透明通道
             desynchronized: true // 提升性能
-          })
+          });
 
           if (!ctx) {
-            reject(new Error('无法获取 2D 上下文'))
-            return
+            reject(new Error('无法获取 2D 上下文'));
+            return;
           }
 
           // 使用高质量缩放
-          ctx.imageSmoothingEnabled = true
-          ctx.imageSmoothingQuality = 'high'
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
 
           // 绘制图像
-          ctx.drawImage(img, 0, 0, width, height)
+          ctx.drawImage(img, 0, 0, width, height);
 
           // 转换为 JPEG 格式（更小的文件大小）
-          const compressed = canvas.toDataURL('image/jpeg', quality)
-          resolve(compressed.replace(/^data:image\/jpeg;base64,/, ''))
+          const compressed = canvas.toDataURL('image/jpeg', quality);
+          resolve(compressed.replace(/^data:image\/jpeg;base64,/, ''));
         } catch (error) {
-          reject(error)
+          reject(error);
         }
-      }
+      };
 
       img.onerror = () => {
-        reject(new Error('图像加载失败'))
-      }
+        reject(new Error('图像加载失败'));
+      };
 
-      img.src = `data:image/jpeg;base64,${imageData}`
-    })
+      img.src = `data:image/jpeg;base64,${imageData}`;
+    });
   }
 
   /**
@@ -84,7 +84,7 @@ export class ImageCompressor {
     height: number,
     bytesPerPixel: number = 4
   ): number {
-    return width * height * bytesPerPixel
+    return width * height * bytesPerPixel;
   }
 
   /**
@@ -93,8 +93,8 @@ export class ImageCompressor {
    * @returns 格式化的字符串
    */
   static formatMemorySize(bytes: number): string {
-    if (bytes < 1024) return `${bytes} B`
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`
-    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
   }
 }

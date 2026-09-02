@@ -14,5 +14,7 @@ export const pluginSettingsMenuItems: PluginSettingsMenuItem[] = [
 ];
 
 export const pluginSettingsComponents: Record<string, Component> = {
-  attachment: defineAsyncComponent(() => import('./attachments/settings/index.vue'))
+  attachment: defineAsyncComponent(
+    () => import('./attachments/settings/index.vue')
+  )
 };

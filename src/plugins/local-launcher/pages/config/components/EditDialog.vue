@@ -1,7 +1,15 @@
 <template>
   <CommonDialog
     v-model="dialogVisible"
-    :title="isEdit ? (type === 'app' ? $t('editDialog.editApp') : $t('editDialog.editBookmark')) : (type === 'app' ? $t('editDialog.addApp') : $t('editDialog.addBookmark'))"
+    :title="
+      isEdit
+        ? type === 'app'
+          ? $t('editDialog.editApp')
+          : $t('editDialog.editBookmark')
+        : type === 'app'
+          ? $t('editDialog.addApp')
+          : $t('editDialog.addBookmark')
+    "
     width="540px"
   >
     <el-form
@@ -12,27 +20,49 @@
       label-position="left"
       class="edit-form"
     >
-      <el-form-item :label="$t('editDialog.name')" prop="title" class="form-item-name">
+      <el-form-item
+        :label="$t('editDialog.name')"
+        prop="title"
+        class="form-item-name"
+      >
         <el-input
           v-model="formData.title"
-          :placeholder="$t('editDialog.namePlaceholder', { type: type === 'app' ? $t('local.apps') : $t('local.bookmarks') })"
+          :placeholder="
+            $t('editDialog.namePlaceholder', {
+              type: type === 'app' ? $t('local.apps') : $t('local.bookmarks')
+            })
+          "
           clearable
         />
       </el-form-item>
 
-      <el-form-item :label="type === 'app' ? $t('editDialog.path') : $t('editDialog.url')" prop="content" class="form-item-path">
+      <el-form-item
+        :label="type === 'app' ? $t('editDialog.path') : $t('editDialog.url')"
+        prop="content"
+        class="form-item-path"
+      >
         <el-input
           v-model="formData.content"
-          :placeholder="type === 'app' ? $t('editDialog.pathPlaceholder') : $t('editDialog.urlPlaceholder')"
+          :placeholder="
+            type === 'app'
+              ? $t('editDialog.pathPlaceholder')
+              : $t('editDialog.urlPlaceholder')
+          "
           clearable
         >
           <template v-if="type === 'app'" #append>
-            <el-button @click="handleSelectFile">{{ $t('common.browse') }}</el-button>
+            <el-button @click="handleSelectFile">
+              {{ $t('common.browse') }}
+            </el-button>
           </template>
         </el-input>
       </el-form-item>
 
-      <el-form-item :label="$t('editDialog.icon')" prop="icon" class="form-item-icon">
+      <el-form-item
+        :label="$t('editDialog.icon')"
+        prop="icon"
+        class="form-item-icon"
+      >
         <div class="icon-section">
           <div class="icon-display">
             <div v-if="formData.icon" class="icon-preview has-icon">
@@ -50,9 +80,16 @@
               </div>
             </div>
             <div v-else class="icon-placeholder">
-              <Application v-if="type === 'app'" theme="outline" size="24" :strokeWidth="2" />
+              <Application
+                v-if="type === 'app'"
+                theme="outline"
+                size="24"
+                :strokeWidth="2"
+              />
               <Browser v-else theme="outline" size="24" :strokeWidth="2" />
-              <span class="placeholder-text">{{ $t('editDialog.noIcon') }}</span>
+              <span class="placeholder-text">
+                {{ $t('editDialog.noIcon') }}
+              </span>
             </div>
           </div>
           <div class="icon-actions">
@@ -82,26 +119,38 @@
                 <el-dropdown-menu>
                   <el-dropdown-item command="auto">
                     <div class="dropdown-item-content">
-                      <span class="item-label">{{ $t('editDialog.iconSourceAuto') }}</span>
-                      <span class="item-desc">{{ $t('editDialog.iconSourceAutoDesc') }}</span>
+                      <span class="item-label">
+                        {{ $t('editDialog.iconSourceAuto') }}
+                      </span>
+                      <span class="item-desc">
+                        {{ $t('editDialog.iconSourceAutoDesc') }}
+                      </span>
                     </div>
                   </el-dropdown-item>
                   <el-dropdown-item command="google">
                     <div class="dropdown-item-content">
                       <span class="item-label">Google</span>
-                      <span class="item-desc">{{ $t('editDialog.iconSourceGoogleDesc') }}</span>
+                      <span class="item-desc">
+                        {{ $t('editDialog.iconSourceGoogleDesc') }}
+                      </span>
                     </div>
                   </el-dropdown-item>
                   <el-dropdown-item command="yandex">
                     <div class="dropdown-item-content">
                       <span class="item-label">Yandex</span>
-                      <span class="item-desc">{{ $t('editDialog.iconSourceYandexDesc') }}</span>
+                      <span class="item-desc">
+                        {{ $t('editDialog.iconSourceYandexDesc') }}
+                      </span>
                     </div>
                   </el-dropdown-item>
                   <el-dropdown-item command="website">
                     <div class="dropdown-item-content">
-                      <span class="item-label">{{ $t('editDialog.iconSourceWebsite') }}</span>
-                      <span class="item-desc">{{ $t('editDialog.iconSourceWebsiteDesc') }}</span>
+                      <span class="item-label">
+                        {{ $t('editDialog.iconSourceWebsite') }}
+                      </span>
+                      <span class="item-desc">
+                        {{ $t('editDialog.iconSourceWebsiteDesc') }}
+                      </span>
                     </div>
                   </el-dropdown-item>
                 </el-dropdown-menu>
@@ -115,15 +164,33 @@
     <template #footer>
       <div class="dialog-footer">
         <div class="footer-left">
-          <el-button type="danger" plain v-if="isEdit" @click="handleDelete" class="delete-btn">
+          <el-button
+            type="danger"
+            plain
+            v-if="isEdit"
+            @click="handleDelete"
+            class="delete-btn"
+          >
             <Delete theme="outline" size="14" :strokeWidth="3" />
             {{ $t('common.delete') }}
           </el-button>
         </div>
         <div class="footer-right">
-          <el-button @click="handleClose" class="cancel-btn">{{ $t('common.cancel') }}</el-button>
-          <el-button type="primary" @click="handleSubmit" :loading="submitting" class="submit-btn">
-            <Check v-if="!submitting" theme="outline" size="14" :strokeWidth="3" />
+          <el-button @click="handleClose" class="cancel-btn">
+            {{ $t('common.cancel') }}
+          </el-button>
+          <el-button
+            type="primary"
+            @click="handleSubmit"
+            :loading="submitting"
+            class="submit-btn"
+          >
+            <Check
+              v-if="!submitting"
+              theme="outline"
+              size="14"
+              :strokeWidth="3"
+            />
             {{ isEdit ? $t('common.save') : $t('common.add') }}
           </el-button>
         </div>
@@ -184,7 +251,14 @@ const rules = computed<FormRules>(() => ({
     { min: 1, max: 100, message: t('editDialog.nameLength'), trigger: 'blur' }
   ],
   content: [
-    { required: true, message: props.type === 'app' ? t('editDialog.pathRequired') : t('editDialog.urlRequired'), trigger: 'blur' }
+    {
+      required: true,
+      message:
+        props.type === 'app'
+          ? t('editDialog.pathRequired')
+          : t('editDialog.urlRequired'),
+      trigger: 'blur'
+    }
   ]
 }));
 
@@ -227,7 +301,12 @@ const handleClose = () => {
     formRef.value?.clearValidate();
   });
   // 确保所有字段都被清空，包括 id
-  Object.assign(formData, { id: undefined, title: '', content: '', icon: null });
+  Object.assign(formData, {
+    id: undefined,
+    title: '',
+    content: '',
+    icon: null
+  });
 };
 
 const handleSelectFile = async () => {
@@ -235,26 +314,35 @@ const handleSelectFile = async () => {
     const selected = await openFileDialog({
       multiple: false,
       directory: false,
-      filters: [{
-        name: t('editDialog.executableFiles'),
-        extensions: ['exe', 'lnk']
-      }]
+      filters: [
+        {
+          name: t('editDialog.executableFiles'),
+          extensions: ['exe', 'lnk']
+        }
+      ]
     });
 
     if (selected && typeof selected === 'string') {
       formData.content = selected;
       // 如果没有标题，尝试从文件名提取
       if (!formData.title) {
-        const fileName = selected.split('\\').pop()?.replace(/\.(exe|lnk)$/i, '') || '';
+        const fileName =
+          selected
+            .split('\\')
+            .pop()
+            ?.replace(/\.(exe|lnk)$/i, '') || '';
         formData.title = fileName;
       }
-      
+
       // 自动提取应用图标
       try {
         fetchingIcon.value = true;
-        const iconResult = await invoke<string | null>('extract_icon_from_app', { 
-          appPath: selected 
-        });
+        const iconResult = await invoke<string | null>(
+          'extract_icon_from_app',
+          {
+            appPath: selected
+          }
+        );
         if (iconResult) {
           formData.icon = iconResult;
         }
@@ -279,8 +367,8 @@ const handleExtractAppIcon = async () => {
 
   fetchingIcon.value = true;
   try {
-    const iconResult = await invoke<string | null>('extract_icon_from_app', { 
-      appPath: formData.content 
+    const iconResult = await invoke<string | null>('extract_icon_from_app', {
+      appPath: formData.content
     });
     if (iconResult) {
       formData.icon = iconResult;
@@ -304,9 +392,9 @@ const handleFetchIconWithSource = async (source: string) => {
 
   fetchingIcon.value = true;
   try {
-    const icon = await invoke<string>('fetch_favicon_with_source', { 
+    const icon = await invoke<string>('fetch_favicon_with_source', {
       url: formData.content,
-      source: source 
+      source: source
     });
     if (icon) {
       formData.icon = icon;
@@ -361,6 +449,7 @@ defineExpose({ open });
 
       &::after {
         content: '：';
+
         @apply text-panel-text-secondary;
       }
     }
@@ -370,15 +459,18 @@ defineExpose({ open });
     }
   }
 
-  .form-item-name, .form-item-path {
+  .form-item-name,
+  .form-item-path {
     :deep(.el-input) {
       .el-input__wrapper {
         @apply border-panel hover:border-blue-400;
+
         transition: all 0.3s ease;
 
         &.is-focus {
           @apply border-blue-500;
-          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+
+          box-shadow: 0 0 0 3px rgb(59 130 246 / 10%);
         }
       }
     }
@@ -395,6 +487,7 @@ defineExpose({ open });
       .icon-display {
         .icon-preview {
           @apply relative w-16 h-16 rounded-xl overflow-hidden bg-content border-2 border-panel;
+
           transition: all 0.3s ease;
 
           &.has-icon {
@@ -428,6 +521,7 @@ defineExpose({ open });
 
         .icon-placeholder {
           @apply w-16 h-16 rounded-xl border-2 border-dashed border-panel bg-content flex flex-col items-center justify-center gap-1 text-panel-text-secondary;
+
           transition: all 0.3s ease;
 
           &:hover {
@@ -509,10 +603,10 @@ defineExpose({ open });
 
       &:not(:disabled):hover {
         @apply shadow-md;
+
         transform: translateY(-1px);
       }
     }
   }
 }
 </style>
-

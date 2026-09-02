@@ -9,12 +9,48 @@
       type="button"
     >
       <span class="language-text">{{ displayLanguage }}</span>
-      <svg v-if="!copied" viewBox="0 0 24 24" width="14" height="14" class="copy-icon" aria-hidden="true">
-        <rect x="9" y="9" width="10" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.8" />
-        <path d="M15 9V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+      <svg
+        v-if="!copied"
+        viewBox="0 0 24 24"
+        width="14"
+        height="14"
+        class="copy-icon"
+        aria-hidden="true"
+      >
+        <rect
+          x="9"
+          y="9"
+          width="10"
+          height="10"
+          rx="2"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+        />
+        <path
+          d="M15 9V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+        />
       </svg>
-      <svg v-else viewBox="0 0 24 24" width="14" height="14" class="check-icon" aria-hidden="true">
-        <path d="m5 12 4 4L19 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+      <svg
+        v-else
+        viewBox="0 0 24 24"
+        width="14"
+        height="14"
+        class="check-icon"
+        aria-hidden="true"
+      >
+        <path
+          d="m5 12 4 4L19 6"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
       </svg>
     </button>
     <pre><code :class="codeClass" :data-language="props.node.attrs.language || 'plaintext'"><node-view-content /></code></pre>
@@ -74,7 +110,7 @@ const languageMap: Record<string, string> = {
   ini: 'INI',
   conf: 'Config',
   nginx: 'Nginx',
-  apache: 'Apache',
+  apache: 'Apache'
 };
 
 const displayLanguage = computed(() => {
@@ -122,23 +158,26 @@ const copyCode = async () => {
 <style lang="scss" scoped>
 .code-block-wrapper {
   @apply relative overflow-hidden;
+
   margin: 0.6em 0 0.72em;
+  background: var(--code-block-bg, var(--editor-hover-bg));
   border: 1px solid var(--code-block-border, var(--editor-border));
   border-radius: 7px;
-  background: var(--code-block-bg, var(--editor-hover-bg));
 }
 
 .copy-language-button {
   @apply absolute right-2 top-2 z-10 flex h-7 items-center gap-1.5 rounded border px-2 text-[11px] font-medium outline-none transition-all duration-150;
+
   color: var(--panel-text-secondary);
+  pointer-events: none;
   background: var(--code-block-toolbar-bg, var(--panel-bg));
   border-color: var(--code-block-toolbar-border, var(--panel-border));
   opacity: 0;
-  pointer-events: none;
   transform: translateY(-2px);
 
   .language-text {
-    font-family: ui-monospace, 'SF Mono', 'Monaco', 'Cascadia Code', 'Consolas', monospace;
+    font-family: ui-monospace, 'SF Mono', Monaco, 'Cascadia Code', Consolas,
+      monospace;
     letter-spacing: 0.3px;
   }
 
@@ -158,15 +197,17 @@ const copyCode = async () => {
 
 .code-block-wrapper:hover .copy-language-button,
 .code-block-wrapper:focus-within .copy-language-button {
-  opacity: 1;
   pointer-events: auto;
+  opacity: 1;
   transform: translateY(0);
 }
 
 pre {
   @apply m-0 overflow-x-auto bg-transparent;
+
   padding: 12px 14px;
-  font-family: ui-monospace, 'SF Mono', 'Monaco', 'Cascadia Code', 'Roboto Mono', 'Consolas', 'Courier New', monospace;
+  font-family: ui-monospace, 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono',
+    Consolas, 'Courier New', monospace;
   font-size: 13.5px;
   line-height: 1.55;
 
@@ -198,11 +239,12 @@ pre {
 
   code {
     @apply block p-0 bg-transparent border-none text-panel;
+
     font-family: inherit;
     font-size: inherit;
     line-height: inherit;
-    white-space: pre;
     tab-size: 2;
+    white-space: pre;
   }
 }
 </style>

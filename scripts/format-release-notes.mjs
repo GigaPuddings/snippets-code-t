@@ -1,7 +1,7 @@
 /**
  * 格式化发布说明脚本
  * 读取 RELEASE_NOTES.md 并转换为单行格式
- * 
+ *
  * 用法：
  *   node scripts/format-release-notes.mjs          # 输出到控制台
  *   node scripts/format-release-notes.mjs --copy   # 复制到剪贴板
@@ -30,7 +30,7 @@ const content = fs.readFileSync(notesPath, 'utf-8').trim();
 // 转换为单行格式（保留 \n 作为字面字符串）
 const singleLine = content
   .split('\n')
-  .map(line => line.trimEnd())
+  .map((line) => line.trimEnd())
   .filter((line, index, arr) => {
     // 移除连续的空行，只保留一个
     if (line === '' && arr[index - 1] === '') return false;

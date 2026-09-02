@@ -23,12 +23,15 @@
           <span class="tag-text">{{ tag }}</span>
           <button class="tag-close" @click="handleRemoveTag(index)">
             <svg viewBox="0 0 24 24" width="12" height="12">
-              <path fill="currentColor" d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z" />
+              <path
+                fill="currentColor"
+                d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"
+              />
             </svg>
           </button>
         </template>
       </span>
-      
+
       <input
         v-if="showInput"
         ref="inputRef"
@@ -41,21 +44,23 @@
         @blur="handleInputBlur"
         @keyup.esc="handleInputCancel"
       />
-      
-      <button
-        v-else
-        class="add-tag-btn"
-        @click="showInputField"
-      >
+
+      <button v-else class="add-tag-btn" @click="showInputField">
         <svg viewBox="0 0 24 24" width="14" height="14">
-          <path fill="currentColor" d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" />
+          <path
+            fill="currentColor"
+            d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"
+          />
         </svg>
         <span>{{ $t('tags.addTag') }}</span>
       </button>
     </div>
-    
+
     <!-- 标签建议列表 -->
-    <div v-if="showInput && filteredSuggestions.length > 0" class="tag-suggestions">
+    <div
+      v-if="showInput && filteredSuggestions.length > 0"
+      class="tag-suggestions"
+    >
       <div
         v-for="(suggestion, index) in filteredSuggestions"
         :key="index"
@@ -111,13 +116,16 @@ const editInputRef: Ref<HTMLInputElement | null> = ref(null);
 // 过滤建议标签
 const filteredSuggestions = computed<string[]>(() => {
   if (!inputValue.value.trim()) {
-    return props.existingTags.filter(tag => !props.modelValue.includes(tag)).slice(0, 5);
+    return props.existingTags
+      .filter((tag) => !props.modelValue.includes(tag))
+      .slice(0, 5);
   }
-  
+
   return props.existingTags
-    .filter(tag => 
-      tag.toLowerCase().includes(inputValue.value.toLowerCase()) &&
-      !props.modelValue.includes(tag)
+    .filter(
+      (tag) =>
+        tag.toLowerCase().includes(inputValue.value.toLowerCase()) &&
+        !props.modelValue.includes(tag)
     )
     .slice(0, 5);
 });
@@ -139,22 +147,22 @@ const showInputField = (): void => {
  */
 const validateTag = (tag: string): boolean => {
   const trimmedTag = tag.trim();
-  
+
   if (!trimmedTag) {
     modal.warning(t('tags.emptyTag'));
     return false;
   }
-  
+
   if (trimmedTag.includes(',')) {
     modal.warning(t('tags.noComma'));
     return false;
   }
-  
+
   if (props.modelValue.includes(trimmedTag)) {
     modal.warning(t('tags.duplicateTag'));
     return false;
   }
-  
+
   return true;
 };
 
@@ -164,12 +172,12 @@ const validateTag = (tag: string): boolean => {
 const handleInputConfirm = (): void => {
   try {
     const tag = inputValue.value.trim();
-    
+
     if (tag && validateTag(tag)) {
       const newTags = [...props.modelValue, tag];
       emit('update:modelValue', newTags);
     }
-    
+
     inputValue.value = '';
     showInput.value = false;
   } catch (error) {
@@ -237,32 +245,32 @@ const handleEditTag = (index: number): void => {
 const handleEditConfirm = (): void => {
   try {
     const newTag = editingValue.value.trim();
-    
+
     if (!newTag) {
       modal.warning(t('tags.emptyTag'));
       return;
     }
-    
+
     if (newTag.includes(',')) {
       modal.warning(t('tags.noComma'));
       return;
     }
-    
+
     // 检查是否与其他标签重复（排除当前编辑的标签）
-    const isDuplicate = props.modelValue.some((tag, idx) => 
-      idx !== editingIndex.value && tag === newTag
+    const isDuplicate = props.modelValue.some(
+      (tag, idx) => idx !== editingIndex.value && tag === newTag
     );
-    
+
     if (isDuplicate) {
       modal.warning(t('tags.duplicateTag'));
       return;
     }
-    
+
     // 更新标签
     const newTags = [...props.modelValue];
     newTags[editingIndex.value] = newTag;
     emit('update:modelValue', newTags);
-    
+
     // 重置编辑状态
     editingIndex.value = -1;
     editingValue.value = '';
@@ -306,7 +314,7 @@ const selectSuggestion = (tag: string): void => {
       const newTags = [...props.modelValue, tag];
       emit('update:modelValue', newTags);
     }
-    
+
     inputValue.value = '';
     showInput.value = false;
   } catch (error) {
@@ -323,122 +331,130 @@ const selectSuggestion = (tag: string): void => {
 <style scoped lang="scss">
 .tag-input-container {
   @apply w-full relative;
-  
+
   .tag-list {
     @apply flex flex-wrap gap-1.5 items-center;
   }
-  
+
   .tag-item {
     @apply inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs;
-    background-color: rgba(0, 0, 0, 0.05);
+
     color: #666;
-    transition: all 0.15s ease;
-    border: 1px solid transparent;
     white-space: nowrap;
-    
+    background-color: rgb(0 0 0 / 5%);
+    border: 1px solid transparent;
+    transition: all 0.15s ease;
+
     &:hover {
-      background-color: rgba(0, 0, 0, 0.08);
-      border-color: rgba(0, 0, 0, 0.1);
-      
+      background-color: rgb(0 0 0 / 8%);
+      border-color: rgb(0 0 0 / 10%);
+
       .tag-close {
         opacity: 1;
       }
     }
-    
+
     .tag-text {
       @apply select-none;
+
       line-height: 1.4;
       white-space: nowrap;
       cursor: pointer;
-      
+
       &:hover {
         text-decoration: underline;
         text-decoration-style: dashed;
       }
     }
-    
+
     .tag-edit-input {
       @apply px-1 py-0 text-xs rounded outline-none;
+
       width: 80px;
       height: 20px;
+      color: #333;
       background-color: #fff;
       border: 1px solid #4a9eff;
-      color: #333;
-      box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.1);
+      box-shadow: 0 0 0 2px rgb(74 158 255 / 10%);
     }
-    
+
     .tag-close {
       @apply flex items-center justify-center w-4 h-4 rounded cursor-pointer;
+
+      flex-shrink: 0;
+      color: #999;
       opacity: 0.6;
       transition: all 0.15s ease;
-      color: #999;
-      flex-shrink: 0;
-      
+
       &:hover {
-        background-color: rgba(0, 0, 0, 0.1);
         color: #666;
+        background-color: rgb(0 0 0 / 10%);
       }
     }
   }
-  
+
   .tag-input {
     @apply px-2 py-1 text-xs rounded outline-none;
+
     width: 120px;
     height: 24px;
-    background-color: rgba(0, 0, 0, 0.03);
-    border: 1px solid rgba(0, 0, 0, 0.1);
     color: #333;
+    background-color: rgb(0 0 0 / 3%);
+    border: 1px solid rgb(0 0 0 / 10%);
     transition: all 0.15s ease;
-    
+
     &:focus {
       background-color: #fff;
       border-color: #4a9eff;
-      box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.1);
+      box-shadow: 0 0 0 2px rgb(74 158 255 / 10%);
     }
-    
+
     &::placeholder {
       color: #999;
     }
   }
-  
+
   .add-tag-btn {
     @apply inline-flex items-center gap-1 px-2 py-1 rounded text-xs cursor-pointer;
+
     height: 24px;
-    background-color: rgba(0, 0, 0, 0.03);
-    border: 1px dashed rgba(0, 0, 0, 0.15);
     color: #999;
+    background-color: rgb(0 0 0 / 3%);
+    border: 1px dashed rgb(0 0 0 / 15%);
     transition: all 0.15s ease;
-    
+
     &:hover {
-      border-color: rgba(0, 0, 0, 0.25);
       color: #666;
+      border-color: rgb(0 0 0 / 25%);
     }
-    
+
     svg {
       flex-shrink: 0;
     }
   }
-  
+
   .tag-suggestions {
     @apply absolute left-0 mt-1 bg-panel rounded shadow-lg border border-panel z-50;
+
     min-width: 150px;
     max-height: 200px;
     overflow-y: auto;
 
     .suggestion-item {
       @apply px-3 py-1.5 text-xs cursor-pointer;
+
       color: var(--panel-text-secondary);
       transition: all 0.1s ease;
 
       &:hover {
-        background-color: rgba(74, 158, 255, 0.08);
         color: var(--el-color-primary);
+        background-color: rgb(74 158 255 / 8%);
       }
-      
+
       &:first-child {
         @apply rounded-t;
       }
-      
+
       &:last-child {
         @apply rounded-b;
       }
@@ -452,55 +468,55 @@ const selectSuggestion = (tag: string): void => {
 //     background-color: rgba(255, 255, 255, 0.15);
 //     color: #d1d5db;
 //     border-color: rgba(255, 255, 255, 0.1);
-    
+
 //     &:hover {
 //       background-color: rgba(255, 255, 255, 0.2);
 //       border-color: rgba(255, 255, 255, 0.25);
 //     }
-    
+
 //     .tag-close {
 //       color: #9ca3af;
-      
+
 //       &:hover {
 //         background-color: rgba(255, 255, 255, 0.2);
 //         color: #d1d5db;
 //       }
 //     }
 //   }
-  
+
 //   .tag-input {
 //     background-color: rgba(255, 255, 255, 0.08);
 //     border-color: rgba(255, 255, 255, 0.2);
 //     color: #d1d5db;
-    
+
 //     &:focus {
 //       background-color: rgba(255, 255, 255, 0.12);
 //       border-color: #4a9eff;
 //       box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.2);
 //     }
-    
+
 //     &::placeholder {
 //       color: #6b7280;
 //     }
 //   }
-  
+
 //   .add-tag-btn {
 //     border-color: rgba(255, 255, 255, 0.2);
 //     color: #9ca3af;
-    
+
 //     &:hover {
 //       background-color: rgba(255, 255, 255, 0.08);
 //       border-color: rgba(255, 255, 255, 0.3);
 //       color: #d1d5db;
 //     }
 //   }
-  
+
 //   .tag-suggestions {
 //     @apply bg-[#1e1e1e] border-[#2a2a2a];
-    
+
 //     .suggestion-item {
 //       color: #9ca3af;
-      
+
 //       &:hover {
 //         background-color: rgba(74, 158, 255, 0.2);
 //         color: #60a5fa;

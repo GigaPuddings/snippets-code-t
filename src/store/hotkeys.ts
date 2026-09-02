@@ -37,7 +37,9 @@ export const useHotkeyStore = defineStore('hotkeys', {
     /** 从后端拉取快捷键配置并填充 state */
     async initialize() {
       try {
-        const hotkeyMap = await invoke<Record<string, string>>('get_hotkey_config_map');
+        const hotkeyMap = await invoke<Record<string, string>>(
+          'get_hotkey_config_map'
+        );
         this.pluginHotkeys = hotkeyMap;
         this.searchHotkey = hotkeyMap.search || '';
         this.configHotkey = hotkeyMap.config || '';

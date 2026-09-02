@@ -4,15 +4,18 @@ import StarterKit from '@tiptap/starter-kit';
 import { useContextMenuCommands } from './useContextMenuCommands';
 import type { SourceEditorExpose } from '../types';
 
-const createTextarea = (value = '', start = 0, end = start) => ({
-  value,
-  selectionStart: start,
-  selectionEnd: end,
-  setSelectionRange: vi.fn(),
-  focus: vi.fn()
-}) as unknown as HTMLTextAreaElement;
+const createTextarea = (value = '', start = 0, end = start) =>
+  ({
+    value,
+    selectionStart: start,
+    selectionEnd: end,
+    setSelectionRange: vi.fn(),
+    focus: vi.fn()
+  }) as unknown as HTMLTextAreaElement;
 
-const createSourceEditor = (textarea: HTMLTextAreaElement | null = null): SourceEditorExpose => ({
+const createSourceEditor = (
+  textarea: HTMLTextAreaElement | null = null
+): SourceEditorExpose => ({
   getTextarea: vi.fn(() => textarea),
   focus: vi.fn(),
   selectAll: vi.fn(),
@@ -40,7 +43,7 @@ const createChain = () => {
     'insertContent',
     'setTextSelection',
     'selectAll'
-  ].forEach(method => {
+  ].forEach((method) => {
     chain[method] = vi.fn(() => chain);
   });
   chain.run = vi.fn(() => true);
@@ -142,7 +145,7 @@ describe('useContextMenuCommands', () => {
       isMarkdownSyntaxDisabled: () => false,
       hide: vi.fn(),
       promptUrl,
-      translate: key => key
+      translate: (key) => key
     });
 
     commands.handleAddLink();

@@ -11,7 +11,7 @@ export type HotkeyName =
   | 'screen_recorder'
   | 'dark_mode'
   | 'wallpaper_switcher'
-  | (string & {});
+  | (string & Record<never, never>);
 
 type KnownHotkeyName =
   | 'search'
@@ -30,23 +30,30 @@ export interface HotkeySettingDefinition {
   pluginId?: string;
 }
 
-const hotkeyDefinitions: Record<KnownHotkeyName, HotkeySettingDefinition & {
-  get: (store: ConfigurationStore) => string;
-  set: (store: ConfigurationStore, value: string) => void;
-}> = {
+const hotkeyDefinitions: Record<
+  KnownHotkeyName,
+  HotkeySettingDefinition & {
+    get: (store: ConfigurationStore) => string;
+    set: (store: ConfigurationStore, value: string) => void;
+  }
+> = {
   search: {
     name: 'search',
     labelKey: 'shortcut.searchHotkey',
     descriptionKey: 'shortcut.searchHotkeyDesc',
     get: (store) => store.searchHotkey,
-    set: (store, value) => { store.searchHotkey = value; }
+    set: (store, value) => {
+      store.searchHotkey = value;
+    }
   },
   config: {
     name: 'config',
     labelKey: 'shortcut.configHotkey',
     descriptionKey: 'shortcut.configHotkeyDesc',
     get: (store) => store.configHotkey,
-    set: (store, value) => { store.configHotkey = value; }
+    set: (store, value) => {
+      store.configHotkey = value;
+    }
   },
   translate: {
     name: 'translate',
@@ -54,7 +61,9 @@ const hotkeyDefinitions: Record<KnownHotkeyName, HotkeySettingDefinition & {
     labelKey: 'shortcut.translateHotkey',
     descriptionKey: 'shortcut.translateHotkeyDesc',
     get: (store) => store.translateHotkey,
-    set: (store, value) => { store.translateHotkey = value; }
+    set: (store, value) => {
+      store.translateHotkey = value;
+    }
   },
   selection_translate: {
     name: 'selection_translate',
@@ -62,7 +71,9 @@ const hotkeyDefinitions: Record<KnownHotkeyName, HotkeySettingDefinition & {
     labelKey: 'shortcut.selectionTranslateHotkey',
     descriptionKey: 'shortcut.selectionTranslateHotkeyDesc',
     get: (store) => store.selectionTranslateHotkey,
-    set: (store, value) => { store.selectionTranslateHotkey = value; }
+    set: (store, value) => {
+      store.selectionTranslateHotkey = value;
+    }
   },
   screenshot: {
     name: 'screenshot',
@@ -70,7 +81,9 @@ const hotkeyDefinitions: Record<KnownHotkeyName, HotkeySettingDefinition & {
     labelKey: 'shortcut.screenshotHotkey',
     descriptionKey: 'shortcut.screenshotHotkeyDesc',
     get: (store) => store.screenshotHotkey,
-    set: (store, value) => { store.screenshotHotkey = value; }
+    set: (store, value) => {
+      store.screenshotHotkey = value;
+    }
   },
   screen_recorder: {
     name: 'screen_recorder',
@@ -78,7 +91,9 @@ const hotkeyDefinitions: Record<KnownHotkeyName, HotkeySettingDefinition & {
     labelKey: 'shortcut.screenRecorderHotkey',
     descriptionKey: 'shortcut.screenRecorderHotkeyDesc',
     get: (store) => store.screenRecorderHotkey,
-    set: (store, value) => { store.screenRecorderHotkey = value; }
+    set: (store, value) => {
+      store.screenRecorderHotkey = value;
+    }
   },
   dark_mode: {
     name: 'dark_mode',
@@ -86,7 +101,9 @@ const hotkeyDefinitions: Record<KnownHotkeyName, HotkeySettingDefinition & {
     labelKey: 'shortcut.darkModeHotkey',
     descriptionKey: 'shortcut.darkModeHotkeyDesc',
     get: (store) => store.darkModeHotkey,
-    set: (store, value) => { store.darkModeHotkey = value; }
+    set: (store, value) => {
+      store.darkModeHotkey = value;
+    }
   },
   wallpaper_switcher: {
     name: 'wallpaper_switcher',
@@ -94,7 +111,9 @@ const hotkeyDefinitions: Record<KnownHotkeyName, HotkeySettingDefinition & {
     labelKey: 'shortcut.wallpaperSwitcherHotkey',
     descriptionKey: 'shortcut.wallpaperSwitcherHotkeyDesc',
     get: (store) => store.wallpaperSwitcherHotkey,
-    set: (store, value) => { store.wallpaperSwitcherHotkey = value; }
+    set: (store, value) => {
+      store.wallpaperSwitcherHotkey = value;
+    }
   }
 };
 
@@ -107,23 +126,26 @@ export const hotkeySettingDefinitions: HotkeySettingDefinition[] = [
   hotkeyDefinitions.screen_recorder,
   hotkeyDefinitions.dark_mode,
   hotkeyDefinitions.wallpaper_switcher
-].map(({ name, labelKey, descriptionKey, pluginId }) => ({ name, labelKey, descriptionKey, pluginId }));
+].map(({ name, labelKey, descriptionKey, pluginId }) => ({
+  name,
+  labelKey,
+  descriptionKey,
+  pluginId
+}));
 
-export const isHotkeyName = (value: string): value is HotkeyName => (
-  Boolean(value)
-);
+export const isHotkeyName = (value: string): value is HotkeyName =>
+  Boolean(value);
 
-export const isKnownHotkeyName = (
-  value: string
-): value is KnownHotkeyName => (
-  value in hotkeyDefinitions
-);
+export const isKnownHotkeyName = (value: string): value is KnownHotkeyName =>
+  value in hotkeyDefinitions;
 
-export const getHotkeyValue = (store: ConfigurationStore, hotkeyName: string): string => (
+export const getHotkeyValue = (
+  store: ConfigurationStore,
+  hotkeyName: string
+): string =>
   isKnownHotkeyName(hotkeyName)
     ? hotkeyDefinitions[hotkeyName].get(store)
-    : store.pluginHotkeys[hotkeyName] ?? ''
-);
+    : (store.pluginHotkeys[hotkeyName] ?? '');
 
 export const setHotkeyValue = (
   store: ConfigurationStore,

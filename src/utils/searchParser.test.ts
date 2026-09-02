@@ -26,7 +26,9 @@ describe('searchParser', () => {
   });
 
   it('parses tags and date presets', () => {
-    expect(parseSearchText('tag:vue tag:modal created:week updated:month')).toEqual({
+    expect(
+      parseSearchText('tag:vue tag:modal created:week updated:month')
+    ).toEqual({
       tags: ['vue', 'modal'],
       createdPreset: 'week',
       updatedPreset: 'month'

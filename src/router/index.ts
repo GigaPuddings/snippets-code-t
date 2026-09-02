@@ -1,6 +1,10 @@
 import { createWebHashHistory, createRouter, RouteRecordRaw } from 'vue-router';
 import { usePluginStore } from '@/store';
-import { configPluginRoutes, layoutPluginRoutes, windowPluginRoutes } from '@/plugins/routes';
+import {
+  configPluginRoutes,
+  layoutPluginRoutes,
+  windowPluginRoutes
+} from '@/plugins/routes';
 import { installRuntimePluginRoutes } from '@/plugins/runtime';
 
 export const Layout = () => import('@/layout/index.vue');
@@ -57,7 +61,8 @@ const routes: RouteRecordRaw[] = [
                   },
                   {
                     path: 'user',
-                    component: () => import('@/pages/config/components/user/index.vue'),
+                    component: () =>
+                      import('@/pages/config/components/user/index.vue'),
                     name: 'User'
                   },
                   {
@@ -110,7 +115,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/:pathMatch(.*)*',
     component: () => import('@/pages/error-page/404.vue')
-  },
+  }
 ];
 
 const router = createRouter({
@@ -124,16 +129,16 @@ router.beforeEach(async (to) => {
 
   let addedRuntimeRoutes = installRuntimePluginRoutes(router);
   if (
-    addedRuntimeRoutes > 0
-    && to.name === undefined
-    && to.matched.some((record) => record.path === '/:pathMatch(.*)*')
+    addedRuntimeRoutes > 0 &&
+    to.name === undefined &&
+    to.matched.some((record) => record.path === '/:pathMatch(.*)*')
   ) {
     return to.fullPath;
   }
 
   if (
-    to.name === undefined
-    && to.matched.some((record) => record.path === '/:pathMatch(.*)*')
+    to.name === undefined &&
+    to.matched.some((record) => record.path === '/:pathMatch(.*)*')
   ) {
     await pluginStore.loadEnabledPluginEntries();
     addedRuntimeRoutes = installRuntimePluginRoutes(router);

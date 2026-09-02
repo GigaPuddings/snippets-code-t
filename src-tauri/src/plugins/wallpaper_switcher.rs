@@ -13,7 +13,7 @@ use std::sync::{
     Mutex,
 };
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter};
 use walkdir::WalkDir;
 use winreg::{enums::HKEY_CURRENT_USER, RegKey};
 
@@ -370,13 +370,7 @@ fn scan_images_in_dir(path: &Path, folder_sort: &FolderSort) -> Result<Vec<PathB
 }
 
 fn cache_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
-    let dir = app_handle
-        .path()
-        .app_cache_dir()
-        .map_err(|e| format!("获取缓存目录失败: {}", e))?
-        .join("wallpaper-switcher");
-    fs::create_dir_all(&dir).map_err(|e| format!("创建壁纸缓存目录失败: {}", e))?;
-    Ok(dir)
+    crate::app_config::ensure_plugin_cache_dir(app_handle, "wallpaper-switcher")
 }
 
 fn cache_size(path: &Path) -> u64 {

@@ -46,8 +46,13 @@ jobs:
       - name: Frontend tests
         run: pnpm test
 
+      - name: ESLint
+        run: pnpm lint
+
+      - name: Stylelint
+        run: pnpm lint:style
+
       - name: Clippy
-        continue-on-error: true
         working-directory: src-tauri
         run: cargo clippy --all-targets -- -D warnings
 
@@ -80,7 +85,7 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable

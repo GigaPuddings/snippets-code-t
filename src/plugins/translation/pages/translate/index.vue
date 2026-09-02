@@ -395,20 +395,11 @@ const translateWithEngine = async (engine: string, generation: number) => {
 
     logger.error(`[翻译] ${engine}翻译出错`, error);
 
-    if (
-      errorMsg.includes('429') ||
-      errorMsg.includes('Too Many Requests')
-    ) {
+    if (errorMsg.includes('429') || errorMsg.includes('Too Many Requests')) {
       result.text = t('translate.tooManyRequests');
-    } else if (
-      errorMsg.includes('timeout') ||
-      errorMsg.includes('超时')
-    ) {
+    } else if (errorMsg.includes('timeout') || errorMsg.includes('超时')) {
       result.text = t('translate.timeout');
-    } else if (
-      errorMsg.includes('network') ||
-      errorMsg.includes('网络')
-    ) {
+    } else if (errorMsg.includes('network') || errorMsg.includes('网络')) {
       result.text = t('translate.networkError');
     } else if (
       errorMsg.includes('未下载') ||
@@ -830,7 +821,12 @@ onUnmounted(() => {
                 class="engine-icon"
                 alt="Bing"
               />
-              <span v-else-if="result.engine === 'offline'" class="offline-icon">{{ $t('translate.offlineMark') }}</span>
+              <span
+                v-else-if="result.engine === 'offline'"
+                class="offline-icon"
+              >
+                {{ $t('translate.offlineMark') }}
+              </span>
               <span v-else class="offline-icon ai-icon">AI</span>
               <span>{{ getEngineName(result.engine) }}</span>
             </div>
@@ -1010,8 +1006,8 @@ onUnmounted(() => {
 .source-area {
   @apply relative flex-shrink-0 pt-2.5 px-3 pb-2;
 
-  border-bottom: 1px solid var(--el-border-color-lighter);
   background: var(--el-bg-color);
+  border-bottom: 1px solid var(--el-border-color-lighter);
 }
 
 .source-textarea {
@@ -1020,11 +1016,11 @@ onUnmounted(() => {
     max-height: 150px;
     padding: 10px;
     color: var(--el-text-color-primary);
+    resize: none;
     background: var(--el-fill-color-lighter);
     border: 0;
     border-radius: 4px;
     box-shadow: none;
-    resize: none;
 
     &:focus {
       background: var(--el-fill-color-light);
@@ -1128,7 +1124,7 @@ onUnmounted(() => {
   @apply rotate-90;
 }
 
-@media (max-height: 560px) {
+@media (height <= 560px) {
   .source-textarea :deep(.el-textarea__inner) {
     min-height: 70px !important;
     max-height: 100px;

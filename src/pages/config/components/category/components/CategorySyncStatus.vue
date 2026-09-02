@@ -1,9 +1,5 @@
 <template>
-  <el-tooltip
-    effect="light"
-    :content="statusTitle"
-    placement="top"
-  >
+  <el-tooltip effect="light" :content="statusTitle" placement="top">
     <button
       class="category-sync-status"
       :class="[
@@ -32,7 +28,13 @@ defineOptions({
   name: 'CategorySyncStatus'
 });
 
-type GitSyncState = 'idle' | 'syncing' | 'synced' | 'has_changes' | 'error' | 'disabled';
+type GitSyncState =
+  | 'idle'
+  | 'syncing'
+  | 'synced'
+  | 'has_changes'
+  | 'error'
+  | 'disabled';
 
 const syncState = ref<GitSyncState>('disabled');
 const gitStatus = ref<GitStatus | null>(null);
@@ -47,7 +49,9 @@ let lifecycleRunId = 0;
 const router = useRouter();
 const pluginStore = usePluginStore();
 const isGitPluginEnabled = computed(() => pluginStore.isEnabled('git-sync'));
-const pendingFilesCount = computed(() => gitStatus.value?.changed_files.length ?? 0);
+const pendingFilesCount = computed(
+  () => gitStatus.value?.changed_files.length ?? 0
+);
 
 const formattedLastSyncTime = computed(() => {
   if (!lastSyncTime.value) return '';
@@ -67,7 +71,8 @@ const formattedLastSyncTime = computed(() => {
 
 const stateDescription = computed(() => {
   if (!gitSettings.value?.enabled) return 'Git 同步已禁用';
-  if (pendingFilesCount.value > 0) return `${pendingFilesCount.value} 个文件待同步`;
+  if (pendingFilesCount.value > 0)
+    return `${pendingFilesCount.value} 个文件待同步`;
   if (syncState.value === 'syncing') return '同步中...';
   if (syncState.value === 'error') return '同步出错';
   return formattedLastSyncTime.value || '已同步';
@@ -148,14 +153,18 @@ async function setupGitStatusListener(): Promise<void> {
       listen('git-push-start', () => {
         syncState.value = 'syncing';
       }),
-      listen<{ success: boolean; last_sync_time?: string }>('git-sync-complete', (event) => {
-        if (event.payload.success) {
-          lastSyncTime.value = event.payload.last_sync_time ?? lastSyncTime.value;
-          scheduleRefresh();
-        } else {
-          syncState.value = 'error';
+      listen<{ success: boolean; last_sync_time?: string }>(
+        'git-sync-complete',
+        (event) => {
+          if (event.payload.success) {
+            lastSyncTime.value =
+              event.payload.last_sync_time ?? lastSyncTime.value;
+            scheduleRefresh();
+          } else {
+            syncState.value = 'error';
+          }
         }
-      }),
+      ),
       listen('git-workspace-changed', scheduleRefresh),
       listen('git-settings-changed', () => {
         void refreshGitStatusLifecycle();
@@ -205,11 +214,12 @@ async function refreshGitStatusLifecycle(): Promise<void> {
   await refreshStatus();
 }
 
-const canOpenGitSettings = computed(() => (
-  isGitPluginEnabled.value &&
-  gitSettings.value?.enabled === true &&
-  ['has_changes', 'error', 'syncing'].includes(syncState.value)
-));
+const canOpenGitSettings = computed(
+  () =>
+    isGitPluginEnabled.value &&
+    gitSettings.value?.enabled === true &&
+    ['has_changes', 'error', 'syncing'].includes(syncState.value)
+);
 
 const statusLabel = computed(() => {
   if (!isGitPluginEnabled.value) return '本地库';
@@ -232,7 +242,8 @@ const statusBadge = computed(() => {
 const statusTitle = computed(() => {
   if (!isGitPluginEnabled.value) return 'Git 插件未启用';
   if (!gitSettings.value?.enabled) return 'Git 同步未启用';
-  if (canOpenGitSettings.value) return `${stateDescription.value}，点击查看 Git 配置`;
+  if (canOpenGitSettings.value)
+    return `${stateDescription.value}，点击查看 Git 配置`;
   if (formattedLastSyncTime.value && syncState.value !== 'has_changes') {
     return `上次同步：${formattedLastSyncTime.value}`;
   }
@@ -265,33 +276,35 @@ onUnmounted(() => {
 <style scoped lang="scss">
 .category-sync-status {
   @apply flex items-center w-full rounded-md border bg-panel text-left;
-  height: 32px;
+
   gap: 7px;
+  height: 32px;
   padding: 0 8px;
+  color: var(--categories-info-text-color);
   cursor: default;
   border-color: rgba(var(--categories-border-color-rgb), 0.45);
-  color: var(--categories-info-text-color);
 }
 
 .category-sync-status--clickable {
   cursor: pointer;
 
   &:hover {
-    border-color: var(--search-result-active-border);
     background: var(--search-result-active);
+    border-color: var(--search-result-active-border);
   }
 }
 
 .category-sync-status__dot {
+  flex-shrink: 0;
   width: 7px;
   height: 7px;
-  flex-shrink: 0;
-  border-radius: 999px;
   background: #94a3b8;
+  border-radius: 999px;
 }
 
 .category-sync-status__label {
   @apply truncate;
+
   flex: 1;
   min-width: 0;
   font-size: 11px;
@@ -299,9 +312,9 @@ onUnmounted(() => {
 
 .category-sync-status__badge {
   flex-shrink: 0;
-  color: #16a34a;
   font-size: 10px;
   font-weight: 800;
+  color: #16a34a;
   letter-spacing: 0.02em;
 }
 

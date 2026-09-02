@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { useGitConflictDialogs } from './useGitConflictDialogs';
 
-class MemoryStorage implements Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> {
+class MemoryStorage
+  implements Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
+{
   private values = new Map<string, string>();
 
   getItem(key: string): string | null {

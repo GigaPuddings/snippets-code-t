@@ -8,7 +8,9 @@ export function isShellAppsFolderPath(value: string): boolean {
   return value.toLowerCase().startsWith('shell:appsfolder\\');
 }
 
-export function getSearchResultDisplayPath(item: ContentType | null | undefined): string {
+export function getSearchResultDisplayPath(
+  item: ContentType | null | undefined
+): string {
   if (!item) return '';
   return (
     toDisplayText(item.file_path) ||
@@ -18,7 +20,12 @@ export function getSearchResultDisplayPath(item: ContentType | null | undefined)
   );
 }
 
-export function getSearchResultLaunchPath(item: ContentType | null | undefined): string {
+export function getSearchResultLaunchPath(
+  item: ContentType | null | undefined
+): string {
   if (!item) return '';
-  return toDisplayText(item.metadata?.launch_path) || getSearchResultDisplayPath(item);
+  return (
+    toDisplayText(item.metadata?.launch_path) ||
+    getSearchResultDisplayPath(item)
+  );
 }

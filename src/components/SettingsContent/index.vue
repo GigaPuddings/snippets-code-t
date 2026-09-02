@@ -15,7 +15,9 @@
           size="18"
           :strokeWidth="3"
         />
-        <span class="settings-menu-label" :title="item.label">{{ item.label }}</span>
+        <span class="settings-menu-label" :title="item.label">
+          {{ item.label }}
+        </span>
       </div>
     </div>
 
@@ -100,11 +102,21 @@ const menuItems = computed(() => {
 
 const activeTab = ref('general');
 const loadedTabs = ref<string[]>(['general']); // 已加载的 tab
-const General = defineAsyncComponent(() => import('./components/General/index.vue'));
-const Shortcut = defineAsyncComponent(() => import('./components/Shortcut/index.vue'));
-const Manger = defineAsyncComponent(() => import('./components/Manger/index.vue'));
-const Plugins = defineAsyncComponent(() => import('./components/Plugins/index.vue'));
-const Developer = defineAsyncComponent(() => import('./components/Developer/index.vue'));
+const General = defineAsyncComponent(
+  () => import('./components/General/index.vue')
+);
+const Shortcut = defineAsyncComponent(
+  () => import('./components/Shortcut/index.vue')
+);
+const Manger = defineAsyncComponent(
+  () => import('./components/Manger/index.vue')
+);
+const Plugins = defineAsyncComponent(
+  () => import('./components/Plugins/index.vue')
+);
+const Developer = defineAsyncComponent(
+  () => import('./components/Developer/index.vue')
+);
 
 const getSettingsTabPluginId = (tabId: string): string | null => {
   const item = pluginSettingsMenuItems.find(
@@ -238,18 +250,20 @@ onMounted(async () => {
 
 .settings-sidebar {
   @apply w-52 border-r border-panel py-4 overflow-y-auto bg-panel px-2;
+
   flex: 0 0 13rem;
 }
 
 .settings-menu-item {
   @apply flex items-center min-w-0 py-1.5 px-2 my-1.5 last:mb-0 text-panel rounded-md hover:bg-hover dark:hover:bg-hover dark:text-panel cursor-pointer transition-colors;
+
   position: relative;
   border: 1px solid transparent;
 
   &.active {
+    color: var(--categories-text-color);
     background-color: var(--search-result-active);
     border-color: var(--search-result-active-border);
-    color: var(--categories-text-color);
 
     &::before {
       position: absolute;

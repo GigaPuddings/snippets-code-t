@@ -28,11 +28,11 @@ const emit = defineEmits<{
 .ai-selection-toolbar {
   position: fixed;
   z-index: 3000;
-  transform: translate(-50%, -100%);
   padding: 4px;
+  background: var(--dialog-bg);
   border: 1px solid var(--dialog-border);
   border-radius: 8px;
-  background: var(--dialog-bg);
-  box-shadow: 0 8px 22px rgba(16, 24, 40, 0.18);
+  box-shadow: 0 8px 22px rgb(16 24 40 / 18%);
+  transform: translate(-50%, -100%);
 }
 </style>

@@ -24,16 +24,16 @@ interface PendingEvent {
 export function createDebouncedHandler() {
   /** 待处理的事件队列 */
   const pendingEvents = ref<PendingEvent[]>([]);
-  
+
   /** 正在处理的标志 */
   const isProcessing = ref(false);
-  
+
   /** 防抖延迟（毫秒） */
   let delay = 300;
-  
+
   /** 定时器 ID */
   let timer: ReturnType<typeof setTimeout> | null = null;
-  
+
   /**
    * 设置防抖选项
    */
@@ -42,31 +42,33 @@ export function createDebouncedHandler() {
       delay = options.delay;
     }
   };
-  
+
   /**
    * 处理事件
    * @param handler 要执行的异步处理函数
    * @returns Promise
    */
-  const handle = async <T>(handler: () => Promise<T>): Promise<T | undefined> => {
+  const handle = async <T>(
+    handler: () => Promise<T>
+  ): Promise<T | undefined> => {
     // 如果正在处理，将事件加入队列
     if (isProcessing.value) {
       return new Promise((resolve) => {
         pendingEvents.value.push({
           resolve: resolve as () => void,
-          timestamp: Date.now(),
+          timestamp: Date.now()
         });
       });
     }
-    
+
     isProcessing.value = true;
-    
+
     try {
       const result = await handler();
-      
+
       // 处理队列中的下一个事件
       processQueue();
-      
+
       return result;
     } catch (error) {
       isProcessing.value = false;
@@ -74,7 +76,7 @@ export function createDebouncedHandler() {
       throw error;
     }
   };
-  
+
   /**
    * 处理队列中的下一个事件
    */
@@ -83,16 +85,16 @@ export function createDebouncedHandler() {
       isProcessing.value = false;
       return;
     }
-    
+
     // 清空队列
     const queue = [...pendingEvents.value];
     pendingEvents.value = [];
-    
+
     // 延迟处理队列中的事件
     if (timer) {
       clearTimeout(timer);
     }
-    
+
     timer = setTimeout(() => {
       // 触发队列中所有事件的 resolve，让它们重新执行
       queue.forEach((event) => {
@@ -100,21 +102,24 @@ export function createDebouncedHandler() {
       });
     }, delay);
   };
-  
+
   return {
     setOptions,
     handle,
     /** 当前是否正在处理 */
     isProcessing: () => isProcessing.value,
     /** 队列中待处理的事件数量 */
-    pendingCount: () => pendingEvents.value.length,
+    pendingCount: () => pendingEvents.value.length
   };
 }
 
 /**
  * 全局单例的事件处理器
  */
-const globalHandlers = new Map<string, ReturnType<typeof createDebouncedHandler>>();
+const globalHandlers = new Map<
+  string,
+  ReturnType<typeof createDebouncedHandler>
+>();
 
 /**
  * 获取或创建指定事件类型的防抖处理器

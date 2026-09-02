@@ -321,7 +321,9 @@ const getExtensions = (): Extension[] => {
     customTheme.value,
     languageCompartment.of(getLanguageExtension(detectedLanguage.value)),
     history(),
-    keymapCompartment.of(createEditorKeymap(props.indentWithTab, props.tabSize)),
+    keymapCompartment.of(
+      createEditorKeymap(props.indentWithTab, props.tabSize)
+    ),
     tabSizeCompartment.of(EditorState.tabSize.of(props.tabSize)),
     EditorView.editable.of(!props.disabled),
     EditorState.phrases.of({
@@ -750,6 +752,7 @@ defineExpose({
 <style lang="scss" scoped>
 .editor-container {
   @apply relative overflow-hidden flex flex-col;
+
   height: 100%;
   min-height: 0;
 
@@ -765,16 +768,18 @@ defineExpose({
 
 .editor-content {
   @apply flex-1 overflow-auto;
-  min-height: 0;
+
   height: 0;
+  min-height: 0;
 }
 
 .editor-status {
   @apply h-6 px-2 border-t flex items-center justify-between text-sm text-content;
+
   flex-shrink: 0;
+  color: var(--statusbar-text);
   background-color: var(--statusbar-bg);
   border-color: var(--statusbar-border);
-  color: var(--statusbar-text);
 }
 
 .editor-status-left {
@@ -791,6 +796,7 @@ defineExpose({
 
 .editor-status-text {
   @apply text-xs opacity-70;
+
   font-weight: 400;
   text-transform: capitalize;
 }

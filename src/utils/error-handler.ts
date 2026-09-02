@@ -100,7 +100,7 @@ export class ErrorHandler {
    * @param fn - 要包装的异步函数
    * @param context - 错误上下文（部分）
    * @returns 包装后的函数
-   * 
+   *
    * @example
    * ```typescript
    * const fetchData = ErrorHandler.wrapAsync(
@@ -112,7 +112,7 @@ export class ErrorHandler {
    *     operation: 'fetchData'
    *   }
    * );
-   * 
+   *
    * const data = await fetchData();
    * ```
    */
@@ -233,12 +233,12 @@ export class ErrorHandler {
 
 /**
  * 处理 API 错误
- * 
+ *
  * 用于处理 API 调用过程中发生的错误，自动显示错误提示并记录日志
- * 
+ *
  * @param error - 错误对象
  * @param context - 上下文描述（可选），用于标识错误发生的位置
- * 
+ *
  * @example
  * ```typescript
  * try {
@@ -258,12 +258,12 @@ export function handleApiError(error: unknown, context?: string): void {
 
 /**
  * 处理编辑器错误
- * 
+ *
  * 用于处理编辑器加载或操作过程中发生的错误
- * 
+ *
  * @param error - 错误对象
  * @param context - 上下文描述（可选），用于标识错误发生的位置
- * 
+ *
  * @example
  * ```typescript
  * try {
@@ -274,23 +274,27 @@ export function handleApiError(error: unknown, context?: string): void {
  * ```
  */
 export function handleEditorError(error: unknown, context?: string): void {
-  ErrorHandler.handle(error, {
-    type: ErrorType.UNKNOWN_ERROR,
-    operation: context || '编辑器操作',
-    timestamp: new Date()
-  }, {
-    userMessage: '编辑器加载失败，请刷新页面重试'
-  });
+  ErrorHandler.handle(
+    error,
+    {
+      type: ErrorType.UNKNOWN_ERROR,
+      operation: context || '编辑器操作',
+      timestamp: new Date()
+    },
+    {
+      userMessage: '编辑器加载失败，请刷新页面重试'
+    }
+  );
 }
 
 /**
  * 处理保存错误
- * 
+ *
  * 用于处理数据保存过程中发生的错误
- * 
+ *
  * @param error - 错误对象
  * @param context - 上下文描述（可选），用于标识错误发生的位置
- * 
+ *
  * @example
  * ```typescript
  * try {
@@ -302,26 +306,32 @@ export function handleEditorError(error: unknown, context?: string): void {
  */
 export function handleSaveError(error: unknown, context?: string): void {
   // 权限类错误使用 getUserMessage 的智能提示；其余使用通用保存失败提示
-  const isPermissionError = error instanceof Error && (
-    /拒绝访问|permission denied|只读|没有写入权限|access denied|eacces|readonly/i.test(error.message)
+  const isPermissionError =
+    error instanceof Error &&
+    /拒绝访问|permission denied|只读|没有写入权限|access denied|eacces|readonly/i.test(
+      error.message
+    );
+  ErrorHandler.handle(
+    error,
+    {
+      type: ErrorType.DATABASE_ERROR,
+      operation: context || '保存操作',
+      timestamp: new Date()
+    },
+    {
+      userMessage: isPermissionError ? undefined : '保存失败，请重试'
+    }
   );
-  ErrorHandler.handle(error, {
-    type: ErrorType.DATABASE_ERROR,
-    operation: context || '保存操作',
-    timestamp: new Date()
-  }, {
-    userMessage: isPermissionError ? undefined : '保存失败，请重试'
-  });
 }
 
 /**
  * 处理加载错误
- * 
+ *
  * 用于处理数据加载过程中发生的错误
- * 
+ *
  * @param error - 错误对象
  * @param context - 上下文描述（可选），用于标识错误发生的位置
- * 
+ *
  * @example
  * ```typescript
  * try {
@@ -332,23 +342,27 @@ export function handleSaveError(error: unknown, context?: string): void {
  * ```
  */
 export function handleLoadError(error: unknown, context?: string): void {
-  ErrorHandler.handle(error, {
-    type: ErrorType.DATABASE_ERROR,
-    operation: context || '加载操作',
-    timestamp: new Date()
-  }, {
-    userMessage: '加载失败，请重试'
-  });
+  ErrorHandler.handle(
+    error,
+    {
+      type: ErrorType.DATABASE_ERROR,
+      operation: context || '加载操作',
+      timestamp: new Date()
+    },
+    {
+      userMessage: '加载失败，请重试'
+    }
+  );
 }
 
 /**
  * 处理转换错误
- * 
+ *
  * 用于处理格式转换过程中发生的错误（如 Markdown 转 HTML）
- * 
+ *
  * @param error - 错误对象
  * @param context - 上下文描述（可选），用于标识错误发生的位置
- * 
+ *
  * @example
  * ```typescript
  * try {
@@ -359,11 +373,15 @@ export function handleLoadError(error: unknown, context?: string): void {
  * ```
  */
 export function handleConversionError(error: unknown, context?: string): void {
-  ErrorHandler.handle(error, {
-    type: ErrorType.UNKNOWN_ERROR,
-    operation: context || '转换操作',
-    timestamp: new Date()
-  }, {
-    userMessage: '格式转换失败'
-  });
+  ErrorHandler.handle(
+    error,
+    {
+      type: ErrorType.UNKNOWN_ERROR,
+      operation: context || '转换操作',
+      timestamp: new Date()
+    },
+    {
+      userMessage: '格式转换失败'
+    }
+  );
 }

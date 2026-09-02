@@ -68,13 +68,14 @@ export function useGitConflictConfirm(t: Composer['t']) {
     return result === 'primary';
   };
 
-  const confirmCancelConflict = async (): Promise<GitConflictConfirmResult> => showConfirm({
-    title: t('settings.gitSync.cancelConflictTitle'),
-    message: t('settings.gitSync.cancelConflictMessage'),
-    primaryText: t('settings.gitSync.handleLater'),
-    secondaryText: t('settings.gitSync.resumeSync'),
-    type: 'warning'
-  });
+  const confirmCancelConflict = async (): Promise<GitConflictConfirmResult> =>
+    showConfirm({
+      title: t('settings.gitSync.cancelConflictTitle'),
+      message: t('settings.gitSync.cancelConflictMessage'),
+      primaryText: t('settings.gitSync.handleLater'),
+      secondaryText: t('settings.gitSync.resumeSync'),
+      type: 'warning'
+    });
 
   return {
     visible,

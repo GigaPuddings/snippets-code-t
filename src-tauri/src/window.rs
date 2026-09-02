@@ -1946,9 +1946,7 @@ pub fn emit_scan_progress_for(
     // 更新状态
     let (should_emit, should_update_tray) = {
         let mut states = PROGRESS_STATES.lock().unwrap();
-        let state = states
-            .entry(owner.to_string())
-            .or_insert_with(ScanProgressState::default);
+        let state = states.entry(owner.to_string()).or_default();
         let previous_emit_bucket = if state.total > 0 {
             state.current.saturating_mul(50) / state.total
         } else {
@@ -2044,9 +2042,7 @@ pub fn emit_scan_complete_for(
     // 更新状态
     {
         let mut states = PROGRESS_STATES.lock().unwrap();
-        let state = states
-            .entry(owner.to_string())
-            .or_insert_with(ScanProgressState::default);
+        let state = states.entry(owner.to_string()).or_default();
         state.owner = owner.to_string();
         state.completed = true;
         state.apps_count = apps_count;

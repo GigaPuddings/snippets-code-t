@@ -15,7 +15,10 @@ function getStoredLanguage(): LocaleType {
     const stored = localStorage.getItem('configuration');
     if (stored) {
       const config = JSON.parse(stored);
-      if (config.language && (config.language === 'zh-CN' || config.language === 'en-US')) {
+      if (
+        config.language &&
+        (config.language === 'zh-CN' || config.language === 'en-US')
+      ) {
         return config.language;
       }
     }

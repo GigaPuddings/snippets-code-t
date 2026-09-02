@@ -3,13 +3,17 @@
     <div class="editor-status-left">
       <!-- 71 个词 164 个字符 -->
       <div class="editor-status-item">
-        <span class="editor-status-text">{{ wordCount }} {{ $t('noteEditor.words') }}</span>
+        <span class="editor-status-text">
+          {{ wordCount }} {{ $t('noteEditor.words') }}
+        </span>
       </div>
       <div class="editor-status-item">
-        <span class="editor-status-text">{{ charCount }} {{ $t('noteEditor.chars') }}</span>
+        <span class="editor-status-text">
+          {{ charCount }} {{ $t('noteEditor.chars') }}
+        </span>
       </div>
     </div>
-    
+
     <div class="editor-status-right">
       <!-- 反向链接按钮 -->
       <button
@@ -19,11 +23,14 @@
         @click="$emit('toggle-backlinks')"
       >
         <svg class="backlink-icon" viewBox="0 0 24 24" width="16" height="16">
-          <path fill="currentColor" d="M10.59,13.41C11,13.8 11,14.44 10.59,14.83C10.2,15.22 9.56,15.22 9.17,14.83C7.22,12.88 7.22,9.71 9.17,7.76V7.76L12.71,4.22C14.66,2.27 17.83,2.27 19.78,4.22C21.73,6.17 21.73,9.34 19.78,11.29L18.29,12.78C18.3,11.96 18.17,11.14 17.89,10.36L18.36,9.88C19.54,8.71 19.54,6.81 18.36,5.64C17.19,4.46 15.29,4.46 14.12,5.64L10.59,9.17C9.41,10.34 9.41,12.24 10.59,13.41M13.41,9.17C13.8,8.78 14.44,8.78 14.83,9.17C16.78,11.12 16.78,14.29 14.83,16.24V16.24L11.29,19.78C9.34,21.73 6.17,21.73 4.22,19.78C2.27,17.83 2.27,14.66 4.22,12.71L5.71,11.22C5.7,12.04 5.83,12.86 6.11,13.65L5.64,14.12C4.46,15.29 4.46,17.19 5.64,18.36C6.81,19.54 8.71,19.54 9.88,18.36L13.41,14.83C14.59,13.66 14.59,11.76 13.41,10.59C13,10.2 13,9.56 13.41,9.17Z" />
+          <path
+            fill="currentColor"
+            d="M10.59,13.41C11,13.8 11,14.44 10.59,14.83C10.2,15.22 9.56,15.22 9.17,14.83C7.22,12.88 7.22,9.71 9.17,7.76V7.76L12.71,4.22C14.66,2.27 17.83,2.27 19.78,4.22C21.73,6.17 21.73,9.34 19.78,11.29L18.29,12.78C18.3,11.96 18.17,11.14 17.89,10.36L18.36,9.88C19.54,8.71 19.54,6.81 18.36,5.64C17.19,4.46 15.29,4.46 14.12,5.64L10.59,9.17C9.41,10.34 9.41,12.24 10.59,13.41M13.41,9.17C13.8,8.78 14.44,8.78 14.83,9.17C16.78,11.12 16.78,14.29 14.83,16.24V16.24L11.29,19.78C9.34,21.73 6.17,21.73 4.22,19.78C2.27,17.83 2.27,14.66 4.22,12.71L5.71,11.22C5.7,12.04 5.83,12.86 6.11,13.65L5.64,14.12C4.46,15.29 4.46,17.19 5.64,18.36C6.81,19.54 8.71,19.54 9.88,18.36L13.41,14.83C14.59,13.66 14.59,11.76 13.41,10.59C13,10.2 13,9.56 13.41,9.17Z"
+          />
         </svg>
         <span class="backlink-count">{{ backlinkCount }}</span>
       </button>
-      
+
       <!-- 视图切换按钮 -->
       <el-dropdown
         v-if="showViewToggle"
@@ -32,49 +39,126 @@
         @command="handleCommand"
       >
         <span class="view-toggle-btn">
-          <svg v-if="viewMode === 'reading'" class="view-icon" viewBox="0 0 24 24" width="16" height="16">
-            <path fill="currentColor" d="M21,5C19.89,4.65 18.67,4.5 17.5,4.5C15.55,4.5 13.45,4.9 12,6C10.55,4.9 8.45,4.5 6.5,4.5C4.55,4.5 2.45,4.9 1,6V20.65C1,20.9 1.25,21.15 1.5,21.15C1.6,21.15 1.65,21.1 1.75,21.1C3.1,20.45 5.05,20 6.5,20C8.45,20 10.55,20.4 12,21.5C13.35,20.65 15.8,20 17.5,20C19.15,20 20.85,20.3 22.25,21.05C22.35,21.1 22.4,21.1 22.5,21.1C22.75,21.1 23,20.85 23,20.6V6C22.4,5.55 21.75,5.25 21,5M21,18.5C19.9,18.15 18.7,18 17.5,18C15.8,18 13.35,18.65 12,19.5V8C13.35,7.15 15.8,6.5 17.5,6.5C18.7,6.5 19.9,6.65 21,7V18.5Z" />
+          <svg
+            v-if="viewMode === 'reading'"
+            class="view-icon"
+            viewBox="0 0 24 24"
+            width="16"
+            height="16"
+          >
+            <path
+              fill="currentColor"
+              d="M21,5C19.89,4.65 18.67,4.5 17.5,4.5C15.55,4.5 13.45,4.9 12,6C10.55,4.9 8.45,4.5 6.5,4.5C4.55,4.5 2.45,4.9 1,6V20.65C1,20.9 1.25,21.15 1.5,21.15C1.6,21.15 1.65,21.1 1.75,21.1C3.1,20.45 5.05,20 6.5,20C8.45,20 10.55,20.4 12,21.5C13.35,20.65 15.8,20 17.5,20C19.15,20 20.85,20.3 22.25,21.05C22.35,21.1 22.4,21.1 22.5,21.1C22.75,21.1 23,20.85 23,20.6V6C22.4,5.55 21.75,5.25 21,5M21,18.5C19.9,18.15 18.7,18 17.5,18C15.8,18 13.35,18.65 12,19.5V8C13.35,7.15 15.8,6.5 17.5,6.5C18.7,6.5 19.9,6.65 21,7V18.5Z"
+            />
           </svg>
-          <svg v-else-if="viewMode === 'source'" class="view-icon" viewBox="0 0 24 24" width="16" height="16">
-            <path fill="currentColor" d="M14.6,16.6L19.2,12L14.6,7.4L16,6L22,12L16,18L14.6,16.6M9.4,16.6L4.8,12L9.4,7.4L8,6L2,12L8,18L9.4,16.6Z" />
+          <svg
+            v-else-if="viewMode === 'source'"
+            class="view-icon"
+            viewBox="0 0 24 24"
+            width="16"
+            height="16"
+          >
+            <path
+              fill="currentColor"
+              d="M14.6,16.6L19.2,12L14.6,7.4L16,6L22,12L16,18L14.6,16.6M9.4,16.6L4.8,12L9.4,7.4L8,6L2,12L8,18L9.4,16.6Z"
+            />
           </svg>
-          <svg v-else class="view-icon" viewBox="0 0 24 24" width="16" height="16">
-            <path fill="currentColor" d="M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17M12,4.5C7,4.5 2.73,7.61 1,12C2.73,16.39 7,19.5 12,19.5C17,19.5 21.27,16.39 23,12C21.27,7.61 17,4.5 12,4.5Z" />
+          <svg
+            v-else
+            class="view-icon"
+            viewBox="0 0 24 24"
+            width="16"
+            height="16"
+          >
+            <path
+              fill="currentColor"
+              d="M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17M12,4.5C7,4.5 2.73,7.61 1,12C2.73,16.39 7,19.5 12,19.5C17,19.5 21.27,16.39 23,12C21.27,7.61 17,4.5 12,4.5Z"
+            />
           </svg>
           <span class="view-text">
             {{ viewModeText }}
           </span>
-          <svg class="dropdown-arrow" viewBox="0 0 24 24" width="12" height="12">
+          <svg
+            class="dropdown-arrow"
+            viewBox="0 0 24 24"
+            width="12"
+            height="12"
+          >
             <path fill="currentColor" d="M7,10L12,15L17,10H7Z" />
           </svg>
         </span>
         <template #dropdown>
           <el-dropdown-menu>
-            <el-dropdown-item command="reading" :class="{ 'is-active': viewMode === 'reading' }">
+            <el-dropdown-item
+              command="reading"
+              :class="{ 'is-active': viewMode === 'reading' }"
+            >
               <svg class="menu-icon" viewBox="0 0 24 24" width="16" height="16">
-                <path fill="currentColor" d="M21,5C19.89,4.65 18.67,4.5 17.5,4.5C15.55,4.5 13.45,4.9 12,6C10.55,4.9 8.45,4.5 6.5,4.5C4.55,4.5 2.45,4.9 1,6V20.65C1,20.9 1.25,21.15 1.5,21.15C1.6,21.15 1.65,21.1 1.75,21.1C3.1,20.45 5.05,20 6.5,20C8.45,20 10.55,20.4 12,21.5C13.35,20.65 15.8,20 17.5,20C19.15,20 20.85,20.3 22.25,21.05C22.35,21.1 22.4,21.1 22.5,21.1C22.75,21.1 23,20.85 23,20.6V6C22.4,5.55 21.75,5.25 21,5M21,18.5C19.9,18.15 18.7,18 17.5,18C15.8,18 13.35,18.65 12,19.5V8C13.35,7.15 15.8,6.5 17.5,6.5C18.7,6.5 19.9,6.65 21,7V18.5Z" />
+                <path
+                  fill="currentColor"
+                  d="M21,5C19.89,4.65 18.67,4.5 17.5,4.5C15.55,4.5 13.45,4.9 12,6C10.55,4.9 8.45,4.5 6.5,4.5C4.55,4.5 2.45,4.9 1,6V20.65C1,20.9 1.25,21.15 1.5,21.15C1.6,21.15 1.65,21.1 1.75,21.1C3.1,20.45 5.05,20 6.5,20C8.45,20 10.55,20.4 12,21.5C13.35,20.65 15.8,20 17.5,20C19.15,20 20.85,20.3 22.25,21.05C22.35,21.1 22.4,21.1 22.5,21.1C22.75,21.1 23,20.85 23,20.6V6C22.4,5.55 21.75,5.25 21,5M21,18.5C19.9,18.15 18.7,18 17.5,18C15.8,18 13.35,18.65 12,19.5V8C13.35,7.15 15.8,6.5 17.5,6.5C18.7,6.5 19.9,6.65 21,7V18.5Z"
+                />
               </svg>
               <span class="menu-text">{{ $t('noteEditor.readingView') }}</span>
-              <svg v-if="viewMode === 'reading'" class="check-icon" viewBox="0 0 24 24" width="16" height="16">
-                <path fill="currentColor" d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z" />
+              <svg
+                v-if="viewMode === 'reading'"
+                class="check-icon"
+                viewBox="0 0 24 24"
+                width="16"
+                height="16"
+              >
+                <path
+                  fill="currentColor"
+                  d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"
+                />
               </svg>
             </el-dropdown-item>
-            <el-dropdown-item command="source" :class="{ 'is-active': viewMode === 'source' }">
+            <el-dropdown-item
+              command="source"
+              :class="{ 'is-active': viewMode === 'source' }"
+            >
               <svg class="menu-icon" viewBox="0 0 24 24" width="16" height="16">
-                <path fill="currentColor" d="M14.6,16.6L19.2,12L14.6,7.4L16,6L22,12L16,18L14.6,16.6M9.4,16.6L4.8,12L9.4,7.4L8,6L2,12L8,18L9.4,16.6Z" />
+                <path
+                  fill="currentColor"
+                  d="M14.6,16.6L19.2,12L14.6,7.4L16,6L22,12L16,18L14.6,16.6M9.4,16.6L4.8,12L9.4,7.4L8,6L2,12L8,18L9.4,16.6Z"
+                />
               </svg>
               <span class="menu-text">{{ $t('noteEditor.sourceMode') }}</span>
-              <svg v-if="viewMode === 'source'" class="check-icon" viewBox="0 0 24 24" width="16" height="16">
-                <path fill="currentColor" d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z" />
+              <svg
+                v-if="viewMode === 'source'"
+                class="check-icon"
+                viewBox="0 0 24 24"
+                width="16"
+                height="16"
+              >
+                <path
+                  fill="currentColor"
+                  d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"
+                />
               </svg>
             </el-dropdown-item>
-            <el-dropdown-item command="preview" :class="{ 'is-active': viewMode === 'preview' }">
+            <el-dropdown-item
+              command="preview"
+              :class="{ 'is-active': viewMode === 'preview' }"
+            >
               <svg class="menu-icon" viewBox="0 0 24 24" width="16" height="16">
-                <path fill="currentColor" d="M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17M12,4.5C7,4.5 2.73,7.61 1,12C2.73,16.39 7,19.5 12,19.5C17,19.5 21.27,16.39 23,12C21.27,7.61 17,4.5 12,4.5Z" />
+                <path
+                  fill="currentColor"
+                  d="M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17M12,4.5C7,4.5 2.73,7.61 1,12C2.73,16.39 7,19.5 12,19.5C17,19.5 21.27,16.39 23,12C21.27,7.61 17,4.5 12,4.5Z"
+                />
               </svg>
               <span class="menu-text">{{ $t('noteEditor.livePreview') }}</span>
-              <svg v-if="viewMode === 'preview'" class="check-icon" viewBox="0 0 24 24" width="16" height="16">
-                <path fill="currentColor" d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z" />
+              <svg
+                v-if="viewMode === 'preview'"
+                class="check-icon"
+                viewBox="0 0 24 24"
+                width="16"
+                height="16"
+              >
+                <path
+                  fill="currentColor"
+                  d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"
+                />
               </svg>
             </el-dropdown-item>
           </el-dropdown-menu>
@@ -133,11 +217,14 @@ const handleCommand = (command: 'reading' | 'preview' | 'source') => {
 .editor-status {
   @apply relative flex h-6 flex-none items-center justify-between px-2 text-sm;
 
+  z-index: 10;
+  color: var(--statusbar-text);
   background-color: var(--statusbar-bg);
   border-top: 1px solid var(--statusbar-border);
-  color: var(--statusbar-text);
-  z-index: 10;
-  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+  transition:
+    background-color 0.3s ease,
+    border-color 0.3s ease,
+    color 0.3s ease;
 
   span:last-child {
     @apply font-medium;
@@ -154,6 +241,7 @@ const handleCommand = (command: 'reading' | 'preview' | 'source') => {
 
 .editor-status-text {
   @apply text-xs opacity-70 font-normal;
+
   color: var(--statusbar-text);
 }
 
@@ -170,22 +258,29 @@ const handleCommand = (command: 'reading' | 'preview' | 'source') => {
 
   .backlink-icon {
     @apply flex-shrink-0;
+
     color: var(--editor-text-secondary);
     transition: color 0.3s ease;
   }
 
   .backlink-count {
     @apply text-center min-w-[18px] px-1.5 py-0.5 text-xs font-medium rounded-full;
-    background-color: var(--categories-bg-active);
+
     color: var(--categories-text-color-active);
-    transition: background-color 0.3s ease, color 0.3s ease;
+    background-color: var(--categories-bg-active);
+    transition:
+      background-color 0.3s ease,
+      color 0.3s ease;
   }
 }
 
 .view-toggle-btn {
   @apply flex items-center gap-1 px-2 pt-[0.1rem] pb-[0.2rem] rounded cursor-pointer text-xs;
+
   color: var(--editor-text-secondary);
-  transition: background-color 0.2s ease, color 0.2s ease;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
 
   &:hover {
     background-color: var(--editor-hover-bg);
@@ -218,12 +313,13 @@ const handleCommand = (command: 'reading' | 'preview' | 'source') => {
 
     .check-icon {
       @apply flex-shrink-0 ml-auto;
+
       color: var(--el-color-primary);
     }
 
     &.is-active {
-      color: var(--el-color-primary);
       font-weight: 500;
+      color: var(--el-color-primary);
     }
   }
 }

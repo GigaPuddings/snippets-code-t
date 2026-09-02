@@ -1,5 +1,8 @@
 <template>
-  <node-view-wrapper class="code-block-wrapper code-block" data-component="code-block">
+  <node-view-wrapper
+    class="code-block-wrapper code-block"
+    data-component="code-block"
+  >
     <div class="code-toolbar" contenteditable="false">
       <button
         class="language-button"
@@ -18,16 +21,55 @@
         :aria-label="copied ? '已复制' : `复制 ${displayLanguage} 代码`"
         type="button"
       >
-        <svg v-if="!copied" viewBox="0 0 24 24" width="14" height="14" class="copy-icon" aria-hidden="true">
-          <rect x="9" y="9" width="10" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.8" />
-          <path d="M15 9V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+        <svg
+          v-if="!copied"
+          viewBox="0 0 24 24"
+          width="14"
+          height="14"
+          class="copy-icon"
+          aria-hidden="true"
+        >
+          <rect
+            x="9"
+            y="9"
+            width="10"
+            height="10"
+            rx="2"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+          />
+          <path
+            d="M15 9V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+          />
         </svg>
-        <svg v-else viewBox="0 0 24 24" width="14" height="14" class="check-icon" aria-hidden="true">
-          <path d="m5 12 4 4L19 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+        <svg
+          v-else
+          viewBox="0 0 24 24"
+          width="14"
+          height="14"
+          class="check-icon"
+          aria-hidden="true"
+        >
+          <path
+            d="m5 12 4 4L19 6"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
         </svg>
       </button>
     </div>
-    <pre ref="codeBlockPreRef" class="code-block-pre"><code :class="codeClass" :data-language="displayLangKey" spellcheck="false"><node-view-content class="code-block-content" /></code></pre>
+    <pre
+      ref="codeBlockPreRef"
+      class="code-block-pre"
+    ><code :class="codeClass" :data-language="displayLangKey" spellcheck="false"><node-view-content class="code-block-content" /></code></pre>
 
     <PromptDialog
       v-model="showLanguageDialog"
@@ -134,16 +176,20 @@ const languageMap: Record<string, string> = {
   conf: 'Config',
   nginx: 'Nginx',
   apache: 'Apache',
-  plaintext: 'Plain Text',
+  plaintext: 'Plain Text'
 };
 
 const displayLangKey = computed(() => {
   const raw = (props.node.attrs.language as string | null) || '';
-  return resolveCodeBlockLang(raw || null, props.node.textContent) || 'plaintext';
+  return (
+    resolveCodeBlockLang(raw || null, props.node.textContent) || 'plaintext'
+  );
 });
 
 const displayLanguage = computed(() => {
-  const raw = ((props.node.attrs.language as string | null) || '').trim().toLowerCase();
+  const raw = ((props.node.attrs.language as string | null) || '')
+    .trim()
+    .toLowerCase();
   const key = displayLangKey.value.toLowerCase();
   if (raw === 'react') return key === 'tsx' ? 'React · TSX' : 'React · JSX';
   if (raw === 'tauri') {
@@ -151,15 +197,24 @@ const displayLanguage = computed(() => {
     if (key === 'toml') return 'Tauri · Cargo';
     return 'Tauri · TypeScript';
   }
-  return languageMap[raw] || languageMap[key] || props.node.attrs.language || 'Plain Text';
+  return (
+    languageMap[raw] ||
+    languageMap[key] ||
+    props.node.attrs.language ||
+    'Plain Text'
+  );
 });
 
 const codeClass = computed(() => {
   const lang = displayLangKey.value;
-  return lang && lang !== 'plaintext' ? `language-${lang}` : 'language-plaintext';
+  return lang && lang !== 'plaintext'
+    ? `language-${lang}`
+    : 'language-plaintext';
 });
 
-const currentLanguage = computed(() => ((props.node.attrs.language as string | null) || '').trim());
+const currentLanguage = computed(() =>
+  ((props.node.attrs.language as string | null) || '').trim()
+);
 
 const languagePattern = /^[a-zA-Z0-9#+._-]*$/;
 const validateLanguage = (value: string) => {
@@ -173,7 +228,7 @@ const validateLanguage = (value: string) => {
 const handleLanguageConfirm = (value: string) => {
   const nextLanguage = String(value ?? '').trim();
   props.updateAttributes({
-    language: nextLanguage || null,
+    language: nextLanguage || null
   });
   showLanguageDialog.value = false;
 };
@@ -197,12 +252,24 @@ const copyCode = async () => {
 .code-block-wrapper {
   @apply relative box-border w-full min-w-0 max-w-full overflow-hidden;
 
+  --shiki-fg-default: #24292e;
+  --shiki-red: #cf222e;
+  --shiki-blue: #0969da;
+  --shiki-purple: #8250df;
+  --shiki-cyan: #1b7c83;
+  --shiki-comment: #57606a;
+  --shiki-yellow: #9a6700;
+  --shiki-green: #116329;
+  --shiki-orange: #953800;
+
   margin: 0.6em 0 0.72em;
+  background: var(--code-block-bg, var(--editor-hover-bg));
   border: 1px solid var(--code-block-border, var(--editor-border));
   border-radius: 7px;
-  background: var(--code-block-bg, var(--editor-hover-bg));
   box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
-  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
 
   &:hover {
     border-color: var(--code-block-hover-border, var(--editor-border));
@@ -210,7 +277,11 @@ const copyCode = async () => {
   }
 
   &:focus-within {
-    border-color: color-mix(in srgb, var(--el-color-primary) 48%, var(--code-block-border));
+    border-color: color-mix(
+      in srgb,
+      var(--el-color-primary) 48%,
+      var(--code-block-border)
+    );
   }
 
   ::selection {
@@ -220,50 +291,63 @@ const copyCode = async () => {
 
 .code-toolbar {
   @apply absolute right-2 top-2 z-10 flex items-center overflow-hidden rounded border;
+
   height: 26px;
   color: var(--panel-text-secondary);
+  pointer-events: none;
   background: var(--code-block-toolbar-bg, var(--panel-bg));
+  backdrop-filter: blur(8px);
   border-color: var(--code-block-toolbar-border, var(--panel-border));
   box-shadow: 0 1px 3px rgb(15 23 42 / 8%);
-  backdrop-filter: blur(8px);
   opacity: 0;
-  pointer-events: none;
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
   transform: translateY(-2px);
-  transition: opacity 0.15s ease, transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .code-block-wrapper:hover .code-toolbar,
 .code-block-wrapper:focus-within .code-toolbar {
-  opacity: 1;
   pointer-events: auto;
+  opacity: 1;
   transform: translateY(0);
 }
 
 .language-button,
 .copy-language-button {
   @apply flex h-full items-center justify-center border-0 bg-transparent px-2 text-[11px] font-medium outline-none transition-colors duration-150;
-  border: none;
+
   color: inherit;
+  border: none;
 
   &:hover {
-    background: var(--panel-hover-bg);
     color: var(--panel-text);
+    background: var(--panel-hover-bg);
   }
 
   &:active {
-    background: color-mix(in srgb, var(--panel-hover-bg) 78%, var(--panel-text-secondary));
+    background: color-mix(
+      in srgb,
+      var(--panel-hover-bg) 78%,
+      var(--panel-text-secondary)
+    );
   }
 }
 
 .language-button .language-text {
   @apply max-w-28 overflow-hidden text-ellipsis;
-  font-family: ui-monospace, 'SF Mono', 'Monaco', 'Cascadia Code', 'Consolas', monospace;
+
+  font-family: ui-monospace, 'SF Mono', Monaco, 'Cascadia Code', Consolas,
+    monospace;
   letter-spacing: 0.02em;
   white-space: nowrap;
 }
 
 .copy-language-button {
   @apply w-7 px-0;
+
   border-left: 1px solid var(--code-block-toolbar-border, var(--panel-border));
 }
 
@@ -275,9 +359,10 @@ const copyCode = async () => {
 .code-block-pre {
   @apply m-0 box-border w-full min-w-0 max-w-full overflow-x-auto;
 
-  margin: 0 !important;
   padding: 12px 14px;
-  font-family: ui-monospace, 'SF Mono', 'Monaco', 'Cascadia Code', 'Roboto Mono', 'Consolas', 'Courier New', monospace;
+  margin: 0 !important;
+  font-family: ui-monospace, 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono',
+    Consolas, 'Courier New', monospace;
   font-size: 13px;
   line-height: 1.6;
   background: transparent;
@@ -312,30 +397,19 @@ const copyCode = async () => {
 .code-block-pre code,
 .code-block-pre :deep(.code-block-content) {
   @apply block p-0 border-none;
+
+  min-height: 1.6em;
   font-family: inherit;
   font-size: inherit;
   line-height: inherit;
-  white-space: pre-wrap !important;
+  color: var(--panel-text, inherit);
   word-break: normal;
   tab-size: 2;
+  white-space: pre-wrap !important;
   background: transparent !important;
-  color: var(--panel-text, inherit);
-  min-height: 1.6em;
 }
 
 /* Shiki token 颜色映射（通过 class + CSS 变量实现，避免 inline style） */
-.code-block-wrapper {
-  --shiki-fg-default: #24292e;
-  --shiki-red: #cf222e;
-  --shiki-blue: #0969da;
-  --shiki-purple: #8250df;
-  --shiki-cyan: #1b7c83;
-  --shiki-comment: #57606a;
-  --shiki-yellow: #9a6700;
-  --shiki-green: #116329;
-  --shiki-orange: #953800;
-}
-
 .dark .code-block-wrapper,
 .dark-theme .code-block-wrapper,
 .code-block-wrapper.dark-theme {
@@ -356,8 +430,8 @@ const copyCode = async () => {
 
 /* fallback 正则高亮仍保留 */
 .code-block-pre :deep(.hljs-keyword) {
-  color: #a626a4 !important;
   font-weight: 700;
+  color: #a626a4 !important;
 }
 
 .code-block-pre :deep(.hljs-string) {
@@ -369,8 +443,8 @@ const copyCode = async () => {
 }
 
 .code-block-pre :deep(.hljs-comment) {
-  color: #6a737d !important;
   font-style: italic;
+  color: #6a737d !important;
 }
 
 .dark .code-block-pre :deep(.hljs-keyword) {

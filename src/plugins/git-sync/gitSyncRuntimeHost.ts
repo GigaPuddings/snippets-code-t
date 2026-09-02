@@ -43,8 +43,12 @@ export interface GitSyncRuntimeHostDeps {
   setupGitEventListeners: (t: Composer['t']) => Promise<GitEventListeners>;
   setupGitSyncRuntimeListeners: (deps: {
     isConflictDialogVisible: () => boolean;
-    onConflictDetected: (event: GitConflictRuntimeEvent) => void | Promise<void>;
-    onRepoNotFound: (event: GitRepoNotFoundRuntimeEvent) => void | Promise<void>;
+    onConflictDetected: (
+      event: GitConflictRuntimeEvent
+    ) => void | Promise<void>;
+    onRepoNotFound: (
+      event: GitRepoNotFoundRuntimeEvent
+    ) => void | Promise<void>;
   }) => Promise<GitSyncRuntimeListeners>;
   ensureWorkspaceGitignore: () => Promise<void>;
   initGitSync: (t: Composer['t']) => Promise<boolean>;
@@ -94,9 +98,11 @@ export interface CleanupConfiguredGitSyncRuntimeHostDeps {
 
 const defaultScheduleStartupRefresh = () => {
   setTimeout(() => {
-    window.dispatchEvent(new CustomEvent('refresh-data', {
-      detail: { source: 'startup-pull' }
-    }));
+    window.dispatchEvent(
+      new CustomEvent('refresh-data', {
+        detail: { source: 'startup-pull' }
+      })
+    );
   }, 500);
 };
 
@@ -107,11 +113,7 @@ const defaultLoadGitAutoSyncLifecycle = () => import('./autoSyncLifecycle');
 export async function setupConfiguredGitSyncRuntimeHost(
   deps: SetupConfiguredGitSyncRuntimeHostDeps
 ): Promise<GitSyncRuntimeHost> {
-  const [
-    lifecycle,
-    runtime,
-    autoSyncLifecycle
-  ] = await Promise.all([
+  const [lifecycle, runtime, autoSyncLifecycle] = await Promise.all([
     (deps.loadGitLifecycle ?? defaultLoadGitLifecycle)(),
     (deps.loadGitSyncRuntime ?? defaultLoadGitSyncRuntime)(),
     (deps.loadGitAutoSyncLifecycle ?? defaultLoadGitAutoSyncLifecycle)()
@@ -128,7 +130,8 @@ export async function setupConfiguredGitSyncRuntimeHost(
     onConflictDetected: deps.onConflictDetected,
     onRepoNotFound: deps.onRepoNotFound,
     autoSyncWindow: deps.autoSyncWindow,
-    startAutoSyncForVisibleWindow: autoSyncLifecycle.startAutoSyncForVisibleWindow,
+    startAutoSyncForVisibleWindow:
+      autoSyncLifecycle.startAutoSyncForVisibleWindow,
     stopAutoSyncForHiddenWindow: autoSyncLifecycle.stopAutoSyncForHiddenWindow,
     isPluginEnabled: deps.isPluginEnabled,
     scheduleStartupRefresh: deps.scheduleStartupRefresh,
@@ -139,11 +142,7 @@ export async function setupConfiguredGitSyncRuntimeHost(
 export async function cleanupConfiguredGitSyncRuntimeHost(
   deps: CleanupConfiguredGitSyncRuntimeHostDeps
 ): Promise<void> {
-  const [
-    lifecycle,
-    runtime,
-    autoSyncLifecycle
-  ] = await Promise.all([
+  const [lifecycle, runtime, autoSyncLifecycle] = await Promise.all([
     (deps.loadGitLifecycle ?? defaultLoadGitLifecycle)(),
     (deps.loadGitSyncRuntime ?? defaultLoadGitSyncRuntime)(),
     (deps.loadGitAutoSyncLifecycle ?? defaultLoadGitAutoSyncLifecycle)()
@@ -232,7 +231,11 @@ async function setupAutoSyncWindowLifecycle(
   const startAutoSyncForVisibleWindow = deps.startAutoSyncForVisibleWindow;
   const stopAutoSyncForHiddenWindow = deps.stopAutoSyncForHiddenWindow;
 
-  if (!autoSyncWindow || !startAutoSyncForVisibleWindow || !stopAutoSyncForHiddenWindow) {
+  if (
+    !autoSyncWindow ||
+    !startAutoSyncForVisibleWindow ||
+    !stopAutoSyncForHiddenWindow
+  ) {
     return {
       show: null,
       hide: null

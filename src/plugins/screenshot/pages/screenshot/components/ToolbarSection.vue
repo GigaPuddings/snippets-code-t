@@ -11,7 +11,12 @@
             :title="tool.title"
             :aria-pressed="currentTool === tool.type"
           >
-            <component :is="tool.icon" theme="outline" size="18" :strokeWidth="2.5"/>
+            <component
+              :is="tool.icon"
+              theme="outline"
+              size="18"
+              :strokeWidth="2.5"
+            />
           </button>
         </template>
       </div>
@@ -27,7 +32,7 @@
           class="action-btn undo"
           :title="t('screenshot.undo')"
         >
-        <return theme="outline" size="18" :strokeWidth="2.5"/>
+          <return theme="outline" size="18" :strokeWidth="2.5" />
         </button>
 
         <button
@@ -36,7 +41,7 @@
           class="action-btn redo"
           :title="t('screenshot.redo')"
         >
-        <go-on theme="outline" size="18" :strokeWidth="2.5"/>
+          <go-on theme="outline" size="18" :strokeWidth="2.5" />
         </button>
 
         <button
@@ -45,7 +50,7 @@
           class="action-btn delete"
           :title="t('screenshot.delete')"
         >
-        <delete-four theme="outline" size="18" :strokeWidth="2.5"/>
+          <delete-four theme="outline" size="18" :strokeWidth="2.5" />
         </button>
 
         <button
@@ -53,7 +58,7 @@
           class="action-btn cancel"
           :title="t('screenshot.cancel')"
         >
-        <close theme="outline" size="18" :strokeWidth="2.5"/>
+          <close theme="outline" size="18" :strokeWidth="2.5" />
         </button>
 
         <button
@@ -61,7 +66,7 @@
           class="action-btn save"
           :title="t('screenshot.save')"
         >
-        <download theme="outline" size="18" :strokeWidth="2.5"/>
+          <download theme="outline" size="18" :strokeWidth="2.5" />
         </button>
 
         <button
@@ -69,7 +74,7 @@
           class="action-btn confirm"
           :title="t('screenshot.confirm')"
         >
-        <check theme="outline" size="18" :strokeWidth="2.5"/>
+          <check theme="outline" size="18" :strokeWidth="2.5" />
         </button>
       </div>
     </div>
@@ -109,7 +114,10 @@
               :title="`${width}px`"
               :aria-pressed="currentLineWidth === width"
             >
-              <span class="line-preview" :style="{ height: `${width}px`, backgroundColor: currentColor }"></span>
+              <span
+                class="line-preview"
+                :style="{ height: `${width}px`, backgroundColor: currentColor }"
+              ></span>
             </button>
           </div>
           <span class="style-value">{{ currentLineWidth }} px</span>
@@ -135,7 +143,9 @@
             :aria-label="t('screenshot.opacity')"
             @input="onOpacityChange"
           />
-          <span class="style-value">{{ Math.round(currentOpacity * 100) }}%</span>
+          <span class="style-value">
+            {{ Math.round(currentOpacity * 100) }}%
+          </span>
         </div>
 
         <div v-if="showOpacity && showColors" class="style-divider"></div>
@@ -153,14 +163,14 @@
               :title="color"
               :aria-pressed="currentColor === color"
             ></button>
-            
+
             <div class="custom-color-wrapper">
               <button
                 class="color-btn custom-color-btn"
                 :class="{ active: !presetColors.includes(currentColor) }"
                 :title="t('screenshot.customColor')"
               >
-                <Platte theme="outline" size="13" :strokeWidth="2.5"/>
+                <Platte theme="outline" size="13" :strokeWidth="2.5" />
               </button>
               <input
                 type="color"
@@ -186,7 +196,12 @@
               :title="`${size}px`"
               :aria-pressed="currentTextSize === size"
             >
-              <span class="size-text" :style="{ fontSize: `${Math.min(size, 18)}px` }">A</span>
+              <span
+                class="size-text"
+                :style="{ fontSize: `${Math.min(size, 18)}px` }"
+              >
+                A
+              </span>
             </button>
           </div>
           <span class="style-value">{{ currentTextSize }} px</span>
@@ -204,10 +219,13 @@
               :title="`${t('screenshot.brush')} ${size * 3}px`"
               :aria-pressed="currentMosaicSize === size"
             >
-              <span class="mosaic-preview" :style="{
-                width: `${Math.min(size * 1.25, 18)}px`,
-                height: `${Math.min(size * 1.25, 18)}px`
-              }"></span>
+              <span
+                class="mosaic-preview"
+                :style="{
+                  width: `${Math.min(size * 1.25, 18)}px`,
+                  height: `${Math.min(size * 1.25, 18)}px`
+                }"
+              ></span>
             </button>
           </div>
           <span class="style-value">{{ currentMosaicSize * 3 }} px</span>
@@ -221,7 +239,10 @@
               v-for="engine in translateEngines"
               :key="engine.value"
               @click="selectTranslateEngine(engine.value)"
-              :class="['engine-btn', { active: currentTranslateEngine === engine.value }]"
+              :class="[
+                'engine-btn',
+                { active: currentTranslateEngine === engine.value }
+              ]"
               :title="engine.label"
               :aria-pressed="currentTranslateEngine === engine.value"
             >
@@ -235,76 +256,83 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
-import { ToolType } from '../core/types'
-import { 
-  MoveOne, 
-  RectangleOne, 
+import { computed, nextTick, ref, watch } from 'vue';
+import { ToolType } from '../core/types';
+import {
+  MoveOne,
+  RectangleOne,
   Round,
   Minus,
   ArrowRightUp,
-  Write, 
-  Mosaic, 
-  FontSize, 
-  Return, 
+  Write,
+  Mosaic,
+  FontSize,
+  Return,
   GoOn,
-  DeleteFour, 
-  Download, 
-  Check, 
-  Close, 
-  Platte, 
-  Pushpin, 
-  Translate, 
+  DeleteFour,
+  Download,
+  Check,
+  Close,
+  Platte,
+  Pushpin,
+  Translate,
   TextRecognition,
   ListNumbers
-} from '@icon-park/vue-next'
+} from '@icon-park/vue-next';
 
-const toolbarContainerRef = ref<HTMLElement | null>(null)
+const toolbarContainerRef = ref<HTMLElement | null>(null);
 
-import { useI18n } from 'vue-i18n'
-const { t } = useI18n()
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 
 interface Props {
-  currentTool: ToolType
-  currentColor: string
-  currentLineWidth: number
-  currentOpacity: number
-  currentTextSize: number
-  currentMosaicSize: number
-  currentSelectionCornerRadius: number
-  canUndo: boolean
-  canRedo: boolean
-  canDelete: boolean
-  currentTranslateEngine?: 'google' | 'bing' | 'offline' | 'local-ai'
+  currentTool: ToolType;
+  currentColor: string;
+  currentLineWidth: number;
+  currentOpacity: number;
+  currentTextSize: number;
+  currentMosaicSize: number;
+  currentSelectionCornerRadius: number;
+  canUndo: boolean;
+  canRedo: boolean;
+  canDelete: boolean;
+  currentTranslateEngine?: 'google' | 'bing' | 'offline' | 'local-ai';
 }
 
 interface Emits {
-  (e: 'tool-select', tool: ToolType): void
-  (e: 'color-change', color: string): void
-  (e: 'line-width-change', width: number): void
-  (e: 'opacity-change', opacity: number): void
-  (e: 'text-size-change', size: number): void
-  (e: 'mosaic-size-change', size: number): void
-  (e: 'selection-corner-radius-change', radius: number): void
-  (e: 'translate-engine-change', engine: 'google' | 'bing' | 'offline' | 'local-ai'): void
-  (e: 'undo'): void
-  (e: 'redo'): void
-  (e: 'delete'): void
-  (e: 'save'): void
-  (e: 'confirm'): void
-  (e: 'cancel'): void
+  (e: 'tool-select', tool: ToolType): void;
+  (e: 'color-change', color: string): void;
+  (e: 'line-width-change', width: number): void;
+  (e: 'opacity-change', opacity: number): void;
+  (e: 'text-size-change', size: number): void;
+  (e: 'mosaic-size-change', size: number): void;
+  (e: 'selection-corner-radius-change', radius: number): void;
+  (
+    e: 'translate-engine-change',
+    engine: 'google' | 'bing' | 'offline' | 'local-ai'
+  ): void;
+  (e: 'undo'): void;
+  (e: 'redo'): void;
+  (e: 'delete'): void;
+  (e: 'save'): void;
+  (e: 'confirm'): void;
+  (e: 'cancel'): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   currentTranslateEngine: 'bing',
   currentSelectionCornerRadius: 0
-})
-const emit = defineEmits<Emits>()
+});
+const emit = defineEmits<Emits>();
 
 // 工具配置
 const tools = computed(() => [
   { type: ToolType.Select, icon: MoveOne, title: t('screenshot.select') },
-  { type: ToolType.Rectangle, icon: RectangleOne, title: t('screenshot.rectangle') },
+  {
+    type: ToolType.Rectangle,
+    icon: RectangleOne,
+    title: t('screenshot.rectangle')
+  },
   { type: ToolType.Ellipse, icon: Round, title: t('screenshot.ellipse') },
   { type: ToolType.Line, icon: Minus, title: t('screenshot.line') },
   { type: ToolType.Arrow, icon: ArrowRightUp, title: t('screenshot.arrow') },
@@ -312,22 +340,38 @@ const tools = computed(() => [
   { type: ToolType.Mosaic, icon: Mosaic, title: t('screenshot.mosaic') },
   { type: ToolType.Text, icon: FontSize, title: t('screenshot.text') },
   { type: ToolType.Marker, icon: ListNumbers, title: t('screenshot.marker') },
-  { type: ToolType.ColorPicker, icon: Platte, title: t('screenshot.colorPicker') },
+  {
+    type: ToolType.ColorPicker,
+    icon: Platte,
+    title: t('screenshot.colorPicker')
+  },
   { type: ToolType.Ocr, icon: TextRecognition, title: t('screenshot.ocr') },
-  { type: ToolType.Translate, icon: Translate, title: t('screenshot.translate') },
+  {
+    type: ToolType.Translate,
+    icon: Translate,
+    title: t('screenshot.translate')
+  },
   { type: ToolType.Pin, icon: Pushpin, title: t('screenshot.pin') }
-])
+]);
 
 // 翻译引擎配置
 const translateEngines = computed(() => [
   { value: 'google' as const, label: 'Google', short: 'G' },
   { value: 'bing' as const, label: t('translate.bingTranslate'), short: 'B' },
-  { value: 'offline' as const, label: t('translate.offlineTranslate'), short: t('translate.offlineMark') },
-  { value: 'local-ai' as const, label: t('translate.localAiTranslate'), short: 'AI' }
-])
+  {
+    value: 'offline' as const,
+    label: t('translate.offlineTranslate'),
+    short: t('translate.offlineMark')
+  },
+  {
+    value: 'local-ai' as const,
+    label: t('translate.localAiTranslate'),
+    short: 'AI'
+  }
+]);
 
 // 样式配置
-const lineWidths = [2, 3, 5, 8]
+const lineWidths = [2, 3, 5, 8];
 const presetColors = [
   '#ff4444',
   '#f79009',
@@ -338,23 +382,42 @@ const presetColors = [
   '#7a5af8',
   '#d444f1',
   '#111827'
-]
-const textSizes = [12, 14, 16, 18, 20, 24]
-const mosaicSizes = [8, 12, 16, 20]
+];
+const textSizes = [12, 14, 16, 18, 20, 24];
+const mosaicSizes = [8, 12, 16, 20];
 
 // 是否显示样式设置
-const showStyleSettings = computed(() => ![ToolType.ColorPicker, ToolType.Ocr, ToolType.Pin].includes(props.currentTool))
+const showStyleSettings = computed(
+  () =>
+    ![ToolType.ColorPicker, ToolType.Ocr, ToolType.Pin].includes(
+      props.currentTool
+    )
+);
 const showSelectionCornerRadius = computed(
   () => props.currentTool === ToolType.Select
-)
+);
 
-const showLineWidth = computed(() => 
-  [ToolType.Rectangle, ToolType.Ellipse, ToolType.Line, ToolType.Arrow, ToolType.Pen].includes(props.currentTool)
-)
+const showLineWidth = computed(() =>
+  [
+    ToolType.Rectangle,
+    ToolType.Ellipse,
+    ToolType.Line,
+    ToolType.Arrow,
+    ToolType.Pen
+  ].includes(props.currentTool)
+);
 
-const showColors = computed(() => 
-  [ToolType.Rectangle, ToolType.Ellipse, ToolType.Line, ToolType.Arrow, ToolType.Pen, ToolType.Text, ToolType.Marker].includes(props.currentTool)
-)
+const showColors = computed(() =>
+  [
+    ToolType.Rectangle,
+    ToolType.Ellipse,
+    ToolType.Line,
+    ToolType.Arrow,
+    ToolType.Pen,
+    ToolType.Text,
+    ToolType.Marker
+  ].includes(props.currentTool)
+);
 
 const showOpacity = computed(() =>
   [
@@ -367,105 +430,127 @@ const showOpacity = computed(() =>
     ToolType.Text,
     ToolType.Marker
   ].includes(props.currentTool)
-)
+);
 
-const showTextSize = computed(() =>
-  props.currentTool === ToolType.Text || props.currentTool === ToolType.Marker
-)
+const showTextSize = computed(
+  () =>
+    props.currentTool === ToolType.Text || props.currentTool === ToolType.Marker
+);
 
-const showMosaicSize = computed(() => props.currentTool === ToolType.Mosaic)
+const showMosaicSize = computed(() => props.currentTool === ToolType.Mosaic);
 
-const showTranslateEngine = computed(() => props.currentTool === ToolType.Translate)
+const showTranslateEngine = computed(
+  () => props.currentTool === ToolType.Translate
+);
 
 // 事件处理函数
-const onToolSelect = (tool: ToolType) => emit('tool-select', tool)
-const onColorChange = (color: string) => emit('color-change', color)
-const onLineWidthChange = (width: number) => emit('line-width-change', width)
+const onToolSelect = (tool: ToolType) => emit('tool-select', tool);
+const onColorChange = (color: string) => emit('color-change', color);
+const onLineWidthChange = (width: number) => emit('line-width-change', width);
 const onOpacityChange = (event: Event) => {
-  emit('opacity-change', Number((event.target as HTMLInputElement).value) / 100)
-}
-const onTextSizeChange = (size: number) => emit('text-size-change', size)
-const onMosaicSizeChange = (size: number) => emit('mosaic-size-change', size)
+  emit(
+    'opacity-change',
+    Number((event.target as HTMLInputElement).value) / 100
+  );
+};
+const onTextSizeChange = (size: number) => emit('text-size-change', size);
+const onMosaicSizeChange = (size: number) => emit('mosaic-size-change', size);
 const onSelectionCornerRadiusChange = (event: Event) => {
   emit(
     'selection-corner-radius-change',
     Number((event.target as HTMLInputElement).value)
-  )
-}
-const onUndo = () => emit('undo')
-const onRedo = () => emit('redo')
-const onDelete = () => emit('delete')
-const onSave = () => emit('save')
-const onConfirm = () => emit('confirm')
-const onCancel = () => emit('cancel')
+  );
+};
+const onUndo = () => emit('undo');
+const onRedo = () => emit('redo');
+const onDelete = () => emit('delete');
+const onSave = () => emit('save');
+const onConfirm = () => emit('confirm');
+const onCancel = () => emit('cancel');
 
 // 翻译引擎选择处理
-const selectTranslateEngine = (engine: 'google' | 'bing' | 'offline' | 'local-ai') => {
-  emit('translate-engine-change', engine)
-}
+const selectTranslateEngine = (
+  engine: 'google' | 'bing' | 'offline' | 'local-ai'
+) => {
+  emit('translate-engine-change', engine);
+};
 
 const selectColor = (color: string) => {
-  onColorChange(color)
-}
+  onColorChange(color);
+};
 
 // 处理自定义颜色变化
 const onCustomColorChange = (event: Event) => {
-  const input = event.target as HTMLInputElement
+  const input = event.target as HTMLInputElement;
   if (input.value) {
-    onColorChange(input.value)
+    onColorChange(input.value);
     // 不关闭面板，用户可能想继续选择
   }
-}
+};
 
 const getToolbarSize = () => {
-  const rect = toolbarContainerRef.value?.getBoundingClientRect()
+  const rect = toolbarContainerRef.value?.getBoundingClientRect();
   return {
     width: rect?.width ?? 590,
     height: rect?.height ?? 50
-  }
-}
+  };
+};
 
-watch(() => props.currentTool, () => {
-  nextTick(() => {
-    window.dispatchEvent(new CustomEvent('screenshot-toolbar-resize', {
-      detail: getToolbarSize()
-    }))
-  })
-}, { immediate: true })
+watch(
+  () => props.currentTool,
+  () => {
+    nextTick(() => {
+      window.dispatchEvent(
+        new CustomEvent('screenshot-toolbar-resize', {
+          detail: getToolbarSize()
+        })
+      );
+    });
+  },
+  { immediate: true }
+);
 
 defineExpose({
   getToolbarSize
-})
+});
 </script>
 
 <style scoped lang="scss">
 .toolbar-container {
   @apply flex flex-col gap-2 items-start;
+
   font-family: Inter, 'Segoe UI', Arial, sans-serif;
   color: #101828;
 
   .toolbar-panel {
     @apply flex items-center;
+
     background: rgb(255 255 255 / 98%);
     backdrop-filter: blur(18px);
     border: 1px solid rgb(16 24 40 / 8%);
-    box-shadow: 0 8px 22px rgb(16 24 40 / 16%), 0 2px 6px rgb(16 24 40 / 8%);
+    box-shadow:
+      0 8px 22px rgb(16 24 40 / 16%),
+      0 2px 6px rgb(16 24 40 / 8%);
 
     &.first-panel {
       @apply py-[7px] px-2.5 overflow-x-auto rounded-xl;
+
       width: max-content;
       max-width: calc(100vw - 20px);
     }
 
     &.second-panel {
       @apply py-2 px-3 overflow-x-auto overflow-y-hidden min-h-[52px] rounded-xl;
+
       width: fit-content;
       min-width: auto;
       max-width: calc(100vw - 20px);
       background: rgb(255 255 255 / 92%);
       backdrop-filter: blur(22px);
       border-color: rgb(255 255 255 / 46%);
-      box-shadow: 0 10px 24px rgb(16 24 40 / 14%), 0 2px 6px rgb(16 24 40 / 6%);
+      box-shadow:
+        0 10px 24px rgb(16 24 40 / 14%),
+        0 2px 6px rgb(16 24 40 / 6%);
     }
   }
 
@@ -474,8 +559,12 @@ defineExpose({
 
     .tool-btn {
       @apply flex items-center justify-center w-[34px] h-[34px] cursor-pointer bg-transparent border-0 rounded-[7px];
+
       color: #101828;
-      transition: background-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+      transition:
+        background-color 140ms ease,
+        box-shadow 140ms ease,
+        transform 140ms ease;
 
       &.active {
         color: #101828;
@@ -500,6 +589,7 @@ defineExpose({
 
   .toolbar-divider {
     @apply w-px h-5 mx-0.5;
+
     background: rgb(16 24 40 / 12%);
   }
 
@@ -520,8 +610,11 @@ defineExpose({
       .size-btn,
       .engine-btn {
         @apply flex items-center justify-center w-7 h-7 cursor-pointer bg-transparent border-0 rounded-md;
+
         color: #475467;
-        transition: background-color 140ms ease, box-shadow 140ms ease;
+        transition:
+          background-color 140ms ease,
+          box-shadow 140ms ease;
 
         &.active {
           color: #175cd3;
@@ -544,11 +637,13 @@ defineExpose({
 
         .size-text {
           @apply leading-none;
+
           color: inherit;
         }
 
         .mosaic-preview {
           @apply inline-block rounded-full;
+
           background: rgb(71 84 103 / 58%);
         }
       }
@@ -559,12 +654,16 @@ defineExpose({
 
       .color-btn {
         @apply w-[18px] h-[18px] p-0 cursor-pointer rounded-full;
+
         border: 1px solid rgb(16 24 40 / 10%);
-        transition: box-shadow 140ms ease, transform 140ms ease;
+        transition:
+          box-shadow 140ms ease,
+          transform 140ms ease;
 
         &.active {
           border-color: #fff;
           box-shadow: 0 0 0 2px #84caff;
+
           @apply scale-[1.08];
         }
 
@@ -591,11 +690,16 @@ defineExpose({
 
     .action-btn {
       @apply flex items-center justify-center w-[34px] h-[34px] cursor-pointer bg-transparent border-0 rounded-[7px];
+
       color: #101828;
-      transition: background-color 140ms ease, color 140ms ease, transform 140ms ease;
+      transition:
+        background-color 140ms ease,
+        color 140ms ease,
+        transform 140ms ease;
 
       &:disabled {
         color: #d0d5dd;
+
         @apply cursor-not-allowed;
       }
 
@@ -616,21 +720,25 @@ defineExpose({
 
   .style-label {
     @apply text-[11px] whitespace-nowrap;
+
     color: #98a2b3;
   }
 
   .style-value {
     @apply min-w-[32px] text-xs text-right whitespace-nowrap;
+
     color: #475467;
   }
 
   .style-divider {
     @apply w-px h-[22px];
+
     background: rgb(16 24 40 / 10%);
   }
 
   .opacity-slider {
     @apply w-[72px] h-1 cursor-pointer rounded-full outline-none;
+
     appearance: none;
     background: linear-gradient(
       to right,
@@ -642,6 +750,7 @@ defineExpose({
 
     &::-webkit-slider-thumb {
       @apply w-[13px] h-[13px] cursor-pointer rounded-full;
+
       appearance: none;
       background: var(--opacity-color);
       border: 2px solid #fff;
@@ -654,18 +763,21 @@ defineExpose({
 
     &::-moz-range-progress {
       @apply h-1 rounded-full;
+
       background: var(--opacity-color);
     }
 
     &::-moz-range-thumb {
       @apply w-[11px] h-[11px] cursor-pointer rounded-full;
+
       background: var(--opacity-color);
       border: 2px solid #fff;
       box-shadow: 0 1px 4px rgb(16 24 40 / 24%);
     }
 
     &:focus-visible {
-      box-shadow: 0 0 0 3px color-mix(in srgb, var(--opacity-color) 22%, transparent);
+      box-shadow: 0 0 0 3px
+        color-mix(in srgb, var(--opacity-color) 22%, transparent);
     }
   }
 
@@ -679,13 +791,23 @@ defineExpose({
 
   .custom-color-btn {
     @apply relative flex items-center justify-center pointer-events-none;
+
     color: #344054;
-    background: conic-gradient(#f04438, #fdb022, #12b76a, #2e90fa, #7a5af8, #f04438);
+    background: conic-gradient(
+      #f04438,
+      #fdb022,
+      #12b76a,
+      #2e90fa,
+      #7a5af8,
+      #f04438
+    );
 
     &::before {
       @apply absolute inset-[3px];
+
       content: '';
       background: #fff;
+
       @apply rounded-full;
     }
 

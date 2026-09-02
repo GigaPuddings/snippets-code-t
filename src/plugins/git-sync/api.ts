@@ -103,7 +103,7 @@ export interface SystemGitConfig {
  */
 export enum ConflictStrategy {
   KeepLocal = 'KeepLocal',
-  KeepRemote = 'KeepRemote',
+  KeepRemote = 'KeepRemote'
 }
 
 /**
@@ -157,15 +157,23 @@ export async function getGitRecords(limit = 10): Promise<GitRecord[]> {
   }
 }
 
-export async function getGitContributionActivity(year?: number): Promise<GitContributionActivity> {
+export async function getGitContributionActivity(
+  year?: number
+): Promise<GitContributionActivity> {
   try {
-    return await invoke<GitContributionActivity>('get_git_contribution_activity_command', { year });
+    return await invoke<GitContributionActivity>(
+      'get_git_contribution_activity_command',
+      { year }
+    );
   } catch (error) {
     throw new Error(`获取 Git 提交活跃度失败: ${error}`);
   }
 }
 
-export async function restoreGitRecordFile(commitHash: string, filePath: string): Promise<void> {
+export async function restoreGitRecordFile(
+  commitHash: string,
+  filePath: string
+): Promise<void> {
   try {
     await invoke('restore_git_record_file_command', { commitHash, filePath });
   } catch (error) {
@@ -209,7 +217,10 @@ export async function configureGit(config: GitConfig): Promise<void> {
 /**
  * 测试 Git 连接（验证 Token 和远程仓库是否可用）
  */
-export async function testGitConnection(remoteUrl: string, token: string): Promise<void> {
+export async function testGitConnection(
+  remoteUrl: string,
+  token: string
+): Promise<void> {
   try {
     await invoke('test_git_connection_command', { remoteUrl, token });
   } catch (error) {
@@ -227,7 +238,12 @@ export async function initGitRepository(
   token: string
 ): Promise<void> {
   try {
-    await invoke('init_git_repository_command', { userName, userEmail, remoteUrl, token });
+    await invoke('init_git_repository_command', {
+      userName,
+      userEmail,
+      remoteUrl,
+      token
+    });
   } catch (error) {
     throw new Error(`Git 仓库初始化失败: ${error}`);
   }
@@ -356,7 +372,7 @@ export async function resolveConflict(
   try {
     await invoke('resolve_conflict_command', {
       filePath,
-      strategy,
+      strategy
     });
   } catch (error) {
     throw new Error(`解决冲突失败: ${error}`);
@@ -371,7 +387,7 @@ export async function getConflictFileContent(
 ): Promise<ConflictFileContent> {
   try {
     return await invoke<ConflictFileContent>('get_conflict_file_content', {
-      filePath,
+      filePath
     });
   } catch (error) {
     throw new Error(`获取冲突文件内容失败: ${error}`);
@@ -415,7 +431,9 @@ export async function resolveConflictsBatch(
   resolutions: Array<[string, ConflictStrategy]>
 ): Promise<ResolveConflictsResult> {
   try {
-    return await invoke<ResolveConflictsResult>('resolve_conflicts_batch', { resolutions });
+    return await invoke<ResolveConflictsResult>('resolve_conflicts_batch', {
+      resolutions
+    });
   } catch (error) {
     throw new Error(`批量解决冲突失败: ${error}`);
   }

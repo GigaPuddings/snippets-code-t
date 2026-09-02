@@ -78,7 +78,11 @@ export function useFragmentRag() {
           : '';
 
       lastSources.value = sources;
-      logger.info('[RAG] 检索完成', { query, sources: sources.length, truncated });
+      logger.info('[RAG] 检索完成', {
+        query,
+        sources: sources.length,
+        truncated
+      });
 
       return { context, sources, truncated };
     } catch (error) {
@@ -101,7 +105,11 @@ export function useFragmentRag() {
  * 从内容中提取与查询最相关的片段
  * 优先返回包含查询关键词的段落上下文
  */
-function extractRelevantSnippet(content: string, query: string, maxChars: number): string {
+function extractRelevantSnippet(
+  content: string,
+  query: string,
+  maxChars: number
+): string {
   if (content.length <= maxChars) return content;
 
   // 尝试找到查询关键词在内容中的位置
@@ -120,7 +128,8 @@ function extractRelevantSnippet(content: string, query: string, maxChars: number
       // 以关键词为中心，向前后扩展
       const start = Math.max(0, idx - Math.floor(maxChars / 3));
       const score = keywords.reduce(
-        (s, k) => s + (lowerContent.slice(start, start + maxChars).includes(k) ? 1 : 0),
+        (s, k) =>
+          s + (lowerContent.slice(start, start + maxChars).includes(k) ? 1 : 0),
         0
       );
       if (score > bestScore) {

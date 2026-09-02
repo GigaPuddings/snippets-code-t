@@ -1,4 +1,8 @@
-import { TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state';
+import {
+  TextSelection,
+  type EditorState,
+  type Transaction
+} from '@tiptap/pm/state';
 
 /**
  * 光标位于文档首个代码块开头时，在代码块前插入普通段落。

@@ -8,4 +8,3 @@ export const activate = (context: PluginFrontendRuntimeContext): void => {
     component: () => import('./pages/config/index.vue')
   });
 };
-

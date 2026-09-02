@@ -13,18 +13,18 @@ import type { AttachmentInfo } from '@/types/models';
 export function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    
+
     reader.onload = () => {
       const result = reader.result as string;
       // 移除 data:image/xxx;base64, 前缀
       const base64 = result.split(',')[1];
       resolve(base64);
     };
-    
+
     reader.onerror = () => {
       reject(new Error('Failed to read file'));
     };
-    
+
     reader.readAsDataURL(file);
   });
 }
@@ -53,7 +53,7 @@ export function isSupportedImageType(file: File): boolean {
     'image/bmp',
     'image/svg+xml'
   ];
-  
+
   return supportedTypes.includes(file.type);
 }
 
@@ -71,21 +71,21 @@ export async function uploadImage(
   if (!isImageFile(file)) {
     throw new Error('文件不是图片类型');
   }
-  
+
   if (!isSupportedImageType(file)) {
     throw new Error(`不支持的图片格式: ${file.type}`);
   }
-  
+
   // 转换为 Base64
   const base64 = await fileToBase64(file);
-  
+
   // 调用后端 API 保存图片
   const attachmentInfo = await saveImageAttachment(
     noteFilePath,
     base64,
     file.name
   );
-  
+
   return attachmentInfo;
 }
 
@@ -94,12 +94,14 @@ export async function uploadImage(
  * @param clipboardData 剪贴板数据
  * @returns 图片文件数组
  */
-export function extractImagesFromClipboard(clipboardData: DataTransfer | null): File[] {
+export function extractImagesFromClipboard(
+  clipboardData: DataTransfer | null
+): File[] {
   if (!clipboardData) return [];
-  
+
   const images: File[] = [];
   const items = clipboardData.items;
-  
+
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
     if (item.type.startsWith('image/')) {
@@ -109,7 +111,7 @@ export function extractImagesFromClipboard(clipboardData: DataTransfer | null): 
       }
     }
   }
-  
+
   return images;
 }
 
@@ -118,18 +120,20 @@ export function extractImagesFromClipboard(clipboardData: DataTransfer | null): 
  * @param dataTransfer 拖拽数据
  * @returns 图片文件数组
  */
-export function extractImagesFromDrop(dataTransfer: DataTransfer | null): File[] {
+export function extractImagesFromDrop(
+  dataTransfer: DataTransfer | null
+): File[] {
   if (!dataTransfer) return [];
-  
+
   const images: File[] = [];
   const files = dataTransfer.files;
-  
+
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
     if (file.type.startsWith('image/')) {
       images.push(file);
     }
   }
-  
+
   return images;
 }

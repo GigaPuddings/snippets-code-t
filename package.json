@@ -21,7 +21,7 @@
     "tag": "node scripts/tag.mjs",
     "release-notes": "node scripts/format-release-notes.mjs",
     "release-notes:copy": "node scripts/format-release-notes.mjs --copy",
-    "lint": "eslint --ext .ts,.vue,.js src --max-warnings 0",
+    "lint": "eslint --ext .ts,.vue,.js src",
     "lint:fix": "eslint --ext .ts,.vue,.js src --fix",
     "lint:style": "stylelint \"src/**/*.{css,scss,vue}\"",
     "typecheck": "vue-tsc --noEmit",

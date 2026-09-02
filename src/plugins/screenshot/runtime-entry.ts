@@ -14,4 +14,3 @@ export const activate = (context: PluginFrontendRuntimeContext): void => {
     component: () => import('./pages/pin/index.vue')
   });
 };
-

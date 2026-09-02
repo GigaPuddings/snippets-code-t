@@ -7,7 +7,9 @@
           <div class="merge-titlebar">
             <div class="titlebar-left">
               <span class="titlebar-icon">⚡</span>
-              <span class="titlebar-text">{{ $t('settings.gitSync.mergeTitle') }}</span>
+              <span class="titlebar-text">
+                {{ $t('settings.gitSync.mergeTitle') }}
+              </span>
             </div>
             <div class="titlebar-center">
               <div class="file-tabs">
@@ -15,11 +17,17 @@
                   v-for="(file, idx) in conflictFiles"
                   :key="file"
                   class="file-tab"
-                  :class="{ active: currentIndex === idx, resolved: selections[idx] }"
+                  :class="{
+                    active: currentIndex === idx,
+                    resolved: selections[idx]
+                  }"
                   @click="currentIndex = idx"
                   :title="file"
                 >
-                  <span class="tab-dot" :class="{ done: selections[idx] }"></span>
+                  <span
+                    class="tab-dot"
+                    :class="{ done: selections[idx] }"
+                  ></span>
                   <span class="tab-name">{{ getFileName(file) }}</span>
                 </button>
               </div>
@@ -31,29 +39,44 @@
 
           <!-- 文件路径栏 -->
           <div class="file-breadcrumb">
-            <span class="breadcrumb-label">{{ $t('settings.gitSync.conflictFile') }}:</span>
+            <span class="breadcrumb-label">
+              {{ $t('settings.gitSync.conflictFile') }}:
+            </span>
             <span class="breadcrumb-path">{{ currentFile }}</span>
-            <span class="breadcrumb-counter">{{ currentIndex + 1 }} / {{ conflictFiles.length }}</span>
+            <span class="breadcrumb-counter">
+              {{ currentIndex + 1 }} / {{ conflictFiles.length }}
+            </span>
           </div>
 
           <!-- 对比主体 -->
           <div class="diff-body">
             <!-- 远程 (Incoming) -->
-            <div class="diff-pane incoming" :class="{ selected: selections[currentIndex] === 'remote' }">
+            <div
+              class="diff-pane incoming"
+              :class="{ selected: selections[currentIndex] === 'remote' }"
+            >
               <div class="pane-toolbar">
                 <div class="toolbar-label">
                   <span class="label-dot incoming-dot"></span>
                   <span>{{ $t('settings.gitSync.remoteVersion') }}</span>
-                  <span class="label-badge">{{ $t('settings.gitSync.incomingBadge') }}</span>
+                  <span class="label-badge">
+                    {{ $t('settings.gitSync.incomingBadge') }}
+                  </span>
                 </div>
                 <div class="toolbar-actions">
                   <button
                     class="sync-scroll-btn"
                     :class="{ active: syncScrollEnabled }"
                     @click="toggleSyncScroll"
-                    :title="syncScrollEnabled ? $t('settings.gitSync.syncScrollOn') : $t('settings.gitSync.syncScrollOff')"
+                    :title="
+                      syncScrollEnabled
+                        ? $t('settings.gitSync.syncScrollOn')
+                        : $t('settings.gitSync.syncScrollOff')
+                    "
                   >
-                    <span class="sync-icon">{{ syncScrollEnabled ? '⤳' : '⇥' }}</span>
+                    <span class="sync-icon">
+                      {{ syncScrollEnabled ? '⤳' : '⇥' }}
+                    </span>
                   </button>
                   <button
                     class="accept-btn incoming-btn"
@@ -94,13 +117,20 @@
             </div>
 
             <!-- 本地 (Current) -->
-            <div class="diff-pane current" :class="{ selected: selections[currentIndex] === 'local' }">
+            <div
+              class="diff-pane current"
+              :class="{ selected: selections[currentIndex] === 'local' }"
+            >
               <div class="pane-toolbar">
                 <div class="toolbar-label">
                   <span class="label-dot current-dot"></span>
                   <span>{{ $t('settings.gitSync.localVersion') }}</span>
-                  <span class="label-badge">{{ $t('settings.gitSync.currentBadge') }}</span>
-                  <span v-if="isLocalEdited" class="edited-indicator">{{ $t('settings.gitSync.edited') }}</span>
+                  <span class="label-badge">
+                    {{ $t('settings.gitSync.currentBadge') }}
+                  </span>
+                  <span v-if="isLocalEdited" class="edited-indicator">
+                    {{ $t('settings.gitSync.edited') }}
+                  </span>
                 </div>
                 <button
                   class="accept-btn current-btn"
@@ -138,37 +168,64 @@
           <!-- 底栏 -->
           <div class="merge-statusbar">
             <div class="statusbar-left">
-              <button class="status-btn" @click="handleBack" :title="$t('settings.gitSync.backToConflictDialog')">
+              <button
+                class="status-btn"
+                @click="handleBack"
+                :title="$t('settings.gitSync.backToConflictDialog')"
+              >
                 ← {{ $t('settings.gitSync.backToConflictDialog') }}
               </button>
               <div class="nav-group">
-                <button class="nav-btn" @click="previousFile" :disabled="currentIndex === 0">
+                <button
+                  class="nav-btn"
+                  @click="previousFile"
+                  :disabled="currentIndex === 0"
+                >
                   ‹ {{ $t('settings.gitSync.prev') }}
                 </button>
-                <button class="nav-btn" @click="nextFile" :disabled="currentIndex === conflictFiles.length - 1">
+                <button
+                  class="nav-btn"
+                  @click="nextFile"
+                  :disabled="currentIndex === conflictFiles.length - 1"
+                >
                   {{ $t('settings.gitSync.next') }} ›
                 </button>
               </div>
               <span class="resolve-progress">
-                {{ resolvedCount }}/{{ conflictFiles.length }} {{ $t('settings.gitSync.resolved') }}
+                {{ resolvedCount }}/{{ conflictFiles.length }}
+                {{ $t('settings.gitSync.resolved') }}
               </span>
               <!-- 进度条 -->
-              <div v-if="loading || currentOperation" class="progress-container">
+              <div
+                v-if="loading || currentOperation"
+                class="progress-container"
+              >
                 <div class="progress-bar">
-                  <div 
-                    class="progress-fill" 
+                  <div
+                    class="progress-fill"
                     :style="{ width: operationProgress + '%' }"
-                    :class="{ 'progress-loading': currentOperation === 'loading', 'progress-merging': currentOperation === 'merging' }"
+                    :class="{
+                      'progress-loading': currentOperation === 'loading',
+                      'progress-merging': currentOperation === 'merging'
+                    }"
                   ></div>
                 </div>
                 <span class="progress-text">{{ operationMessage }}</span>
               </div>
               <!-- 批量操作按钮 -->
               <div class="batch-actions">
-                <button class="batch-btn" @click="acceptAllRemote" :title="$t('settings.gitSync.acceptAllRemote')">
+                <button
+                  class="batch-btn"
+                  @click="acceptAllRemote"
+                  :title="$t('settings.gitSync.acceptAllRemote')"
+                >
                   {{ $t('settings.gitSync.acceptAllRemote') }}
                 </button>
-                <button class="batch-btn" @click="acceptAllLocal" :title="$t('settings.gitSync.acceptAllLocal')">
+                <button
+                  class="batch-btn"
+                  @click="acceptAllLocal"
+                  :title="$t('settings.gitSync.acceptAllLocal')"
+                >
                   {{ $t('settings.gitSync.acceptAllLocal') }}
                 </button>
               </div>
@@ -176,8 +233,18 @@
             <div class="statusbar-right">
               <!-- 快捷键提示 -->
               <div class="shortcut-hints">
-                <span class="hint-item"><kbd>Ctrl</kbd>+<kbd>1</kbd> {{ $t('settings.gitSync.acceptCurrent') }}</span>
-                <span class="hint-item"><kbd>Ctrl</kbd>+<kbd>2</kbd> {{ $t('settings.gitSync.acceptIncoming') }}</span>
+                <span class="hint-item">
+                  <kbd>Ctrl</kbd>
+                  +
+                  <kbd>1</kbd>
+                  {{ $t('settings.gitSync.acceptCurrent') }}
+                </span>
+                <span class="hint-item">
+                  <kbd>Ctrl</kbd>
+                  +
+                  <kbd>2</kbd>
+                  {{ $t('settings.gitSync.acceptIncoming') }}
+                </span>
               </div>
               <button class="status-btn cancel-btn" @click="handleCancel">
                 {{ $t('common.cancel') }}
@@ -205,7 +272,12 @@ import { getConflictFileContent } from '@/plugins/git-sync/api';
 import type { ConflictFileContent } from '@/plugins/git-sync/api';
 import { EditorView, keymap, lineNumbers } from '@codemirror/view';
 import { EditorState } from '@codemirror/state';
-import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
+import {
+  defaultKeymap,
+  history,
+  historyKeymap,
+  indentWithTab
+} from '@codemirror/commands';
 import { tags as lezerTags } from '@lezer/highlight';
 import { createTheme } from '@uiw/codemirror-themes';
 
@@ -216,7 +288,11 @@ interface Props {
 
 interface Emits {
   (e: 'update:modelValue', value: boolean): void;
-  (e: 'complete', selections: Record<number, 'remote' | 'local'>, editedContents: Record<number, string>): void;
+  (
+    e: 'complete',
+    selections: Record<number, 'remote' | 'local'>,
+    editedContents: Record<number, string>
+  ): void;
   (e: 'cancel'): void;
   (e: 'back'): void;
   (e: 'escape'): void;
@@ -285,13 +361,13 @@ const getTheme = (isDark: boolean) => {
       background,
       foreground,
       caret,
-      selection,
+      selection
     },
     styles: [
       { tag: lezerTags.comment, color: '#6a9955' },
       { tag: lezerTags.keyword, color: '#569cd6' },
-      { tag: lezerTags.string, color: '#ce9178' },
-    ],
+      { tag: lezerTags.string, color: '#ce9178' }
+    ]
   });
 };
 
@@ -302,21 +378,23 @@ const allFilesResolved = computed(() => {
 });
 
 const resolvedCount = computed(() => {
-  return props.conflictFiles.filter((_, index) => selections.value[index]).length;
+  return props.conflictFiles.filter((_, index) => selections.value[index])
+    .length;
 });
 
 const isLocalEdited = computed(() => {
   const original = originalLocalContents.value[currentIndex.value];
-  const current = localEditorView ? localEditorView.state.doc.toString() : localContent.value;
+  const current = localEditorView
+    ? localEditorView.state.doc.toString()
+    : localContent.value;
   return original && current !== original;
 });
 
-const readCurrentDarkMode = () => (
+const readCurrentDarkMode = () =>
   document.documentElement.classList.contains('dark') ||
   document.documentElement.classList.contains('dark-theme') ||
   document.body.classList.contains('dark') ||
-  document.body.classList.contains('dark-theme')
-);
+  document.body.classList.contains('dark-theme');
 
 // 跟随全局主题（与内容编辑页保持一致）
 const isDarkMode = ref(readCurrentDarkMode());
@@ -340,7 +418,7 @@ function computeDiffLines(oldContent: string, newContent: string) {
   for (let i = 0; i < maxLen; i++) {
     const oldLine = oldLines[i];
     const newLine = newLines[i];
-    
+
     if (oldLine !== newLine) {
       if (i < oldLines.length) oldSet.add(i + 1);
       if (i < newLines.length) newSet.add(i + 1);
@@ -351,7 +429,12 @@ function computeDiffLines(oldContent: string, newContent: string) {
 }
 
 // 创建 CodeMirror 编辑器
-function createEditor(container: HTMLElement | null, content: string, readOnly: boolean, isRemote: boolean) {
+function createEditor(
+  container: HTMLElement | null,
+  content: string,
+  readOnly: boolean,
+  isRemote: boolean
+) {
   if (!container) return null;
 
   const extensions = [
@@ -414,7 +497,9 @@ function handleEditorScroll(isRemoteSource: boolean, event: Event) {
     if (localEditorView) {
       const target = localEditorView.scrollDOM;
       const targetScrollableHeight = target.scrollHeight - target.clientHeight;
-      target.scrollTop = verticalRatio * (targetScrollableHeight > 0 ? targetScrollableHeight : 0);
+      target.scrollTop =
+        verticalRatio *
+        (targetScrollableHeight > 0 ? targetScrollableHeight : 0);
       target.scrollLeft = source.scrollLeft;
     }
 
@@ -428,7 +513,9 @@ function handleEditorScroll(isRemoteSource: boolean, event: Event) {
     if (remoteEditorView) {
       const target = remoteEditorView.scrollDOM;
       const targetScrollableHeight = target.scrollHeight - target.clientHeight;
-      target.scrollTop = verticalRatio * (targetScrollableHeight > 0 ? targetScrollableHeight : 0);
+      target.scrollTop =
+        verticalRatio *
+        (targetScrollableHeight > 0 ? targetScrollableHeight : 0);
       target.scrollLeft = source.scrollLeft;
     }
 
@@ -446,7 +533,9 @@ function toggleSyncScroll() {
 // 更新差异显示
 function updateDiff() {
   const remote = remoteContent.value;
-  const local = localEditorView ? localEditorView.state.doc.toString() : localContent.value;
+  const local = localEditorView
+    ? localEditorView.state.doc.toString()
+    : localContent.value;
   const { oldSet, newSet } = computeDiffLines(remote, local);
   remoteDiffLines.value = oldSet;
   localDiffLines.value = newSet;
@@ -478,24 +567,27 @@ async function loadFileContents() {
     currentOperation.value = 'loading';
     operationProgress.value = 30;
     operationMessage.value = t('settings.gitSync.loadingFile');
-    
-    const content: ConflictFileContent = await getConflictFileContent(currentFile.value);
+
+    const content: ConflictFileContent = await getConflictFileContent(
+      currentFile.value
+    );
 
     remoteContent.value = content.remote_content;
-    
+
     if (!originalLocalContents.value[currentIndex.value]) {
       originalLocalContents.value[currentIndex.value] = content.local_content;
     }
 
-    const localValue = editedContents.value[currentIndex.value] || content.local_content;
+    const localValue =
+      editedContents.value[currentIndex.value] || content.local_content;
     localContent.value = localValue;
 
     operationProgress.value = 80;
     operationMessage.value = t('settings.gitSync.initEditor');
-    
+
     // 初始化编辑器
     initEditors(content.remote_content, localValue);
-    
+
     operationProgress.value = 100;
     currentOperation.value = 'complete';
   } catch (error) {
@@ -518,7 +610,10 @@ function handleKeydown(e: KeyboardEvent) {
     selectLocal();
   }
   // Ctrl+2 或 →: 接受远程版本
-  else if ((e.ctrlKey && e.key === '2') || (e.key === 'ArrowRight' && !e.ctrlKey)) {
+  else if (
+    (e.ctrlKey && e.key === '2') ||
+    (e.key === 'ArrowRight' && !e.ctrlKey)
+  ) {
     e.preventDefault();
     selectRemote();
   }
@@ -538,8 +633,7 @@ function handleKeydown(e: KeyboardEvent) {
   else if (e.ctrlKey && e.key === 'ArrowLeft') {
     e.preventDefault();
     previousFile();
-  }
-  else if (e.ctrlKey && e.key === 'ArrowRight') {
+  } else if (e.ctrlKey && e.key === 'ArrowRight') {
     e.preventDefault();
     nextFile();
   }
@@ -576,25 +670,26 @@ function nextFile() {
 function completeMerge() {
   // 确保本地编辑器内容已保存
   if (localEditorView && selections.value[currentIndex.value] === 'local') {
-    editedContents.value[currentIndex.value] = localEditorView.state.doc.toString();
+    editedContents.value[currentIndex.value] =
+      localEditorView.state.doc.toString();
   }
-  
+
   const finalContents = { ...editedContents.value };
   for (let i = 0; i < props.conflictFiles.length; i++) {
     if (selections.value[i] === 'local' && !finalContents[i]) {
       finalContents[i] = originalLocalContents.value[i] || '';
     }
   }
-  
+
   // 设置进度状态
   loading.value = true;
   currentOperation.value = 'merging';
   operationProgress.value = 0;
-  operationMessage.value = t('settings.gitSync.mergingProgress', { 
-    current: 1, 
-    total: props.conflictFiles.length 
+  operationMessage.value = t('settings.gitSync.mergingProgress', {
+    current: 1,
+    total: props.conflictFiles.length
   });
-  
+
   // 模拟进度更新
   let progress = 0;
   const interval = setInterval(() => {
@@ -604,7 +699,7 @@ function completeMerge() {
       clearInterval(interval);
     }
   }, 100);
-  
+
   emit('complete', selections.value, finalContents);
 }
 
@@ -688,12 +783,14 @@ defineExpose({
 <style scoped lang="scss">
 .merge-overlay {
   @apply fixed inset-0 z-[2000] flex items-center justify-center;
+
   background: var(--dialog-overlay);
   backdrop-filter: blur(3px);
 }
 
 .merge-dialog {
   @apply flex flex-col w-[94vw] h-[92vh] max-w-[1400px] rounded-xl overflow-hidden;
+
   background: var(--dialog-bg);
   border: 1px solid var(--dialog-border);
   box-shadow: var(--dialog-shadow);
@@ -702,6 +799,7 @@ defineExpose({
 // 顶栏
 .merge-titlebar {
   @apply flex items-center h-10 px-3 shrink-0 gap-3;
+
   background: var(--dialog-header-bg);
   border-bottom: 1px solid var(--dialog-border);
   -webkit-app-region: no-drag;
@@ -727,6 +825,7 @@ defineExpose({
 
     &:hover {
       background: rgb(255 65 54 / 15%);
+
       @apply text-red-500;
     }
   }
@@ -735,6 +834,7 @@ defineExpose({
 // 文件 tabs
 .file-tabs {
   @apply flex gap-0.5 overflow-x-auto;
+
   scrollbar-width: none;
 
   &::-webkit-scrollbar {
@@ -744,6 +844,7 @@ defineExpose({
 
 .file-tab {
   @apply flex items-center gap-[5px] py-1 px-2.5 border-none bg-transparent rounded cursor-pointer text-content text-[11px] whitespace-nowrap;
+
   transition: all 0.15s;
 
   &:hover {
@@ -756,6 +857,7 @@ defineExpose({
 
   .tab-dot {
     @apply w-1.5 h-1.5 rounded-full shrink-0;
+
     background: var(--el-color-warning, #e6a23c);
 
     &.done {
@@ -767,6 +869,7 @@ defineExpose({
 // 文件路径栏
 .file-breadcrumb {
   @apply flex items-center gap-2 py-1.5 px-4 text-xs shrink-0;
+
   background: var(--categories-content-bg);
   border-bottom: 1px solid var(--categories-border-color);
 
@@ -776,6 +879,7 @@ defineExpose({
 
   .breadcrumb-path {
     @apply text-panel;
+
     font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
     word-break: break-all;
   }
@@ -792,6 +896,7 @@ defineExpose({
 
 .diff-pane {
   @apply flex-1 flex flex-col min-w-0;
+
   transition: box-shadow 0.2s;
 
   &.selected {
@@ -801,6 +906,7 @@ defineExpose({
 
 .pane-toolbar {
   @apply flex items-center justify-between py-1.5 px-3 shrink-0 gap-2;
+
   border-bottom: 1px solid var(--categories-border-color);
 
   .incoming & {
@@ -842,18 +948,22 @@ defineExpose({
 
     .incoming & {
       background: rgb(33 150 243 / 15%);
+
       @apply text-blue-500;
     }
 
     .current & {
       background: rgb(76 175 80 / 15%);
+
       @apply text-green-500;
     }
   }
 
   .edited-indicator {
     @apply py-px px-1.5 rounded-[3px] text-[10px] font-medium;
+
     background: rgb(230 162 60 / 15%);
+
     @apply text-amber-500;
   }
 }
@@ -861,10 +971,12 @@ defineExpose({
 // Accept 按钮
 .accept-btn {
   @apply py-1 px-3 rounded border border-transparent text-[11px] font-medium cursor-pointer whitespace-nowrap;
+
   transition: all 0.15s;
 
   &.incoming-btn {
     @apply bg-transparent text-blue-500;
+
     border-color: #2196f3;
 
     &:hover {
@@ -873,12 +985,14 @@ defineExpose({
 
     &.accepted {
       @apply bg-blue-500 text-white;
+
       border-color: #2196f3;
     }
   }
 
   &.current-btn {
     @apply bg-transparent text-green-500;
+
     border-color: #4caf50;
 
     &:hover {
@@ -887,6 +1001,7 @@ defineExpose({
 
     &.accepted {
       @apply bg-green-500 text-white;
+
       border-color: #4caf50;
     }
   }
@@ -895,6 +1010,7 @@ defineExpose({
 // 代码内容区
 .pane-content {
   @apply flex-1 flex overflow-auto relative;
+
   background: var(--categories-panel-bg);
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
@@ -906,11 +1022,13 @@ defineExpose({
 
 .line-numbers {
   @apply flex flex-col py-2 min-w-[40px] text-right select-none shrink-0;
+
   background: var(--categories-content-bg);
   border-right: 1px solid var(--categories-border-color);
 
   span {
     @apply px-2 text-xs leading-5 text-content;
+
     font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
     opacity: 0.5;
   }
@@ -918,9 +1036,10 @@ defineExpose({
 
 .code-block {
   @apply flex-1 m-0 py-2 px-3 text-[13px] leading-5 text-panel bg-transparent;
+
   font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
-  white-space: pre-wrap;
   word-break: break-word;
+  white-space: pre-wrap;
 
   code {
     font-family: inherit;
@@ -929,9 +1048,10 @@ defineExpose({
 
 .code-editor {
   @apply flex-1 m-0 py-2 px-3 text-[13px] leading-5 text-panel bg-transparent border-none outline-none resize-none w-full min-h-full;
+
   font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
-  white-space: pre-wrap;
   word-break: break-word;
+  white-space: pre-wrap;
 
   &:focus {
     background: rgb(93 109 253 / 3%);
@@ -941,10 +1061,12 @@ defineExpose({
 // 分隔条
 .diff-gutter {
   @apply w-1.5 flex items-center justify-center shrink-0;
+
   background: var(--categories-content-bg);
 
   .gutter-line {
     @apply w-px h-full;
+
     background: var(--categories-border-color);
   }
 }
@@ -952,6 +1074,7 @@ defineExpose({
 // 底栏
 .merge-statusbar {
   @apply flex items-center justify-between py-2 px-3 shrink-0 gap-3;
+
   background: var(--dialog-footer-bg);
   border-top: 1px solid var(--dialog-border);
 }
@@ -972,13 +1095,15 @@ defineExpose({
 
 .progress-bar {
   @apply w-[100px] h-1.5 rounded-[3px] overflow-hidden;
+
   background: var(--categories-border-color);
 }
 
 .progress-fill {
   @apply h-full rounded-[3px];
-  transition: width 0.3s ease;
+
   background: var(--el-color-primary);
+  transition: width 0.3s ease;
 
   &.progress-loading {
     background: linear-gradient(90deg, #5d6dfd 0%, #8b9fff 50%, #5d6dfd 100%);
@@ -997,6 +1122,7 @@ defineExpose({
   0% {
     background-position: 100% 0;
   }
+
   100% {
     background-position: -100% 0;
   }
@@ -1012,6 +1138,7 @@ defineExpose({
 
 .nav-btn {
   @apply py-1 px-2.5 border-none bg-transparent text-panel text-xs cursor-pointer;
+
   transition: background 0.12s;
 
   &:hover:not(:disabled) {
@@ -1029,6 +1156,7 @@ defineExpose({
 
 .status-btn {
   @apply py-[5px] px-3.5 rounded-[5px] border border-panel bg-panel text-panel text-xs cursor-pointer whitespace-nowrap;
+
   transition: all 0.12s;
 
   &:hover {
@@ -1041,6 +1169,7 @@ defineExpose({
 
   &.primary-btn {
     @apply text-white;
+
     background: var(--el-color-primary);
     border-color: var(--el-color-primary);
 
@@ -1060,13 +1189,16 @@ defineExpose({
 
 .btn-spinner {
   @apply inline-block w-3 h-3 rounded-full mr-1 align-middle;
+
   border: 2px solid rgb(255 255 255 / 30%);
   border-top-color: #fff;
   animation: spin 0.6s linear infinite;
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 // 工具栏操作按钮
@@ -1076,6 +1208,7 @@ defineExpose({
 
 .sync-scroll-btn {
   @apply w-7 h-7 flex items-center justify-center border border-panel bg-transparent rounded cursor-pointer;
+
   transition: all 0.15s;
 
   &:hover {
@@ -1084,6 +1217,7 @@ defineExpose({
 
   &.active {
     background: rgb(93 109 253 / 15%);
+
     @apply border-active text-primary;
   }
 
@@ -1098,6 +1232,7 @@ defineExpose({
 
   :deep(.cm-editor) {
     @apply h-full text-[13px];
+
     font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
 
     .cm-content {
@@ -1115,6 +1250,7 @@ defineExpose({
 
     .cm-lineNumbers .cm-gutterElement {
       @apply px-2 min-w-[35px] text-content;
+
       opacity: 0.6;
     }
   }
@@ -1144,6 +1280,7 @@ defineExpose({
 
 .batch-btn {
   @apply py-[3px] px-2 border border-panel bg-transparent rounded text-[11px] text-content cursor-pointer;
+
   transition: all 0.15s;
 
   &:hover {
@@ -1160,8 +1297,9 @@ defineExpose({
 
     kbd {
       @apply py-px px-1 border border-panel rounded-[3px] text-[10px];
-      background: var(--categories-content-bg);
+
       font-family: inherit;
+      background: var(--categories-content-bg);
     }
   }
 }
@@ -1171,7 +1309,9 @@ defineExpose({
   transition: opacity 0.2s ease;
 
   .merge-dialog {
-    transition: transform 0.2s ease, opacity 0.2s ease;
+    transition:
+      transform 0.2s ease,
+      opacity 0.2s ease;
   }
 }
 
@@ -1179,7 +1319,9 @@ defineExpose({
   transition: opacity 0.15s ease;
 
   .merge-dialog {
-    transition: transform 0.15s ease, opacity 0.15s ease;
+    transition:
+      transform 0.15s ease,
+      opacity 0.15s ease;
   }
 }
 
@@ -1187,8 +1329,8 @@ defineExpose({
   opacity: 0;
 
   .merge-dialog {
-    transform: scale(0.96) translateY(10px);
     opacity: 0;
+    transform: scale(0.96) translateY(10px);
   }
 }
 
@@ -1196,8 +1338,8 @@ defineExpose({
   opacity: 0;
 
   .merge-dialog {
-    transform: scale(0.98);
     opacity: 0;
+    transform: scale(0.98);
   }
 }
 </style>

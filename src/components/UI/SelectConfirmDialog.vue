@@ -24,17 +24,10 @@
 
     <template #footer>
       <div class="select-confirm-footer">
-        <CustomButton
-          type="default"
-          @click="handleCancel"
-        >
+        <CustomButton type="default" @click="handleCancel">
           {{ cancelText }}
         </CustomButton>
-        <CustomButton
-          type="primary"
-          :loading="loading"
-          @click="handleConfirm"
-        >
+        <CustomButton type="primary" :loading="loading" @click="handleConfirm">
           {{ confirmText }}
         </CustomButton>
       </div>
@@ -137,8 +130,9 @@ defineExpose({
 <style scoped lang="scss">
 .select-confirm-content {
   @apply py-0 text-sm;
+
   color: var(--dialog-text);
-  
+
   .mb-4 {
     @apply mb-2;
   }
@@ -147,5 +141,4 @@ defineExpose({
 .select-confirm-footer {
   @apply flex justify-end gap-2;
 }
-
 </style>

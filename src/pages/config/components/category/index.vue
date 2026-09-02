@@ -217,6 +217,7 @@ watch(
 
   .category-page {
     @apply relative bg-panel dark:bg-panel border dark:border-panel text-sm text-slate-700 rounded-md overflow-hidden flex;
+
     transition: min-width 0.2s ease;
 
     &.category-page--collapsed {

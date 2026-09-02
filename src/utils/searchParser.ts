@@ -11,23 +11,26 @@ const SYNTAX_PATTERNS = {
   kind: /kind:([^\s]+)/gi,
   tag: /tag:([^\s]+)/gi,
   created: /created:(today|week|month|[<>]?\d{4}-\d{2}-\d{2})/gi,
-  updated: /updated:(today|week|month|[<>]?\d{4}-\d{2}-\d{2})/gi,
+  updated: /updated:(today|week|month|[<>]?\d{4}-\d{2}-\d{2})/gi
 };
 
 /**
  * 获取日期范围
  */
-export function getDateRange(preset: 'today' | 'week' | 'month'): { start: Date; end: Date } {
+export function getDateRange(preset: 'today' | 'week' | 'month'): {
+  start: Date;
+  end: Date;
+} {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  
+
   switch (preset) {
     case 'today':
       return {
         start: today,
         end: new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1)
       };
-    
+
     case 'week':
       const weekStart = new Date(today);
       weekStart.setDate(today.getDate() - today.getDay());
@@ -35,10 +38,17 @@ export function getDateRange(preset: 'today' | 'week' | 'month'): { start: Date;
         start: weekStart,
         end: new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000 - 1)
       };
-    
+
     case 'month':
       const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-      const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59);
+      const monthEnd = new Date(
+        today.getFullYear(),
+        today.getMonth() + 1,
+        0,
+        23,
+        59,
+        59
+      );
       return {
         start: monthStart,
         end: monthEnd
@@ -49,12 +59,16 @@ export function getDateRange(preset: 'today' | 'week' | 'month'): { start: Date;
 /**
  * 解析日期字符串
  */
-function parseDate(dateStr: string): { after?: Date; before?: Date; preset?: 'today' | 'week' | 'month' } {
+function parseDate(dateStr: string): {
+  after?: Date;
+  before?: Date;
+  preset?: 'today' | 'week' | 'month';
+} {
   // 检查是否是预设值
   if (dateStr === 'today' || dateStr === 'week' || dateStr === 'month') {
     return { preset: dateStr };
   }
-  
+
   // 检查是否是相对日期
   if (dateStr.startsWith('>')) {
     const date = new Date(dateStr.substring(1));
@@ -71,12 +85,16 @@ function parseDate(dateStr: string): { after?: Date; before?: Date; preset?: 'to
     const date = new Date(dateStr);
     if (!isNaN(date.getTime())) {
       // 设置为当天的开始和结束
-      const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      const start = new Date(
+        date.getFullYear(),
+        date.getMonth(),
+        date.getDate()
+      );
       const end = new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1);
       return { after: start, before: end };
     }
   }
-  
+
   return {};
 }
 
@@ -87,10 +105,10 @@ export function parseSearchText(searchText: string): SearchFilter {
   if (!searchText || searchText.trim() === '') {
     return {};
   }
-  
+
   const filter: SearchFilter = {};
   let remainingText = searchText;
-  
+
   // 解析类型筛选
   const typeMatches = Array.from(searchText.matchAll(SYNTAX_PATTERNS.type));
   if (typeMatches.length > 0) {
@@ -101,7 +119,9 @@ export function parseSearchText(searchText: string): SearchFilter {
   }
 
   // 解析语言筛选，例如 lang:ts / language:vue
-  const languageMatches = Array.from(searchText.matchAll(SYNTAX_PATTERNS.language));
+  const languageMatches = Array.from(
+    searchText.matchAll(SYNTAX_PATTERNS.language)
+  );
   if (languageMatches.length > 0) {
     const lastMatch = languageMatches[languageMatches.length - 1];
     filter.language = lastMatch[1].toLowerCase();
@@ -109,7 +129,9 @@ export function parseSearchText(searchText: string): SearchFilter {
   }
 
   // 解析框架筛选，例如 framework:vue / framework:react
-  const frameworkMatches = Array.from(searchText.matchAll(SYNTAX_PATTERNS.framework));
+  const frameworkMatches = Array.from(
+    searchText.matchAll(SYNTAX_PATTERNS.framework)
+  );
   if (frameworkMatches.length > 0) {
     const lastMatch = frameworkMatches[frameworkMatches.length - 1];
     filter.framework = lastMatch[1].toLowerCase();
@@ -123,17 +145,19 @@ export function parseSearchText(searchText: string): SearchFilter {
     filter.kind = lastMatch[1].toLowerCase();
     remainingText = remainingText.replace(SYNTAX_PATTERNS.kind, '');
   }
-  
+
   // 解析标签筛选
   const tagMatches = Array.from(searchText.matchAll(SYNTAX_PATTERNS.tag));
   if (tagMatches.length > 0) {
-    filter.tags = tagMatches.map(match => match[1]);
+    filter.tags = tagMatches.map((match) => match[1]);
     // 移除匹配的文本
     remainingText = remainingText.replace(SYNTAX_PATTERNS.tag, '');
   }
-  
+
   // 解析创建日期筛选
-  const createdMatches = Array.from(searchText.matchAll(SYNTAX_PATTERNS.created));
+  const createdMatches = Array.from(
+    searchText.matchAll(SYNTAX_PATTERNS.created)
+  );
   if (createdMatches.length > 0) {
     const lastMatch = createdMatches[createdMatches.length - 1];
     const dateInfo = parseDate(lastMatch[1]);
@@ -146,9 +170,11 @@ export function parseSearchText(searchText: string): SearchFilter {
     // 移除匹配的文本
     remainingText = remainingText.replace(SYNTAX_PATTERNS.created, '');
   }
-  
+
   // 解析更新日期筛选
-  const updatedMatches = Array.from(searchText.matchAll(SYNTAX_PATTERNS.updated));
+  const updatedMatches = Array.from(
+    searchText.matchAll(SYNTAX_PATTERNS.updated)
+  );
   if (updatedMatches.length > 0) {
     const lastMatch = updatedMatches[updatedMatches.length - 1];
     const dateInfo = parseDate(lastMatch[1]);
@@ -161,13 +187,13 @@ export function parseSearchText(searchText: string): SearchFilter {
     // 移除匹配的文本
     remainingText = remainingText.replace(SYNTAX_PATTERNS.updated, '');
   }
-  
+
   // 提取剩余的纯文本
   const text = remainingText.trim();
   if (text) {
     filter.text = text;
   }
-  
+
   return filter;
 }
 
@@ -176,20 +202,20 @@ export function parseSearchText(searchText: string): SearchFilter {
  */
 export function filterToSearchText(filter: SearchFilter): string {
   const parts: string[] = [];
-  
+
   // 添加文本
   if (filter.text) {
     parts.push(filter.text);
   }
-  
+
   // 添加类型
   if (filter.type && filter.type !== 'all') {
     parts.push(`type:${filter.type}`);
   }
-  
+
   // 添加标签
   if (filter.tags && filter.tags.length > 0) {
-    filter.tags.forEach(tag => {
+    filter.tags.forEach((tag) => {
       parts.push(`tag:${tag}`);
     });
   }
@@ -206,7 +232,7 @@ export function filterToSearchText(filter: SearchFilter): string {
   if (filter.kind) {
     parts.push(`kind:${filter.kind}`);
   }
-  
+
   // 添加创建日期
   if (filter.createdPreset) {
     parts.push(`created:${filter.createdPreset}`);
@@ -227,7 +253,7 @@ export function filterToSearchText(filter: SearchFilter): string {
       parts.push(`created:<${formatDate(filter.createdBefore)}`);
     }
   }
-  
+
   // 添加更新日期
   if (filter.updatedPreset) {
     parts.push(`updated:${filter.updatedPreset}`);
@@ -247,7 +273,7 @@ export function filterToSearchText(filter: SearchFilter): string {
       parts.push(`updated:<${formatDate(filter.updatedBefore)}`);
     }
   }
-  
+
   return parts.join(' ');
 }
 
@@ -264,21 +290,24 @@ function formatDate(date: Date): string {
 /**
  * 验证搜索语法是否有效
  */
-export function validateSearchSyntax(searchText: string): { valid: boolean; errors: string[] } {
+export function validateSearchSyntax(searchText: string): {
+  valid: boolean;
+  errors: string[];
+} {
   const errors: string[] = [];
-  
+
   // 验证日期格式
   const datePattern = /\d{4}-\d{2}-\d{2}/g;
   const dateMatches = searchText.match(datePattern);
   if (dateMatches) {
-    dateMatches.forEach(dateStr => {
+    dateMatches.forEach((dateStr) => {
       const date = new Date(dateStr);
       if (isNaN(date.getTime())) {
         errors.push(`Invalid date format: ${dateStr}`);
       }
     });
   }
-  
+
   return {
     valid: errors.length === 0,
     errors

@@ -2,11 +2,19 @@
   <div class="recording-result">
     <h3>{{ $t('screenRecorder.exportDone') }}</h3>
     <p>{{ result.width }} × {{ result.height }} · {{ sizeText }}</p>
-    <p v-if="result.debugLogPath" class="debug-log">{{ $t('screenRecorder.debugLog') }}: {{ result.debugLogPath }}</p>
+    <p v-if="result.debugLogPath" class="debug-log">
+      {{ $t('screenRecorder.debugLog') }}: {{ result.debugLogPath }}
+    </p>
     <div class="actions">
-      <el-button type="primary" @click="$emit('open')">{{ $t('screenRecorder.openFile') }}</el-button>
-      <el-button @click="$emit('reveal')">{{ $t('screenRecorder.openFolder') }}</el-button>
-      <el-button @click="$emit('recordAgain')">{{ $t('screenRecorder.recordAgain') }}</el-button>
+      <el-button type="primary" @click="$emit('open')">
+        {{ $t('screenRecorder.openFile') }}
+      </el-button>
+      <el-button @click="$emit('reveal')">
+        {{ $t('screenRecorder.openFolder') }}
+      </el-button>
+      <el-button @click="$emit('recordAgain')">
+        {{ $t('screenRecorder.recordAgain') }}
+      </el-button>
     </div>
   </div>
 </template>
@@ -35,10 +43,11 @@ const sizeText = computed(() => {
 <style scoped lang="scss">
 .recording-result {
   @apply fixed left-1/2 top-1/2 z-[14] p-[22px] rounded-lg shadow-recorder-overlay -translate-x-1/2 -translate-y-1/2;
+
   width: min(420px, calc(100vw - 32px));
+  color: var(--recorder-text);
   background: var(--recorder-overlay-bg);
   border: 1px solid var(--recorder-overlay-border);
-  color: var(--recorder-text);
 
   h3 {
     @apply m-0 mb-2 text-lg;
@@ -50,6 +59,7 @@ const sizeText = computed(() => {
 
   .debug-log {
     @apply mt-[-8px] text-xs;
+
     overflow-wrap: anywhere;
   }
 }

@@ -25,8 +25,13 @@
         place-items: center;
         background: #edf1f5;
         font-family:
-          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-          "Segoe UI", sans-serif;
+          Inter,
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          sans-serif;
       }
 
       .window {
@@ -93,8 +98,13 @@
         overflow: auto;
         height: clamp(174px, 42%, 292px);
         padding: 14px 18px;
-        background: linear-gradient(180deg, rgb(248 250 252 / 72%), transparent);
-        border-bottom: 1px solid color-mix(in srgb, var(--ocr-border) 68%, transparent);
+        background: linear-gradient(
+          180deg,
+          rgb(248 250 252 / 72%),
+          transparent
+        );
+        border-bottom: 1px solid
+          color-mix(in srgb, var(--ocr-border) 68%, transparent);
       }
 
       .ocr-preview-stage {
@@ -152,12 +162,17 @@
       .ocr-record-item {
         position: relative;
         padding: 12px 0 14px 28px;
-        border-bottom: 1px solid color-mix(in srgb, var(--ocr-border) 58%, transparent);
+        border-bottom: 1px solid
+          color-mix(in srgb, var(--ocr-border) 58%, transparent);
         transition: background-color 0.15s ease;
       }
 
       .ocr-record-item.selected {
-        background: color-mix(in srgb, var(--ocr-panel-hover-bg) 56%, transparent);
+        background: color-mix(
+          in srgb,
+          var(--ocr-panel-hover-bg) 56%,
+          transparent
+        );
       }
 
       .ocr-record-header {
@@ -222,33 +237,96 @@
         <div class="ocr-result-layout">
           <section class="ocr-preview-pane">
             <div class="ocr-preview-stage">
-              <div class="mock-line" style="top: 28px">- Free: All the code of this project is open-source and completely free.</div>
-              <div class="mock-line" style="top: 54px">Convenient: Unzip and use, run offline, no need for network.</div>
-              <div class="mock-line" style="top: 80px">Efficient: Comes with a highly efficient offline OCR engine.</div>
-              <div class="mock-line" style="top: 106px">Flexible: Supports customizable interface and HTTP API.</div>
+              <div class="mock-line" style="top: 28px">
+                - Free: All the code of this project is open-source and
+                completely free.
+              </div>
+              <div class="mock-line" style="top: 54px">
+                Convenient: Unzip and use, run offline, no need for network.
+              </div>
+              <div class="mock-line" style="top: 80px">
+                Efficient: Comes with a highly efficient offline OCR engine.
+              </div>
+              <div class="mock-line" style="top: 106px">
+                Flexible: Supports customizable interface and HTTP API.
+              </div>
               <div class="ocr-text-overlay">
-                <span class="ocr-overlay-block" style="left: 8%; top: 22%; width: 58%">- Free: All the code of this project is open-source and</span>
-                <span class="ocr-overlay-block" style="left: 8%; top: 40%; width: 42%">Convenient: Unzip and use, run offline</span>
-                <span class="ocr-overlay-block" style="left: 8%; top: 58%; width: 78%">Efficient: Comes with a highly efficient offline OCR engine.</span>
-                <span class="ocr-overlay-block" style="left: 8%; top: 76%; width: 64%">Flexible: Supports customizable interface and HTTP API.</span>
+                <span
+                  class="ocr-overlay-block"
+                  style="left: 8%; top: 22%; width: 58%"
+                >
+                  - Free: All the code of this project is open-source and
+                </span>
+                <span
+                  class="ocr-overlay-block"
+                  style="left: 8%; top: 40%; width: 42%"
+                >
+                  Convenient: Unzip and use, run offline
+                </span>
+                <span
+                  class="ocr-overlay-block"
+                  style="left: 8%; top: 58%; width: 78%"
+                >
+                  Efficient: Comes with a highly efficient offline OCR engine.
+                </span>
+                <span
+                  class="ocr-overlay-block"
+                  style="left: 8%; top: 76%; width: 64%"
+                >
+                  Flexible: Supports customizable interface and HTTP API.
+                </span>
               </div>
             </div>
           </section>
           <section class="ocr-record-pane">
             <article class="ocr-record-item selected">
-              <header class="ocr-record-header"><input class="ocr-record-checkbox" type="checkbox" checked /><span class="ocr-record-index">#1</span></header>
-              <div class="ocr-record-editor" contenteditable="plaintext-only">- Free: All the code of this project is open-source and completely free.</div>
-              <div class="ocr-record-editor translated" contenteditable="plaintext-only">免费：这个项目的全部代码都是开源的，并且完全免费。</div>
+              <header class="ocr-record-header">
+                <input class="ocr-record-checkbox" type="checkbox" checked />
+                <span class="ocr-record-index">#1</span>
+              </header>
+              <div class="ocr-record-editor" contenteditable="plaintext-only">
+                - Free: All the code of this project is open-source and
+                completely free.
+              </div>
+              <div
+                class="ocr-record-editor translated"
+                contenteditable="plaintext-only"
+              >
+                免费：这个项目的全部代码都是开源的，并且完全免费。
+              </div>
             </article>
             <article class="ocr-record-item">
-              <header class="ocr-record-header"><input class="ocr-record-checkbox" type="checkbox" /><span class="ocr-record-index">#2</span></header>
-              <div class="ocr-record-editor" contenteditable="plaintext-only">Convenient: Unzip and use, run offline, no need for network.</div>
-              <div class="ocr-record-editor translated" contenteditable="plaintext-only">便捷：解压即可使用，可离线运行，不需要网络。</div>
+              <header class="ocr-record-header">
+                <input class="ocr-record-checkbox" type="checkbox" />
+                <span class="ocr-record-index">#2</span>
+              </header>
+              <div class="ocr-record-editor" contenteditable="plaintext-only">
+                Convenient: Unzip and use, run offline, no need for network.
+              </div>
+              <div
+                class="ocr-record-editor translated"
+                contenteditable="plaintext-only"
+              >
+                便捷：解压即可使用，可离线运行，不需要网络。
+              </div>
             </article>
             <article class="ocr-record-item">
-              <header class="ocr-record-header"><input class="ocr-record-checkbox" type="checkbox" /><span class="ocr-record-index">#3</span></header>
-              <div class="ocr-record-editor" contenteditable="plaintext-only">Efficient: Comes with a highly efficient offline OCR engine. As long as the computer performance is sufficient, it can be faster than online OCR services.</div>
-              <div class="ocr-record-editor translated" contenteditable="plaintext-only">高效：内置高效的离线 OCR 引擎。只要电脑性能足够，速度可以超过在线 OCR 服务。</div>
+              <header class="ocr-record-header">
+                <input class="ocr-record-checkbox" type="checkbox" />
+                <span class="ocr-record-index">#3</span>
+              </header>
+              <div class="ocr-record-editor" contenteditable="plaintext-only">
+                Efficient: Comes with a highly efficient offline OCR engine. As
+                long as the computer performance is sufficient, it can be faster
+                than online OCR services.
+              </div>
+              <div
+                class="ocr-record-editor translated"
+                contenteditable="plaintext-only"
+              >
+                高效：内置高效的离线 OCR
+                引擎。只要电脑性能足够，速度可以超过在线 OCR 服务。
+              </div>
             </article>
           </section>
         </div>

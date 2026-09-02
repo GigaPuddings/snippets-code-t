@@ -31,9 +31,8 @@ describe('requestSelectionScrollAfterLayout', () => {
     let receivedDetail: EditorSelectionLayoutDetail | null = null;
 
     dom.addEventListener(EDITOR_SELECTION_LAYOUT_EVENT, (event) => {
-      receivedDetail = (
-        event as CustomEvent<EditorSelectionLayoutDetail>
-      ).detail;
+      receivedDetail = (event as CustomEvent<EditorSelectionLayoutDetail>)
+        .detail;
     });
 
     requestSelectionScrollAfterLayout(editor, {

@@ -1,43 +1,40 @@
-import { BaseAnnotation } from './BaseAnnotation'
-import { CoordinateSystem } from './CoordinateSystem'
-import { Point, Rect, OperationType, ToolType } from './types'
-import { distance, getRectCenter } from '../utils/geometry'
-import { isValidPoint } from '../utils/validation'
+import { BaseAnnotation } from './BaseAnnotation';
+import { CoordinateSystem } from './CoordinateSystem';
+import { Point, Rect, OperationType, ToolType } from './types';
+import { distance, getRectCenter } from '../utils/geometry';
+import { isValidPoint } from '../utils/validation';
 
 // 事件处理器 - 统一管理鼠标事件和交互逻辑
 export class EventHandler {
-  private coordinateSystem: CoordinateSystem
-  private canvas: HTMLCanvasElement
-  private isDrawing = false
-  private currentOperation = OperationType.None
-  private startPoint: Point = { x: 0, y: 0 }
-  private lastMousePos: Point = { x: 0, y: 0 }
-  
-  constructor(
-    canvas: HTMLCanvasElement,
-    coordinateSystem: CoordinateSystem
-  ) {
-    this.canvas = canvas
-    this.coordinateSystem = coordinateSystem
-    this.bindEvents()
+  private coordinateSystem: CoordinateSystem;
+  private canvas: HTMLCanvasElement;
+  private isDrawing = false;
+  private currentOperation = OperationType.None;
+  private startPoint: Point = { x: 0, y: 0 };
+  private lastMousePos: Point = { x: 0, y: 0 };
+
+  constructor(canvas: HTMLCanvasElement, coordinateSystem: CoordinateSystem) {
+    this.canvas = canvas;
+    this.coordinateSystem = coordinateSystem;
+    this.bindEvents();
   }
 
   private preventDefault = (e: Event): void => {
-    e.preventDefault()
-  }
+    e.preventDefault();
+  };
 
   private bindEvents(): void {
     // 基本事件防止默认行为
-    this.canvas.addEventListener('contextmenu', this.preventDefault)
-    this.canvas.addEventListener('dragstart', this.preventDefault)
-    this.canvas.addEventListener('selectstart', this.preventDefault)
+    this.canvas.addEventListener('contextmenu', this.preventDefault);
+    this.canvas.addEventListener('dragstart', this.preventDefault);
+    this.canvas.addEventListener('selectstart', this.preventDefault);
   }
 
   unbind(): void {
     // 移除基本事件监听器
-    this.canvas.removeEventListener('contextmenu', this.preventDefault)
-    this.canvas.removeEventListener('dragstart', this.preventDefault)
-    this.canvas.removeEventListener('selectstart', this.preventDefault)
+    this.canvas.removeEventListener('contextmenu', this.preventDefault);
+    this.canvas.removeEventListener('dragstart', this.preventDefault);
+    this.canvas.removeEventListener('selectstart', this.preventDefault);
   }
 
   getOperationType(
@@ -47,43 +44,53 @@ export class EventHandler {
     annotations: BaseAnnotation[]
   ): OperationType {
     // 检查是否在标注上
-    const annotationAtPoint = this.getAnnotationAtPoint(mousePos, annotations)
+    const annotationAtPoint = this.getAnnotationAtPoint(mousePos, annotations);
 
     // 如果不是选择工具，根据工具类型返回对应操作
     if (currentTool !== ToolType.Select) {
-      if (!selectionRect) return OperationType.Drawing
+      if (!selectionRect) return OperationType.Drawing;
 
       // 检查点是否在选择框内，只有在选择框内才能标注
-      const isInRect = this.coordinateSystem.isPointInRect(mousePos, selectionRect)
-      
+      const isInRect = this.coordinateSystem.isPointInRect(
+        mousePos,
+        selectionRect
+      );
+
       if (isInRect) {
-        return this.getDrawingOperationType(currentTool)
+        return this.getDrawingOperationType(currentTool);
       }
 
-      return OperationType.None
+      return OperationType.None;
     }
 
     // 选择工具逻辑
     if (annotationAtPoint) {
       // 马赛克标注不允许编辑
       if (annotationAtPoint.getData().type === ToolType.Mosaic) {
-        return OperationType.None
+        return OperationType.None;
       }
-      
+
       // 检查是否点击在控制点上
-      const controlPointOperation = this.getAnnotationControlPointOperation(mousePos, annotationAtPoint)
+      const controlPointOperation = this.getAnnotationControlPointOperation(
+        mousePos,
+        annotationAtPoint
+      );
       if (controlPointOperation !== OperationType.None) {
-        return controlPointOperation
+        return controlPointOperation;
       }
-      
+
       // 默认为移动操作（包括文字标注）
-      return OperationType.MovingAnnotation
+      return OperationType.MovingAnnotation;
     }
 
-    if (!selectionRect) return OperationType.Drawing
+    if (!selectionRect) return OperationType.Drawing;
 
     // 检查选择框的缩放和移动操作
-    return this.getSelectionOperationType(mousePos, selectionRect, annotations.length > 0)
+    return this.getSelectionOperationType(
+      mousePos,
+      selectionRect,
+      annotations.length > 0
+    );
   }
 
   // 获取绘图操作类型
@@ -102,9 +109,9 @@ export class EventHandler {
       [ToolType.Pin]: OperationType.Pinning,
       [ToolType.Translate]: OperationType.None,
       [ToolType.Select]: OperationType.None
-    }
+    };
 
-    return operationMap[toolType] || OperationType.Drawing
+    return operationMap[toolType] || OperationType.Drawing;
   }
 
   // 获取选择框操作类型
@@ -113,154 +120,170 @@ export class EventHandler {
     selectionRect: Rect,
     hasAnnotations: boolean
   ): OperationType {
-    const { x, y, width, height } = selectionRect
-    const handleSize = 12
+    const { x, y, width, height } = selectionRect;
+    const handleSize = 12;
 
     // 如果有标注，禁用拖拽和缩放
     if (hasAnnotations) {
-      return OperationType.None
+      return OperationType.None;
     }
 
     // 使用工具函数获取中心点
-    const center = getRectCenter(selectionRect)
+    const center = getRectCenter(selectionRect);
 
     // 检查角点
     if (this.isInHandle(mousePos, { x: x, y: y }, handleSize)) {
-      return OperationType.ResizingNW
+      return OperationType.ResizingNW;
     }
     if (this.isInHandle(mousePos, { x: x + width, y: y }, handleSize)) {
-      return OperationType.ResizingNE
+      return OperationType.ResizingNE;
     }
     if (this.isInHandle(mousePos, { x: x, y: y + height }, handleSize)) {
-      return OperationType.ResizingSW
+      return OperationType.ResizingSW;
     }
-    if (this.isInHandle(mousePos, { x: x + width, y: y + height }, handleSize)) {
-      return OperationType.ResizingSE
+    if (
+      this.isInHandle(mousePos, { x: x + width, y: y + height }, handleSize)
+    ) {
+      return OperationType.ResizingSE;
     }
 
     // 检查边界中点（使用中心点坐标）
     if (this.isInHandle(mousePos, { x: center.x, y: y }, handleSize)) {
-      return OperationType.ResizingN
+      return OperationType.ResizingN;
     }
     if (this.isInHandle(mousePos, { x: center.x, y: y + height }, handleSize)) {
-      return OperationType.ResizingS
+      return OperationType.ResizingS;
     }
     if (this.isInHandle(mousePos, { x: x, y: center.y }, handleSize)) {
-      return OperationType.ResizingW
+      return OperationType.ResizingW;
     }
     if (this.isInHandle(mousePos, { x: x + width, y: center.y }, handleSize)) {
-      return OperationType.ResizingE
+      return OperationType.ResizingE;
     }
 
     // 检查是否在选择区域内
     if (this.coordinateSystem.isPointInRect(mousePos, selectionRect)) {
-      return OperationType.Moving
+      return OperationType.Moving;
     }
 
-    return OperationType.Drawing
+    return OperationType.Drawing;
   }
 
   // 检查是否在控制点范围内
-  private isInHandle(mousePos: Point, handlePos: Point, handleSize: number): boolean {
-    return Math.abs(mousePos.x - handlePos.x) <= handleSize &&
-           Math.abs(mousePos.y - handlePos.y) <= handleSize
+  private isInHandle(
+    mousePos: Point,
+    handlePos: Point,
+    handleSize: number
+  ): boolean {
+    return (
+      Math.abs(mousePos.x - handlePos.x) <= handleSize &&
+      Math.abs(mousePos.y - handlePos.y) <= handleSize
+    );
   }
 
   // 获取指定位置的标注
-  getAnnotationAtPoint(mousePos: Point, annotations: BaseAnnotation[]): BaseAnnotation | null {
+  getAnnotationAtPoint(
+    mousePos: Point,
+    annotations: BaseAnnotation[]
+  ): BaseAnnotation | null {
     // 从后往前检查（后绘制的优先）
     for (let i = annotations.length - 1; i >= 0; i--) {
-      const annotation = annotations[i]
+      const annotation = annotations[i];
       if (annotation.hitTest(mousePos)) {
-        return annotation
+        return annotation;
       }
     }
-    return null
+    return null;
   }
 
   // 获取标注控制点操作类型
-  private getAnnotationControlPointOperation(mousePos: Point, annotation: BaseAnnotation): OperationType {
+  private getAnnotationControlPointOperation(
+    mousePos: Point,
+    annotation: BaseAnnotation
+  ): OperationType {
     // 验证输入
     if (!isValidPoint(mousePos)) {
-      return OperationType.None
+      return OperationType.None;
     }
 
-    const data = annotation.getData()
-    
+    const data = annotation.getData();
+
     // 马赛克不需要编辑
     if (data.type === ToolType.Mosaic) {
-      return OperationType.None
+      return OperationType.None;
     }
 
     // 文字标注不需要控制点缩放，只需要移动
     if (data.type === ToolType.Text || data.type === ToolType.Marker) {
-      return OperationType.None
+      return OperationType.None;
     }
 
     // 两点图形标注支持控制点缩放
-    if ([
-      ToolType.Rectangle,
-      ToolType.Ellipse,
-      ToolType.Line,
-      ToolType.Arrow
-    ].includes(data.type)) {
+    if (
+      [
+        ToolType.Rectangle,
+        ToolType.Ellipse,
+        ToolType.Line,
+        ToolType.Arrow
+      ].includes(data.type)
+    ) {
       if (data.points.length >= 2) {
-        const start = data.points[0]
-        const end = data.points[data.points.length - 1]
-        const handleSize = 8
-        const tolerance = 6
+        const start = data.points[0];
+        const end = data.points[data.points.length - 1];
+        const handleSize = 8;
+        const tolerance = 6;
 
         // 使用工具函数计算距离
-        const startDistance = distance(mousePos, start)
-        const endDistance = distance(mousePos, end)
+        const startDistance = distance(mousePos, start);
+        const endDistance = distance(mousePos, end);
 
         if (startDistance <= handleSize + tolerance) {
-          return OperationType.ResizingAnnotationNW // 起点拖拽
+          return OperationType.ResizingAnnotationNW; // 起点拖拽
         }
         if (endDistance <= handleSize + tolerance) {
-          return OperationType.ResizingAnnotationSE // 终点拖拽
+          return OperationType.ResizingAnnotationSE; // 终点拖拽
         }
       }
     }
 
-    return OperationType.None
+    return OperationType.None;
   }
 
   // 获取绘制状态
   getDrawingState(): {
-    isDrawing: boolean
-    currentOperation: OperationType
-    startPoint: Point
-    lastMousePos: Point
+    isDrawing: boolean;
+    currentOperation: OperationType;
+    startPoint: Point;
+    lastMousePos: Point;
   } {
     return {
       isDrawing: this.isDrawing,
       currentOperation: this.currentOperation,
       startPoint: this.startPoint,
       lastMousePos: this.lastMousePos
-    }
+    };
   }
 
   // 设置操作类型
   setCurrentOperation(operation: OperationType): void {
-    this.currentOperation = operation
+    this.currentOperation = operation;
   }
 
   // 开始绘制操作
   startDrawing(startPoint: Point): void {
-    this.isDrawing = true
-    this.startPoint = startPoint
-    this.lastMousePos = startPoint
+    this.isDrawing = true;
+    this.startPoint = startPoint;
+    this.lastMousePos = startPoint;
   }
 
   // 结束绘制操作
   stopDrawing(): void {
-    this.isDrawing = false
-    this.currentOperation = OperationType.None
+    this.isDrawing = false;
+    this.currentOperation = OperationType.None;
   }
 
   // 更新鼠标位置
   updateMousePosition(mousePos: Point): void {
-    this.lastMousePos = mousePos
+    this.lastMousePos = mousePos;
   }
 }

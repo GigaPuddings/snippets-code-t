@@ -1,9 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { useGitRuntimeState } from './useGitRuntimeState';
 
-const t = ((key: string, params?: Record<string, string>) => (
-  params ? `${key}:${params.url}:${params.operation}` : key
-)) as any;
+const t = ((key: string, params?: Record<string, string>) =>
+  params ? `${key}:${params.url}:${params.operation}` : key) as any;
 
 const createStorage = () => {
   const data = new Map<string, string>();

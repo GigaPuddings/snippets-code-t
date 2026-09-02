@@ -28,7 +28,6 @@
 </template>
 
 <script setup lang="ts">
-
 const props = defineProps({
   // 选项列表，可以是字符串数组或对象数组
   items: {

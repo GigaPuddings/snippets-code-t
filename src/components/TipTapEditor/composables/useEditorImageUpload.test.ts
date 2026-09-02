@@ -6,17 +6,22 @@ import {
   useEditorImageUpload
 } from './useEditorImageUpload';
 
-const createFile = () => new File(['image'], 'button.png', { type: 'image/png' });
+const createFile = () =>
+  new File(['image'], 'button.png', { type: 'image/png' });
 
-const createEditor = (options: {
-  parentType?: string;
-  textContent?: string;
-} = {}) => {
+const createEditor = (
+  options: {
+    parentType?: string;
+    textContent?: string;
+  } = {}
+) => {
   const insertedContent: string[] = [];
 
   const chain = {
     focus: vi.fn(() => chain),
-    command: vi.fn((_callback: (context: { tr: Transaction }) => boolean) => chain),
+    command: vi.fn(
+      (_callback: (context: { tr: Transaction }) => boolean) => chain
+    ),
     insertContent: vi.fn((content: string) => {
       insertedContent.push(content);
       return chain;
@@ -47,25 +52,34 @@ const createEditor = (options: {
   };
 };
 
-const createUploader = (options: {
-  editor?: ImageUploadEditor | null;
-  fragmentId?: number | string;
-  uploadImage?: (file: File, fragmentId: string) => Promise<{ relativePath: string }>;
-  convertFileSrc?: (path: string) => string | Promise<string>;
-} = {}) => {
+const createUploader = (
+  options: {
+    editor?: ImageUploadEditor | null;
+    fragmentId?: number | string;
+    uploadImage?: (
+      file: File,
+      fragmentId: string
+    ) => Promise<{ relativePath: string }>;
+    convertFileSrc?: (path: string) => string | Promise<string>;
+  } = {}
+) => {
   const editor = ref<ImageUploadEditor | null | undefined>(options.editor);
   const workspaceRoot = ref('E:\\Workspace');
   const notifySuccess = vi.fn();
   const notifyError = vi.fn();
-  const uploadImage = options.uploadImage ?? vi.fn(async () => ({ relativePath: '../assets/button.png' }));
-  const convertFileSrc = options.convertFileSrc ?? vi.fn((path: string) => `asset://${path}`);
+  const uploadImage =
+    options.uploadImage ??
+    vi.fn(async () => ({ relativePath: '../assets/button.png' }));
+  const convertFileSrc =
+    options.convertFileSrc ?? vi.fn((path: string) => `asset://${path}`);
 
   const uploader = useEditorImageUpload({
     editor,
     workspaceRoot,
-    getCurrentFragmentId: () => (
-      Object.prototype.hasOwnProperty.call(options, 'fragmentId') ? options.fragmentId : 7
-    ),
+    getCurrentFragmentId: () =>
+      Object.prototype.hasOwnProperty.call(options, 'fragmentId')
+        ? options.fragmentId
+        : 7,
     uploadImage,
     convertFileSrc,
     notifySuccess,
@@ -90,13 +104,16 @@ describe('useEditorImageUpload', () => {
     await uploader.handleImageUpload(createFile());
 
     expect(uploader.uploadImage).toHaveBeenCalledWith(expect.any(File), '7');
-    expect(uploader.convertFileSrc).toHaveBeenCalledWith('E:\\Workspace\\assets\\button.png');
+    expect(uploader.convertFileSrc).toHaveBeenCalledWith(
+      'E:\\Workspace\\assets\\button.png'
+    );
     expect(editorMock.chain.insertContent).toHaveBeenCalledWith(
       '<img src="asset://E:\\Workspace\\assets\\button.png" alt="button.png" data-original-path="../assets/button.png" data-image-scale="100" />'
     );
     expect(editorMock.chain.splitBlock).toHaveBeenCalledTimes(1);
-    expect(editorMock.chain.insertContent.mock.invocationCallOrder[0])
-      .toBeLessThan(editorMock.chain.splitBlock.mock.invocationCallOrder[0]);
+    expect(
+      editorMock.chain.insertContent.mock.invocationCallOrder[0]
+    ).toBeLessThan(editorMock.chain.splitBlock.mock.invocationCallOrder[0]);
     expect(editorMock.chain.command).toHaveBeenCalledTimes(1);
     expect(uploader.notifySuccess).toHaveBeenCalledWith('图片上传成功');
   });
@@ -114,12 +131,17 @@ describe('useEditorImageUpload', () => {
 
   it('shows an error when there is no current fragment id', async () => {
     const editorMock = createEditor();
-    const uploader = createUploader({ editor: editorMock.editor, fragmentId: undefined });
+    const uploader = createUploader({
+      editor: editorMock.editor,
+      fragmentId: undefined
+    });
 
     await uploader.handleImageUpload(createFile());
 
     expect(uploader.uploadImage).not.toHaveBeenCalled();
-    expect(uploader.notifyError).toHaveBeenCalledWith('无法上传图片：未找到当前笔记');
+    expect(uploader.notifyError).toHaveBeenCalledWith(
+      '无法上传图片：未找到当前笔记'
+    );
   });
 
   it('shows an upload error when the upload fails', async () => {
@@ -133,6 +155,8 @@ describe('useEditorImageUpload', () => {
 
     await uploader.handleImageUpload(createFile());
 
-    expect(uploader.notifyError).toHaveBeenCalledWith('图片上传失败: disk full');
+    expect(uploader.notifyError).toHaveBeenCalledWith(
+      '图片上传失败: disk full'
+    );
   });
 });

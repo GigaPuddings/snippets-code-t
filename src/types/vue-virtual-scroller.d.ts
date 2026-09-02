@@ -15,4 +15,3 @@ declare module 'vue-virtual-scroller' {
   export const DynamicScroller: DefineComponent<any>;
   export const DynamicScrollerItem: DefineComponent<any>;
 }
-

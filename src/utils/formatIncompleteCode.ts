@@ -1,4 +1,7 @@
-function countStructuralBraces(line: string): { opening: number; closing: number } {
+function countStructuralBraces(line: string): {
+  opening: number;
+  closing: number;
+} {
   let opening = 0;
   let closing = 0;
   let quote: '"' | "'" | '`' | null = null;
@@ -140,6 +143,9 @@ export function formatIncompleteJavaScript(code: string, tabSize = 2): string {
     return result;
   });
 
-  const formatted = formattedLines.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd();
+  const formatted = formattedLines
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trimEnd();
   return normalizedCode.endsWith('\n') ? `${formatted}\n` : formatted;
 }

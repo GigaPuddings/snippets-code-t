@@ -387,7 +387,7 @@ fn get_firefox_bookmarks_file() -> Option<PathBuf> {
     None
 }
 
-fn extract_firefox_bookmarks(db_path: &PathBuf) -> Vec<BookmarkInfo> {
+fn extract_firefox_bookmarks(db_path: &Path) -> Vec<BookmarkInfo> {
     let mut bookmarks = Vec::new();
     if let Some(snapshot) = BrowserDbSnapshot::open(db_path, "snippets-places") {
         let conn = snapshot.connection();

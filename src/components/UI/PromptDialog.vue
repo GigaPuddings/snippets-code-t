@@ -20,8 +20,12 @@
 
     <template #footer>
       <div class="prompt-footer">
-        <CustomButton @click="handleCancel">{{ computedCancelText }}</CustomButton>
-        <CustomButton type="primary" @click="handleConfirm">{{ computedConfirmText }}</CustomButton>
+        <CustomButton @click="handleCancel">
+          {{ computedCancelText }}
+        </CustomButton>
+        <CustomButton type="primary" @click="handleConfirm">
+          {{ computedConfirmText }}
+        </CustomButton>
       </div>
     </template>
   </CommonDialog>
@@ -66,7 +70,7 @@ const props = withDefaults(defineProps<Props>(), {
   trimOnConfirm: true,
   required: false,
   maxLength: 0,
-  validator: undefined,
+  validator: undefined
 });
 
 const emit = defineEmits<{
@@ -83,12 +87,16 @@ const inputRef = ref<any>(null);
 const errorMessage = ref('');
 
 const computedTitle = computed(() => props.title || t('common.inputTitle'));
-const computedConfirmText = computed(() => props.confirmText || t('common.confirm'));
-const computedCancelText = computed(() => props.cancelText || t('common.cancel'));
+const computedConfirmText = computed(
+  () => props.confirmText || t('common.confirm')
+);
+const computedCancelText = computed(
+  () => props.cancelText || t('common.cancel')
+);
 
 watch(
   () => props.modelValue,
-  val => {
+  (val) => {
     visible.value = val;
     if (val) {
       inputValue.value = props.initialValue || '';
@@ -102,25 +110,33 @@ watch(
 
 watch(
   () => props.initialValue,
-  val => {
+  (val) => {
     if (!visible.value) inputValue.value = val || '';
   }
 );
 
-watch(visible, val => {
+watch(visible, (val) => {
   emit('update:modelValue', val);
 });
 
 const handleConfirm = () => {
-  const value = props.trimOnConfirm ? inputValue.value.trim() : inputValue.value;
+  const value = props.trimOnConfirm
+    ? inputValue.value.trim()
+    : inputValue.value;
 
   if (props.required && !value) {
     errorMessage.value = t('common.requiredField');
     return;
   }
 
-  if (props.maxLength && props.maxLength > 0 && value.length > props.maxLength) {
-    errorMessage.value = t('common.maxLengthExceeded', { max: props.maxLength });
+  if (
+    props.maxLength &&
+    props.maxLength > 0 &&
+    value.length > props.maxLength
+  ) {
+    errorMessage.value = t('common.maxLengthExceeded', {
+      max: props.maxLength
+    });
     return;
   }
 
@@ -157,6 +173,7 @@ const handleCancel = () => {
 
 .prompt-error {
   @apply text-xs;
+
   color: var(--el-color-danger);
 }
 

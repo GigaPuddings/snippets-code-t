@@ -112,14 +112,18 @@ const fetchGitHubUser = async (token: string): Promise<GitHubUser> => {
   try {
     return await invoke<GitHubUser>('verify_github_token', { token });
   } catch (error) {
-    ErrorHandler.handle(error, {
-      type: ErrorType.API_ERROR,
-      operation: 'fetchGitHubUser',
-      details: { token: '***' }, // 隐藏 token
-      timestamp: new Date()
-    }, {
-      userMessage: 'GitHub Token 验证失败，请检查 Token 是否正确'
-    });
+    ErrorHandler.handle(
+      error,
+      {
+        type: ErrorType.API_ERROR,
+        operation: 'fetchGitHubUser',
+        details: { token: '***' }, // 隐藏 token
+        timestamp: new Date()
+      },
+      {
+        userMessage: 'GitHub Token 验证失败，请检查 Token 是否正确'
+      }
+    );
     throw error;
   }
 };
@@ -131,14 +135,16 @@ const fetchGitHubUser = async (token: string): Promise<GitHubUser> => {
  * @param options - 选项
  * @param options.force - 是否强制刷新缓存
  * @returns 用户设置
- * 
+ *
  * @example
  * ```typescript
  * const settings = await getUserSettingsCached();
  * const freshSettings = await getUserSettingsCached({ force: true });
  * ```
  */
-export async function getUserSettingsCached(options: { force?: boolean } = {}): Promise<UserSettings> {
+export async function getUserSettingsCached(
+  options: { force?: boolean } = {}
+): Promise<UserSettings> {
   const force = options.force === true;
 
   if (!force && userSettingsCache.value) {
@@ -169,7 +175,7 @@ export async function getUserSettingsCached(options: { force?: boolean } = {}): 
  * @param options - 选项
  * @param options.force - 是否强制刷新缓存
  * @returns GitHub 用户信息
- * 
+ *
  * @example
  * ```typescript
  * const user = await getGitHubUserCached('ghp_xxx');
@@ -182,13 +188,17 @@ export async function getGitHubUserCached(
 ): Promise<GitHubUser> {
   if (!token) {
     const error = new Error('GitHub token is required');
-    ErrorHandler.handle(error, {
-      type: ErrorType.VALIDATION_ERROR,
-      operation: 'getGitHubUserCached',
-      timestamp: new Date()
-    }, {
-      userMessage: '请先配置 GitHub Token'
-    });
+    ErrorHandler.handle(
+      error,
+      {
+        type: ErrorType.VALIDATION_ERROR,
+        operation: 'getGitHubUserCached',
+        timestamp: new Date()
+      },
+      {
+        userMessage: '请先配置 GitHub Token'
+      }
+    );
     throw error;
   }
 
@@ -200,7 +210,11 @@ export async function getGitHubUserCached(
     return cached.user;
   }
 
-  if (!force && cached?.error && now - cached.updatedAt < githubUserErrorCacheTtlMs) {
+  if (
+    !force &&
+    cached?.error &&
+    now - cached.updatedAt < githubUserErrorCacheTtlMs
+  ) {
     throw cached.error;
   }
 
@@ -231,7 +245,7 @@ export async function getGitHubUserCached(
 /**
  * 获取用户设置
  * @returns 用户设置
- * 
+ *
  * @example
  * ```typescript
  * const settings = await getUserSettings();
@@ -241,13 +255,17 @@ export async function getUserSettings(): Promise<UserSettings> {
   try {
     return await invoke<UserSettings>('get_user_settings');
   } catch (error) {
-    ErrorHandler.handle(error, {
-      type: ErrorType.DATABASE_ERROR,
-      operation: 'getUserSettings',
-      timestamp: new Date()
-    }, {
-      userMessage: '获取用户设置失败'
-    });
+    ErrorHandler.handle(
+      error,
+      {
+        type: ErrorType.DATABASE_ERROR,
+        operation: 'getUserSettings',
+        timestamp: new Date()
+      },
+      {
+        userMessage: '获取用户设置失败'
+      }
+    );
     throw error;
   }
 }
@@ -255,7 +273,7 @@ export async function getUserSettings(): Promise<UserSettings> {
 /**
  * 保存用户设置
  * @param settings - 用户设置
- * 
+ *
  * @example
  * ```typescript
  * await saveUserSettings({
@@ -285,14 +303,18 @@ export async function saveUserSettings(settings: UserSettings): Promise<void> {
 
     ErrorHandler.success('设置保存成功');
   } catch (error) {
-    ErrorHandler.handle(error, {
-      type: ErrorType.DATABASE_ERROR,
-      operation: 'saveUserSettings',
-      details: { settings: { ...settings, github_token: '***' } }, // 隐藏 token
-      timestamp: new Date()
-    }, {
-      userMessage: '保存设置失败，请重试'
-    });
+    ErrorHandler.handle(
+      error,
+      {
+        type: ErrorType.DATABASE_ERROR,
+        operation: 'saveUserSettings',
+        details: { settings: { ...settings, github_token: '***' } }, // 隐藏 token
+        timestamp: new Date()
+      },
+      {
+        userMessage: '保存设置失败，请重试'
+      }
+    );
     throw error;
   }
 }
@@ -301,7 +323,7 @@ export async function saveUserSettings(settings: UserSettings): Promise<void> {
  * 验证 GitHub Token 并获取用户信息
  * @param token - GitHub Token
  * @returns GitHub 用户信息
- * 
+ *
  * @example
  * ```typescript
  * const user = await verifyGitHubToken('ghp_xxx');
@@ -322,7 +344,7 @@ export async function verifyGitHubToken(token: string): Promise<GitHubUser> {
 /**
  * 同步数据到 GitHub
  * @returns 同步结果消息
- * 
+ *
  * @example
  * ```typescript
  * const message = await syncToGitHub();
@@ -335,13 +357,17 @@ export async function syncToGitHub(): Promise<string> {
     ErrorHandler.success('数据已同步到 GitHub');
     return result;
   } catch (error) {
-    ErrorHandler.handle(error, {
-      type: ErrorType.API_ERROR,
-      operation: 'syncToGitHub',
-      timestamp: new Date()
-    }, {
-      userMessage: '同步到 GitHub 失败，请检查网络连接和 Token 权限'
-    });
+    ErrorHandler.handle(
+      error,
+      {
+        type: ErrorType.API_ERROR,
+        operation: 'syncToGitHub',
+        timestamp: new Date()
+      },
+      {
+        userMessage: '同步到 GitHub 失败，请检查网络连接和 Token 权限'
+      }
+    );
     throw error;
   }
 }
@@ -349,7 +375,7 @@ export async function syncToGitHub(): Promise<string> {
 /**
  * 从 GitHub 恢复数据
  * @returns 恢复结果消息
- * 
+ *
  * @example
  * ```typescript
  * const message = await restoreFromGitHub();
@@ -362,13 +388,17 @@ export async function restoreFromGitHub(): Promise<string> {
     ErrorHandler.success('数据已从 GitHub 恢复');
     return result;
   } catch (error) {
-    ErrorHandler.handle(error, {
-      type: ErrorType.API_ERROR,
-      operation: 'restoreFromGitHub',
-      timestamp: new Date()
-    }, {
-      userMessage: '从 GitHub 恢复失败，请检查网络连接和仓库配置'
-    });
+    ErrorHandler.handle(
+      error,
+      {
+        type: ErrorType.API_ERROR,
+        operation: 'restoreFromGitHub',
+        timestamp: new Date()
+      },
+      {
+        userMessage: '从 GitHub 恢复失败，请检查网络连接和仓库配置'
+      }
+    );
     throw error;
   }
 }

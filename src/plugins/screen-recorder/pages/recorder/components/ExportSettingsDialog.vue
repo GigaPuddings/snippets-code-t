@@ -21,7 +21,12 @@
           :model-value="settings.fps"
           @update:model-value="handleFpsChange"
         >
-          <el-option v-for="fps in fpsOptions" :key="fps" :label="`${fps} FPS`" :value="fps" />
+          <el-option
+            v-for="fps in fpsOptions"
+            :key="fps"
+            :label="`${fps} FPS`"
+            :value="fps"
+          />
         </el-select>
       </label>
       <label>
@@ -31,7 +36,10 @@
           @update:model-value="handleQualityChange"
         >
           <el-option :label="$t('screenRecorder.qualityHigh')" value="high" />
-          <el-option :label="$t('screenRecorder.qualityStandard')" value="standard" />
+          <el-option
+            :label="$t('screenRecorder.qualityStandard')"
+            value="standard"
+          />
           <el-option :label="$t('screenRecorder.qualitySmall')" value="small" />
         </el-select>
       </label>
@@ -44,8 +52,14 @@
       </label>
     </div>
     <template #footer>
-      <CustomButton @click="$emit('cancel')">{{ $t('common.cancel') }}</CustomButton>
-      <CustomButton type="primary" :disabled="!settings.savePath" @click="$emit('export')">
+      <CustomButton @click="$emit('cancel')">
+        {{ $t('common.cancel') }}
+      </CustomButton>
+      <CustomButton
+        type="primary"
+        :disabled="!settings.savePath"
+        @click="$emit('export')"
+      >
         {{ $t('screenRecorder.export') }}
       </CustomButton>
     </template>
@@ -94,14 +108,19 @@ const handleFormatChange = (value: string | number | boolean | undefined) => {
 
 const handleFpsChange = (value: string | number) => {
   const fps = Number(value);
-  updateSetting('fps', ([15, 24, 30, 60].includes(fps) ? fps : 30) as RecordingSettings['fps']);
+  updateSetting(
+    'fps',
+    ([15, 24, 30, 60].includes(fps) ? fps : 30) as RecordingSettings['fps']
+  );
 };
 
 const handleQualityChange = (value: string | number) => {
   const nextValue = String(value);
   updateSetting(
     'quality',
-    (['high', 'standard', 'small'].includes(nextValue) ? nextValue : 'standard') as RecordingSettings['quality']
+    (['high', 'standard', 'small'].includes(nextValue)
+      ? nextValue
+      : 'standard') as RecordingSettings['quality']
   );
 };
 
@@ -110,9 +129,7 @@ const choosePath = async () => {
   const selected = await save({
     title: t('screenRecorder.saveRecording'),
     defaultPath: `recording.${extension}`,
-    filters: [
-      { name: extension.toUpperCase(), extensions: [extension] }
-    ]
+    filters: [{ name: extension.toUpperCase(), extensions: [extension] }]
   });
   if (!selected) return;
   updateSetting('savePath', selected);
@@ -125,12 +142,14 @@ const choosePath = async () => {
 
   label {
     @apply grid gap-2;
+
     color: var(--el-text-color-regular);
   }
 }
 
 .path-row {
   @apply grid gap-2;
+
   grid-template-columns: minmax(0, 1fr) auto;
 }
 </style>

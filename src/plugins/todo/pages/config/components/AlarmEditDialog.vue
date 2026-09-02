@@ -9,7 +9,9 @@
   >
     <template #header>
       <div class="title-container">
-        <span>{{ props.editData ? $t('alarm.editAlarm') : $t('alarm.addAlarm') }}</span>
+        <span>
+          {{ props.editData ? $t('alarm.editAlarm') : $t('alarm.addAlarm') }}
+        </span>
         <delete
           v-if="props.editData"
           class="delete-icon"
@@ -61,7 +63,7 @@
         </div>
       </div>
 
-      <div class="alarm-title-input  transparent-input">
+      <div class="alarm-title-input transparent-input">
         <edit-two theme="outline" size="20" :strokeWidth="3" />
         <el-tooltip effect="light" :content="$t('alarm.title')" placement="top">
           <el-input
@@ -108,7 +110,9 @@
       </div>
 
       <div v-if="formData.alarmType === 'Weekly'" class="alarm-repeat-section">
-        <span class="repeat-section-title">{{ $t('alarm.repeatReminder') }}</span>
+        <span class="repeat-section-title">
+          {{ $t('alarm.repeatReminder') }}
+        </span>
         <div class="repeat-section-weekdays">
           <div
             v-for="day in weekdays"
@@ -126,7 +130,11 @@
 
       <div class="alarm-pause-time transparent-input">
         <alarm-clock theme="outline" size="20" :strokeWidth="3" />
-        <el-tooltip effect="light" :content="$t('alarm.pauseTime')" placement="top">
+        <el-tooltip
+          effect="light"
+          :content="$t('alarm.pauseTime')"
+          placement="top"
+        >
           <el-select
             v-model="formData.reminderTime"
             class="reminder-time-select"
@@ -184,7 +192,7 @@ const dialogStyle = ref({ width: 'min(28vw, 480px)' });
 const calcWidth = () => {
   const w = window.innerWidth;
   if (w < 768) return 'min(52vw, 440px)';
-  if (w < 900) return 'min(48vw, 500px)'
+  if (w < 900) return 'min(48vw, 500px)';
   if (w >= 900) return 'min(38vw, 420px)';
   return 'min(38vw, 420px)';
 };

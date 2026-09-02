@@ -14,7 +14,10 @@ export const activate = (context: PluginFrontendRuntimeContext): void => {
     async search(query) {
       const results = [];
 
-      const appResults = await context.api.invoke<ContentType[]>('search_apps', { query });
+      const appResults = await context.api.invoke<ContentType[]>(
+        'search_apps',
+        { query }
+      );
       if (Array.isArray(appResults)) {
         results.push({
           source: 'app',
@@ -22,7 +25,10 @@ export const activate = (context: PluginFrontendRuntimeContext): void => {
         });
       }
 
-      const bookmarkResults = await context.api.invoke<ContentType[]>('search_bookmarks', { query });
+      const bookmarkResults = await context.api.invoke<ContentType[]>(
+        'search_bookmarks',
+        { query }
+      );
       if (Array.isArray(bookmarkResults)) {
         results.push({
           source: 'bookmark',
@@ -34,4 +40,3 @@ export const activate = (context: PluginFrontendRuntimeContext): void => {
     }
   });
 };
-

@@ -21,8 +21,12 @@ describe('useSearchResultState', () => {
 
     expect(state.selectedItemId.value).toBe('first');
 
-    expect(state.selectItemById('second')).toEqual(expect.objectContaining({ id: 'second' }));
+    expect(state.selectItemById('second')).toEqual(
+      expect.objectContaining({ id: 'second' })
+    );
     expect(state.selectedItemId.value).toBe('second');
-    expect(state.selectedItem.value).toEqual(expect.objectContaining({ id: 'second' }));
+    expect(state.selectedItem.value).toEqual(
+      expect.objectContaining({ id: 'second' })
+    );
   });
 });

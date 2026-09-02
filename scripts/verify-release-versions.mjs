@@ -22,7 +22,9 @@ function matchVersion(label, content, pattern) {
 
 function assertSameVersion(versions) {
   const [expectedLabel, expectedVersion] = versions[0];
-  const mismatched = versions.filter(([, version]) => version !== expectedVersion);
+  const mismatched = versions.filter(
+    ([, version]) => version !== expectedVersion
+  );
   if (mismatched.length === 0) return;
 
   const details = versions
@@ -35,7 +37,9 @@ function assertSameVersion(versions) {
 
 async function main() {
   const packageJson = await readJson(resolve(ROOT, 'package.json'));
-  const tauriConfig = await readJson(resolve(ROOT, 'src-tauri/tauri.conf.json'));
+  const tauriConfig = await readJson(
+    resolve(ROOT, 'src-tauri/tauri.conf.json')
+  );
   const cargoToml = await readText(resolve(ROOT, 'src-tauri/Cargo.toml'));
   const cargoLock = await readText(resolve(ROOT, 'src-tauri/Cargo.lock'));
 

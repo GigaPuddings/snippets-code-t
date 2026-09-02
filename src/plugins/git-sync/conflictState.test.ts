@@ -6,7 +6,9 @@ import {
   saveGitConflictState
 } from './conflictState';
 
-class MemoryStorage implements Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> {
+class MemoryStorage
+  implements Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
+{
   private values = new Map<string, string>();
 
   getItem(key: string): string | null {
@@ -24,9 +26,9 @@ class MemoryStorage implements Pick<Storage, 'getItem' | 'setItem' | 'removeItem
 
 describe('git conflict state', () => {
   it('decodes quoted UTF-8 octal escaped paths from git output', () => {
-    expect(decodeGitConflictFilePath('"notes/\\346\\265\\213\\350\\257\\225.md"')).toBe(
-      'notes/测试.md'
-    );
+    expect(
+      decodeGitConflictFilePath('"notes/\\346\\265\\213\\350\\257\\225.md"')
+    ).toBe('notes/测试.md');
   });
 
   it('decodes common escaped characters', () => {

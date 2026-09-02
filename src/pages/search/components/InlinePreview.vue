@@ -6,17 +6,28 @@
           <div class="quick-tool-header">
             <div class="quick-tool-title-wrap">
               <div class="quick-tool-icon">
-                <img v-if="heroIconSrc" :src="heroIconSrc" :alt="quickToolTitle" />
+                <img
+                  v-if="heroIconSrc"
+                  :src="heroIconSrc"
+                  :alt="quickToolTitle"
+                />
                 <span v-else>{{ heroFallbackText }}</span>
               </div>
               <div class="quick-tool-heading">
                 <div class="quick-tool-title">{{ quickToolTitle }}</div>
-                <div class="quick-tool-subtitle">quick-tools 根据当前查询直接生成答案</div>
+                <div class="quick-tool-subtitle">
+                  quick-tools 根据当前查询直接生成答案
+                </div>
               </div>
             </div>
             <div class="quick-tool-actions">
-              <button class="quick-tool-icon-button" type="button" title="复制结果" aria-label="复制结果"
-                @click="copyQuickToolResult">
+              <button
+                class="quick-tool-icon-button"
+                type="button"
+                title="复制结果"
+                aria-label="复制结果"
+                @click="copyQuickToolResult"
+              >
                 <Copy theme="outline" size="15" />
               </button>
             </div>
@@ -26,24 +37,38 @@
             <div class="quick-tool-answer-label">转换结果</div>
             <div class="quick-tool-answer-value">
               <span class="quick-tool-number">{{ quickToolOutputValue }}</span>
-              <span v-if="quickToolOutputUnit" class="quick-tool-unit">{{ quickToolOutputUnit }}</span>
+              <span v-if="quickToolOutputUnit" class="quick-tool-unit">
+                {{ quickToolOutputUnit }}
+              </span>
             </div>
             <div class="quick-tool-source">{{ quickToolSourceText }}</div>
           </div>
 
           <div class="quick-tool-rows">
-            <div v-for="row in quickToolRows" :key="`${row.label}-${row.value}`" class="quick-tool-row">
+            <div
+              v-for="row in quickToolRows"
+              :key="`${row.label}-${row.value}`"
+              class="quick-tool-row"
+            >
               <span class="quick-tool-row-label">{{ row.label }}</span>
               <span class="quick-tool-row-value">{{ row.value }}</span>
             </div>
           </div>
 
           <div class="quick-tool-command-strip">
-            <button class="quick-tool-command" type="button" @click="copyQuickToolResult">
+            <button
+              class="quick-tool-command"
+              type="button"
+              @click="copyQuickToolResult"
+            >
               <span class="quick-tool-key">↵</span>
               <span>复制结果</span>
             </button>
-            <button class="quick-tool-command" type="button" @click="copyQuickToolDetails">
+            <button
+              class="quick-tool-command"
+              type="button"
+              @click="copyQuickToolDetails"
+            >
               <span class="quick-tool-key">⌘C</span>
               <span>复制明细</span>
             </button>
@@ -63,8 +88,13 @@
             :aria-label="t('searchPreview.openInConfig')" :title="t('searchPreview.openInConfig')">
             <internal-expansion theme="outline" size="14" />
           </button> -->
-          <button class="preview-config-button" type="button" @click="togglePreviewVisible"
-            :aria-label="t('searchPreview.expandPreview')" :title="t('searchPreview.expandPreview')">
+          <button
+            class="preview-config-button"
+            type="button"
+            @click="togglePreviewVisible"
+            :aria-label="t('searchPreview.expandPreview')"
+            :title="t('searchPreview.expandPreview')"
+          >
             <preview-close-one theme="outline" size="14" />
           </button>
         </div>
@@ -76,7 +106,9 @@
           </div>
           <div class="header-meta">
             <div class="title" :title="previewTitle">{{ previewTitle }}</div>
-            <div class="subtitle" :title="previewSubtitle">{{ previewSubtitle }}</div>
+            <div class="subtitle" :title="previewSubtitle">
+              {{ previewSubtitle }}
+            </div>
           </div>
         </div>
         <div v-if="item.summarize === 'file'" class="action-panel">
@@ -92,30 +124,53 @@
           </div>
         </div>
 
-        <div v-if="item.summarize === 'code' || item.summarize === 'note'" class="action-panel">
+        <div
+          v-if="item.summarize === 'code' || item.summarize === 'note'"
+          class="action-panel"
+        >
           <div class="info">
-            <div :class="[displayTags.length ? ' justify-start' : 'justify-center', 'meta-grid']">
+            <div
+              :class="[
+                displayTags.length ? ' justify-start' : 'justify-center',
+                'meta-grid'
+              ]"
+            >
               <div class="meta-row meta-row-created" :title="displayTypeText">
                 <span class="meta-label">{{ t('searchPreview.type') }}</span>
                 <span class="meta-value">{{ displayTypeText }}</span>
               </div>
               <div class="meta-row meta-row-size" :title="displayCategoryText">
-                <span class="meta-label">{{ t('searchPreview.category') }}</span>
+                <span class="meta-label">
+                  {{ t('searchPreview.category') }}
+                </span>
                 <span class="meta-value">{{ displayCategoryText }}</span>
               </div>
             </div>
 
-            <div v-if="displayTags.length" class="detail-row" :title="displayTagsText">
+            <div
+              v-if="displayTags.length"
+              class="detail-row"
+              :title="displayTagsText"
+            >
               <span class="detail-key">{{ t('searchPreview.tags') }}</span>
               <span class="detail-text">{{ displayTagsText }}</span>
             </div>
           </div>
         </div>
         <div v-if="hasSpecialActions" class="action-panel mt-1">
-          <div class="special-action-list" :aria-label="t('searchPreview.availableActions')">
-            <button v-for="action in specialActions" :key="action.key" type="button" class="special-action-button"
-              :class="{ 'special-action-button-primary': action.primary }" :disabled="action.disabled"
-              @click="action.run">
+          <div
+            class="special-action-list"
+            :aria-label="t('searchPreview.availableActions')"
+          >
+            <button
+              v-for="action in specialActions"
+              :key="action.key"
+              type="button"
+              class="special-action-button"
+              :class="{ 'special-action-button-primary': action.primary }"
+              :disabled="action.disabled"
+              @click="action.run"
+            >
               <div class="flex items-center gap-2">
                 <span class="file-action-icon">
                   <component :is="action.icon" theme="outline" size="16" />
@@ -133,35 +188,75 @@
         <div v-if="canPreview" class="preview-expanded-header">
           <div class="expanded-title-wrap">
             <div class="expanded-title">{{ displayTitle }}</div>
-            <div class="expanded-subtitle" :title="previewSubtitle">{{ previewSubtitle }}</div>
+            <div class="expanded-subtitle" :title="previewSubtitle">
+              {{ previewSubtitle }}
+            </div>
           </div>
 
-          <button class="preview-toggle preview-toggle-expanded" type="button" @click="togglePreviewVisible"
-            :aria-label="t('searchPreview.collapsePreview')">
+          <button
+            class="preview-toggle preview-toggle-expanded"
+            type="button"
+            @click="togglePreviewVisible"
+            :aria-label="t('searchPreview.collapsePreview')"
+          >
             <PreviewOpen theme="outline" size="14" />
           </button>
         </div>
         <template v-if="canPreview">
-          <div v-if="isImageFile" class="preview-visual preview-image-area preview-shell">
-            <img v-if="filePreviewUrl" :src="filePreviewUrl" :alt="displayTitle" class="preview-image" />
-            <div v-else class="preview-empty-inline">{{ t('searchPreview.imagePreviewFailed') }}</div>
+          <div
+            v-if="isImageFile"
+            class="preview-visual preview-image-area preview-shell"
+          >
+            <img
+              v-if="filePreviewUrl"
+              :src="filePreviewUrl"
+              :alt="displayTitle"
+              class="preview-image"
+            />
+            <div v-else class="preview-empty-inline">
+              {{ t('searchPreview.imagePreviewFailed') }}
+            </div>
           </div>
 
-          <div v-else-if="isMarkdownPreview" class="preview-visual preview-note-area preview-shell preview-scroll-area"
-            v-html="markdownPreviewHtml"></div>
+          <div
+            v-else-if="isMarkdownPreview"
+            class="preview-visual preview-note-area preview-shell preview-scroll-area"
+            v-html="markdownPreviewHtml"
+          ></div>
 
-          <div v-else-if="isTextFile" class="preview-visual preview-text-area preview-shell preview-scroll-area">
-            <CodeMirrorEditor :code="displayContent" :dark="isDark" :disabled="true" :autoDestroy="true"
-              :codeStyle="{ height: '100%' }" background="var(--search-preview-editor-bg)"
-              status-background="var(--search-preview-status-bg)" />
+          <div
+            v-else-if="isTextFile"
+            class="preview-visual preview-text-area preview-shell preview-scroll-area"
+          >
+            <CodeMirrorEditor
+              :code="displayContent"
+              :dark="isDark"
+              :disabled="true"
+              :autoDestroy="true"
+              :codeStyle="{ height: '100%' }"
+              background="var(--search-preview-editor-bg)"
+              status-background="var(--search-preview-status-bg)"
+            />
           </div>
-          <div v-else-if="isCodePreview" class="preview-visual preview-code-area preview-shell preview-scroll-area">
-            <CodeMirrorEditor :code="displayContent" :dark="isDark" :disabled="true" :autoDestroy="true"
-              :codeStyle="{ height: '100%' }" background="var(--search-preview-editor-bg)"
-              status-background="var(--search-preview-status-bg)" />
+          <div
+            v-else-if="isCodePreview"
+            class="preview-visual preview-code-area preview-shell preview-scroll-area"
+          >
+            <CodeMirrorEditor
+              :code="displayContent"
+              :dark="isDark"
+              :disabled="true"
+              :autoDestroy="true"
+              :codeStyle="{ height: '100%' }"
+              background="var(--search-preview-editor-bg)"
+              status-background="var(--search-preview-status-bg)"
+            />
           </div>
 
-          <div v-else class="preview-visual preview-text-area preview-shell preview-scroll-area">
+          <div
+            v-else
+            class="preview-visual preview-text-area preview-shell preview-scroll-area"
+          >
             {{ displayContent }}
           </div>
         </template>
@@ -171,7 +266,9 @@
     <div v-else class="preview-empty-state">
       <div class="preview-empty-icon">⌘</div>
       <p class="preview-empty-title">{{ t('searchPreview.noPreviewItem') }}</p>
-      <p class="preview-empty-description">{{ t('searchPreview.selectResultHint') }}</p>
+      <p class="preview-empty-description">
+        {{ t('searchPreview.selectResultHint') }}
+      </p>
     </div>
   </aside>
 </template>
@@ -191,13 +288,20 @@ import {
   Permissions
 } from '@icon-park/vue-next';
 import { convertFileSrc, invoke } from '@tauri-apps/api/core';
-import { openFileWithDefaultApp, openFileWithOtherWays, revealFileInFolder } from '@/utils/file-system';
+import {
+  openFileWithDefaultApp,
+  openFileWithOtherWays,
+  revealFileInFolder
+} from '@/utils/file-system';
 import { closeWindowByLabel } from '@/utils/window-shortcuts';
 import { openSearchResultInConfig } from '../composables/openConfigContent';
 import { useI18n } from 'vue-i18n';
 import { useConfigurationStore } from '@/store';
 import { extractPlainText } from '@/utils/text';
-import { markdownToHtml, resolvePreviewImageUrls } from '@/components/TipTapEditor/utils/markdown';
+import {
+  markdownToHtml,
+  resolvePreviewImageUrls
+} from '@/components/TipTapEditor/utils/markdown';
 import type { ContentType } from '@/types/models';
 import CodeMirrorEditor from '@/components/CodeMirrorEditor/index.vue';
 import { getSearchResultIcon } from '../composables/useSearchResultIcon';
@@ -222,8 +326,12 @@ type QuickToolRow = {
 };
 
 const isDark = computed(() => store.effectiveDark);
-const itemMetadata = computed<Record<string, unknown>>(() => props.item?.metadata ?? {});
-const displayTitle = computed(() => props.item?.title?.trim() || getFallbackTitle(props.item));
+const itemMetadata = computed<Record<string, unknown>>(
+  () => props.item?.metadata ?? {}
+);
+const displayTitle = computed(
+  () => props.item?.title?.trim() || getFallbackTitle(props.item)
+);
 const displayBookmarkUrl = computed(() => props.item?.content?.trim() || '');
 const displayTypeText = computed(() => {
   const item = props.item;
@@ -234,20 +342,34 @@ const displayTypeText = computed(() => {
   if (item.summarize === 'search') return t('searchResult.search');
   return item.summarize || '';
 });
-const previewTitle = computed(() => displayTitle.value || filePreviewTitle.value);
-const previewSubtitle = computed(() => displayPath.value || fileSubtitle.value || displayBookmarkUrl.value || displayTypeText.value);
+const previewTitle = computed(
+  () => displayTitle.value || filePreviewTitle.value
+);
+const previewSubtitle = computed(
+  () =>
+    displayPath.value ||
+    fileSubtitle.value ||
+    displayBookmarkUrl.value ||
+    displayTypeText.value
+);
 const appLaunchPath = computed(() => getSearchResultLaunchPath(props.item));
 const canOpenApp = computed(() => Boolean(appLaunchPath.value));
 const canOpenAppAsAdmin = computed(() => Boolean(appLaunchPath.value));
-const canRevealAppFolder = computed(() => Boolean(appLaunchPath.value || displayPath.value));
+const canRevealAppFolder = computed(() =>
+  Boolean(appLaunchPath.value || displayPath.value)
+);
 const canOpenBookmark = computed(() => Boolean(displayBookmarkUrl.value));
 const canCopyBookmarkUrl = computed(() => Boolean(displayBookmarkUrl.value));
-const canSearchBookmark = computed(() => Boolean(displayTitle.value || displayBookmarkUrl.value));
+const canSearchBookmark = computed(() =>
+  Boolean(displayTitle.value || displayBookmarkUrl.value)
+);
 const canOpenFile = computed(() => Boolean(displayPath.value));
 const canRevealFile = computed(() => Boolean(displayPath.value));
 const canOpenFileWithOtherWays = computed(() => Boolean(displayPath.value));
 const canOpenInConfig = computed(() => Boolean(displayPath.value));
-const canCopyCodeSnippet = computed(() => props.item?.type === 'code' && Boolean(normalizedContent.value));
+const canCopyCodeSnippet = computed(
+  () => props.item?.type === 'code' && Boolean(normalizedContent.value)
+);
 const hasSpecialActions = computed(() => specialActions.value.length > 0);
 const displayTagsText = computed(() => displayTags.value.join(', '));
 const fileName = computed(() => {
@@ -255,16 +377,78 @@ const fileName = computed(() => {
   const segments = content.split(/[\\/]/).filter(Boolean);
   return segments.at(-1) || displayTitle.value;
 });
-const fileExtension = computed(() => fileName.value.split('.').pop()?.toLowerCase() || '');
+const fileExtension = computed(
+  () => fileName.value.split('.').pop()?.toLowerCase() || ''
+);
 const isFilePreview = computed(() => props.item?.summarize === 'file');
-const isImageFile = computed(() => ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'].includes(fileExtension.value));
+const isImageFile = computed(() =>
+  ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'].includes(
+    fileExtension.value
+  )
+);
 const isNotePreview = computed(() => props.item?.type === 'note');
-const isMarkdownFile = computed(() => ['md', 'markdown'].includes(fileExtension.value));
-const isMarkdownPreview = computed(() => isNotePreview.value || isMarkdownFile.value);
-const isTextFile = computed(() => ['txt', 'json', 'log', 'csv', 'toml', 'yaml', 'yml', 'xml', 'html', 'css', 'scss', 'less', 'js', 'ts', 'tsx', 'jsx', 'vue', 'py', 'rs', 'go', 'java', 'c', 'cc', 'cpp', 'h', 'hpp', 'sql', 'sh', 'bash', 'ini', 'env'].includes(fileExtension.value));
-const isAppOrBookmark = computed(() => props.item?.summarize === 'app' || props.item?.summarize === 'bookmark');
-const canPreview = computed(() => !isAppOrBookmark.value && !!props.item && (isImageFile.value || isMarkdownPreview.value || isTextFile.value || isCodePreview.value));
-const isCodePreview = computed(() => props.item?.type === 'code' || (!isFilePreview.value && !isNotePreview.value && props.item?.summarize !== 'app' && props.item?.summarize !== 'bookmark' && props.item?.summarize !== 'search'));
+const isMarkdownFile = computed(() =>
+  ['md', 'markdown'].includes(fileExtension.value)
+);
+const isMarkdownPreview = computed(
+  () => isNotePreview.value || isMarkdownFile.value
+);
+const isTextFile = computed(() =>
+  [
+    'txt',
+    'json',
+    'log',
+    'csv',
+    'toml',
+    'yaml',
+    'yml',
+    'xml',
+    'html',
+    'css',
+    'scss',
+    'less',
+    'js',
+    'ts',
+    'tsx',
+    'jsx',
+    'vue',
+    'py',
+    'rs',
+    'go',
+    'java',
+    'c',
+    'cc',
+    'cpp',
+    'h',
+    'hpp',
+    'sql',
+    'sh',
+    'bash',
+    'ini',
+    'env'
+  ].includes(fileExtension.value)
+);
+const isAppOrBookmark = computed(
+  () => props.item?.summarize === 'app' || props.item?.summarize === 'bookmark'
+);
+const canPreview = computed(
+  () =>
+    !isAppOrBookmark.value &&
+    !!props.item &&
+    (isImageFile.value ||
+      isMarkdownPreview.value ||
+      isTextFile.value ||
+      isCodePreview.value)
+);
+const isCodePreview = computed(
+  () =>
+    props.item?.type === 'code' ||
+    (!isFilePreview.value &&
+      !isNotePreview.value &&
+      props.item?.summarize !== 'app' &&
+      props.item?.summarize !== 'bookmark' &&
+      props.item?.summarize !== 'search')
+);
 const displayTags = computed(() => props.item?.tags?.filter(Boolean) ?? []);
 const displayPath = computed(() => getSearchResultDisplayPath(props.item));
 const fileSubtitle = computed(() => {
@@ -273,10 +457,13 @@ const fileSubtitle = computed(() => {
   const name = displayTitle.value;
   return path && name && path !== name ? path : path || name;
 });
-const filePreviewTitle = computed(() => displayTitle.value || fileSubtitle.value || '文件');
+const filePreviewTitle = computed(
+  () => displayTitle.value || fileSubtitle.value || '文件'
+);
 const fileCreatedText = computed(() => {
   const metadata = props.item?.metadata as Record<string, unknown> | undefined;
-  const raw = metadata?.created_at || metadata?.created || props.item?.created_at;
+  const raw =
+    metadata?.created_at || metadata?.created || props.item?.created_at;
   return formatDateText(raw);
 });
 const fileSizeText = computed(() => {
@@ -296,34 +483,135 @@ const displayCategoryText = computed(() => {
   const category = toDisplayText(item.category_name);
   if (category) return category;
   const categoryId = item.category_id;
-  return categoryId === undefined || categoryId === null ? '' : String(categoryId);
+  return categoryId === undefined || categoryId === null
+    ? ''
+    : String(categoryId);
 });
 
 const specialActions = computed(() => {
   if (!props.item) return [];
 
-  const actionSets: Record<string, Array<{ key: string; label: string; shortcut: string; icon: any; disabled: boolean; primary?: boolean; run: () => Promise<void> }>> = {
+  const actionSets: Record<
+    string,
+    Array<{
+      key: string;
+      label: string;
+      shortcut: string;
+      icon: any;
+      disabled: boolean;
+      primary?: boolean;
+      run: () => Promise<void>;
+    }>
+  > = {
     app: [
-      { key: 'open', label: t('searchPreview.openApp'), shortcut: 'Enter', icon: Share, disabled: !canOpenApp.value, primary: true, run: openApp },
-      { key: 'admin', label: t('searchPreview.openAppAsAdmin'), shortcut: 'F1', icon: Permissions, disabled: !canOpenAppAsAdmin.value, run: openAppAsAdmin },
-      { key: 'folder', label: t('searchPreview.openAppFolder'), shortcut: 'F2', icon: FolderOpen, disabled: !canRevealAppFolder.value, run: revealAppFolder }
+      {
+        key: 'open',
+        label: t('searchPreview.openApp'),
+        shortcut: 'Enter',
+        icon: Share,
+        disabled: !canOpenApp.value,
+        primary: true,
+        run: openApp
+      },
+      {
+        key: 'admin',
+        label: t('searchPreview.openAppAsAdmin'),
+        shortcut: 'F1',
+        icon: Permissions,
+        disabled: !canOpenAppAsAdmin.value,
+        run: openAppAsAdmin
+      },
+      {
+        key: 'folder',
+        label: t('searchPreview.openAppFolder'),
+        shortcut: 'F2',
+        icon: FolderOpen,
+        disabled: !canRevealAppFolder.value,
+        run: revealAppFolder
+      }
     ],
     bookmark: [
-      { key: 'open', label: t('searchPreview.openWebpage'), shortcut: 'Enter', icon: LinkTwo, disabled: !canOpenBookmark.value, primary: true, run: openBookmark },
-      { key: 'copy', label: t('searchPreview.copyUrl'), shortcut: 'F1', icon: Copy, disabled: !canCopyBookmarkUrl.value, run: copyBookmarkUrl },
-      { key: 'search', label: t('searchPreview.search'), shortcut: 'F2', icon: Search, disabled: !canSearchBookmark.value, run: searchBookmark }
+      {
+        key: 'open',
+        label: t('searchPreview.openWebpage'),
+        shortcut: 'Enter',
+        icon: LinkTwo,
+        disabled: !canOpenBookmark.value,
+        primary: true,
+        run: openBookmark
+      },
+      {
+        key: 'copy',
+        label: t('searchPreview.copyUrl'),
+        shortcut: 'F1',
+        icon: Copy,
+        disabled: !canCopyBookmarkUrl.value,
+        run: copyBookmarkUrl
+      },
+      {
+        key: 'search',
+        label: t('searchPreview.search'),
+        shortcut: 'F2',
+        icon: Search,
+        disabled: !canSearchBookmark.value,
+        run: searchBookmark
+      }
     ],
     file: [
-      { key: 'open', label: t('searchPreview.open'), shortcut: 'Enter', icon: ArrowRight, disabled: !canOpenFile.value, run: openFile },
-      { key: 'reveal', label: t('searchPreview.revealFileLocation'), shortcut: 'F1', icon: Home, disabled: !canRevealFile.value, run: revealFile },
-      { key: 'other', label: t('searchPreview.openWithOtherWays'), shortcut: 'F2', icon: More, disabled: !canOpenFileWithOtherWays.value, run: openFileWithOtherWaysAction }
+      {
+        key: 'open',
+        label: t('searchPreview.open'),
+        shortcut: 'Enter',
+        icon: ArrowRight,
+        disabled: !canOpenFile.value,
+        run: openFile
+      },
+      {
+        key: 'reveal',
+        label: t('searchPreview.revealFileLocation'),
+        shortcut: 'F1',
+        icon: Home,
+        disabled: !canRevealFile.value,
+        run: revealFile
+      },
+      {
+        key: 'other',
+        label: t('searchPreview.openWithOtherWays'),
+        shortcut: 'F2',
+        icon: More,
+        disabled: !canOpenFileWithOtherWays.value,
+        run: openFileWithOtherWaysAction
+      }
     ],
     code: [
-      { key: 'copyRaw', label: t('searchPreview.copyCode'), shortcut: 'Enter', icon: Copy, disabled: !canCopyCodeSnippet.value, primary: true, run: copySnippet },
-      { key: 'openInConfig', label: t('searchPreview.openInConfig'), shortcut: 'F1', icon: Home, disabled: !canOpenInConfig.value, run: openInConfig }
+      {
+        key: 'copyRaw',
+        label: t('searchPreview.copyCode'),
+        shortcut: 'Enter',
+        icon: Copy,
+        disabled: !canCopyCodeSnippet.value,
+        primary: true,
+        run: copySnippet
+      },
+      {
+        key: 'openInConfig',
+        label: t('searchPreview.openInConfig'),
+        shortcut: 'F1',
+        icon: Home,
+        disabled: !canOpenInConfig.value,
+        run: openInConfig
+      }
     ],
     note: [
-      { key: 'openInConfig', label: t('searchPreview.openInConfig'), shortcut: 'Enter', icon: Home, disabled: !canOpenInConfig.value, primary: true, run: openInConfig }
+      {
+        key: 'openInConfig',
+        label: t('searchPreview.openInConfig'),
+        shortcut: 'Enter',
+        icon: Home,
+        disabled: !canOpenInConfig.value,
+        primary: true,
+        run: openInConfig
+      }
     ]
   };
 
@@ -345,7 +633,8 @@ const normalizedContent = computed(() => {
   }
 
   if (!item.content) return '';
-  if (item.type === 'note' && item.format === 'html') return extractPlainText(item.content).replace(/\r\n/g, '\n').trim();
+  if (item.type === 'note' && item.format === 'html')
+    return extractPlainText(item.content).replace(/\r\n/g, '\n').trim();
   return item.content.replace(/\r\n/g, '\n').trim();
 });
 
@@ -353,9 +642,13 @@ const displayContent = computed(() => {
   if (desktopPreviewLoading.value) return t('searchPreview.loading');
 
   const normalized = normalizedContent.value;
-  if (normalized) return normalized.length > 1600 ? `${normalized.slice(0, 1600)}…` : normalized;
+  if (normalized)
+    return normalized.length > 1600
+      ? `${normalized.slice(0, 1600)}…`
+      : normalized;
 
-  if (props.item?.summarize === 'file') return desktopPreviewMessage.value || t('searchPreview.noPreviewContent');
+  if (props.item?.summarize === 'file')
+    return desktopPreviewMessage.value || t('searchPreview.noPreviewContent');
   return t('searchPreview.noContent');
 });
 
@@ -364,11 +657,29 @@ const isQuickToolResult = computed(() => {
   return props.item?.summarize === 'tool' && source === 'quick-tools';
 });
 
-const quickToolTitle = computed(() => toDisplayText(itemMetadata.value.toolName) || displayTypeText.value || 'Quick Tool');
-const quickToolOutputValue = computed(() => toDisplayText(itemMetadata.value.outputValue) || normalizedContent.value || displayTitle.value);
-const quickToolOutputUnit = computed(() => toDisplayText(itemMetadata.value.outputUnit));
-const quickToolInput = computed(() => toDisplayText(itemMetadata.value.input) || toDisplayText(itemMetadata.value.query));
-const quickToolProvider = computed(() => toDisplayText(itemMetadata.value.provider));
+const quickToolTitle = computed(
+  () =>
+    toDisplayText(itemMetadata.value.toolName) ||
+    displayTypeText.value ||
+    'Quick Tool'
+);
+const quickToolOutputValue = computed(
+  () =>
+    toDisplayText(itemMetadata.value.outputValue) ||
+    normalizedContent.value ||
+    displayTitle.value
+);
+const quickToolOutputUnit = computed(() =>
+  toDisplayText(itemMetadata.value.outputUnit)
+);
+const quickToolInput = computed(
+  () =>
+    toDisplayText(itemMetadata.value.input) ||
+    toDisplayText(itemMetadata.value.query)
+);
+const quickToolProvider = computed(() =>
+  toDisplayText(itemMetadata.value.provider)
+);
 const quickToolDate = computed(() => toDisplayText(itemMetadata.value.date));
 const quickToolRows = computed<QuickToolRow[]>(() => {
   const rows = itemMetadata.value.rows;
@@ -394,7 +705,9 @@ const quickToolSourceText = computed(() => {
   const parts = [
     quickToolInput.value,
     quickToolDate.value ? `日期 ${quickToolDate.value}` : '',
-    quickToolProvider.value ? `数据由 ${quickToolProvider.value} 提供` : '数据由 quick-tools 提供'
+    quickToolProvider.value
+      ? `数据由 ${quickToolProvider.value} 提供`
+      : '数据由 quick-tools 提供'
   ].filter(Boolean);
 
   return parts.join(' · ');
@@ -403,7 +716,9 @@ const quickToolFooterLeft = computed(() => '结果 1 / 1');
 const quickToolFooterRight = computed(() => '已缓存');
 
 const getQuickToolResultText = (): string => {
-  const value = [quickToolOutputValue.value, quickToolOutputUnit.value].filter(Boolean).join(' ');
+  const value = [quickToolOutputValue.value, quickToolOutputUnit.value]
+    .filter(Boolean)
+    .join(' ');
   return value || props.item?.content || '';
 };
 
@@ -426,7 +741,10 @@ async function copyQuickToolDetails() {
 const markdownPreviewHtml = computed(() => {
   if (!props.item || !isMarkdownPreview.value || !props.item.content) return '';
 
-  const notePath = displayPath.value || props.item.file_path || (props.item.metadata as Record<string, unknown> | undefined)?.file_path;
+  const notePath =
+    displayPath.value ||
+    props.item.file_path ||
+    (props.item.metadata as Record<string, unknown> | undefined)?.file_path;
   if (typeof notePath !== 'string' || !notePath.trim()) {
     return markdownToHtml(props.item.content);
   }
@@ -462,9 +780,13 @@ watch(
 
     desktopPreviewLoading.value = true;
     try {
-      const preview = await invoke<any>('preview_desktop_file', { filePath: path });
-      desktopPreviewText.value = typeof preview?.textContent === 'string' ? preview.textContent : '';
-      desktopPreviewMessage.value = typeof preview?.message === 'string' ? preview.message : '';
+      const preview = await invoke<any>('preview_desktop_file', {
+        filePath: path
+      });
+      desktopPreviewText.value =
+        typeof preview?.textContent === 'string' ? preview.textContent : '';
+      desktopPreviewMessage.value =
+        typeof preview?.message === 'string' ? preview.message : '';
     } catch {
       desktopPreviewMessage.value = t('searchPreview.previewLoadFailed');
     } finally {
@@ -515,23 +837,31 @@ async function closeAndRun(action: () => Promise<void> | void) {
 
 async function openApp() {
   if (!canOpenApp.value || !appLaunchPath.value) return;
-  await closeAndRun(() => invoke('open_app_command', { appPath: appLaunchPath.value }));
+  await closeAndRun(() =>
+    invoke('open_app_command', { appPath: appLaunchPath.value })
+  );
 }
 
 async function openAppAsAdmin() {
   if (!canOpenAppAsAdmin.value || !appLaunchPath.value) return;
-  await closeAndRun(() => invoke('open_app_as_admin_command', { appPath: appLaunchPath.value }));
+  await closeAndRun(() =>
+    invoke('open_app_as_admin_command', { appPath: appLaunchPath.value })
+  );
 }
 
 async function revealAppFolder() {
   const targetPath = appLaunchPath.value || displayPath.value;
   if (!canRevealAppFolder.value || !targetPath) return;
-  await closeAndRun(() => invoke('open_app_file_location_command', { appPath: targetPath }));
+  await closeAndRun(() =>
+    invoke('open_app_file_location_command', { appPath: targetPath })
+  );
 }
 
 async function openBookmark() {
   if (!canOpenBookmark.value || !displayBookmarkUrl.value) return;
-  await closeAndRun(() => invoke('open_url', { url: displayBookmarkUrl.value }));
+  await closeAndRun(() =>
+    invoke('open_url', { url: displayBookmarkUrl.value })
+  );
 }
 
 async function openFile() {
@@ -565,7 +895,9 @@ async function searchBookmark() {
   if (!canSearchBookmark.value) return;
   const keyword = (displayTitle.value || displayBookmarkUrl.value).trim();
   if (!keyword) return;
-  await invoke('open_url', { url: `https://www.google.com/search?q=${encodeURIComponent(keyword)}` });
+  await invoke('open_url', {
+    url: `https://www.google.com/search?q=${encodeURIComponent(keyword)}`
+  });
 }
 
 async function openInConfig() {
@@ -624,7 +956,12 @@ function handlePreviewToggleShortcut(event: KeyboardEvent) {
   if (!props.item) return;
   if (event.type !== 'keyup') return;
   if (event.key !== ' ' && event.code !== 'Space') return;
-  if (!canPreview.value || props.item.summarize === 'app' || props.item.summarize === 'bookmark') return;
+  if (
+    !canPreview.value ||
+    props.item.summarize === 'app' ||
+    props.item.summarize === 'bookmark'
+  )
+    return;
 
   event.preventDefault();
   event.stopPropagation();
@@ -688,7 +1025,6 @@ function formatDateText(value: unknown): string {
 
   return `${year}/${month}/${day} ${hour}:${minute}`;
 }
-
 </script>
 
 <style lang="scss" scoped>
@@ -824,7 +1160,8 @@ function formatDateText(value: unknown): string {
     &:focus-visible {
       @apply outline-none;
 
-      box-shadow: 0 0 0 2px color-mix(in srgb, var(--search-result-accent) 28%, transparent);
+      box-shadow: 0 0 0 2px
+        color-mix(in srgb, var(--search-result-accent) 28%, transparent);
     }
   }
 
@@ -966,7 +1303,8 @@ function formatDateText(value: unknown): string {
     &:focus-visible {
       @apply outline-none;
 
-      box-shadow: 0 0 0 2px color-mix(in srgb, var(--search-result-accent) 28%, transparent);
+      box-shadow: 0 0 0 2px
+        color-mix(in srgb, var(--search-result-accent) 28%, transparent);
     }
   }
 

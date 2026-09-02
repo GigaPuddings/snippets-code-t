@@ -8,83 +8,118 @@
     @close="handleClose"
   >
     <div class="conflict-body">
-            <!-- 冲突文件列表 -->
-            <div v-if="conflictFiles.length > 0" class="section">
-              <div class="section-label">{{ $t('settings.gitSync.conflictFiles') }}</div>
-              <div class="file-list">
-                <div v-for="file in conflictFiles" :key="file" class="file-item conflict">
-                  <span class="file-dot conflict-dot"></span>
-                  <span class="file-name">{{ file }}</span>
-                </div>
+      <!-- 冲突文件列表 -->
+      <div v-if="conflictFiles.length > 0" class="section">
+        <div class="section-label">
+          {{ $t('settings.gitSync.conflictFiles') }}
+        </div>
+        <div class="file-list">
+          <div
+            v-for="file in conflictFiles"
+            :key="file"
+            class="file-item conflict"
+          >
+            <span class="file-dot conflict-dot"></span>
+            <span class="file-name">{{ file }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 未跟踪文件列表（会被远程覆盖） -->
+      <div v-if="untrackedFiles.length > 0" class="section">
+        <div class="section-label">
+          {{ $t('settings.gitSync.untrackedFiles') }}
+        </div>
+        <div class="file-list">
+          <div
+            v-for="file in untrackedFiles"
+            :key="file"
+            class="file-item untracked"
+          >
+            <span class="file-dot untracked-dot"></span>
+            <span class="file-name">{{ file }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 策略选择 -->
+      <div class="section">
+        <div class="section-label">
+          {{ $t('settings.gitSync.selectResolution') }}
+        </div>
+        <div class="strategy-list">
+          <button
+            class="strategy-card"
+            :class="{ active: selectedStrategy === 'manual-merge' }"
+            @click="selectedStrategy = 'manual-merge'"
+          >
+            <div class="card-icon merge-icon">⇄</div>
+            <div class="card-body">
+              <div class="card-title">
+                {{ $t('settings.gitSync.manualMerge') }}
+              </div>
+              <div class="card-desc">
+                {{ $t('settings.gitSync.manualMergeDesc') }}
               </div>
             </div>
+            <div class="card-badge recommended">
+              {{ $t('settings.gitSync.recommended') }}
+            </div>
+          </button>
 
-            <!-- 未跟踪文件列表（会被远程覆盖） -->
-            <div v-if="untrackedFiles.length > 0" class="section">
-              <div class="section-label">{{ $t('settings.gitSync.untrackedFiles') }}</div>
-              <div class="file-list">
-                <div v-for="file in untrackedFiles" :key="file" class="file-item untracked">
-                  <span class="file-dot untracked-dot"></span>
-                  <span class="file-name">{{ file }}</span>
-                </div>
+          <button
+            class="strategy-card"
+            :class="{ active: selectedStrategy === 'force-pull' }"
+            @click="selectedStrategy = 'force-pull'"
+          >
+            <div class="card-icon pull-icon">↓</div>
+            <div class="card-body">
+              <div class="card-title">
+                {{ $t('settings.gitSync.forcePull') }}
+              </div>
+              <div class="card-desc">
+                {{ $t('settings.gitSync.forcePullDesc') }}
               </div>
             </div>
+          </button>
 
-            <!-- 策略选择 -->
-            <div class="section">
-              <div class="section-label">{{ $t('settings.gitSync.selectResolution') }}</div>
-              <div class="strategy-list">
-                <button
-                  class="strategy-card"
-                  :class="{ active: selectedStrategy === 'manual-merge' }"
-                  @click="selectedStrategy = 'manual-merge'"
-                >
-                  <div class="card-icon merge-icon">⇄</div>
-                  <div class="card-body">
-                    <div class="card-title">{{ $t('settings.gitSync.manualMerge') }}</div>
-                    <div class="card-desc">{{ $t('settings.gitSync.manualMergeDesc') }}</div>
-                  </div>
-                  <div class="card-badge recommended">{{ $t('settings.gitSync.recommended') }}</div>
-                </button>
-
-                <button
-                  class="strategy-card"
-                  :class="{ active: selectedStrategy === 'force-pull' }"
-                  @click="selectedStrategy = 'force-pull'"
-                >
-                  <div class="card-icon pull-icon">↓</div>
-                  <div class="card-body">
-                    <div class="card-title">{{ $t('settings.gitSync.forcePull') }}</div>
-                    <div class="card-desc">{{ $t('settings.gitSync.forcePullDesc') }}</div>
-                  </div>
-                </button>
-
-                <button
-                  class="strategy-card"
-                  :class="{ active: selectedStrategy === 'force-push' }"
-                  @click="selectedStrategy = 'force-push'"
-                >
-                  <div class="card-icon push-icon">↑</div>
-                  <div class="card-body">
-                    <div class="card-title">{{ $t('settings.gitSync.forcePush') }}</div>
-                    <div class="card-desc">{{ $t('settings.gitSync.forcePushDesc') }}</div>
-                  </div>
-                </button>
+          <button
+            class="strategy-card"
+            :class="{ active: selectedStrategy === 'force-push' }"
+            @click="selectedStrategy = 'force-push'"
+          >
+            <div class="card-icon push-icon">↑</div>
+            <div class="card-body">
+              <div class="card-title">
+                {{ $t('settings.gitSync.forcePush') }}
+              </div>
+              <div class="card-desc">
+                {{ $t('settings.gitSync.forcePushDesc') }}
               </div>
             </div>
+          </button>
+        </div>
+      </div>
 
-            <!-- 警告提示 -->
-            <transition name="warning-slide">
-              <div v-if="selectedStrategy === 'force-push' || selectedStrategy === 'force-pull'" class="warning-box">
-                <span class="warning-icon">⚠</span>
-                <span class="warning-text">
-                  {{ selectedStrategy === 'force-push'
-                    ? $t('settings.gitSync.forcePushWarning')
-                    : $t('settings.gitSync.forcePullWarning')
-                  }}
-                </span>
-              </div>
-            </transition>
+      <!-- 警告提示 -->
+      <transition name="warning-slide">
+        <div
+          v-if="
+            selectedStrategy === 'force-push' ||
+            selectedStrategy === 'force-pull'
+          "
+          class="warning-box"
+        >
+          <span class="warning-icon">⚠</span>
+          <span class="warning-text">
+            {{
+              selectedStrategy === 'force-push'
+                ? $t('settings.gitSync.forcePushWarning')
+                : $t('settings.gitSync.forcePullWarning')
+            }}
+          </span>
+        </div>
+      </transition>
     </div>
 
     <template #footer>
@@ -209,6 +244,7 @@ defineExpose({
 
   .file-name {
     @apply text-xs text-panel;
+
     font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
     word-break: break-all;
   }
@@ -228,7 +264,8 @@ defineExpose({
 
   &.active {
     @apply border-active;
-    background: rgba(93, 109, 253, 0.06);
+
+    background: rgb(93 109 253 / 6%);
     box-shadow: 0 0 0 1px var(--el-color-primary);
   }
 
@@ -300,11 +337,14 @@ defineExpose({
 
 .btn-spinner {
   @apply inline-block w-3 h-3 rounded-full mr-1 align-middle border-2 border-white/30 border-t-white;
+
   animation: spin 0.6s linear infinite;
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 // 过渡动画
@@ -328,8 +368,8 @@ defineExpose({
   opacity: 0;
 
   .conflict-dialog {
-    transform: scale(0.96) translateY(8px);
     opacity: 0;
+    transform: scale(0.96) translateY(8px);
   }
 }
 
@@ -337,8 +377,8 @@ defineExpose({
   opacity: 0;
 
   .conflict-dialog {
-    transform: scale(0.98);
     opacity: 0;
+    transform: scale(0.98);
   }
 }
 </style>

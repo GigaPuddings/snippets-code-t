@@ -12,16 +12,30 @@
       >
         <div class="summarize-label">
           <div class="summarize-label-title">{{ hotkeyLabel(hotkey) }}</div>
-          <div class="summarize-label-desc">{{ hotkeyDescription(hotkey) }}</div>
+          <div class="summarize-label-desc">
+            {{ hotkeyDescription(hotkey) }}
+          </div>
         </div>
         <div class="summarize-input-wrapper">
           <el-input
             class="summarize-input"
             required
             :model-value="getHotkeyValue(store, hotkey.name)"
-            @update:model-value="(value) => setHotkeyValue(store, hotkey.name, String(value))"
-            @keydown="keyDown($event, (value) => setHotkeyValue(store, hotkey.name, value))"
-            @focus="() => handleFocusUnregister(hotkey.name, getHotkeyValue(store, hotkey.name))"
+            @update:model-value="
+              (value) => setHotkeyValue(store, hotkey.name, String(value))
+            "
+            @keydown="
+              keyDown($event, (value) =>
+                setHotkeyValue(store, hotkey.name, value)
+              )
+            "
+            @focus="
+              () =>
+                handleFocusUnregister(
+                  hotkey.name,
+                  getHotkeyValue(store, hotkey.name)
+                )
+            "
           >
             <template #suffix>
               <label class="label">
@@ -41,7 +55,13 @@
                 type="default"
                 size="small"
                 class="button-shortcut"
-                @click="() => registerHandler(hotkey.name, getHotkeyValue(store, hotkey.name))"
+                @click="
+                  () =>
+                    registerHandler(
+                      hotkey.name,
+                      getHotkeyValue(store, hotkey.name)
+                    )
+                "
               >
                 {{ $t('shortcut.register') }}
               </CustomButton>
@@ -87,11 +107,12 @@ const knownHotkeySettings = new Map(
   hotkeySettingDefinitions.map((hotkey) => [hotkey.name, hotkey])
 );
 
-const visibleHotkeySettings = computed(() => (
+const visibleHotkeySettings = computed(() =>
   [
     ...hotkeySettingDefinitions.filter((hotkey) => !hotkey.pluginId),
     ...pluginStore.plugins.flatMap((plugin) => {
-      if (!plugin.hotkeys?.length || !pluginStore.isEnabled(plugin.id)) return [];
+      if (!plugin.hotkeys?.length || !pluginStore.isEnabled(plugin.id))
+        return [];
       return plugin.hotkeys.map((hotkeyName) => {
         const known = knownHotkeySettings.get(hotkeyName as HotkeyName);
         if (known) return known;
@@ -104,23 +125,28 @@ const visibleHotkeySettings = computed(() => (
           labelKey: `shortcut.${hotkeyName}Hotkey`,
           descriptionKey: `shortcut.${hotkeyName}HotkeyDesc`,
           fallbackLabel: `${pluginName}：${hotkeyName}`,
-          fallbackDescription: t('shortcut.pluginHotkeyDesc', { plugin: pluginName })
+          fallbackDescription: t('shortcut.pluginHotkeyDesc', {
+            plugin: pluginName
+          })
         } satisfies RuntimeHotkeySetting;
       });
     })
-  ].filter((hotkey, index, list) => (
-    list.findIndex((candidate) => candidate.name === hotkey.name) === index
-  ))
-));
+  ].filter(
+    (hotkey, index, list) =>
+      list.findIndex((candidate) => candidate.name === hotkey.name) === index
+  )
+);
 
 function hotkeyLabel(hotkey: RuntimeHotkeySetting): string {
-  return te(hotkey.labelKey) ? t(hotkey.labelKey) : hotkey.fallbackLabel ?? hotkey.name;
+  return te(hotkey.labelKey)
+    ? t(hotkey.labelKey)
+    : (hotkey.fallbackLabel ?? hotkey.name);
 }
 
 function hotkeyDescription(hotkey: RuntimeHotkeySetting): string {
   return te(hotkey.descriptionKey)
     ? t(hotkey.descriptionKey)
-    : hotkey.fallbackDescription ?? '';
+    : (hotkey.fallbackDescription ?? '');
 }
 
 onMounted(() => {
@@ -200,7 +226,16 @@ function keyDown(e: Event | KeyboardEvent, setKey: (value: string) => void) {
 }
 
 function hasMainKey(shortcut: string): boolean {
-  const modifiers = ['Ctrl', 'Control', 'Shift', 'Alt', 'Option', 'Command', 'Super', 'Meta'];
+  const modifiers = [
+    'Ctrl',
+    'Control',
+    'Shift',
+    'Alt',
+    'Option',
+    'Command',
+    'Super',
+    'Meta'
+  ];
   const parts = shortcut.split('+').map((part) => part.trim());
   return parts.some((part) => !modifiers.includes(part));
 }

@@ -32,7 +32,9 @@ const getShortcutIndex = (event: KeyboardEvent) => {
   return Number(event.code.replace('Digit', '').replace('Numpad', '')) - 1;
 };
 
-export function useSearchResultKeyboard(options: UseSearchResultKeyboardOptions) {
+export function useSearchResultKeyboard(
+  options: UseSearchResultKeyboardOptions
+) {
   const selectAndRunShortcutItem = (index: number) => {
     const item = options.visibleShortcutItems.value[index];
     if (!item) return false;
@@ -46,7 +48,8 @@ export function useSearchResultKeyboard(options: UseSearchResultKeyboardOptions)
     const tabs = options.tabs.value;
     if (tabs.length === 0) return;
 
-    const currentIndex = options.activeTabIndex.value >= 0 ? options.activeTabIndex.value : 0;
+    const currentIndex =
+      options.activeTabIndex.value >= 0 ? options.activeTabIndex.value : 0;
     const newIndex = (currentIndex + direction + tabs.length) % tabs.length;
     options.switchTab(tabs[newIndex].value);
   };
@@ -61,7 +64,9 @@ export function useSearchResultKeyboard(options: UseSearchResultKeyboardOptions)
     const results = options.filteredResults.value;
     if (results.length === 0) return;
 
-    const index = results.findIndex((item) => item.id === options.selectedId.value);
+    const index = results.findIndex(
+      (item) => item.id === options.selectedId.value
+    );
     let nextIndex = index;
 
     switch (event.code) {
@@ -165,7 +170,10 @@ export function useSearchResultKeyboard(options: UseSearchResultKeyboardOptions)
     }
 
     if (event.altKey && !event.ctrlKey && !event.metaKey) {
-      if (shortcutIndex >= 0 && shortcutIndex < options.visibleShortcutItems.value.length) {
+      if (
+        shortcutIndex >= 0 &&
+        shortcutIndex < options.visibleShortcutItems.value.length
+      ) {
         preventKey(event);
         selectAndRunShortcutItem(shortcutIndex);
         return;

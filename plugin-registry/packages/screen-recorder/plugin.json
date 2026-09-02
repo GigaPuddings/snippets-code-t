@@ -14,35 +14,21 @@
   "category": "capture",
   "enabledByDefault": true,
   "capabilities": {
-    "routeNames": [
-      "ScreenRecorder"
-    ],
-    "hotkeys": [
-      "screen_recorder"
-    ],
-    "trayItems": [
-      "screen_recorder"
-    ],
-    "windows": [
-      "screen_recorder"
-    ]
+    "routeNames": ["ScreenRecorder"],
+    "hotkeys": ["screen_recorder"],
+    "trayItems": ["screen_recorder"],
+    "windows": ["screen_recorder"]
   },
   "resources": {
     "hintKey": "plugins.screenRecorder.resourceHint",
     "bundled": false
   },
-  "permissions": [
-    "command:*"
-  ],
-  "dependencies": [
-    "screen-recorder-ffmpeg"
-  ],
+  "permissions": ["command:*"],
+  "dependencies": ["screen-recorder-ffmpeg"],
   "compatibleAppVersion": ">=2.1.40",
   "entry": {
     "frontend": "dist/frontend.js",
-    "styles": [
-      "dist/assets/runtime-entry-C6B9u72e.css"
-    ]
+    "styles": ["dist/assets/runtime-entry-C6B9u72e.css"]
   },
   "minAppVersion": "2.1.40",
   "repository": "https://github.com/GigaPuddings/snippets-code-plugin-screen-recorder",

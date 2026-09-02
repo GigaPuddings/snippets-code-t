@@ -27,7 +27,11 @@
           </div>
           <div class="footer-right">
             <CustomButton @click="handleCancel">{{ cancelText }}</CustomButton>
-            <CustomButton type="primary" :loading="loading" @click="handleConfirm">
+            <CustomButton
+              type="primary"
+              :loading="loading"
+              @click="handleConfirm"
+            >
               {{ confirmText }}
             </CustomButton>
           </div>
@@ -84,7 +88,9 @@ const emit = defineEmits<{
 }>();
 
 const visible = ref(props.modelValue);
-const dialogClass = computed(() => ['app-dialog', props.customClass].filter(Boolean).join(' '));
+const dialogClass = computed(() =>
+  ['app-dialog', props.customClass].filter(Boolean).join(' ')
+);
 
 watch(
   () => props.modelValue,

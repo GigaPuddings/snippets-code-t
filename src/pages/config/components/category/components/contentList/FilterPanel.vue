@@ -5,15 +5,25 @@
     width="420px"
     top="6vh"
     custom-class="filter-panel-dialog"
-    @update:model-value="val => !val && handleClose()"
+    @update:model-value="(val) => !val && handleClose()"
   >
     <div class="panel-content">
       <div class="filter-section">
         <div class="section-title">{{ $t('contentItem.filterByType') }}</div>
-        <el-radio-group v-model="localFilter.type" size="small" class="type-radio-group">
-          <el-radio-button value="all">{{ $t('search.allTypes') }}</el-radio-button>
-          <el-radio-button value="code">{{ $t('contentItem.codeSnippet') }}</el-radio-button>
-          <el-radio-button value="note">{{ $t('contentItem.note') }}</el-radio-button>
+        <el-radio-group
+          v-model="localFilter.type"
+          size="small"
+          class="type-radio-group"
+        >
+          <el-radio-button value="all">
+            {{ $t('search.allTypes') }}
+          </el-radio-button>
+          <el-radio-button value="code">
+            {{ $t('contentItem.codeSnippet') }}
+          </el-radio-button>
+          <el-radio-button value="note">
+            {{ $t('contentItem.note') }}
+          </el-radio-button>
         </el-radio-group>
       </div>
 
@@ -29,7 +39,12 @@
               @click="toggleTag(tag)"
             >
               <span class="tag-text">{{ tag }}</span>
-              <Check v-if="localSelectedTags.includes(tag)" theme="filled" size="14" class="tag-check" />
+              <Check
+                v-if="localSelectedTags.includes(tag)"
+                theme="filled"
+                size="14"
+                class="tag-check"
+              />
             </div>
           </div>
         </div>
@@ -46,10 +61,20 @@
             @click="sortOption = option.value"
           >
             <div class="sort-option-content">
-              <component :is="option.icon" theme="outline" size="16" :strokeWidth="3" />
+              <component
+                :is="option.icon"
+                theme="outline"
+                size="16"
+                :strokeWidth="3"
+              />
               <span class="sort-option-label">{{ option.label }}</span>
             </div>
-            <Check v-if="sortOption === option.value" theme="filled" size="14" class="sort-check" />
+            <Check
+              v-if="sortOption === option.value"
+              theme="filled"
+              size="14"
+              class="sort-check"
+            />
           </div>
         </div>
       </div>
@@ -94,9 +119,9 @@ interface FilterPanelEmits {
   /** 更新筛选条件 */
   'update:filter': [filter: SearchFilter];
   /** 关闭面板 */
-  'close': [];
+  close: [];
   /** 重置所有筛选（包括搜索框） */
-  'reset': [];
+  reset: [];
 }
 
 /**
@@ -128,7 +153,7 @@ const sortOptions = computed<SortOption[]>(() => [
   { label: t('search.createdDesc'), value: 'created-desc', icon: Time },
   { label: t('search.createdAsc'), value: 'created-asc', icon: Time },
   { label: t('search.updatedDesc'), value: 'updated-desc', icon: Edit },
-  { label: t('search.updatedAsc'), value: 'updated-asc', icon: Edit },
+  { label: t('search.updatedAsc'), value: 'updated-asc', icon: Edit }
 ]);
 
 // 初始化排序选项
@@ -152,24 +177,31 @@ function toggleTag(tag: string): void {
 }
 
 // 监听面板显示状态，重新同步标签选择
-watch(() => props.visible, (visible: boolean) => {
-  if (visible) {
-    // 面板打开时，完全重置本地状态为外部传入的状态
-    localFilter.value = { ...props.filter };
-    localSelectedTags.value = [...(props.filter.tags || [])];
-    
-    if (props.filter.sortBy && props.filter.sortOrder) {
-      sortOption.value = `${props.filter.sortBy}-${props.filter.sortOrder}`;
-    } else {
-      sortOption.value = '';
+watch(
+  () => props.visible,
+  (visible: boolean) => {
+    if (visible) {
+      // 面板打开时，完全重置本地状态为外部传入的状态
+      localFilter.value = { ...props.filter };
+      localSelectedTags.value = [...(props.filter.tags || [])];
+
+      if (props.filter.sortBy && props.filter.sortOrder) {
+        sortOption.value = `${props.filter.sortBy}-${props.filter.sortOrder}`;
+      } else {
+        sortOption.value = '';
+      }
     }
   }
-});
+);
 
 // 监听标签选择变化，更新 localFilter
-watch(localSelectedTags, (newTags: string[]) => {
-  localFilter.value.tags = newTags.length > 0 ? [...newTags] : undefined;
-}, { deep: true });
+watch(
+  localSelectedTags,
+  (newTags: string[]) => {
+    localFilter.value.tags = newTags.length > 0 ? [...newTags] : undefined;
+  },
+  { deep: true }
+);
 
 // 监听排序选项变化
 watch(sortOption, (option: string) => {
@@ -197,7 +229,10 @@ function handleApply(): void {
   // 创建一个新的筛选对象，确保标签数组是新的引用
   const newFilter: SearchFilter = {
     ...localFilter.value,
-    tags: localSelectedTags.value.length > 0 ? [...localSelectedTags.value] : undefined
+    tags:
+      localSelectedTags.value.length > 0
+        ? [...localSelectedTags.value]
+        : undefined
   };
   emit('update:filter', newFilter);
   emit('close');
@@ -210,7 +245,7 @@ function handleReset(): void {
   localFilter.value = { type: 'all' };
   localSelectedTags.value = [];
   sortOption.value = '';
-  
+
   // 通知父组件重置所有筛选（包括搜索框）
   emit('reset');
   emit('update:filter', { type: 'all' });
@@ -220,8 +255,8 @@ function handleReset(): void {
 <style scoped lang="scss">
 .panel-content {
   max-height: min(56vh, 420px);
-  overflow-y: auto;
   padding-right: 2px;
+  overflow-y: auto;
 }
 
 .filter-section {
@@ -233,6 +268,7 @@ function handleReset(): void {
 
   .section-title {
     @apply text-xs font-medium mb-2;
+
     color: var(--dialog-text-secondary);
   }
 
@@ -244,26 +280,30 @@ function handleReset(): void {
 
       .el-radio-button__inner {
         @apply w-full;
+
         height: 30px;
         padding: 0 10px;
-        border-color: var(--dialog-border);
-        background: var(--panel-bg);
-        color: var(--dialog-text-secondary);
         font-size: 12px;
         line-height: 28px;
+        color: var(--dialog-text-secondary);
+        background: var(--panel-bg);
+        border-color: var(--dialog-border);
         box-shadow: none;
-        transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+        transition:
+          background-color 0.16s ease,
+          border-color 0.16s ease,
+          color 0.16s ease;
       }
 
       &.is-active .el-radio-button__inner {
-        border-color: var(--search-result-accent);
-        background: var(--search-result-accent);
         color: #fff;
+        background: var(--search-result-accent);
+        border-color: var(--search-result-accent);
       }
 
       &:not(.is-active) .el-radio-button__inner:hover {
-        background: var(--panel-hover-bg);
         color: var(--dialog-text);
+        background: var(--panel-hover-bg);
       }
     }
   }
@@ -273,20 +313,21 @@ function handleReset(): void {
 
     .sort-option {
       @apply flex items-center justify-between cursor-pointer transition-all;
+
       min-height: 34px;
       padding: 7px 9px;
+      background: transparent;
       border: 1px solid transparent;
       border-radius: 7px;
-      background: transparent;
 
       &:hover {
-        border-color: var(--dialog-border);
         background: var(--panel-hover-bg);
+        border-color: var(--dialog-border);
       }
 
       &.active {
-        border-color: var(--search-result-active-border);
         background: var(--search-result-active);
+        border-color: var(--search-result-active-border);
 
         .sort-option-content {
           color: var(--dialog-text);
@@ -299,6 +340,7 @@ function handleReset(): void {
 
       .sort-option-content {
         @apply flex items-center gap-2;
+
         color: var(--dialog-text-secondary);
 
         .sort-option-label {
@@ -315,6 +357,7 @@ function handleReset(): void {
 
 .tags-container {
   @apply flex flex-col gap-2 overflow-auto;
+
   max-height: 104px;
 
   .tags-list {
@@ -323,24 +366,25 @@ function handleReset(): void {
 
   .tag-item {
     @apply flex items-center justify-between cursor-pointer transition-all;
+
     min-height: 31px;
     padding: 6px 9px;
+    background: var(--search-soft-bg);
     border: 1px solid var(--dialog-border);
     border-radius: 7px;
-    background: var(--search-soft-bg);
 
     &:hover {
-      border-color: var(--search-result-active-border);
       background: var(--panel-hover-bg);
+      border-color: var(--search-result-active-border);
     }
 
     &.active {
-      border-color: var(--search-result-active-border);
       background: var(--search-result-active);
+      border-color: var(--search-result-active-border);
 
       .tag-text {
-        color: var(--dialog-text);
         font-weight: 600;
+        color: var(--dialog-text);
       }
 
       .tag-check {
@@ -350,6 +394,7 @@ function handleReset(): void {
 
     .tag-text {
       @apply text-xs truncate flex-1;
+
       color: var(--dialog-text);
     }
 
@@ -368,6 +413,7 @@ function handleReset(): void {
 
   &::-webkit-scrollbar-thumb {
     @apply rounded-full;
+
     background: var(--dialog-border);
 
     &:hover {
@@ -382,8 +428,8 @@ function handleReset(): void {
   :deep(.el-button) {
     height: 30px;
     padding: 0 13px;
-    border-radius: 7px;
     font-size: 12px;
+    border-radius: 7px;
   }
 }
 

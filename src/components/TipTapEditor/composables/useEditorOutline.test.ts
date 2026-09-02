@@ -30,7 +30,9 @@ const createScrollContainer = () => {
     removeEventListener: vi.fn(),
     querySelectorAll: vi.fn(() => [heading]),
     getBoundingClientRect: vi.fn(() => ({ top: 100 })),
-    closest: vi.fn((selector: string) => (selector === '.editor-content' ? outerContainer : null))
+    closest: vi.fn((selector: string) =>
+      selector === '.editor-content' ? outerContainer : null
+    )
   } as unknown as HTMLElement;
 
   return { container: outerContainer, editorDom, heading, listeners };
@@ -43,7 +45,14 @@ const createEditor = () => {
       state: {
         doc: {
           descendants: vi.fn((callback: (node: any, pos: number) => void) => {
-            callback({ type: { name: 'heading' }, attrs: { level: 2 }, textContent: 'Intro' }, 4);
+            callback(
+              {
+                type: { name: 'heading' },
+                attrs: { level: 2 },
+                textContent: 'Intro'
+              },
+              4
+            );
           })
         }
       },
@@ -97,7 +106,9 @@ describe('useEditorOutline', () => {
 
     outline.extractHeadings();
 
-    expect(outline.headings.value).toEqual([{ level: 2, text: 'Intro', pos: 4 }]);
+    expect(outline.headings.value).toEqual([
+      { level: 2, text: 'Intro', pos: 4 }
+    ]);
   });
 
   it('extracts headings from source markdown', () => {
@@ -119,8 +130,13 @@ describe('useEditorOutline', () => {
 
     expect(outline.showOutline.value).toBe(true);
     expect(outline.emitOutlineToggle).toHaveBeenCalledWith(true);
-    expect(outline.headings.value).toEqual([{ level: 2, text: 'Intro', pos: 4 }]);
-    expect(outline.container.addEventListener).toHaveBeenCalledWith('scroll', expect.any(Function));
+    expect(outline.headings.value).toEqual([
+      { level: 2, text: 'Intro', pos: 4 }
+    ]);
+    expect(outline.container.addEventListener).toHaveBeenCalledWith(
+      'scroll',
+      expect.any(Function)
+    );
   });
 
   it('jumps to source lines while in source mode', () => {
@@ -150,7 +166,10 @@ describe('useEditorOutline', () => {
 
     expect(outline.showOutline.value).toBe(false);
     expect(outline.emitOutlineToggle).toHaveBeenCalledWith(false);
-    expect(outline.container.removeEventListener).toHaveBeenCalledWith('scroll', expect.any(Function));
+    expect(outline.container.removeEventListener).toHaveBeenCalledWith(
+      'scroll',
+      expect.any(Function)
+    );
   });
 
   it('does not access the view after the editor is destroyed', async () => {

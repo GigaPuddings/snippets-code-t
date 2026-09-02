@@ -10,7 +10,8 @@ const TARGET_ROOT = resolve(ROOT, 'dist-plugin-packages');
 const TARGET_OFFICIAL_DIR = join(TARGET_ROOT, 'official');
 const TARGET_EXAMPLES_DIR = join(TARGET_ROOT, 'examples');
 
-const hasPluginManifest = (directory) => existsSync(join(directory, 'plugin.json'));
+const hasPluginManifest = (directory) =>
+  existsSync(join(directory, 'plugin.json'));
 
 async function copyPluginDirectories(sourceRoot, targetRoot) {
   if (!existsSync(sourceRoot)) return [];
@@ -46,8 +47,14 @@ async function main() {
   await mkdir(TARGET_OFFICIAL_DIR, { recursive: true });
   await mkdir(TARGET_EXAMPLES_DIR, { recursive: true });
 
-  const officialPackages = await copyPluginDirectories(OFFICIAL_SOURCE_DIR, TARGET_OFFICIAL_DIR);
-  const examplePackages = await copyPluginDirectories(EXAMPLE_SOURCE_DIR, TARGET_EXAMPLES_DIR);
+  const officialPackages = await copyPluginDirectories(
+    OFFICIAL_SOURCE_DIR,
+    TARGET_OFFICIAL_DIR
+  );
+  const examplePackages = await copyPluginDirectories(
+    EXAMPLE_SOURCE_DIR,
+    TARGET_EXAMPLES_DIR
+  );
 
   const summary = {
     generatedAt: new Date().toISOString(),

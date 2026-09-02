@@ -11,12 +11,16 @@
       <!-- 警告提示 -->
       <div class="warning-box">
         <Attention theme="filled" size="20" class="warning-icon" />
-        <p class="warning-text">{{ $t('settings.gitSync.saveConfigWarning') }}</p>
+        <p class="warning-text">
+          {{ $t('settings.gitSync.saveConfigWarning') }}
+        </p>
       </div>
-      
+
       <!-- 配置摘要 -->
       <div class="config-summary">
-        <h4 class="summary-title">{{ $t('settings.gitSync.configSummary') }}</h4>
+        <h4 class="summary-title">
+          {{ $t('settings.gitSync.configSummary') }}
+        </h4>
         <div class="summary-list">
           <div class="summary-item">
             <span class="label">{{ $t('settings.gitSync.userName') }}:</span>
@@ -32,26 +36,26 @@
           </div>
         </div>
       </div>
-      
+
       <!-- 备份提醒 -->
       <div class="backup-reminder">
         <Info theme="filled" size="18" class="info-icon" />
         <span>{{ $t('settings.gitSync.backupReminder') }}</span>
       </div>
-      
+
       <!-- 确认选项 -->
       <el-checkbox v-model="confirmUnderstand" class="confirm-checkbox">
         {{ $t('settings.gitSync.confirmUnderstand') }}
       </el-checkbox>
     </div>
-    
+
     <template #footer>
       <div class="dialog-footer">
         <CustomButton @click="handleCancel" :disabled="loading">
           {{ $t('common.cancel') }}
         </CustomButton>
         <CustomButton
-          type="primary" 
+          type="primary"
           @click="handleConfirm"
           :loading="loading"
           :disabled="!confirmUnderstand"
@@ -89,13 +93,16 @@ const emit = defineEmits<Emits>();
 const visible = ref(props.modelValue);
 const confirmUnderstand = ref(false);
 
-watch(() => props.modelValue, (val) => {
-  visible.value = val;
-  if (val) {
-    // 对话框打开时重置确认状态
-    confirmUnderstand.value = false;
+watch(
+  () => props.modelValue,
+  (val) => {
+    visible.value = val;
+    if (val) {
+      // 对话框打开时重置确认状态
+      confirmUnderstand.value = false;
+    }
   }
-});
+);
 
 watch(visible, (val) => {
   emit('update:modelValue', val);
@@ -117,16 +124,16 @@ const handleCancel = () => {
 <style scoped lang="scss">
 .save-config-content {
   @apply space-y-4;
+
   max-height: 60vh;
-  overflow-y: auto;
-  overflow-x: hidden;
   padding-right: 4px;
-  
+  overflow: hidden auto;
+
   /* 自定义滚动条样式 */
   &::-webkit-scrollbar {
     width: 6px;
   }
-  
+
   &::-webkit-scrollbar-track {
     @apply bg-panel rounded;
   }
@@ -142,11 +149,11 @@ const handleCancel = () => {
 
 .warning-box {
   @apply flex items-start gap-3 p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg;
-  
+
   .warning-icon {
     @apply text-orange-500 text-xl flex-shrink-0 mt-0.5;
   }
-  
+
   .warning-text {
     @apply text-sm text-orange-800 dark:text-orange-200 leading-relaxed;
   }
@@ -154,7 +161,7 @@ const handleCancel = () => {
 
 .config-summary {
   @apply space-y-2;
-  
+
   .summary-title {
     @apply text-sm font-semibold text-panel mb-3;
   }
@@ -182,11 +189,11 @@ const handleCancel = () => {
 
 .backup-reminder {
   @apply flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg;
-  
+
   .info-icon {
     @apply text-blue-500 text-lg flex-shrink-0;
   }
-  
+
   span {
     @apply text-sm text-blue-800 dark:text-blue-200;
   }
@@ -194,7 +201,7 @@ const handleCancel = () => {
 
 .confirm-checkbox {
   @apply mt-4;
-  
+
   :deep(.el-checkbox__label) {
     @apply text-sm font-medium;
   }

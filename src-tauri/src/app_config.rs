@@ -5,11 +5,11 @@ use chrono::{DateTime, Utc};
 use futures::StreamExt;
 use log::{debug, info, warn};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::error::Error as StdError;
 use std::fs::{self, File};
-use std::io;
-use std::io::Write;
+use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -595,6 +595,9 @@ use walkdir::WalkDir;
 use zip::ZipArchive;
 
 const PLUGIN_INSTALL_METADATA_FILE: &str = ".install-meta.json";
+const PLUGIN_PACKAGES_DIR_NAME: &str = "plugins";
+const PLUGIN_PACKAGES_ROOT_DIR_NAME: &str = "packages";
+const PLUGIN_CACHE_ROOT_DIR_NAME: &str = "plugins";
 const TRANSLATION_OFFLINE_RUNTIME_PLUGIN_ID: &str = "translation-offline-runtime";
 const TRANSLATION_OFFLINE_RUNTIME_VERSION: &str = "2.17.2";
 const TRANSLATION_OFFLINE_RUNTIME_FILES: &[&str] = &[
@@ -641,6 +644,24 @@ pub struct PluginInstallProgressPayload {
     #[serde(skip_serializing_if = "Option::is_none")]
     error: Option<String>,
     updated_at: u64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstallPluginPackageFromUrlRequest {
+    package_url: String,
+    #[serde(default)]
+    package_subdir: Option<String>,
+    #[serde(default)]
+    expected_size_bytes: Option<u64>,
+    #[serde(default)]
+    expected_sha256: Option<String>,
+    #[serde(default)]
+    overwrite: bool,
+    #[serde(default)]
+    mirror_urls: Option<Vec<String>>,
+    #[serde(default)]
+    plugin_id: Option<String>,
 }
 
 static PLUGIN_INSTALL_LOCK: LazyLock<tokio::sync::Mutex<()>> =
@@ -987,6 +1008,7 @@ fn clear_plugin_owned_data(app_handle: &AppHandle, plugin_id: &str) -> Result<()
     clear_workspace_plugin_config(app_handle, plugin_id)?;
     clear_database_plugin_config(plugin_id)?;
     clear_local_plugin_state(app_handle, plugin_id)?;
+    clear_local_plugin_cache(app_handle, plugin_id)?;
     Ok(())
 }
 
@@ -1273,20 +1295,28 @@ pub fn get_plugin_states(app_handle: AppHandle) -> Result<HashMap<String, bool>,
 
 fn plugin_packages_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
     if let Some(configured_root) = configured_plugin_install_root_dir(app_handle)? {
-        return Ok(configured_root.join("plugins"));
+        return Ok(configured_root.join(PLUGIN_PACKAGES_DIR_NAME));
     }
 
     default_plugin_packages_dir(app_handle)
 }
 
 fn default_plugin_packages_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
-    Ok(default_plugin_packages_dir_for_data_dir(
-        &crate::json_config::get_data_dir(app_handle),
-    ))
+    let data_dir = crate::json_config::get_data_dir(app_handle);
+    let packages_dir = default_plugin_packages_dir_for_data_dir(&data_dir);
+    let legacy_packages_dir = legacy_default_plugin_packages_dir_for_data_dir(&data_dir);
+    migrate_installed_plugin_packages(&legacy_packages_dir, &packages_dir)?;
+    Ok(packages_dir)
 }
 
 fn default_plugin_packages_dir_for_data_dir(data_dir: &Path) -> PathBuf {
-    data_dir.join("plugins")
+    data_dir
+        .join(PLUGIN_PACKAGES_ROOT_DIR_NAME)
+        .join(PLUGIN_PACKAGES_DIR_NAME)
+}
+
+fn legacy_default_plugin_packages_dir_for_data_dir(data_dir: &Path) -> PathBuf {
+    data_dir.join(PLUGIN_PACKAGES_DIR_NAME)
 }
 
 pub fn resolve_plugin_packages_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
@@ -1438,7 +1468,7 @@ pub fn set_plugin_install_dir(app_handle: AppHandle, path: Option<String>) -> Re
             )
         })?;
         let normalized_root = normalized_existing_path(&selected_root);
-        let plugins_dir = normalized_root.join("plugins");
+        let plugins_dir = normalized_root.join(PLUGIN_PACKAGES_DIR_NAME);
         fs::create_dir_all(&plugins_dir)
             .map_err(|e| format!("创建插件安装目录失败: {} ({})", plugins_dir.display(), e))?;
         (
@@ -1528,6 +1558,27 @@ fn validate_plugin_relative_path(value: &str) -> Result<(), String> {
     Ok(())
 }
 
+fn validate_plugin_storage_contract(manifest: &serde_json::Value) -> Result<(), String> {
+    let Some(storage) = manifest.get("storage") else {
+        return Ok(());
+    };
+    let Some(storage) = storage.as_object() else {
+        return Err("插件 storage 必须是对象".to_string());
+    };
+
+    for field in ["schemaVersion", "indexSchemaVersion", "extractorVersion"] {
+        if storage
+            .get(field)
+            .and_then(|value| value.as_u64())
+            .is_none()
+        {
+            return Err(format!("插件 storage.{} 必须为非负整数", field));
+        }
+    }
+
+    Ok(())
+}
+
 fn validate_local_plugin_manifest(manifest: &serde_json::Value) -> Result<String, String> {
     if manifest
         .get("schemaVersion")
@@ -1546,6 +1597,7 @@ fn validate_local_plugin_manifest(manifest: &serde_json::Value) -> Result<String
         .and_then(|value| value.as_str())
         .ok_or("插件清单缺少 id".to_string())?;
     validate_plugin_package_id(plugin_id)?;
+    validate_plugin_storage_contract(manifest)?;
 
     if let Some(entry) = manifest.get("entry").and_then(|value| value.as_object()) {
         for key in ["frontend", "backend"] {
@@ -1901,6 +1953,23 @@ fn local_plugin_state_dir(app_handle: &AppHandle, plugin_id: &str) -> Result<Pat
         .join(plugin_id))
 }
 
+fn local_plugin_cache_dir(app_handle: &AppHandle, plugin_id: &str) -> Result<PathBuf, String> {
+    validate_plugin_package_id(plugin_id)?;
+    Ok(app_handle
+        .path()
+        .app_cache_dir()
+        .map_err(|error| format!("获取插件缓存目录失败: {}", error))?
+        .join(PLUGIN_CACHE_ROOT_DIR_NAME)
+        .join(plugin_id))
+}
+
+pub fn ensure_plugin_cache_dir(app_handle: &AppHandle, plugin_id: &str) -> Result<PathBuf, String> {
+    let cache_dir = local_plugin_cache_dir(app_handle, plugin_id)?;
+    fs::create_dir_all(&cache_dir)
+        .map_err(|error| format!("创建插件缓存目录失败: {} ({})", cache_dir.display(), error))?;
+    Ok(cache_dir)
+}
+
 fn local_plugin_data_path(app_handle: &AppHandle, plugin_id: &str) -> Result<PathBuf, String> {
     let data_path = local_plugin_state_dir(app_handle, plugin_id)?.join("data.json");
 
@@ -1929,6 +1998,17 @@ fn clear_local_plugin_state(app_handle: &AppHandle, plugin_id: &str) -> Result<(
                 )
             })?;
         }
+    }
+
+    Ok(())
+}
+
+fn clear_local_plugin_cache(app_handle: &AppHandle, plugin_id: &str) -> Result<(), String> {
+    let cache_dir = local_plugin_cache_dir(app_handle, plugin_id)?;
+    if cache_dir.exists() {
+        fs::remove_dir_all(&cache_dir).map_err(|error| {
+            format!("删除插件缓存目录失败: {} ({})", cache_dir.display(), error)
+        })?;
     }
 
     Ok(())
@@ -2338,6 +2418,53 @@ fn validate_plugin_remote_url(value: &str) -> Result<(), String> {
     }
 }
 
+fn normalize_plugin_package_sha256(value: &str) -> Result<String, String> {
+    let sha256 = value.trim().to_ascii_lowercase();
+    if sha256.len() == 64 && sha256.chars().all(|ch| ch.is_ascii_hexdigit()) {
+        Ok(sha256)
+    } else {
+        Err("插件包 SHA-256 必须是 64 位十六进制字符串".to_string())
+    }
+}
+
+fn file_sha256(path: &Path) -> Result<String, String> {
+    let mut file = File::open(path)
+        .map_err(|error| format!("打开插件包失败: {} ({})", path.display(), error))?;
+    let mut hasher = Sha256::new();
+    let mut buffer = [0_u8; 64 * 1024];
+
+    loop {
+        let read = file
+            .read(&mut buffer)
+            .map_err(|error| format!("读取插件包失败: {} ({})", path.display(), error))?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
+    }
+
+    Ok(hex::encode(hasher.finalize()))
+}
+
+fn verify_plugin_package_sha256(
+    package_path: &Path,
+    expected_sha256: Option<&str>,
+) -> Result<(), String> {
+    let Some(expected_sha256) = expected_sha256 else {
+        return Ok(());
+    };
+    let expected_sha256 = normalize_plugin_package_sha256(expected_sha256)?;
+    let actual_sha256 = file_sha256(package_path)?;
+    if actual_sha256 != expected_sha256 {
+        return Err(format!(
+            "插件包 SHA-256 校验失败: expected {}, actual {}",
+            expected_sha256, actual_sha256
+        ));
+    }
+
+    Ok(())
+}
+
 fn reqwest_error_details(error: &reqwest::Error) -> String {
     let mut details = error.to_string();
     let mut source = error.source();
@@ -2567,6 +2694,7 @@ async fn download_plugin_url_to_temp(
     app_handle: &AppHandle,
     package_url: &str,
     expected_size_bytes: Option<u64>,
+    expected_sha256: Option<String>,
     mirror_urls: &[String],
 ) -> Result<PathBuf, String> {
     validate_plugin_remote_url(package_url)?;
@@ -2580,6 +2708,10 @@ async fn download_plugin_url_to_temp(
         validate_plugin_remote_url(download_url)?;
     }
 
+    let expected_sha256 = expected_sha256
+        .as_deref()
+        .map(normalize_plugin_package_sha256)
+        .transpose()?;
     let temp_dir = create_plugin_install_temp_dir(app_handle)?;
     let temp_file = temp_dir.join("package.zip");
     let expected_size_bytes = expected_size_bytes.filter(|size| *size > 0);
@@ -2784,6 +2916,25 @@ async fn download_plugin_url_to_temp(
 
                 if downloaded_bytes == 0 {
                     last_error = Some(format!("插件下载内容为空 ({})", download_url));
+                    tokio::time::sleep(Duration::from_millis(500 * attempt as u64)).await;
+                    continue;
+                }
+
+                file.flush().map_err(|e| {
+                    format!("保存插件下载临时文件失败: {} ({})", temp_file.display(), e)
+                })?;
+                drop(file);
+
+                if let Err(error) =
+                    verify_plugin_package_sha256(&temp_file, expected_sha256.as_deref())
+                {
+                    let _ = fs::remove_file(&temp_file);
+                    let message = format!("{} ({})", error, download_url);
+                    warn!(
+                        "[Plugin] download integrity check failed url={} attempt={}/{} error={}",
+                        download_url, attempt, MAX_DOWNLOAD_ATTEMPTS, message
+                    );
+                    last_error = Some(message);
                     tokio::time::sleep(Duration::from_millis(500 * attempt as u64)).await;
                     continue;
                 }
@@ -3004,13 +3155,18 @@ fn install_downloaded_plugin_package(
 #[command]
 pub async fn install_plugin_package_from_url(
     app_handle: AppHandle,
-    package_url: String,
-    package_subdir: Option<String>,
-    expected_size_bytes: Option<u64>,
-    overwrite: bool,
-    mirror_urls: Option<Vec<String>>,
-    plugin_id: Option<String>,
+    request: InstallPluginPackageFromUrlRequest,
 ) -> Result<LocalPluginPackage, String> {
+    let InstallPluginPackageFromUrlRequest {
+        package_url,
+        package_subdir,
+        expected_size_bytes,
+        expected_sha256,
+        overwrite,
+        mirror_urls,
+        plugin_id,
+    } = request;
+
     begin_plugin_install(&app_handle, &package_url, plugin_id);
     let _install_guard = PLUGIN_INSTALL_LOCK.lock().await;
     cleanup_stale_plugin_install_temp_dirs(&app_handle);
@@ -3021,6 +3177,7 @@ pub async fn install_plugin_package_from_url(
             &app_handle,
             &package_url,
             expected_size_bytes,
+            expected_sha256,
             &mirror_urls,
         )
         .await?;
@@ -3457,9 +3614,33 @@ pub fn set_plugin_enabled(
 #[cfg(test)]
 mod tests {
     use super::{
-        plugin_download_total_bytes, plugin_install_progress_percent, AppConfig, AppConfigManager,
+        default_plugin_packages_dir_for_data_dir, normalize_plugin_package_sha256,
+        plugin_download_total_bytes, plugin_install_progress_percent,
+        validate_local_plugin_manifest, verify_plugin_package_sha256, AppConfig, AppConfigManager,
     };
+    use serde_json::json;
+    use std::fs;
     use std::path::PathBuf;
+
+    fn local_manifest_with_storage(storage: serde_json::Value) -> serde_json::Value {
+        json!({
+            "schemaVersion": 1,
+            "id": "desktop-files",
+            "version": "1.0.0",
+            "kind": "local",
+            "name": {
+                "i18nKey": "plugins.desktopFiles.name",
+                "fallback": "Desktop Files"
+            },
+            "description": {
+                "i18nKey": "plugins.desktopFiles.description",
+                "fallback": "Desktop file search"
+            },
+            "category": "search",
+            "enabledByDefault": true,
+            "storage": storage
+        })
+    }
 
     #[test]
     fn plugin_download_uses_expected_size_without_content_length() {
@@ -3483,6 +3664,59 @@ mod tests {
             plugin_install_progress_percent("downloaded", 1_000, Some(1_000)),
             Some(100.0)
         );
+    }
+
+    #[test]
+    fn plugin_manifest_accepts_valid_storage_contract() {
+        let manifest = local_manifest_with_storage(json!({
+            "schemaVersion": 1,
+            "indexSchemaVersion": 2,
+            "extractorVersion": 3
+        }));
+
+        assert_eq!(
+            validate_local_plugin_manifest(&manifest).expect("manifest should be valid"),
+            "desktop-files"
+        );
+    }
+
+    #[test]
+    fn plugin_manifest_rejects_invalid_storage_contract() {
+        let manifest = local_manifest_with_storage(json!({
+            "schemaVersion": 1,
+            "indexSchemaVersion": -1,
+            "extractorVersion": 3
+        }));
+
+        assert!(validate_local_plugin_manifest(&manifest).is_err());
+    }
+
+    #[test]
+    fn default_plugin_packages_dir_lives_under_packages() {
+        assert_eq!(
+            default_plugin_packages_dir_for_data_dir(&PathBuf::from("data-root")),
+            PathBuf::from("data-root").join("packages").join("plugins")
+        );
+    }
+
+    #[test]
+    fn plugin_package_sha256_must_be_hex() {
+        assert!(normalize_plugin_package_sha256(&"a".repeat(64)).is_ok());
+        assert!(normalize_plugin_package_sha256("not-a-sha").is_err());
+    }
+
+    #[test]
+    fn plugin_package_sha256_verification_rejects_mismatch() {
+        let path = std::env::temp_dir().join(format!(
+            "snippets-code-plugin-sha-test-{}.zip",
+            std::process::id()
+        ));
+        fs::write(&path, b"plugin package").expect("test package should be written");
+
+        let result = verify_plugin_package_sha256(&path, Some(&"0".repeat(64)));
+        let _ = fs::remove_file(&path);
+
+        assert!(result.is_err());
     }
 
     #[test]

@@ -29,7 +29,11 @@ export interface SortConfig {
 /**
  * 按标题排序
  */
-function sortByTitle(a: MarkdownFile, b: MarkdownFile, direction: SortDirection): number {
+function sortByTitle(
+  a: MarkdownFile,
+  b: MarkdownFile,
+  direction: SortDirection
+): number {
   const comparison = a.title.localeCompare(b.title, 'zh-CN');
   return direction === 'asc' ? comparison : -comparison;
 }
@@ -37,7 +41,11 @@ function sortByTitle(a: MarkdownFile, b: MarkdownFile, direction: SortDirection)
 /**
  * 按创建时间排序
  */
-function sortByCreated(a: MarkdownFile, b: MarkdownFile, direction: SortDirection): number {
+function sortByCreated(
+  a: MarkdownFile,
+  b: MarkdownFile,
+  direction: SortDirection
+): number {
   const comparison = compareTimestamps(a.created, b.created);
   return direction === 'asc' ? comparison : -comparison;
 }
@@ -45,7 +53,11 @@ function sortByCreated(a: MarkdownFile, b: MarkdownFile, direction: SortDirectio
 /**
  * 按修改时间排序
  */
-function sortByModified(a: MarkdownFile, b: MarkdownFile, direction: SortDirection): number {
+function sortByModified(
+  a: MarkdownFile,
+  b: MarkdownFile,
+  direction: SortDirection
+): number {
   const comparison = compareTimestamps(a.modified, b.modified);
   return direction === 'asc' ? comparison : -comparison;
 }
@@ -53,7 +65,11 @@ function sortByModified(a: MarkdownFile, b: MarkdownFile, direction: SortDirecti
 /**
  * 按类型排序
  */
-function sortByType(a: MarkdownFile, b: MarkdownFile, direction: SortDirection): number {
+function sortByType(
+  a: MarkdownFile,
+  b: MarkdownFile,
+  direction: SortDirection
+): number {
   const comparison = a.type.localeCompare(b.type);
   return direction === 'asc' ? comparison : -comparison;
 }
@@ -64,7 +80,10 @@ function sortByType(a: MarkdownFile, b: MarkdownFile, direction: SortDirection):
  * @param config 排序配置
  * @returns 排序后的文件列表
  */
-export function sortFiles(files: MarkdownFile[], config: SortConfig): MarkdownFile[] {
+export function sortFiles(
+  files: MarkdownFile[],
+  config: SortConfig
+): MarkdownFile[] {
   const sorted = [...files];
 
   sorted.sort((a, b) => {

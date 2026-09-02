@@ -42,7 +42,9 @@ const configuredSettings = {
   token: ''
 };
 
-const createDeps = (overrides: Partial<InitGitSyncDeps> = {}): InitGitSyncDeps => ({
+const createDeps = (
+  overrides: Partial<InitGitSyncDeps> = {}
+): InitGitSyncDeps => ({
   getGitSettings: vi.fn(async () => configuredSettings),
   checkGitRepo: vi.fn(async () => true),
   initGitRepository: vi.fn(async () => undefined),

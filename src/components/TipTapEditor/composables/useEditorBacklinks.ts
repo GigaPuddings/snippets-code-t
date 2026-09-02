@@ -31,7 +31,10 @@ export function useEditorBacklinks(options: UseEditorBacklinksOptions) {
     showBacklinks.value = false;
   };
 
-  const handleBacklinkNavigate = (fragmentId: number | string, searchTitle: string) => {
+  const handleBacklinkNavigate = (
+    fragmentId: number | string,
+    searchTitle: string
+  ) => {
     options.emitNavigate(fragmentId, searchTitle);
   };
 
@@ -54,9 +57,13 @@ export function useEditorBacklinks(options: UseEditorBacklinksOptions) {
     }
   };
 
-  watch(() => options.currentTitle.value, () => {
-    updateBacklinkCount();
-  }, { immediate: true });
+  watch(
+    () => options.currentTitle.value,
+    () => {
+      updateBacklinkCount();
+    },
+    { immediate: true }
+  );
 
   return {
     showBacklinks,

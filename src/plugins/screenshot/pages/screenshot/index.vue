@@ -13,26 +13,46 @@
     <canvas ref="canvasRef" class="drawing-canvas"></canvas>
 
     <!-- 尺寸信息 -->
-    <div v-if="state.selectionRect && showSizeInfo" class="size-info" :style="sizeInfoStyle">
+    <div
+      v-if="state.selectionRect && showSizeInfo"
+      class="size-info"
+      :style="sizeInfoStyle"
+    >
       <span class="size-text">{{ sizeInfoText }}</span>
     </div>
 
     <!-- 工具栏 -->
-    <ToolbarSection ref="toolbarRef" v-if="state.selectionRect && !isDrawing" :style="toolbarStyle" class="toolbar"
-      :current-tool="state.currentTool" :current-color="state.currentStyle.color"
-      :current-line-width="state.currentStyle.lineWidth" :current-opacity="state.currentStyle.opacity"
+    <ToolbarSection
+      ref="toolbarRef"
+      v-if="state.selectionRect && !isDrawing"
+      :style="toolbarStyle"
+      class="toolbar"
+      :current-tool="state.currentTool"
+      :current-color="state.currentStyle.color"
+      :current-line-width="state.currentStyle.lineWidth"
+      :current-opacity="state.currentStyle.opacity"
       :current-text-size="state.textSize"
       :current-mosaic-size="state.mosaicSize"
       :current-selection-corner-radius="state.selectionCornerRadius"
-      :can-undo="state.hasAnnotations" :can-redo="state.canRedo"
+      :can-undo="state.hasAnnotations"
+      :can-redo="state.canRedo"
       :can-delete="!!state.selectedAnnotation"
       :current-translate-engine="translateEngine"
-      @tool-select="handleToolSelect" @color-change="handleColorChange" @line-width-change="handleLineWidthChange"
+      @tool-select="handleToolSelect"
+      @color-change="handleColorChange"
+      @line-width-change="handleLineWidthChange"
       @opacity-change="handleOpacityChange"
-      @text-size-change="handleTextSizeChange" @mosaic-size-change="handleMosaicSizeChange"
+      @text-size-change="handleTextSizeChange"
+      @mosaic-size-change="handleMosaicSizeChange"
       @selection-corner-radius-change="handleSelectionCornerRadiusChange"
       @translate-engine-change="handleTranslateEngineChange"
-      @undo="handleUndo" @redo="handleRedo" @delete="handleDelete" @save="handleSave" @confirm="handleConfirm" @cancel="handleCancel" />
+      @undo="handleUndo"
+      @redo="handleRedo"
+      @delete="handleDelete"
+      @save="handleSave"
+      @confirm="handleConfirm"
+      @cancel="handleCancel"
+    />
 
     <!-- 加载提示 - 仅在初始化时显示 -->
     <div v-if="isLoading" class="loading-overlay">
@@ -41,51 +61,65 @@
     </div>
 
     <!-- 文字输入框 -->
-    <div v-if="isTextInputVisible" class="text-input-container" :style="textInputStyle">
-      <input ref="textInputRef" v-model="textInput" type="text" class="text-input" :style="{
+    <div
+      v-if="isTextInputVisible"
+      class="text-input-container"
+      :style="textInputStyle"
+    >
+      <input
+        ref="textInputRef"
+        v-model="textInput"
+        type="text"
+        class="text-input"
+        :style="{
           color: textInputColor,
           fontFamily: TEXT_FONT_FAMILY,
           fontSize: textInputFontSize + 'px',
           height: textInputFontSize + 'px',
           lineHeight: textInputFontSize + 'px'
-      }" @keydown.enter="confirmTextInput" @keydown.escape="cancelTextInput" @blur="confirmTextInput" autofocus />
+        }"
+        @keydown.enter="confirmTextInput"
+        @keydown.escape="cancelTextInput"
+        @blur="confirmTextInput"
+        autofocus
+      />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
-import { Window } from '@tauri-apps/api/window'
-import { listen } from '@tauri-apps/api/event'
-import { invoke } from '@tauri-apps/api/core'
-import { ScreenshotManager } from './core/ScreenshotManager'
-import type { BaseAnnotation } from './core/BaseAnnotation'
-import { ToolType, ColorInfo } from './core/types'
-import { getTextOrigin, TEXT_FONT_FAMILY } from './annotations/TextAnnotation'
-import { getMarkerTextOrigin } from './annotations/MarkerAnnotation'
-import ToolbarSection from './components/ToolbarSection.vue'
-import { logger } from '@/utils/logger'
+import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue';
+import { Window } from '@tauri-apps/api/window';
+import { listen } from '@tauri-apps/api/event';
+import { invoke } from '@tauri-apps/api/core';
+import { ScreenshotManager } from './core/ScreenshotManager';
+import type { BaseAnnotation } from './core/BaseAnnotation';
+import { ToolType, ColorInfo } from './core/types';
+import { getTextOrigin, TEXT_FONT_FAMILY } from './annotations/TextAnnotation';
+import { getMarkerTextOrigin } from './annotations/MarkerAnnotation';
+import ToolbarSection from './components/ToolbarSection.vue';
+import { logger } from '@/utils/logger';
 
 // 组件引用
-const canvasRef = ref<HTMLCanvasElement>()
-const textInputRef = ref<HTMLInputElement>()
-const toolbarRef = ref<InstanceType<typeof ToolbarSection> | null>(null)
-const appWindow = ref<Window | null>(null)
+const canvasRef = ref<HTMLCanvasElement>();
+const textInputRef = ref<HTMLInputElement>();
+const toolbarRef = ref<InstanceType<typeof ToolbarSection> | null>(null);
+const appWindow = ref<Window | null>(null);
 
 // 截图管理器
-let screenshotManager: ScreenshotManager | null = null
+let screenshotManager: ScreenshotManager | null = null;
 
 // 组件状态
-const showSizeInfo = ref(true)
-const isTextInputVisible = ref(false)
-const textInput = ref('')
-const textInputPosition = ref({ x: 0, y: 0 })
-const textInputFontSize = ref(16)
-const isLoading = ref(false) // 不显示加载状态，让用户可以立即开始截图
-const translateEngine = ref<'google' | 'bing' | 'offline' | 'local-ai'>('bing') // 翻译引擎
-const toolbarSize = ref({ width: 590, height: 50 })
-let isClosing = false
-let editingAnnotation: BaseAnnotation | null = null
+const showSizeInfo = ref(true);
+const isTextInputVisible = ref(false);
+const textInput = ref('');
+const textInputPosition = ref({ x: 0, y: 0 });
+const textInputFontSize = ref(16);
+const isLoading = ref(false); // 不显示加载状态，让用户可以立即开始截图
+const translateEngine = ref<'google' | 'bing' | 'offline' | 'local-ai'>('bing'); // 翻译引擎
+const toolbarSize = ref({ width: 590, height: 50 });
+let isClosing = false;
+let editingAnnotation: BaseAnnotation | null = null;
 
 // 响应式状态
 const state = ref({
@@ -101,246 +135,270 @@ const state = ref({
   canRedo: false,
   selectedAnnotation: null as any,
   isDrawing: false // 将绘制状态也放到响应式状态中
-})
+});
 
-const unlistenBlur = ref<() => void>()
-const unlistenCloseRequested = ref<() => void>()
+const unlistenBlur = ref<() => void>();
+const unlistenCloseRequested = ref<() => void>();
 
 // 计算属性 - 从状态获取绘制状态
-const isDrawing = computed(() => state.value.isDrawing)
+const isDrawing = computed(() => state.value.isDrawing);
 
 // 计算属性 - 遮罩样式
 const topMaskStyle = computed(() => {
-  if (!state.value.selectionRect) return {}
-  const { y } = state.value.selectionRect
+  if (!state.value.selectionRect) return {};
+  const { y } = state.value.selectionRect;
   return {
     top: '0',
     left: '0',
     right: '0',
     height: `${y}px`
-  }
-})
+  };
+});
 
 const bottomMaskStyle = computed(() => {
-  if (!state.value.selectionRect) return {}
-  const { y, height } = state.value.selectionRect
+  if (!state.value.selectionRect) return {};
+  const { y, height } = state.value.selectionRect;
   return {
     top: `${y + height}px`,
     left: '0',
     right: '0',
     bottom: '0'
-  }
-})
+  };
+});
 
 const leftMaskStyle = computed(() => {
-  if (!state.value.selectionRect) return {}
-  const { x, y, height } = state.value.selectionRect
+  if (!state.value.selectionRect) return {};
+  const { x, y, height } = state.value.selectionRect;
   return {
     top: `${y}px`,
     left: '0',
     width: `${x}px`,
     height: `${height}px`
-  }
-})
+  };
+});
 
 const rightMaskStyle = computed(() => {
-  if (!state.value.selectionRect) return {}
-  const { x, y, width, height } = state.value.selectionRect
+  if (!state.value.selectionRect) return {};
+  const { x, y, width, height } = state.value.selectionRect;
   return {
     top: `${y}px`,
     left: `${x + width}px`,
     right: '0',
     height: `${height}px`
-  }
-})
+  };
+});
 
 // 工具栏样式
 const toolbarStyle = computed(() => {
-  if (!state.value.selectionRect) return {}
+  if (!state.value.selectionRect) return {};
 
-  const { x, y, width, height } = state.value.selectionRect
-  const edgeMargin = 10
-  const toolbarGap = 12
-  const toolbarWidth = Math.min(toolbarSize.value.width, Math.max(0, window.innerWidth - edgeMargin * 2))
-  const toolbarHeight = Math.min(toolbarSize.value.height, Math.max(0, window.innerHeight - edgeMargin * 2))
-  const maxTop = Math.max(edgeMargin, window.innerHeight - toolbarHeight - edgeMargin)
-  const maxLeft = Math.max(edgeMargin, window.innerWidth - toolbarWidth - edgeMargin)
+  const { x, y, width, height } = state.value.selectionRect;
+  const edgeMargin = 10;
+  const toolbarGap = 12;
+  const toolbarWidth = Math.min(
+    toolbarSize.value.width,
+    Math.max(0, window.innerWidth - edgeMargin * 2)
+  );
+  const toolbarHeight = Math.min(
+    toolbarSize.value.height,
+    Math.max(0, window.innerHeight - edgeMargin * 2)
+  );
+  const maxTop = Math.max(
+    edgeMargin,
+    window.innerHeight - toolbarHeight - edgeMargin
+  );
+  const maxLeft = Math.max(
+    edgeMargin,
+    window.innerWidth - toolbarWidth - edgeMargin
+  );
 
   // 决定工具栏位置
-  let top: number
+  let top: number;
   // 1. 优先尝试放在选区下方
-  if (y + height + toolbarHeight + toolbarGap <= window.innerHeight - edgeMargin) {
-    top = y + height + toolbarGap
+  if (
+    y + height + toolbarHeight + toolbarGap <=
+    window.innerHeight - edgeMargin
+  ) {
+    top = y + height + toolbarGap;
   }
   // 2. 否则，尝试放在选区上方
   else if (y - toolbarHeight - toolbarGap >= edgeMargin) {
-    top = y - toolbarHeight - toolbarGap
+    top = y - toolbarHeight - toolbarGap;
   }
   // 3. 如果上下都没空间，则放在选区内部的底部
   else {
-    top = y + height - toolbarHeight - edgeMargin
+    top = y + height - toolbarHeight - edgeMargin;
   }
-  top = Math.min(Math.max(top, edgeMargin), maxTop)
+  top = Math.min(Math.max(top, edgeMargin), maxTop);
 
   // 与选区水平居中，空间不足时贴近屏幕安全边距。
-  const left = Math.min(Math.max(x + (width - toolbarWidth) / 2, edgeMargin), maxLeft)
+  const left = Math.min(
+    Math.max(x + (width - toolbarWidth) / 2, edgeMargin),
+    maxLeft
+  );
 
   return {
     left: `${left}px`,
     top: `${top}px`
-  }
-})
+  };
+});
 
 // 尺寸信息样式
 const sizeInfoStyle = computed(() => {
-  if (!state.value.selectionRect) return {}
+  if (!state.value.selectionRect) return {};
 
-  const { x, y, width, height } = state.value.selectionRect
-  const offset = 10
+  const { x, y, width, height } = state.value.selectionRect;
+  const offset = 10;
 
-  let left = x - offset
-  let top = y - offset
-  let transform = 'translateY(-100%)'
+  let left = x - offset;
+  let top = y - offset;
+  let transform = 'translateY(-100%)';
 
   if (left < 10) {
-    left = x + width + offset
-    transform = 'translateY(-100%)'
+    left = x + width + offset;
+    transform = 'translateY(-100%)';
   }
 
   if (top < 30) {
-    top = y + height + offset
-    transform = 'translateY(0)'
+    top = y + height + offset;
+    transform = 'translateY(0)';
   }
 
   return {
     left: `${left}px`,
     top: `${top}px`,
     transform: transform
-  }
-})
+  };
+});
 
 // 尺寸信息文本
 const sizeInfoText = computed(() => {
-  if (!state.value.selectionRect) return ''
-  const { width, height } = state.value.selectionRect
-  return `${Math.round(width)} × ${Math.round(height)}`
-})
+  if (!state.value.selectionRect) return '';
+  const { width, height } = state.value.selectionRect;
+  return `${Math.round(width)} × ${Math.round(height)}`;
+});
 
-const textInputColor = computed(() =>
-  editingAnnotation?.getData().style.color || state.value.currentStyle.color
-)
+const textInputColor = computed(
+  () =>
+    editingAnnotation?.getData().style.color || state.value.currentStyle.color
+);
 
 // 文字输入框样式
 const textInputStyle = computed(() => {
-  const origin = editingAnnotation?.getData().type === ToolType.Marker
-    ? getMarkerTextOrigin(textInputPosition.value, textInputFontSize.value)
-    : getTextOrigin(textInputPosition.value)
+  const origin =
+    editingAnnotation?.getData().type === ToolType.Marker
+      ? getMarkerTextOrigin(textInputPosition.value, textInputFontSize.value)
+      : getTextOrigin(textInputPosition.value);
   return {
     '--text-accent-color': textInputColor.value,
     left: `${origin.x}px`,
     top: `${origin.y}px`
-  }
-})
+  };
+});
 
 // 事件处理函数
 const handleToolSelect = (tool: ToolType) => {
   // 贴图工具特殊处理：如果有选区，立即执行贴图操作
   if (tool === ToolType.Pin && state.value.selectionRect) {
-    handlePin()
-    return
+    handlePin();
+    return;
   }
 
   if (tool === ToolType.Ocr && state.value.selectionRect) {
-    handleOcr()
-    return
+    handleOcr();
+    return;
   }
 
-  screenshotManager?.setTool(tool)
-}
+  screenshotManager?.setTool(tool);
+};
 
 // 处理贴图操作
 const handlePin = async () => {
   try {
-    await screenshotManager?.createPinWindow()
+    await screenshotManager?.createPinWindow();
   } catch (error) {
-    logger.error('[截图] 创建贴图失败', error)
+    logger.error('[截图] 创建贴图失败', error);
   }
-}
+};
 
 const handleOcr = async () => {
   try {
-    await screenshotManager?.createOcrPinWindow()
+    await screenshotManager?.createOcrPinWindow();
   } catch (error) {
-    logger.error('[截图] 创建文字识别贴图失败', error)
+    logger.error('[截图] 创建文字识别贴图失败', error);
   }
-}
+};
 
 const handleColorChange = (color: string) => {
-  screenshotManager?.updateStyle({ color })
-}
+  screenshotManager?.updateStyle({ color });
+};
 
 const handleLineWidthChange = (lineWidth: number) => {
-  screenshotManager?.updateStyle({ lineWidth })
-}
+  screenshotManager?.updateStyle({ lineWidth });
+};
 
 const handleOpacityChange = (opacity: number) => {
-  screenshotManager?.updateStyle({ opacity })
-}
+  screenshotManager?.updateStyle({ opacity });
+};
 
 const handleTextSizeChange = (size: number) => {
-  screenshotManager?.updateTextSize(size)
-}
+  screenshotManager?.updateTextSize(size);
+};
 
 const handleMosaicSizeChange = (size: number) => {
-  screenshotManager?.updateMosaicSize(size)
-}
+  screenshotManager?.updateMosaicSize(size);
+};
 
 const handleSelectionCornerRadiusChange = (radius: number) => {
-  screenshotManager?.updateSelectionCornerRadius(radius)
-}
+  screenshotManager?.updateSelectionCornerRadius(radius);
+};
 
-const handleTranslateEngineChange = (engine: 'google' | 'bing' | 'offline' | 'local-ai') => {
-  translateEngine.value = engine
-  screenshotManager?.setTranslationEngine(engine)
+const handleTranslateEngineChange = (
+  engine: 'google' | 'bing' | 'offline' | 'local-ai'
+) => {
+  translateEngine.value = engine;
+  screenshotManager?.setTranslationEngine(engine);
   // 选择引擎后执行翻译
-  screenshotManager?.executeTranslation()
-}
+  screenshotManager?.executeTranslation();
+};
 
 const handleUndo = () => {
-  screenshotManager?.undoAnnotation()
-}
+  screenshotManager?.undoAnnotation();
+};
 
 const handleRedo = () => {
-  screenshotManager?.redoAnnotation()
-}
+  screenshotManager?.redoAnnotation();
+};
 
 const handleDelete = () => {
-  screenshotManager?.deleteSelectedAnnotation()
-}
+  screenshotManager?.deleteSelectedAnnotation();
+};
 
 const handleSave = async () => {
   try {
-    await screenshotManager?.processScreenshot('save')
-    closeWindow()
+    await screenshotManager?.processScreenshot('save');
+    closeWindow();
   } catch (error: any) {
-    const errorMessage = error?.message || error?.toString() || '保存失败'
+    const errorMessage = error?.message || error?.toString() || '保存失败';
 
     // 如果是用户取消保存，不显示错误
-    if (errorMessage.includes('保存已取消') || errorMessage.includes('cancelled')) {
-      return
+    if (
+      errorMessage.includes('保存已取消') ||
+      errorMessage.includes('cancelled')
+    ) {
+      return;
     }
 
-    logger.error('保存截图时发生错误', errorMessage)
+    logger.error('保存截图时发生错误', errorMessage);
   }
-}
+};
 
 const handleConfirm = async () => {
   try {
-    await screenshotManager?.processScreenshot('copy')
-    closeWindow()
-  } catch (error) {
-  }
-}
+    await screenshotManager?.processScreenshot('copy');
+    closeWindow();
+  } catch (error) {}
+};
 
 const handleCancel = () => {
   // // 如果翻译覆盖层正在显示，先清除翻译覆盖层而不是关闭窗口
@@ -349,11 +407,11 @@ const handleCancel = () => {
   //   screenshotManager?.clearTranslationOverlay()
   //   return
   // }
-  closeWindow()
-}
+  closeWindow();
+};
 
 const startTextInput = (
-  position: { x: number, y: number },
+  position: { x: number; y: number },
   existingAnnotation?: BaseAnnotation
 ) => {
   // 如果是编辑已有标注，使用标注的实际绘制位置
@@ -361,151 +419,163 @@ const startTextInput = (
     existingAnnotation &&
     [ToolType.Text, ToolType.Marker].includes(existingAnnotation.getData().type)
   ) {
-    const annotationData = existingAnnotation.getData()
+    const annotationData = existingAnnotation.getData();
     textInputPosition.value = {
       x: annotationData.points[0].x,
       y: annotationData.points[0].y
-    }
-    textInputFontSize.value = annotationData.fontSize || state.value.textSize
+    };
+    textInputFontSize.value = annotationData.fontSize || state.value.textSize;
   } else {
     // 新增时使用用户点击的位置
-    textInputPosition.value = position
-    textInputFontSize.value = state.value.textSize
+    textInputPosition.value = position;
+    textInputFontSize.value = state.value.textSize;
   }
 
-  isTextInputVisible.value = true
-  editingAnnotation = existingAnnotation || null
+  isTextInputVisible.value = true;
+  editingAnnotation = existingAnnotation || null;
 
   // 如果是编辑模式，隐藏原始注释
   if (existingAnnotation) {
-    screenshotManager?.setEditingAnnotation(existingAnnotation)
+    screenshotManager?.setEditingAnnotation(existingAnnotation);
   }
 
   // 如果是编辑已有标注，预填充文字
   if (existingAnnotation && existingAnnotation.getData().text) {
-    textInput.value = existingAnnotation.getData().text || ''
+    textInput.value = existingAnnotation.getData().text || '';
   } else {
-    textInput.value = ''
+    textInput.value = '';
   }
 
   nextTick(() => {
-    textInputRef.value?.focus()
+    textInputRef.value?.focus();
     // 如果是编辑模式，选中所有文字
     if (editingAnnotation) {
-      textInputRef.value?.select()
+      textInputRef.value?.select();
     }
-  })
-}
+  });
+};
 
 const confirmTextInput = () => {
-  const isMarker = editingAnnotation?.getData().type === ToolType.Marker
+  const isMarker = editingAnnotation?.getData().type === ToolType.Marker;
   if (textInput.value.trim() || isMarker) {
     if (editingAnnotation) {
       // 更新已有的文字标注
-      screenshotManager?.updateTextAnnotation(editingAnnotation, textInput.value.trim())
+      screenshotManager?.updateTextAnnotation(
+        editingAnnotation,
+        textInput.value.trim()
+      );
     } else {
       // 创建新的文字标注
-      screenshotManager?.createTextAnnotation(textInputPosition.value, textInput.value)
+      screenshotManager?.createTextAnnotation(
+        textInputPosition.value,
+        textInput.value
+      );
     }
   } else if (editingAnnotation) {
     // 如果文字为空且是编辑模式，删除标注
-    screenshotManager?.deleteAnnotation(editingAnnotation)
+    screenshotManager?.deleteAnnotation(editingAnnotation);
   }
-  cancelTextInput()
-}
+  cancelTextInput();
+};
 
 const cancelTextInput = () => {
-  isTextInputVisible.value = false
-  textInput.value = ''
+  isTextInputVisible.value = false;
+  textInput.value = '';
 
   // 清除编辑状态，恢复显示原始注释
   if (editingAnnotation) {
-    screenshotManager?.clearEditingAnnotation()
+    screenshotManager?.clearEditingAnnotation();
   }
 
-  editingAnnotation = null
-}
+  editingAnnotation = null;
+};
 
 // 处理颜色取样
 const handleColorPicked = (colorInfo: ColorInfo) => {
   // 自动复制HEX值到剪贴板
   if (navigator.clipboard) {
-    navigator.clipboard.writeText(colorInfo.hex).catch(error => {
-      logger.error('[截图] 复制颜色到剪贴板失败', error)
-    })
+    navigator.clipboard.writeText(colorInfo.hex).catch((error) => {
+      logger.error('[截图] 复制颜色到剪贴板失败', error);
+    });
   }
-}
+};
 
 // 键盘事件处理
 const handleKeydown = (event: KeyboardEvent) => {
   // 禁用系统快捷键
-  if (event.key === 'Meta' || event.key === 'Win' || 
-      (event.altKey && event.key === 'Tab') ||
-      (event.altKey && event.key === 'F4')) {
-    event.preventDefault()
-    event.stopPropagation()
-    return
+  if (
+    event.key === 'Meta' ||
+    event.key === 'Win' ||
+    (event.altKey && event.key === 'Tab') ||
+    (event.altKey && event.key === 'F4')
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+    return;
   }
 
   // 如果文字输入框聚焦，允许所有输入（除了系统快捷键）
-  if (isTextInputVisible.value && document.activeElement === textInputRef.value) {
+  if (
+    isTextInputVisible.value &&
+    document.activeElement === textInputRef.value
+  ) {
     // Escape 键关闭输入框
     if (event.key === 'Escape') {
-      cancelTextInput()
-      event.preventDefault()
-      return
+      cancelTextInput();
+      event.preventDefault();
+      return;
     }
     // Enter 键确认输入
     if (event.key === 'Enter') {
-      confirmTextInput()
-      event.preventDefault()
-      return
+      confirmTextInput();
+      event.preventDefault();
+      return;
     }
     // Tab 键：阻止默认行为（避免焦点移动导致窗口关闭）
     if (event.key === 'Tab') {
-      event.preventDefault()
-      return
+      event.preventDefault();
+      return;
     }
     // 其他键（方向键、字母、数字等）允许正常输入
     // 不阻止事件传播，让输入框正常处理
-    return
+    return;
   }
 
   // 未选中区域时
   if (!state.value.selectionRect) {
     if (event.key === 'Escape') {
-      closeWindow()
-      return
+      closeWindow();
+      return;
     }
     // 屏蔽其他所有键盘事件，但不关闭窗口
-    event.preventDefault()
-    event.stopPropagation()
-    return
+    event.preventDefault();
+    event.stopPropagation();
+    return;
   }
 
   // 已选中区域时，让ScreenshotManager先处理特殊键盘事件（取色器的Q/Shift）
   if (screenshotManager?.handleKeyDown(event)) {
-    event.preventDefault()
-    return
+    event.preventDefault();
+    return;
   }
 
-  const isMacLike = navigator.platform.toLowerCase().includes('mac')
-  const isPrimaryModifierPressed = isMacLike ? event.metaKey : event.ctrlKey
+  const isMacLike = navigator.platform.toLowerCase().includes('mac');
+  const isPrimaryModifierPressed = isMacLike ? event.metaKey : event.ctrlKey;
 
   if (isPrimaryModifierPressed && event.key.toLowerCase() === 'z') {
     if (event.shiftKey) {
-      handleRedo()
+      handleRedo();
     } else {
-      handleUndo()
+      handleUndo();
     }
-    event.preventDefault()
-    return
+    event.preventDefault();
+    return;
   }
 
   if (!isMacLike && event.ctrlKey && event.key.toLowerCase() === 'y') {
-    handleRedo()
-    event.preventDefault()
-    return
+    handleRedo();
+    event.preventDefault();
+    return;
   }
 
   // 处理功能键
@@ -517,39 +587,39 @@ const handleKeydown = (event: KeyboardEvent) => {
     //   event.preventDefault()
     //   return
     // }
-    closeWindow()
-    return
+    closeWindow();
+    return;
   } else if (event.key === 'Delete' || event.key === 'Backspace') {
-    handleDelete()
-    event.preventDefault()
-    return
+    handleDelete();
+    event.preventDefault();
+    return;
   }
 
   // 其他键盘事件：阻止默认行为，但不关闭窗口
   // 这样可以避免意外按键导致截图窗口关闭
   if (!['Shift', 'Control', 'Alt', 'Meta'].includes(event.key)) {
-    event.preventDefault()
+    event.preventDefault();
   }
-}
+};
 
 // 关闭窗口
 const closeWindow = async () => {
-  if (isClosing) return
-  isClosing = true
+  if (isClosing) return;
+  isClosing = true;
 
   // 先销毁截图管理器，清理所有资源
-  screenshotManager?.destroy()
-  screenshotManager = null
+  screenshotManager?.destroy();
+  screenshotManager = null;
 
   // 清理后台截图缓存和相关资源，释放内存
   try {
-    await invoke('cleanup_screenshot_resources')
+    await invoke('cleanup_screenshot_resources');
   } catch (error) {
     // 如果深度清理失败，尝试基本清理
     try {
-      await invoke('clear_screenshot_background')
+      await invoke('clear_screenshot_background');
     } catch (fallbackError) {
-      logger.error('[截图] 清理后台缓存失败', fallbackError)
+      logger.error('[截图] 清理后台缓存失败', fallbackError);
     }
   }
 
@@ -567,53 +637,54 @@ const closeWindow = async () => {
     canRedo: false,
     selectedAnnotation: null,
     isDrawing: false
-  }
+  };
 
   // 清理文字输入状态
-  isTextInputVisible.value = false
-  textInput.value = ''
-  editingAnnotation = null
+  isTextInputVisible.value = false;
+  textInput.value = '';
+  editingAnnotation = null;
 
   // 清理其他状态
-  isLoading.value = false
-  showSizeInfo.value = true
+  isLoading.value = false;
+  showSizeInfo.value = true;
 
   // 关闭并销毁窗口，避免仅隐藏导致任务管理器残留
   try {
-    await invoke('close_and_destroy_screenshot_window')
+    await invoke('close_and_destroy_screenshot_window');
   } catch (error) {
-    logger.error('[截图] 销毁截图窗口失败，回退到 close()', error)
-    await appWindow.value?.close()
+    logger.error('[截图] 销毁截图窗口失败，回退到 close()', error);
+    await appWindow.value?.close();
   } finally {
-    isClosing = false
+    isClosing = false;
   }
-}
+};
 
 // 状态更新回调
 const handleStateChange = () => {
-  const newState = screenshotManager?.getState()
+  const newState = screenshotManager?.getState();
   if (newState) {
-    state.value = newState
+    state.value = newState;
   }
-}
+};
 
 const updateToolbarSize = () => {
-  const measured = toolbarRef.value?.getToolbarSize?.()
-  if (!measured) return
-  toolbarSize.value = measured
-}
+  const measured = toolbarRef.value?.getToolbarSize?.();
+  if (!measured) return;
+  toolbarSize.value = measured;
+};
 
 const handleToolbarResize = (event: Event) => {
-  const detail = (event as CustomEvent<{ width: number, height: number }>).detail
-  if (!detail) return
-  toolbarSize.value = detail
-}
+  const detail = (event as CustomEvent<{ width: number; height: number }>)
+    .detail;
+  if (!detail) return;
+  toolbarSize.value = detail;
+};
 
 // 生命周期
 onMounted(async () => {
-  if (!canvasRef.value) return
+  if (!canvasRef.value) return;
 
-  appWindow.value = new Window('screenshot')
+  appWindow.value = new Window('screenshot');
 
   // 后端已在创建 WebView 前准备好背景；先完成管理器和退出监听，再声明 ready。
   screenshotManager = new ScreenshotManager(
@@ -621,90 +692,114 @@ onMounted(async () => {
     handleStateChange,
     startTextInput,
     handleColorPicked
-  )
+  );
 
   // 添加键盘事件监听
-  document.addEventListener('keydown', handleKeydown)
-  window.addEventListener('resize', updateToolbarSize)
-  window.addEventListener('screenshot-toolbar-resize', handleToolbarResize)
+  document.addEventListener('keydown', handleKeydown);
+  window.addEventListener('resize', updateToolbarSize);
+  window.addEventListener('screenshot-toolbar-resize', handleToolbarResize);
 
   // 监听后端主动请求关闭截图窗口
-  unlistenCloseRequested.value = await listen('screenshot-close-requested', () => {
-    closeWindow()
-  })
+  unlistenCloseRequested.value = await listen(
+    'screenshot-close-requested',
+    () => {
+      closeWindow();
+    }
+  );
 
   // 监听窗口失焦（用户切换到其他窗口）
   unlistenBlur.value = await listen('tauri://blur', () => {
     // 如果文字输入框正在使用，不关闭窗口（可能是调出输入法）
-    if (isTextInputVisible.value && document.activeElement === textInputRef.value) {
-      return
+    if (
+      isTextInputVisible.value &&
+      document.activeElement === textInputRef.value
+    ) {
+      return;
     }
 
     // 如果正在进行OCR翻译，不关闭窗口
-    const translationState = screenshotManager?.getTranslationState()
+    const translationState = screenshotManager?.getTranslationState();
     if (translationState?.isLoading || translationState?.isVisible) {
-      return
+      return;
     }
 
     // 延迟一下再关闭，避免误触
     setTimeout(() => {
       // 再次检查文字输入状态
-      if (!isTextInputVisible.value || document.activeElement !== textInputRef.value) {
+      if (
+        !isTextInputVisible.value ||
+        document.activeElement !== textInputRef.value
+      ) {
         // 再次检查翻译状态
-        const currentTranslationState = screenshotManager?.getTranslationState()
-        if (currentTranslationState?.isLoading || currentTranslationState?.isVisible) {
-          return
+        const currentTranslationState =
+          screenshotManager?.getTranslationState();
+        if (
+          currentTranslationState?.isLoading ||
+          currentTranslationState?.isVisible
+        ) {
+          return;
         }
-        closeWindow()
+        closeWindow();
       }
-    }, 100)
-  })
+    }, 100);
+  });
 
-  await nextTick()
-  updateToolbarSize()
-  await appWindow.value.emit('screenshot_ready')
+  await nextTick();
+  updateToolbarSize();
+  await appWindow.value.emit('screenshot_ready');
 
   // 非关键设置在窗口可安全退出后加载，避免单个 invoke 延迟 ready。
   try {
-    const savedEngine = await invoke<string>('get_translation_engine')
-    if (savedEngine && ['google', 'bing', 'offline', 'local-ai'].includes(savedEngine)) {
-      translateEngine.value = savedEngine as 'google' | 'bing' | 'offline' | 'local-ai'
-      screenshotManager?.setTranslationEngine(savedEngine as 'google' | 'bing' | 'offline' | 'local-ai')
+    const savedEngine = await invoke<string>('get_translation_engine');
+    if (
+      savedEngine &&
+      ['google', 'bing', 'offline', 'local-ai'].includes(savedEngine)
+    ) {
+      translateEngine.value = savedEngine as
+        | 'google'
+        | 'bing'
+        | 'offline'
+        | 'local-ai';
+      screenshotManager?.setTranslationEngine(
+        savedEngine as 'google' | 'bing' | 'offline' | 'local-ai'
+      );
     }
   } catch (error) {
-    logger.error('[截图] 获取翻译引擎设置失败', error)
+    logger.error('[截图] 获取翻译引擎设置失败', error);
   }
 
   try {
-    const backendActivated = await invoke<boolean>('get_offline_model_activated')
-    screenshotManager?.setOfflineModelActivated(backendActivated)
+    const backendActivated = await invoke<boolean>(
+      'get_offline_model_activated'
+    );
+    screenshotManager?.setOfflineModelActivated(backendActivated);
   } catch (error) {
-    logger.error('[截图] 获取离线模型激活状态失败', error)
+    logger.error('[截图] 获取离线模型激活状态失败', error);
   }
-})
+});
 
 onUnmounted(() => {
   // 确保所有资源都被清理
-  screenshotManager?.destroy()
-  screenshotManager = null
+  screenshotManager?.destroy();
+  screenshotManager = null;
 
   // 移除事件监听器
-  document.removeEventListener('keydown', handleKeydown)
-  window.removeEventListener('resize', updateToolbarSize)
-  window.removeEventListener('screenshot-toolbar-resize', handleToolbarResize)
+  document.removeEventListener('keydown', handleKeydown);
+  window.removeEventListener('resize', updateToolbarSize);
+  window.removeEventListener('screenshot-toolbar-resize', handleToolbarResize);
 
   // 清理Tauri事件监听器
-  unlistenBlur.value?.()
-  unlistenCloseRequested.value?.()
+  unlistenBlur.value?.();
+  unlistenCloseRequested.value?.();
 
   // 清理引用
-  unlistenBlur.value = undefined
-  unlistenCloseRequested.value = undefined
-  appWindow.value = null
+  unlistenBlur.value = undefined;
+  unlistenCloseRequested.value = undefined;
+  appWindow.value = null;
 
   // 清理DOM引用
   // canvasRef 和 textInputRef 会被Vue自动清理
-})
+});
 </script>
 
 <style scoped lang="scss">
@@ -753,7 +848,8 @@ onUnmounted(() => {
     @apply absolute -inset-1 pointer-events-none rounded;
 
     content: '';
-    border: 1px dashed color-mix(in srgb, var(--text-accent-color) 78%, transparent);
+    border: 1px dashed
+      color-mix(in srgb, var(--text-accent-color) 78%, transparent);
   }
 
   .text-input {

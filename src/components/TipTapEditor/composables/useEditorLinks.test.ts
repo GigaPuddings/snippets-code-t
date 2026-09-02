@@ -1,11 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import { useEditorLinks } from './useEditorLinks';
 
-const createMouseEvent = () => ({
-  preventDefault: vi.fn(),
-  stopPropagation: vi.fn(),
-  stopImmediatePropagation: vi.fn()
-}) as unknown as MouseEvent;
+const createMouseEvent = () =>
+  ({
+    preventDefault: vi.fn(),
+    stopPropagation: vi.fn(),
+    stopImmediatePropagation: vi.fn()
+  }) as unknown as MouseEvent;
 
 const createLinkTarget = (href: string) => {
   const link = {
@@ -26,7 +27,9 @@ describe('useEditorLinks', () => {
     };
     const scrollContainer = {
       scrollTop: 0,
-      querySelectorAll: vi.fn((selector: string) => (selector === '[id], a[name]' ? [anchor] : []))
+      querySelectorAll: vi.fn((selector: string) =>
+        selector === '[id], a[name]' ? [anchor] : []
+      )
     } as unknown as HTMLElement;
     const event = createMouseEvent();
     Object.defineProperty(event, 'target', {
@@ -63,11 +66,14 @@ describe('useEditorLinks', () => {
       state: {
         doc: {
           descendants: vi.fn((callback: (node: any, pos: number) => void) => {
-            callback({
-              type: { name: 'heading' },
-              attrs: { level: 2 },
-              textContent: 'Usage Guide'
-            }, 4);
+            callback(
+              {
+                type: { name: 'heading' },
+                attrs: { level: 2 },
+                textContent: 'Usage Guide'
+              },
+              4
+            );
           })
         }
       }
@@ -115,7 +121,9 @@ describe('useEditorLinks', () => {
       openExternalUrl
     });
 
-    expect(links.handleLinkClick({ dom: {} as HTMLElement }, event)).toBe(false);
+    expect(links.handleLinkClick({ dom: {} as HTMLElement }, event)).toBe(
+      false
+    );
     expect(openExternalUrl).not.toHaveBeenCalled();
     expect(event.preventDefault).not.toHaveBeenCalled();
   });
@@ -132,7 +140,15 @@ describe('useEditorLinks', () => {
     links.setupAnchorClickInterceptor(editorElement);
     links.cleanupAnchorClickInterceptor();
 
-    expect(editorElement.addEventListener).toHaveBeenCalledWith('click', expect.any(Function), true);
-    expect(editorElement.removeEventListener).toHaveBeenCalledWith('click', expect.any(Function), true);
+    expect(editorElement.addEventListener).toHaveBeenCalledWith(
+      'click',
+      expect.any(Function),
+      true
+    );
+    expect(editorElement.removeEventListener).toHaveBeenCalledWith(
+      'click',
+      expect.any(Function),
+      true
+    );
   });
 });

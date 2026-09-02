@@ -95,9 +95,12 @@ export function continueOrderedListAfterTable(editor: Editor): boolean {
   const tableDepth = findAncestorDepth($from, 'table');
 
   if (cellDepth < 0 || rowDepth < 0 || tableDepth < 0) return false;
-  if ($from.index(rowDepth) !== $from.node(rowDepth).childCount - 1) return false;
-  if ($from.index(tableDepth) !== $from.node(tableDepth).childCount - 1) return false;
-  if ($from.index(cellDepth) !== $from.node(cellDepth).childCount - 1) return false;
+  if ($from.index(rowDepth) !== $from.node(rowDepth).childCount - 1)
+    return false;
+  if ($from.index(tableDepth) !== $from.node(tableDepth).childCount - 1)
+    return false;
+  if ($from.index(cellDepth) !== $from.node(cellDepth).childCount - 1)
+    return false;
 
   const paragraph = state.schema.nodes.paragraph?.create();
   const listItemType = state.schema.nodes.listItem;
@@ -128,7 +131,13 @@ export function continueOrderedListAfterTable(editor: Editor): boolean {
       return true;
     }
 
-    if (!orderedList.canReplace(itemIndex + 1, itemIndex + 1, Fragment.from(nextListItem))) {
+    if (
+      !orderedList.canReplace(
+        itemIndex + 1,
+        itemIndex + 1,
+        Fragment.from(nextListItem)
+      )
+    ) {
       return false;
     }
 
@@ -142,16 +151,28 @@ export function continueOrderedListAfterTable(editor: Editor): boolean {
   const tableParentDepth = tableDepth - 1;
   const tableParent = $from.node(tableParentDepth);
   const tableIndex = $from.index(tableParentDepth);
-  const previousNode = tableIndex > 0 ? tableParent.child(tableIndex - 1) : null;
+  const previousNode =
+    tableIndex > 0 ? tableParent.child(tableIndex - 1) : null;
 
   const insertAt = tr.mapping.map($from.after(tableDepth));
-  if (previousNode?.type.name === 'orderedList' && orderedListType && listItemType) {
-    const start = Number(previousNode.attrs.start || 1) + previousNode.childCount;
+  if (
+    previousNode?.type.name === 'orderedList' &&
+    orderedListType &&
+    listItemType
+  ) {
+    const start =
+      Number(previousNode.attrs.start || 1) + previousNode.childCount;
     const continuedList = orderedListType.create(
       { ...previousNode.attrs, start },
       listItemType.create(null, paragraph)
     );
-    if (!tableParent.canReplace(tableIndex + 1, tableIndex + 1, Fragment.from(continuedList))) {
+    if (
+      !tableParent.canReplace(
+        tableIndex + 1,
+        tableIndex + 1,
+        Fragment.from(continuedList)
+      )
+    ) {
       return false;
     }
     tr.insert(insertAt, continuedList);
@@ -160,7 +181,13 @@ export function continueOrderedListAfterTable(editor: Editor): boolean {
     return true;
   }
 
-  if (!tableParent.canReplace(tableIndex + 1, tableIndex + 1, Fragment.from(paragraph))) {
+  if (
+    !tableParent.canReplace(
+      tableIndex + 1,
+      tableIndex + 1,
+      Fragment.from(paragraph)
+    )
+  ) {
     return false;
   }
   tr.insert(insertAt, paragraph);
@@ -183,7 +210,12 @@ function offsetToLineIndex(text: string, offset: number): number {
 /**
  * 将 [lo, hi) 选区映射到「参与缩进的行」：与 VS Code 一致，跨行选区对涉及的所有整行生效
  */
-function getIndentLineRange(text: string, lo: number, hi: number, empty: boolean): { startLine: number; endLine: number } {
+function getIndentLineRange(
+  text: string,
+  lo: number,
+  hi: number,
+  empty: boolean
+): { startLine: number; endLine: number } {
   if (empty) {
     const line = offsetToLineIndex(text, lo);
     return { startLine: line, endLine: line };
@@ -205,7 +237,12 @@ function lineStartOffset(lines: string[], lineIndex: number): number {
 }
 
 /** 缩进后映射原偏移（用于恢复选区） */
-function mapOffsetAfterIndent(off: number, startLine: number, endLine: number, text: string): number {
+function mapOffsetAfterIndent(
+  off: number,
+  startLine: number,
+  endLine: number,
+  text: string
+): number {
   const line = offsetToLineIndex(text, Math.min(off, text.length));
   if (line < startLine) return off;
   if (line > endLine) return off + INDENT.length * (endLine - startLine + 1);
@@ -282,12 +319,26 @@ export function insertTextBlockBracePairNewline(editor: Editor): boolean {
   const { selection } = state;
   const { $from } = selection;
 
-  if (!selection.empty || findCodeBlockDepth($from) >= 0 || !$from.parent.isTextblock) {
+  if (
+    !selection.empty ||
+    findCodeBlockDepth($from) >= 0 ||
+    !$from.parent.isTextblock
+  ) {
     return false;
   }
 
-  const textBefore = state.doc.textBetween($from.start(), selection.from, '\n', '\n');
-  const textAfter = state.doc.textBetween(selection.from, $from.end(), '\n', '\n');
+  const textBefore = state.doc.textBetween(
+    $from.start(),
+    selection.from,
+    '\n',
+    '\n'
+  );
+  const textAfter = state.doc.textBetween(
+    selection.from,
+    $from.end(),
+    '\n',
+    '\n'
+  );
   const pairedBraceEdit = createPairedBraceEnterEdit(
     textBefore + textAfter,
     textBefore.length,
@@ -299,8 +350,13 @@ export function insertTextBlockBracePairNewline(editor: Editor): boolean {
   const hardBreakType = state.schema.nodes.hardBreak;
   if (!hardBreakType) return false;
 
-  const innerIndent = pairedBraceEdit.insert.slice(1, pairedBraceEdit.cursorOffset);
-  const trailingIndent = pairedBraceEdit.insert.slice(pairedBraceEdit.cursorOffset + 1);
+  const innerIndent = pairedBraceEdit.insert.slice(
+    1,
+    pairedBraceEdit.cursorOffset
+  );
+  const trailingIndent = pairedBraceEdit.insert.slice(
+    pairedBraceEdit.cursorOffset + 1
+  );
   const inlineNodes = [
     hardBreakType.create(),
     ...(innerIndent ? [state.schema.text(innerIndent)] : []),
@@ -308,7 +364,9 @@ export function insertTextBlockBracePairNewline(editor: Editor): boolean {
     ...(trailingIndent ? [state.schema.text(trailingIndent)] : [])
   ];
   const tr = state.tr.insert(selection.from, Fragment.fromArray(inlineNodes));
-  tr.setSelection(TextSelection.create(tr.doc, selection.from + pairedBraceEdit.cursorOffset));
+  tr.setSelection(
+    TextSelection.create(tr.doc, selection.from + pairedBraceEdit.cursorOffset)
+  );
   editor.view.dispatch(tr.scrollIntoView());
   return true;
 }
@@ -370,7 +428,7 @@ function handleIndent(editor: Editor): boolean {
       return true;
     });
 
-    if (!indentActions.some(a => a.pos >= from && a.pos <= from + 1)) {
+    if (!indentActions.some((a) => a.pos >= from && a.pos <= from + 1)) {
       indentActions.unshift({ pos: from, text: INDENT });
     }
 
@@ -441,12 +499,23 @@ function handleDedent(editor: Editor): boolean {
     // 普通文本中的 Shift-Tab 反缩进
     if (from === to) {
       const doc = state.doc;
-      const textBefore = doc.textBetween(Math.max(0, from - INDENT.length), from);
+      const textBefore = doc.textBetween(
+        Math.max(0, from - INDENT.length),
+        from
+      );
       if (textBefore.endsWith(INDENT)) {
-        return editor.chain().focus().deleteRange({ from: from - INDENT.length, to: from }).run();
+        return editor
+          .chain()
+          .focus()
+          .deleteRange({ from: from - INDENT.length, to: from })
+          .run();
       }
       if (textBefore.endsWith(' ') || textBefore.endsWith('\t')) {
-        return editor.chain().focus().deleteRange({ from: from - 1, to: from }).run();
+        return editor
+          .chain()
+          .focus()
+          .deleteRange({ from: from - 1, to: from })
+          .run();
       }
       return true;
     }
@@ -478,7 +547,10 @@ function handleDedent(editor: Editor): boolean {
             let removeLen = 0;
             if (afterText.startsWith(INDENT)) {
               removeLen = INDENT.length;
-            } else if (afterText.startsWith('\t') || afterText.startsWith(' ')) {
+            } else if (
+              afterText.startsWith('\t') ||
+              afterText.startsWith(' ')
+            ) {
               removeLen = 1;
             }
             if (removeLen > 0) {
@@ -498,10 +570,13 @@ function handleDedent(editor: Editor): boolean {
       let removeLen = 0;
       if (textFromOffset.startsWith(INDENT)) {
         removeLen = INDENT.length;
-      } else if (textFromOffset.startsWith('\t') || textFromOffset.startsWith(' ')) {
+      } else if (
+        textFromOffset.startsWith('\t') ||
+        textFromOffset.startsWith(' ')
+      ) {
         removeLen = 1;
       }
-      if (removeLen > 0 && !dedentActions.some(a => a.from === from)) {
+      if (removeLen > 0 && !dedentActions.some((a) => a.from === from)) {
         dedentActions.unshift({ from, to: from + removeLen });
       }
     }
@@ -512,7 +587,10 @@ function handleDedent(editor: Editor): boolean {
         const action = dedentActions[i];
         tr.delete(action.from, action.to);
       }
-      const totalRemoved = dedentActions.reduce((sum, a) => sum + (a.to - a.from), 0);
+      const totalRemoved = dedentActions.reduce(
+        (sum, a) => sum + (a.to - a.from),
+        0
+      );
       tr.setSelection(TextSelection.create(tr.doc, from, to - totalRemoved));
       editor.view.dispatch(tr);
       delayedScrollIntoView(editor);
@@ -569,8 +647,22 @@ function handleDedent(editor: Editor): boolean {
     Fragment.from(schema.text(newText))
   );
 
-  const na = mapOffsetAfterDedent(lo, startLine, endLine, lines, removedPerLine, newLines);
-  const nb = mapOffsetAfterDedent(hi, startLine, endLine, lines, removedPerLine, newLines);
+  const na = mapOffsetAfterDedent(
+    lo,
+    startLine,
+    endLine,
+    lines,
+    removedPerLine,
+    newLines
+  );
+  const nb = mapOffsetAfterDedent(
+    hi,
+    startLine,
+    endLine,
+    lines,
+    removedPerLine,
+    newLines
+  );
   const newFrom = contentStart + Math.max(0, na);
   const newTo = contentStart + Math.max(0, nb);
   tr.setSelection(TextSelection.create(tr.doc, newFrom, newTo));
@@ -586,7 +678,7 @@ export const CustomEnterBehavior = Extension.create({
 
   addKeyboardShortcuts() {
     return {
-      'Enter': () => {
+      Enter: () => {
         const { $from } = this.editor.state.selection;
         const d = findCodeBlockDepth($from);
         if (d >= 0) {
@@ -615,7 +707,7 @@ export const CustomEnterBehavior = Extension.create({
         return this.editor.commands.setHardBreak();
       },
 
-      'Space': () => {
+      Space: () => {
         return exitBulletListOnMarkerSpace(this.editor);
       },
 
@@ -625,7 +717,7 @@ export const CustomEnterBehavior = Extension.create({
         return this.editor.chain().focus().addRowAfter().run();
       },
 
-      'Tab': () => {
+      Tab: () => {
         return handleIndent(this.editor);
       },
 
@@ -643,7 +735,11 @@ export const CustomEnterBehavior = Extension.create({
         const contentEnd = blockPos + block.nodeSize - 1;
         if (contentStart >= contentEnd + 1) return true;
         const tr = this.editor.state.tr.setSelection(
-          TextSelection.create(this.editor.state.doc, contentStart, contentEnd + 1)
+          TextSelection.create(
+            this.editor.state.doc,
+            contentStart,
+            contentEnd + 1
+          )
         );
         this.editor.view.dispatch(tr);
         return true;
@@ -668,7 +764,7 @@ export const CustomEnterBehavior = Extension.create({
         );
         this.editor.view.dispatch(tr);
         return true;
-      },
+      }
     };
-  },
+  }
 });

@@ -8,7 +8,13 @@
         <h2 class="title">{{ $t('notification.title') }}</h2>
       </div>
       <div class="titlebar-button" @click="$emit('close')">
-        <CloseSmall class="close-icon" theme="outline" size="20" :strokeWidth="2" strokeLinecap="butt" />
+        <CloseSmall
+          class="close-icon"
+          theme="outline"
+          size="20"
+          :strokeWidth="2"
+          strokeLinecap="butt"
+        />
       </div>
     </div>
     <div class="notification-body">{{ body }}</div>
@@ -45,6 +51,7 @@ defineEmits<{
 <style scoped lang="scss">
 .notification-header {
   @apply flex justify-between items-center mb-2;
+
   padding-bottom: 2px;
 }
 
@@ -54,6 +61,7 @@ defineEmits<{
 
 .icon-wrapper {
   @apply flex items-center justify-center rounded-full p-1;
+
   background: rgb(64 150 255 / 10%);
 }
 
@@ -67,6 +75,7 @@ defineEmits<{
 
 .notification-body {
   @apply text-sm text-panel-text-secondary whitespace-nowrap overflow-hidden text-ellipsis;
+
   padding: 0 4px;
 }
 

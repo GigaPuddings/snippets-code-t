@@ -263,7 +263,13 @@
                   :key="record.id"
                   :ref="(element) => setOcrRecordElement(record.id, element)"
                   class="ocr-record-item"
-                  :class="[`is-${record.kind}`, { selected: record.selected, 'is-linked': activeRecordId === record.id }]"
+                  :class="[
+                    `is-${record.kind}`,
+                    {
+                      selected: record.selected,
+                      'is-linked': activeRecordId === record.id
+                    }
+                  ]"
                   @click="handleRecordLinkClick(record.id)"
                 >
                   <div class="ocr-record-text" v-text="record.text"></div>
@@ -768,7 +774,11 @@ const selectedOcrRecords = computed(() =>
 );
 
 const imageSelectionHint = computed(() => {
-  if (ocrLoading.value && !ocrText.value.trim() && ocrTextBlocks.value.length === 0) {
+  if (
+    ocrLoading.value &&
+    !ocrText.value.trim() &&
+    ocrTextBlocks.value.length === 0
+  ) {
     return t('pin.selectableTextPreparing');
   }
   if (ocrTextBlocks.value.length > 0) {
@@ -966,8 +976,7 @@ const handleBlockClick = (index: number) => {
  * 点击右侧 AI 记录时，高亮左侧图片上对应的文字块。
  */
 const handleRecordLinkClick = (recordId: string) => {
-  activeRecordId.value =
-    activeRecordId.value === recordId ? null : recordId;
+  activeRecordId.value = activeRecordId.value === recordId ? null : recordId;
 };
 
 const selectedOcrRecordCount = computed(() => selectedOcrRecords.value.length);
@@ -1131,7 +1140,10 @@ const recognizeTextBlocksFromImage = async (
     ocrTextBlocks.value = [];
     ocrDiagnosticLogger.log('[Pin RapidOCR] text blocks failed (fallback)', {
       requestId,
-      error: error instanceof Error ? `${error.name}: ${error.message}` : String(error)
+      error:
+        error instanceof Error
+          ? `${error.name}: ${error.message}`
+          : String(error)
     });
   }
 };
@@ -2353,7 +2365,8 @@ onUnmounted(() => {
         // 与右侧记录联动时，显示明显的主题色背景
         &.is-linked {
           background: color-mix(in srgb, var(--primary-color) 24%, transparent);
-          outline: 1px solid color-mix(in srgb, var(--primary-color) 40%, transparent);
+          outline: 1px solid
+            color-mix(in srgb, var(--primary-color) 40%, transparent);
         }
       }
 

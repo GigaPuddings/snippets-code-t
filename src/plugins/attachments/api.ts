@@ -30,7 +30,9 @@ export async function saveImageAttachment(
   }
 }
 
-export async function getAttachmentConfig(force = false): Promise<AttachmentConfig> {
+export async function getAttachmentConfig(
+  force = false
+): Promise<AttachmentConfig> {
   if (!force && attachmentConfigCache) return { ...attachmentConfigCache };
   if (!force && attachmentConfigRequest) return attachmentConfigRequest;
 
@@ -50,14 +52,18 @@ export async function getAttachmentConfig(force = false): Promise<AttachmentConf
   return request;
 }
 
-export async function updateAttachmentConfig(config: AttachmentConfig): Promise<void> {
+export async function updateAttachmentConfig(
+  config: AttachmentConfig
+): Promise<void> {
   try {
     await invoke('update_attachment_config', { config });
     attachmentConfigCache = { ...DEFAULT_ATTACHMENT_CONFIG, ...config };
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent(ATTACHMENT_CONFIG_UPDATED_EVENT, {
-        detail: { ...attachmentConfigCache }
-      }));
+      window.dispatchEvent(
+        new CustomEvent(ATTACHMENT_CONFIG_UPDATED_EVENT, {
+          detail: { ...attachmentConfigCache }
+        })
+      );
     }
   } catch (error) {
     throw new Error(`更新附件配置失败: ${error}`);
@@ -80,7 +86,9 @@ export async function syncAttachmentsOnRename(
   }
 }
 
-export async function cleanupAttachmentsOnDelete(noteName: string): Promise<boolean> {
+export async function cleanupAttachmentsOnDelete(
+  noteName: string
+): Promise<boolean> {
   try {
     return await invoke<boolean>('cleanup_attachments_on_delete', { noteName });
   } catch (error) {
@@ -88,9 +96,15 @@ export async function cleanupAttachmentsOnDelete(noteName: string): Promise<bool
   }
 }
 
-export async function cleanupUnusedAttachments(noteName: string, noteContent: string): Promise<number> {
+export async function cleanupUnusedAttachments(
+  noteName: string,
+  noteContent: string
+): Promise<number> {
   try {
-    return await invoke<number>('cleanup_unused_attachments', { noteName, noteContent });
+    return await invoke<number>('cleanup_unused_attachments', {
+      noteName,
+      noteContent
+    });
   } catch (error) {
     throw new Error(`清理未使用的附件失败: ${error}`);
   }
@@ -104,17 +118,29 @@ export async function cleanupOrphanedAttachments(): Promise<number> {
   }
 }
 
-export async function restoreDeletedAttachment(noteName: string, fileName: string): Promise<boolean> {
+export async function restoreDeletedAttachment(
+  noteName: string,
+  fileName: string
+): Promise<boolean> {
   try {
-    return await invoke<boolean>('restore_deleted_attachment', { noteName, fileName });
+    return await invoke<boolean>('restore_deleted_attachment', {
+      noteName,
+      fileName
+    });
   } catch (error) {
     throw new Error(`恢复被误删的附件失败: ${error}`);
   }
 }
 
-export async function restoreAllDeletedAttachments(noteName: string, noteContent: string): Promise<number> {
+export async function restoreAllDeletedAttachments(
+  noteName: string,
+  noteContent: string
+): Promise<number> {
   try {
-    return await invoke<number>('restore_all_deleted_attachments', { noteName, noteContent });
+    return await invoke<number>('restore_all_deleted_attachments', {
+      noteName,
+      noteContent
+    });
   } catch (error) {
     throw new Error(`恢复所有被误删的附件失败: ${error}`);
   }

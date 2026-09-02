@@ -3,7 +3,7 @@
 
 :root {
   // ==================== 基础面板主题变量 ====================
-  --categories-panel-bg: #F9FAFC;
+  --categories-panel-bg: #f9fafc;
   --categories-panel-bg-rgb: 251, 252, 255;
   --categories-content-bg: #f3f6fb;
   --categories-bg-active: #5f74f3;
@@ -25,11 +25,11 @@
   --el-button-hover-border-color: #5f74f3;
 
   // ==================== 搜索窗口主题变量 ====================
-  --search-bg-color: #F9FAFC;
+  --search-bg-color: #f9fafc;
   --search-text-color: #111827;
   --search-info-text-color: #7b8494;
   --search-border-color: #d9e2ef;
-  --search-input-bg: #F9FAFC;
+  --search-input-bg: #f9fafc;
   --search-placeholder: #7b8494;
   --search-result-hover: #f3f7ff;
   --search-result-active: #edf4ff;
@@ -42,7 +42,7 @@
   --search-preview-status-bg: #f6f9fe;
 
   // ==================== 编辑器主题变量 ====================
-  --editor-bg: #F9FAFC;
+  --editor-bg: #f9fafc;
   --editor-border: #d9e2ef;
   --editor-surface-bg: #fff;
   --editor-text: #111827;
@@ -56,7 +56,8 @@
   --code-block-toolbar-bg: rgb(255 255 255 / 88%);
   --code-block-toolbar-border: #d5deea;
   --code-block-selection: rgb(95 116 243 / 18%);
-  --fragment-drag-shadow: 0 18px 46px rgb(39 76 119 / 20%), 0 4px 14px rgb(26 43 63 / 12%);
+  --fragment-drag-shadow: 0 18px 46px rgb(39 76 119 / 20%),
+    0 4px 14px rgb(26 43 63 / 12%);
   --fragment-drop-shadow: 0 6px 18px rgb(79 96 229 / 14%);
   --markdown-heading: #172033;
   --markdown-heading-border: #e2e8f1;
@@ -69,12 +70,12 @@
   --markdown-table-row-hover: #f8faff;
 
   // ==================== 状态栏主题变量 ====================
-  --statusbar-bg: #F9FAFC;
+  --statusbar-bg: #f9fafc;
   --statusbar-border: #d9e2ef;
   --statusbar-text: #6b7280;
 
   // ==================== 弹出层/面板主题变量 ====================
-  --panel-bg: #F9FAFC;
+  --panel-bg: #f9fafc;
   --panel-border: #d9e2ef;
   --panel-text: #111827;
   --panel-text-secondary: #6b7280;
@@ -83,11 +84,12 @@
   // ==================== 提示与弹层主题变量 ====================
   --dialog-bg: #fff;
   --dialog-header-bg: #f8faff;
-  --dialog-footer-bg: #F9FAFC;
+  --dialog-footer-bg: #f9fafc;
   --dialog-border: #d9e2ef;
   --dialog-text: #111827;
   --dialog-text-secondary: #6b7280;
-  --dialog-shadow: 0 18px 48px rgb(39 76 119 / 16%), 0 4px 14px rgb(26 43 63 / 8%);
+  --dialog-shadow: 0 18px 48px rgb(39 76 119 / 16%),
+    0 4px 14px rgb(26 43 63 / 8%);
   --dialog-overlay: rgb(15 23 42 / 28%);
   --el-overlay-color: var(--dialog-overlay);
   --el-overlay-color-light: var(--dialog-overlay);
@@ -97,7 +99,7 @@
   --toast-text: #1f2937;
   --toast-shadow: 0 10px 28px rgb(39 76 119 / 14%), 0 2px 8px rgb(26 43 63 / 8%);
 
-    // ==================== OCR 窗口主题变量 ====================
+  // ==================== OCR 窗口主题变量 ====================
   --ocr-shell-bg: rgb(255 255 255 / 94%);
   --ocr-panel-bg: rgb(255 255 255 / 90%);
   --ocr-panel-hover-bg: #fff;
@@ -165,8 +167,16 @@
 
   // ==================== 录屏窗口主题变量 ====================
   --recorder-bg: color-mix(in srgb, var(--panel-bg) 96%, transparent);
-  --recorder-soft-bg: color-mix(in srgb, var(--panel-hover-bg) 72%, transparent);
-  --recorder-input-bg: color-mix(in srgb, var(--search-input-bg) 86%, transparent);
+  --recorder-soft-bg: color-mix(
+    in srgb,
+    var(--panel-hover-bg) 72%,
+    transparent
+  );
+  --recorder-input-bg: color-mix(
+    in srgb,
+    var(--search-input-bg) 86%,
+    transparent
+  );
   --recorder-border: color-mix(in srgb, var(--panel-border) 92%, transparent);
   --recorder-text: var(--panel-text);
   --recorder-muted: var(--panel-text-secondary);
@@ -238,7 +248,8 @@ html.dark {
   --code-block-toolbar-bg: rgb(30 32 36 / 88%);
   --code-block-toolbar-border: #414854;
   --code-block-selection: rgb(93 109 253 / 28%);
-  --fragment-drag-shadow: 0 22px 52px rgb(0 0 0 / 48%), 0 5px 16px rgb(0 0 0 / 30%);
+  --fragment-drag-shadow: 0 22px 52px rgb(0 0 0 / 48%),
+    0 5px 16px rgb(0 0 0 / 30%);
   --fragment-drop-shadow: 0 6px 20px rgb(0 0 0 / 28%);
   --markdown-heading: #f0f3f8;
   --markdown-heading-border: #343a43;
@@ -279,7 +290,7 @@ html.dark {
   --toast-text: #e5e7eb;
   --toast-shadow: 0 12px 32px rgb(0 0 0 / 36%), 0 2px 8px rgb(0 0 0 / 22%);
 
-    // ==================== OCR 窗口深色主题变量 ====================
+  // ==================== OCR 窗口深色主题变量 ====================
   --ocr-shell-bg: rgb(30 30 30 / 94%);
   --ocr-panel-bg: rgb(42 42 42 / 88%);
   --ocr-panel-hover-bg: #333;

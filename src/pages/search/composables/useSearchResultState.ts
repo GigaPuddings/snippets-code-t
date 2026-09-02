@@ -15,7 +15,9 @@ export function useSearchResultState(
   const selectedItemId = ref<string | number | null>(null);
   const { tabs, getTabCount, getTabResults } = useSearchResultTabs(results, t);
 
-  const currentTabIndex = computed(() => tabs.value.findIndex((item) => item.value === activeTab.value));
+  const currentTabIndex = computed(() =>
+    tabs.value.findIndex((item) => item.value === activeTab.value)
+  );
   const filteredResults = computed(() => getTabResults(activeTab.value));
   const activeTabCount = computed(() => getTabCount(activeTab.value));
 
@@ -29,7 +31,11 @@ export function useSearchResultState(
       return tabResults[0] ?? null;
     }
 
-    return tabResults.find((item) => item.id === selectedItemId.value) ?? tabResults[0] ?? null;
+    return (
+      tabResults.find((item) => item.id === selectedItemId.value) ??
+      tabResults[0] ??
+      null
+    );
   });
 
   const switchTab = (tab: SummarizeType) => {
@@ -48,8 +54,8 @@ export function useSearchResultState(
 
   const ensureValidTab = () => {
     if (
-      !tabs.value.some((item) => item.value === activeTab.value)
-      || (filteredResults.value.length === 0 && toValue(results).length > 0)
+      !tabs.value.some((item) => item.value === activeTab.value) ||
+      (filteredResults.value.length === 0 && toValue(results).length > 0)
     ) {
       switchTab('text');
     }
@@ -57,7 +63,9 @@ export function useSearchResultState(
 
   const syncSelectionWithResults = (currentSelectedId?: string | number) => {
     const firstResult = filteredResults.value[0] ?? null;
-    const hasSelectedItemInResults = filteredResults.value.some((item) => item.id === currentSelectedId);
+    const hasSelectedItemInResults = filteredResults.value.some(
+      (item) => item.id === currentSelectedId
+    );
 
     if (hasSelectedItemInResults) {
       selectedItemId.value = currentSelectedId ?? null;
@@ -69,19 +77,30 @@ export function useSearchResultState(
     return firstResult;
   };
 
-  watch(filteredResults, (currentResults, previousResults) => {
-    const firstResult = currentResults[0] ?? null;
-    const previousFirstResultId = previousResults?.[0]?.id ?? null;
+  watch(
+    filteredResults,
+    (currentResults, previousResults) => {
+      const firstResult = currentResults[0] ?? null;
+      const previousFirstResultId = previousResults?.[0]?.id ?? null;
 
-    if (firstResult?.id !== previousFirstResultId || !currentResults.some((item) => item.id === selectedItemId.value)) {
-      selectItem(firstResult);
-      options.onSelectionAutoChange?.(firstResult);
-    }
-  }, { immediate: true });
+      if (
+        firstResult?.id !== previousFirstResultId ||
+        !currentResults.some((item) => item.id === selectedItemId.value)
+      ) {
+        selectItem(firstResult);
+        options.onSelectionAutoChange?.(firstResult);
+      }
+    },
+    { immediate: true }
+  );
 
-  watch(tabs, () => {
-    ensureValidTab();
-  }, { immediate: true });
+  watch(
+    tabs,
+    () => {
+      ensureValidTab();
+    },
+    { immediate: true }
+  );
 
   return {
     tabs,

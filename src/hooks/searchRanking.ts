@@ -327,9 +327,7 @@ const isBackendMatchedResult = (
 };
 
 const normalizeDedupeValue = (value: unknown): string =>
-  normalizeSearchValue(value)
-    .replace(/\\/g, '/')
-    .replace(/\/+$/, '');
+  normalizeSearchValue(value).replace(/\\/g, '/').replace(/\/+$/, '');
 
 const getDedupeKey = (item: ContentType): string => {
   const source = getSource(item);
@@ -503,68 +501,69 @@ export const rankSearchResults = (
 ): ContentType[] => {
   const normalizedQuery = normalizeSearchValue(query);
 
-  return dedupeRankedItems(items
-    .filter((item) => isRelevantSearchResult(item, query, options))
-    .map<RankedSearchItem>((item, index) => {
-      const history = getSearchHistory(item, historyMap);
-      const historyScore = history ? calculateHistoryScore(history) : 0;
-      const score =
-        calculateSearchRelevance(item, query, options) + historyScore;
+  return dedupeRankedItems(
+    items
+      .filter((item) => isRelevantSearchResult(item, query, options))
+      .map<RankedSearchItem>((item, index) => {
+        const history = getSearchHistory(item, historyMap);
+        const historyScore = history ? calculateHistoryScore(history) : 0;
+        const score =
+          calculateSearchRelevance(item, query, options) + historyScore;
 
-      return {
-        item: {
-          ...item,
-          metadata: {
-            ...(item.metadata ?? {}),
-            search_score: score,
-            history_usage_count: history?.usage_count ?? 0
-          }
-        },
-        score,
-        historyScore,
-        exactTitleMatch:
-          Boolean(normalizedQuery) &&
-          normalizeSearchValue(item.title) === normalizedQuery,
-        sourceIndex: index,
-        history
-      };
-    })
-    .sort((a, b) => {
-      // 1. 标题完全匹配优先：历史记录不应淹没精确匹配
-      if (a.exactTitleMatch !== b.exactTitleMatch) {
-        return a.exactTitleMatch ? -1 : 1;
-      }
+        return {
+          item: {
+            ...item,
+            metadata: {
+              ...(item.metadata ?? {}),
+              search_score: score,
+              history_usage_count: history?.usage_count ?? 0
+            }
+          },
+          score,
+          historyScore,
+          exactTitleMatch:
+            Boolean(normalizedQuery) &&
+            normalizeSearchValue(item.title) === normalizedQuery,
+          sourceIndex: index,
+          history
+        };
+      })
+      .sort((a, b) => {
+        // 1. 标题完全匹配优先：历史记录不应淹没精确匹配
+        if (a.exactTitleMatch !== b.exactTitleMatch) {
+          return a.exactTitleMatch ? -1 : 1;
+        }
 
-      // 2. 有使用记录的条目整体排在无记录之前。
-      //    能进入列表的条目都已通过相关性过滤，因此"我用过的"应当
-      //    始终先于"我没用过的"（启动器心智），一次使用即可生效。
-      const aHasHistory = a.history ? 1 : 0;
-      const bHasHistory = b.history ? 1 : 0;
-      if (bHasHistory !== aHasHistory) return bHasHistory - aHasHistory;
+        // 2. 有使用记录的条目整体排在无记录之前。
+        //    能进入列表的条目都已通过相关性过滤，因此"我用过的"应当
+        //    始终先于"我没用过的"（启动器心智），一次使用即可生效。
+        const aHasHistory = a.history ? 1 : 0;
+        const bHasHistory = b.history ? 1 : 0;
+        if (bHasHistory !== aHasHistory) return bHasHistory - aHasHistory;
 
-      // 3. 都有记录时，频率分（次数 × 时效）高者优先，
-      //    访问次数最多的条目排最前
-      if (b.historyScore !== a.historyScore) {
-        return b.historyScore - a.historyScore;
-      }
+        // 3. 都有记录时，频率分（次数 × 时效）高者优先，
+        //    访问次数最多的条目排最前
+        if (b.historyScore !== a.historyScore) {
+          return b.historyScore - a.historyScore;
+        }
 
-      // 4. 总分（相关性 + 频率分）降序
-      if (b.score !== a.score) return b.score - a.score;
+        // 4. 总分（相关性 + 频率分）降序
+        if (b.score !== a.score) return b.score - a.score;
 
-      const aHistoryTime = a.history
-        ? new Date(a.history.last_used_at).getTime()
-        : 0;
-      const bHistoryTime = b.history
-        ? new Date(b.history.last_used_at).getTime()
-        : 0;
-      if (bHistoryTime !== aHistoryTime) return bHistoryTime - aHistoryTime;
+        const aHistoryTime = a.history
+          ? new Date(a.history.last_used_at).getTime()
+          : 0;
+        const bHistoryTime = b.history
+          ? new Date(b.history.last_used_at).getTime()
+          : 0;
+        if (bHistoryTime !== aHistoryTime) return bHistoryTime - aHistoryTime;
 
-      const sourceDelta =
-        (SOURCE_TIE_BREAKER[getSource(b.item)] ?? 0) -
-        (SOURCE_TIE_BREAKER[getSource(a.item)] ?? 0);
-      if (sourceDelta !== 0) return sourceDelta;
+        const sourceDelta =
+          (SOURCE_TIE_BREAKER[getSource(b.item)] ?? 0) -
+          (SOURCE_TIE_BREAKER[getSource(a.item)] ?? 0);
+        if (sourceDelta !== 0) return sourceDelta;
 
-      return a.sourceIndex - b.sourceIndex;
-    }))
-    .map(({ item }) => item);
+        return a.sourceIndex - b.sourceIndex;
+      })
+  ).map(({ item }) => item);
 };

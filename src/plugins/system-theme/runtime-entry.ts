@@ -11,4 +11,3 @@ export const activate = (context: PluginFrontendRuntimeContext): void => {
     label: 'dark_mode'
   });
 };
-

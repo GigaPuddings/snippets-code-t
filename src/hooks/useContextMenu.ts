@@ -20,10 +20,10 @@ export interface UseContextMenuReturn {
 /**
  * 右键菜单组合式函数
  * 提供右键菜单的显示、定位和关闭功能
- * 
+ *
  * @param containerRef - 容器元素引用
  * @returns 右键菜单相关的状态和方法
- * 
+ *
  * @example
  * ```typescript
  * const containerRef = ref<HTMLDivElement | null>(null);

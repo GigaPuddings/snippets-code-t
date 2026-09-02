@@ -21,11 +21,10 @@ const schema = new Schema({
   }
 });
 
-const cell = (value: string, header = false) => schema.node(
-  header ? 'tableHeader' : 'tableCell',
-  null,
-  [schema.node('paragraph', null, value ? schema.text(value) : undefined)]
-);
+const cell = (value: string, header = false) =>
+  schema.node(header ? 'tableHeader' : 'tableCell', null, [
+    schema.node('paragraph', null, value ? schema.text(value) : undefined)
+  ]);
 
 const createTableEditor = () => {
   const table = schema.node('table', null, [
@@ -35,9 +34,14 @@ const createTableEditor = () => {
   const doc = schema.node('doc', null, [table]);
   let cursor = -1;
   doc.descendants((node, pos) => {
-    if (node.type.name === 'paragraph' && node.textContent === 'D') cursor = pos + 2;
+    if (node.type.name === 'paragraph' && node.textContent === 'D')
+      cursor = pos + 2;
   });
-  const state = EditorState.create({ schema, doc, selection: TextSelection.create(doc, cursor) });
+  const state = EditorState.create({
+    schema,
+    doc,
+    selection: TextSelection.create(doc, cursor)
+  });
   const dispatched: { transaction?: Transaction } = {};
   const editor = {
     state,
@@ -59,14 +63,19 @@ describe('tableCommands', () => {
 
     expect(lines).toHaveLength(5);
     expect(lines[1]).toBe('| --- | --- | --- |');
-    expect(lines.filter(line => line === '|  |  |  |')).toHaveLength(4);
+    expect(lines.filter((line) => line === '|  |  |  |')).toHaveLength(4);
   });
 
   it('reads the active table dimensions and selected cell position', () => {
     const { editor } = createTableEditor();
     const info = getCurrentTableInfo(editor);
 
-    expect(info).toMatchObject({ rows: 2, columns: 2, rowIndex: 1, columnIndex: 1 });
+    expect(info).toMatchObject({
+      rows: 2,
+      columns: 2,
+      rowIndex: 1,
+      columnIndex: 1
+    });
   });
 
   it('resizes from the bottom and right while preserving existing cells', () => {

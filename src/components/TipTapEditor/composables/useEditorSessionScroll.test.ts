@@ -7,25 +7,27 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const createRect = (overrides: Partial<DOMRect> = {}) => ({
-  x: 0,
-  y: 0,
-  left: 0,
-  top: 0,
-  right: 0,
-  bottom: 0,
-  width: 0,
-  height: 0,
-  toJSON: vi.fn(),
-  ...overrides
-}) as DOMRect;
+const createRect = (overrides: Partial<DOMRect> = {}) =>
+  ({
+    x: 0,
+    y: 0,
+    left: 0,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    width: 0,
+    height: 0,
+    toJSON: vi.fn(),
+    ...overrides
+  }) as DOMRect;
 
-const createScrollContainer = (overrides: Record<string, unknown> = {}) => ({
-  scrollTop: 80,
-  querySelectorAll: vi.fn(() => []),
-  getBoundingClientRect: vi.fn(() => createRect({ height: 400 })),
-  ...overrides
-}) as unknown as HTMLElement;
+const createScrollContainer = (overrides: Record<string, unknown> = {}) =>
+  ({
+    scrollTop: 80,
+    querySelectorAll: vi.fn(() => []),
+    getBoundingClientRect: vi.fn(() => createRect({ height: 400 })),
+    ...overrides
+  }) as unknown as HTMLElement;
 
 const createEditor = (scrollContainer: HTMLElement) => ({
   view: {
@@ -71,7 +73,9 @@ describe('useEditorSessionScroll', () => {
     const appendBody = vi.fn();
     vi.stubGlobal('document', {
       getElementById: vi.fn(() => null),
-      createElement: vi.fn((tag: string) => (tag === 'style' ? styleElement : overlay)),
+      createElement: vi.fn((tag: string) =>
+        tag === 'style' ? styleElement : overlay
+      ),
       createTreeWalker: vi.fn(),
       createRange: vi.fn(),
       head: { appendChild: appendHead },
@@ -85,11 +89,15 @@ describe('useEditorSessionScroll', () => {
       tagName: 'SPAN',
       parentElement: null,
       classList: { contains: vi.fn(() => false) },
-      getBoundingClientRect: vi.fn(() => createRect({ left: 10, top: 20, width: 120, height: 20 }))
+      getBoundingClientRect: vi.fn(() =>
+        createRect({ left: 10, top: 20, width: 120, height: 20 })
+      )
     };
     const scrollContainer = createScrollContainer({
       scrollTop: 0,
-      querySelectorAll: vi.fn((selector: string) => (selector === '.wikilink-decoration' ? [wikilinkElement] : [])),
+      querySelectorAll: vi.fn((selector: string) =>
+        selector === '.wikilink-decoration' ? [wikilinkElement] : []
+      ),
       getBoundingClientRect: vi.fn(() => createRect({ height: 400 }))
     });
     const sessionScroll = useEditorSessionScroll({

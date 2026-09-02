@@ -5,7 +5,10 @@ export const MAX_IMAGE_SCALE_PERCENT = 200;
 
 export function clampImageScalePercent(value: number): number {
   if (!Number.isFinite(value)) return 100;
-  return Math.min(MAX_IMAGE_SCALE_PERCENT, Math.max(MIN_IMAGE_SCALE_PERCENT, Math.round(value)));
+  return Math.min(
+    MAX_IMAGE_SCALE_PERCENT,
+    Math.max(MIN_IMAGE_SCALE_PERCENT, Math.round(value))
+  );
 }
 
 export function resolveImageScalePercent(

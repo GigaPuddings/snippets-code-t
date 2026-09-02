@@ -14,35 +14,20 @@
   "category": "capture",
   "enabledByDefault": true,
   "capabilities": {
-    "routeNames": [
-      "Screenshot",
-      "Pin"
-    ],
-    "hotkeys": [
-      "screenshot"
-    ],
-    "trayItems": [
-      "screenshot"
-    ]
+    "routeNames": ["Screenshot", "Pin"],
+    "hotkeys": ["screenshot"],
+    "trayItems": ["screenshot"]
   },
   "resources": {
     "hintKey": "plugins.screenshot.resourceHint",
     "bundled": false
   },
-  "permissions": [
-    "command:*"
-  ],
-  "dependencies": [
-    "screenshot-rapidocr",
-    "translation",
-    "local-ai"
-  ],
+  "permissions": ["command:*"],
+  "dependencies": ["screenshot-rapidocr", "translation", "local-ai"],
   "compatibleAppVersion": ">=2.1.55",
   "entry": {
     "frontend": "dist/frontend.js",
-    "styles": [
-      "dist/assets/runtime-entry-Cpxn3yhl.css"
-    ]
+    "styles": ["dist/assets/runtime-entry-Cpxn3yhl.css"]
   },
   "minAppVersion": "2.1.55",
   "repository": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot",
