@@ -14,8 +14,20 @@ import * as VueRouterRuntime from 'vue-router';
 import * as VueI18nRuntime from 'vue-i18n';
 import type { RouteComponent, RouteRecordRaw, Router } from 'vue-router';
 import type { RegisteredPlugin } from './protocol';
-import type { SearchSourceProvider, SearchSourceResult } from './search';
+import type { SearchSourceProvider } from './search';
 import { searchSourceProviders } from './search-providers';
+import {
+  createPluginCapabilities,
+  type PluginRuntimeCapabilities,
+  type RuntimeHostComponentRegistration,
+  type RuntimeRouteComponent,
+  type RuntimeRouteRegistration,
+  type RuntimeRouteTarget,
+  type RuntimeSearchProviderRegistration,
+  type RuntimeSettingsRegistration,
+  type RuntimeTitlebarActionRegistration,
+  type RuntimeWindowShortcutRegistration
+} from './capabilities';
 import {
   pluginSettingsComponents,
   pluginSettingsMenuItems,
@@ -23,62 +35,16 @@ import {
 } from './settings';
 import { titlebarPluginActions, type TitlebarPluginAction } from './titlebar';
 import { pluginWindowShortcuts, type PluginWindowShortcut } from './windows';
-import {
-  pluginHostComponents,
-  type PluginHostComponentTarget
-} from './host-components';
+import { pluginHostComponents } from './host-components';
 import { logger } from '@/utils/logger';
 import {
   assertCanInvokeBackendCommand,
   assertCanInvokeCommand
 } from './permissions';
 
-type RuntimeRouteTarget = 'config' | 'layout' | 'window';
-type RuntimeRouteComponent = RouteComponent | (() => Promise<unknown>);
 type VueAsyncRouteComponent = RouteComponent & {
   __asyncLoader?: () => Promise<unknown>;
 };
-
-interface RuntimeRouteRegistration {
-  target?: RuntimeRouteTarget;
-  path: string;
-  name: string;
-  component?: RuntimeRouteComponent;
-  componentUrl?: string;
-  meta?: Record<string, unknown>;
-}
-
-interface RuntimeSettingsRegistration {
-  id: string;
-  labelKey?: string;
-  label?: string;
-  icon?: Component;
-  component?: Component;
-  componentUrl?: string;
-}
-
-interface RuntimeSearchProviderRegistration {
-  source: string;
-  search(query: string): Promise<SearchSourceResult[]>;
-}
-
-interface RuntimeTitlebarActionRegistration {
-  id: string;
-  component?: Component;
-  componentUrl?: string;
-}
-
-interface RuntimeWindowShortcutRegistration {
-  label: string;
-  closeCommandLabel?: string;
-}
-
-interface RuntimeHostComponentRegistration {
-  id: string;
-  target?: PluginHostComponentTarget;
-  component?: Component;
-  componentUrl?: string;
-}
 
 type RuntimeCleanup = () => void | Promise<void>;
 type RuntimeActivationResult =
@@ -89,7 +55,8 @@ type RuntimeActivationResult =
       dispose?: RuntimeCleanup;
     };
 
-export interface PluginFrontendRuntimeContext {
+export interface PluginFrontendRuntimeContext
+  extends PluginRuntimeCapabilities {
   pluginId: string;
   packagePath: string;
   manifest: RegisteredPlugin['manifest'];
@@ -103,11 +70,6 @@ export interface PluginFrontendRuntimeContext {
   ui: {
     h: typeof h;
     defineComponent: typeof defineComponent;
-  };
-  storage: {
-    get<T = unknown>(key: string): Promise<T | null>;
-    set(key: string, value: unknown): Promise<void>;
-    delete(key: string): Promise<void>;
   };
   registerRoute(route: RuntimeRouteRegistration): void;
   registerSettingsTab(tab: RuntimeSettingsRegistration): void;
@@ -748,45 +710,8 @@ const runtimeRegistrationKey = (pluginId: string, id: string): string =>
 
 const createRuntimeContext = (
   plugin: RegisteredPlugin
-): PluginFrontendRuntimeContext => ({
-  pluginId: String(plugin.id),
-  packagePath: plugin.packagePath ?? '',
-  manifest: plugin.manifest,
-  resolveAssetUrl: (relativePath: string) =>
-    resolvePluginAssetUrl(plugin, relativePath),
-  api: {
-    invoke: createPluginInvoke(plugin),
-    invokeBackend: createPluginBackendInvoke(plugin),
-    listen: createPluginListen(plugin),
-    emit
-  },
-  ui: {
-    h,
-    defineComponent
-  },
-  storage: {
-    get: async <T = unknown>(key: string): Promise<T | null> => {
-      const value = await invoke<T | null>('get_local_plugin_data', {
-        pluginId: plugin.id,
-        key
-      });
-      return value ?? null;
-    },
-    set: async (key: string, value: unknown): Promise<void> => {
-      await invoke('set_local_plugin_data', {
-        pluginId: plugin.id,
-        key,
-        value
-      });
-    },
-    delete: async (key: string): Promise<void> => {
-      await invoke('delete_local_plugin_data', {
-        pluginId: plugin.id,
-        key
-      });
-    }
-  },
-  registerRoute(route) {
+): PluginFrontendRuntimeContext => {
+  const registerRoute = (route: RuntimeRouteRegistration): void => {
     const target = route.target ?? 'layout';
     appendCapability(plugin, 'routeNames', route.name);
     const routeRecord: RouteRecordRaw = {
@@ -803,8 +728,9 @@ const createRuntimeContext = (
       }
     } as RouteRecordRaw;
     pushRoute(target, routeRecord);
-  },
-  registerSettingsTab(tab) {
+  };
+
+  const registerSettingsTab = (tab: RuntimeSettingsRegistration): void => {
     const labelKey = tab.labelKey ?? `plugins.${plugin.id}.${tab.id}`;
     const item: PluginSettingsMenuItem = {
       id: tab.id,
@@ -829,8 +755,11 @@ const createRuntimeContext = (
       pluginSettingsComponents[tab.id] = component;
     }
     appendCapability(plugin, 'settingsTabs', tab.id);
-  },
-  registerSearchProvider(provider) {
+  };
+
+  const registerSearchProvider = (
+    provider: RuntimeSearchProviderRegistration
+  ): void => {
     const nextProvider = {
       pluginId: plugin.id,
       source: provider.source,
@@ -847,8 +776,11 @@ const createRuntimeContext = (
       searchSourceProviders[existingIndex] = nextProvider;
     }
     appendCapability(plugin, 'searchSources', provider.source);
-  },
-  registerTitlebarAction(action) {
+  };
+
+  const registerTitlebarAction = (
+    action: RuntimeTitlebarActionRegistration
+  ): void => {
     const registrationKey = runtimeRegistrationKey(
       String(plugin.id),
       action.id
@@ -869,15 +801,21 @@ const createRuntimeContext = (
     } else if (runtimeTitlebarActionKeys.has(registrationKey)) {
       titlebarPluginActions[existingIndex] = titlebarAction;
     }
-  },
-  registerWindowShortcut(shortcut) {
+  };
+
+  const registerWindowShortcut = (
+    shortcut: RuntimeWindowShortcutRegistration
+  ): void => {
     pluginWindowShortcuts.push({
       label: shortcut.label,
       pluginId: plugin.id,
       closeCommandLabel: shortcut.closeCommandLabel
     } satisfies PluginWindowShortcut);
-  },
-  registerHostComponent(hostComponent) {
+  };
+
+  const registerHostComponent = (
+    hostComponent: RuntimeHostComponentRegistration
+  ): void => {
     const target = hostComponent.target ?? 'config';
     const nextComponent = {
       id: hostComponent.id,
@@ -901,8 +839,40 @@ const createRuntimeContext = (
     } else {
       pluginHostComponents[existingIndex] = nextComponent;
     }
-  }
-});
+  };
+
+  const capabilities = createPluginCapabilities(plugin, {
+    invoke,
+    registerRoute,
+    registerSearchProvider,
+    registerWindowShortcut
+  });
+
+  return {
+    pluginId: String(plugin.id),
+    packagePath: plugin.packagePath ?? '',
+    manifest: plugin.manifest,
+    resolveAssetUrl: (relativePath: string) =>
+      resolvePluginAssetUrl(plugin, relativePath),
+    api: {
+      invoke: createPluginInvoke(plugin),
+      invokeBackend: createPluginBackendInvoke(plugin),
+      listen: createPluginListen(plugin),
+      emit
+    },
+    ui: {
+      h,
+      defineComponent
+    },
+    ...capabilities,
+    registerRoute,
+    registerSettingsTab,
+    registerSearchProvider,
+    registerTitlebarAction,
+    registerWindowShortcut,
+    registerHostComponent
+  };
+};
 
 const activateFrontendModule = async (
   plugin: RegisteredPlugin,

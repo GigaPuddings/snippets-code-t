@@ -19,7 +19,7 @@ plugin-registry/packages/<plugin-id>/
   dist/frontend.js
 ```
 
-运行时入口必须调用与 manifest 能力匹配的插件桥注册方法。以快速搜索工具为例，`plugin.json` 需要在 `capabilities.searchSources` 中声明搜索来源，`runtime-entry.ts` 需要调用 `context.registerSearchProvider(...)`。
+运行时入口必须调用与 manifest 能力匹配的插件桥注册方法。以快速搜索工具为例，`plugin.json` 需要在 `capabilities.searchSources` 中声明搜索来源，`runtime-entry.ts` 需要调用 `context.search.registerProvider(...)`。旧的 `context.registerSearchProvider(...)` 仍作为兼容层保留，但新增或迁移官方插件应优先使用 capability namespace。
 
 ## 应用接入清单
 
@@ -106,7 +106,7 @@ pnpm plugins:verify-marketplace -- --local
 ## 快速搜索插件清单
 
 - manifest 声明 `capabilities.searchSources`。
-- 运行时入口导入搜索提供器，并通过 `context.registerSearchProvider` 注册。
+- 运行时入口导入搜索提供器，并通过 `context.search.registerProvider` 注册。
 - marketplace 版本高于用户已安装插件版本，这样插件设置页才会显示可更新。
 - 已安装插件处于启用状态。
 - 搜索页签过滤器没有隐藏该来源。Quick search 的工具结果应该出现在 `全部` 和 `工具` 下。

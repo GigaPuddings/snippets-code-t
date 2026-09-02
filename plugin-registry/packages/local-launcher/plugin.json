@@ -22,7 +22,7 @@
   "compatibleAppVersion": ">=2.1.54",
   "entry": {
     "frontend": "dist/frontend.js",
-    "styles": ["dist/assets/runtime-entry-C-cqCHga.css"]
+    "styles": ["dist/assets/runtime-entry-d2uKyGxX.css"]
   },
   "storage": {
     "schemaVersion": 1,

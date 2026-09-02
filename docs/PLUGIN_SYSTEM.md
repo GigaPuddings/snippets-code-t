@@ -141,7 +141,7 @@ Current package manifest shape:
     "indexSchemaVersion": 1,
     "extractorVersion": 1
   },
-  "permissions": ["network", "workspace:read", "backend:*"],
+  "permissions": ["network:https://api.example.com", "workspace:read", "backend:*"],
   "dependencies": ["example-runtime-resource"],
   "compatibleAppVersion": ">=1.5.6"
 }
@@ -180,7 +180,20 @@ Local package installation currently accepts either an unpacked directory that c
 
 Frontend local plugin entries now use `entry.frontend`. When an enabled local plugin is initialized, the runtime loads that module from the installed package directory and calls `activate(context)`.
 
-The activation context exposes these registration methods:
+The activation context exposes stable Snippets Code capability namespaces:
+
+- `context.workspace.getRoot`, `context.workspace.read`, and
+  `context.workspace.write`
+- `context.storage.get`, `context.storage.set`, and
+  `context.storage.delete`
+- `context.search.registerProvider`
+- `context.network.fetch`
+- `context.clipboard.read` and `context.clipboard.write`
+- `context.notification.show`
+- `context.window.create` and `context.window.registerShortcut`
+
+The older root-level registration methods remain available as a compatibility
+layer for existing packages:
 
 - `registerRoute`
 - `registerSettingsTab`
@@ -211,7 +224,13 @@ provides `sha256`. Mutable development branch archives that require
 examples; published official packages must pin immutable release artifacts or
 tags and provide integrity metadata.
 
-`context.api.invoke` is permission-gated. A local plugin must declare `command:<tauri-command-name>` or `command:*` in `permissions` before it can call a Tauri command through the provided context API.
+Capability APIs are permission-gated when they cross data or system boundaries.
+For example, workspace calls require `workspace:read`, `workspace:write`,
+`workspace:*`, `capability:workspace`, or `capability:*`; network calls require
+`network`, `network:<origin>`, `network:<url-prefix>`, `network:*`,
+`capability:network`, or `capability:*`.
+
+`context.api.invoke` is the legacy escape hatch and remains permission-gated. A local plugin must declare `command:<tauri-command-name>` or `command:*` in `permissions` before it can call a Tauri command through the provided context API.
 
 `context.api.invokeBackend(command, payload)` calls the plugin's own native
 host backend declared by `entry.backend`. A local plugin must declare
@@ -525,6 +544,9 @@ Current security checks:
 
 - `context.api.invoke` is gated in the frontend by `command:<name>` or
   `command:*`.
+- Capability APIs are gated in the frontend by capability permissions such as
+  `workspace:read`, `workspace:write`, `network:<origin>`, or
+  `capability:<name>`.
 - `context.api.invokeBackend` is gated in the frontend and again in Rust by
   `backend:<name>` or `backend:*`.
 - Rust re-reads the installed manifest before native-host execution, verifies
