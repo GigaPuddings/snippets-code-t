@@ -5,14 +5,24 @@ use chrono::{DateTime, Utc};
 use futures::StreamExt;
 use log::{debug, info, warn};
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::error::Error as StdError;
 use std::fs::{self, File};
-use std::io::{self, Read, Write};
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+mod integrity;
+mod plugin_manifest;
+
+use integrity::{normalize_plugin_package_sha256, verify_plugin_package_sha256};
+use plugin_manifest::{
+    compare_semver, manifest_plugin_name, manifest_string_array, plugin_index_contract,
+    read_plugin_package_manifest, search_index_contract_changed, validate_local_plugin_manifest,
+    validate_plugin_app_compatibility, validate_plugin_data_key, validate_plugin_package_id,
+    validate_plugin_relative_path,
+};
 
 // 应用配置结构
 // 兼容旧的 json_config 模块使用的字段
@@ -1513,174 +1523,6 @@ fn is_local_plugin_package_installed(app_handle: &AppHandle, plugin_id: &str) ->
         .unwrap_or(false)
 }
 
-fn validate_plugin_package_id(plugin_id: &str) -> Result<(), String> {
-    if plugin_id.is_empty() || plugin_id == "." || plugin_id == ".." || plugin_id.len() > 96 {
-        return Err("插件 ID 无效".to_string());
-    }
-
-    if plugin_id
-        .chars()
-        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.'))
-    {
-        Ok(())
-    } else {
-        Err("插件 ID 只能包含字母、数字、点、短横线和下划线".to_string())
-    }
-}
-
-fn validate_plugin_data_key(key: &str) -> Result<(), String> {
-    if key.is_empty() || key.len() > 128 {
-        return Err("插件数据 key 无效".to_string());
-    }
-
-    if key
-        .chars()
-        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.' | ':'))
-    {
-        Ok(())
-    } else {
-        Err("插件数据 key 只能包含字母、数字、点、冒号、短横线和下划线".to_string())
-    }
-}
-
-fn validate_plugin_relative_path(value: &str) -> Result<(), String> {
-    if value.is_empty()
-        || value.contains("://")
-        || value.starts_with('/')
-        || Path::new(value).is_absolute()
-        || value
-            .split(['/', '\\'])
-            .any(|segment| segment == ".." || segment.is_empty())
-    {
-        return Err(format!("插件资源路径无效: {}", value));
-    }
-
-    Ok(())
-}
-
-fn validate_plugin_storage_contract(manifest: &serde_json::Value) -> Result<(), String> {
-    let Some(storage) = manifest.get("storage") else {
-        return Ok(());
-    };
-    let Some(storage) = storage.as_object() else {
-        return Err("插件 storage 必须是对象".to_string());
-    };
-
-    for field in ["schemaVersion", "indexSchemaVersion", "extractorVersion"] {
-        if storage
-            .get(field)
-            .and_then(|value| value.as_u64())
-            .is_none()
-        {
-            return Err(format!("插件 storage.{} 必须为非负整数", field));
-        }
-    }
-
-    Ok(())
-}
-
-fn validate_local_plugin_manifest(manifest: &serde_json::Value) -> Result<String, String> {
-    if manifest
-        .get("schemaVersion")
-        .and_then(|value| value.as_i64())
-        != Some(1)
-    {
-        return Err("插件清单 schemaVersion 必须为 1".to_string());
-    }
-
-    if manifest.get("kind").and_then(|value| value.as_str()) != Some("local") {
-        return Err("本地插件清单 kind 必须为 local".to_string());
-    }
-
-    let plugin_id = manifest
-        .get("id")
-        .and_then(|value| value.as_str())
-        .ok_or("插件清单缺少 id".to_string())?;
-    validate_plugin_package_id(plugin_id)?;
-    validate_plugin_storage_contract(manifest)?;
-
-    if let Some(entry) = manifest.get("entry").and_then(|value| value.as_object()) {
-        for key in ["frontend", "backend"] {
-            if let Some(path) = entry.get(key).and_then(|value| value.as_str()) {
-                validate_plugin_relative_path(path)?;
-            }
-        }
-
-        if let Some(kind) = entry.get("backendKind").and_then(|value| value.as_str()) {
-            if !matches!(kind, "native-host" | "wasm" | "script") {
-                return Err("插件后端类型必须为 native-host、wasm 或 script".to_string());
-            }
-        }
-    }
-
-    Ok(plugin_id.to_string())
-}
-
-fn parse_semver_parts(version: &str) -> Vec<u64> {
-    version
-        .trim_start_matches('v')
-        .split('.')
-        .map(|part| {
-            part.chars()
-                .take_while(|value| value.is_ascii_digit())
-                .collect::<String>()
-                .parse::<u64>()
-                .unwrap_or(0)
-        })
-        .collect()
-}
-
-fn compare_semver(left: &str, right: &str) -> std::cmp::Ordering {
-    let left_parts = parse_semver_parts(left);
-    let right_parts = parse_semver_parts(right);
-    let length = left_parts.len().max(right_parts.len());
-
-    for index in 0..length {
-        let left_value = *left_parts.get(index).unwrap_or(&0);
-        let right_value = *right_parts.get(index).unwrap_or(&0);
-        match left_value.cmp(&right_value) {
-            std::cmp::Ordering::Equal => continue,
-            ordering => return ordering,
-        }
-    }
-
-    std::cmp::Ordering::Equal
-}
-
-fn validate_plugin_app_compatibility(
-    app_handle: &AppHandle,
-    manifest: &serde_json::Value,
-) -> Result<(), String> {
-    let min_app_version = manifest
-        .get("minAppVersion")
-        .or_else(|| manifest.get("compatibleAppVersion"))
-        .and_then(|value| value.as_str())
-        .map(|value| value.trim_start_matches(">=").trim());
-
-    let Some(min_app_version) = min_app_version.filter(|value| !value.is_empty()) else {
-        return Ok(());
-    };
-
-    let app_version = app_handle.package_info().version.to_string();
-    if compare_semver(&app_version, min_app_version) == std::cmp::Ordering::Less {
-        return Err(format!(
-            "插件需要应用版本 >= {}，当前版本为 {}",
-            min_app_version, app_version
-        ));
-    }
-
-    Ok(())
-}
-
-fn read_plugin_package_manifest(manifest_path: &Path) -> Result<serde_json::Value, String> {
-    fs::read_to_string(manifest_path)
-        .map_err(|e| format!("读取插件清单失败: {} ({})", manifest_path.display(), e))
-        .and_then(|content| {
-            serde_json::from_str::<serde_json::Value>(&content)
-                .map_err(|e| format!("解析插件清单失败: {} ({})", manifest_path.display(), e))
-        })
-}
-
 fn system_time_to_rfc3339(value: SystemTime) -> String {
     let datetime: DateTime<Utc> = value.into();
     datetime.to_rfc3339()
@@ -1722,43 +1564,6 @@ fn plugin_package_record(
         package_path: path_to_display_string(&normalized_existing_path(package_path)),
         installed_at: plugin_installed_at(package_path),
     })
-}
-
-fn manifest_i18n_fallback(manifest: &serde_json::Value, key: &str) -> Option<String> {
-    manifest
-        .get(key)
-        .and_then(|value| value.get("fallback"))
-        .and_then(|value| value.as_str())
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(ToOwned::to_owned)
-}
-
-fn manifest_plugin_name(manifest: &serde_json::Value) -> String {
-    manifest_i18n_fallback(manifest, "name").unwrap_or_else(|| {
-        manifest
-            .get("id")
-            .and_then(|value| value.as_str())
-            .unwrap_or("Plugin")
-            .to_string()
-    })
-}
-
-fn manifest_string_array(manifest: &serde_json::Value, key: &str) -> Vec<String> {
-    manifest
-        .get("capabilities")
-        .and_then(|value| value.get(key))
-        .and_then(|value| value.as_array())
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(|value| value.as_str())
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-                .map(ToOwned::to_owned)
-                .collect()
-        })
-        .unwrap_or_default()
 }
 
 fn installed_plugin_packages_internal(
@@ -1887,35 +1692,6 @@ fn pascal_or_snake_to_kebab(value: &str) -> String {
     }
 
     output.trim_matches('-').to_string()
-}
-
-fn plugin_index_contract(manifest: &serde_json::Value) -> (u64, u64, u64) {
-    let storage = manifest.get("storage");
-    (
-        storage
-            .and_then(|value| value.get("schemaVersion"))
-            .and_then(|value| value.as_u64())
-            .unwrap_or(1),
-        storage
-            .and_then(|value| value.get("indexSchemaVersion"))
-            .and_then(|value| value.as_u64())
-            .unwrap_or(1),
-        storage
-            .and_then(|value| value.get("extractorVersion"))
-            .and_then(|value| value.as_u64())
-            .unwrap_or(1),
-    )
-}
-
-fn search_index_contract_changed(
-    previous: Option<&serde_json::Value>,
-    next: &serde_json::Value,
-) -> bool {
-    previous.is_some_and(|previous| {
-        let (_, previous_index, previous_extractor) = plugin_index_contract(previous);
-        let (_, next_index, next_extractor) = plugin_index_contract(next);
-        previous_index != next_index || previous_extractor != next_extractor
-    })
 }
 
 fn plugin_package_manifest_id(plugin_package: &LocalPluginPackage) -> &str {
@@ -2416,53 +2192,6 @@ fn validate_plugin_remote_url(value: &str) -> Result<(), String> {
         "http" if matches!(url.host_str(), Some("localhost" | "127.0.0.1" | "::1")) => Ok(()),
         _ => Err("插件 URL 仅允许 https，或本地开发 http://localhost".to_string()),
     }
-}
-
-fn normalize_plugin_package_sha256(value: &str) -> Result<String, String> {
-    let sha256 = value.trim().to_ascii_lowercase();
-    if sha256.len() == 64 && sha256.chars().all(|ch| ch.is_ascii_hexdigit()) {
-        Ok(sha256)
-    } else {
-        Err("插件包 SHA-256 必须是 64 位十六进制字符串".to_string())
-    }
-}
-
-fn file_sha256(path: &Path) -> Result<String, String> {
-    let mut file = File::open(path)
-        .map_err(|error| format!("打开插件包失败: {} ({})", path.display(), error))?;
-    let mut hasher = Sha256::new();
-    let mut buffer = [0_u8; 64 * 1024];
-
-    loop {
-        let read = file
-            .read(&mut buffer)
-            .map_err(|error| format!("读取插件包失败: {} ({})", path.display(), error))?;
-        if read == 0 {
-            break;
-        }
-        hasher.update(&buffer[..read]);
-    }
-
-    Ok(hex::encode(hasher.finalize()))
-}
-
-fn verify_plugin_package_sha256(
-    package_path: &Path,
-    expected_sha256: Option<&str>,
-) -> Result<(), String> {
-    let Some(expected_sha256) = expected_sha256 else {
-        return Ok(());
-    };
-    let expected_sha256 = normalize_plugin_package_sha256(expected_sha256)?;
-    let actual_sha256 = file_sha256(package_path)?;
-    if actual_sha256 != expected_sha256 {
-        return Err(format!(
-            "插件包 SHA-256 校验失败: expected {}, actual {}",
-            expected_sha256, actual_sha256
-        ));
-    }
-
-    Ok(())
 }
 
 fn reqwest_error_details(error: &reqwest::Error) -> String {
