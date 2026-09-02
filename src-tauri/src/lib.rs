@@ -41,7 +41,7 @@ use crate::update::{
 };
 use crate::window::{
     close_setup_window, create_setup_window, frontend_log, get_scan_progress_state,
-    get_scan_progress_states, get_window_info, hotkey_config, insert_text_to_last_window,
+    get_scan_progress_states, get_window_info, insert_text_to_last_window,
 };
 use serde::Serialize;
 
@@ -55,7 +55,7 @@ use tauri::{AppHandle, Emitter, Listener, Manager};
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_log::{Target, TargetKind};
 use tauri_plugin_notification::NotificationExt;
-use window::{create_update_window, show_hide_window_command};
+use window::show_hide_window_command;
 
 // 定义一个全局静态变量来存储 AppHandle
 pub static APP: OnceLock<AppHandle> = OnceLock::new();
@@ -64,51 +64,6 @@ use app_setup::{
     apply_setup_restart_delay, cleanup_old_logs, is_auto_start_launch,
     AUTO_START_BACKGROUND_DELAY_SECS, POST_UPDATE_STARTUP_DELAY_MILLIS,
 };
-
-// 前端创建config窗口
-#[tauri::command]
-async fn hotkey_config_command() -> Result<(), String> {
-    hotkey_config();
-    Ok(())
-}
-
-// 前端创建update窗口
-#[tauri::command]
-async fn hotkey_update_command() -> Result<(), String> {
-    create_update_window();
-    Ok(())
-}
-
-// 获取网站favicon
-#[tauri::command]
-async fn fetch_favicon(app_handle: AppHandle, url: String) -> Result<String, String> {
-    if !app_config::is_plugin_enabled(&app_handle, "local-launcher")
-        && !app_config::is_plugin_enabled(&app_handle, "search-engines")
-    {
-        return Err("本地图标相关插件未启用".to_string());
-    }
-    Ok(match icon::fetch_favicon_async(&url).await {
-        Some(icon_data) => icon_data,
-        None => "".to_string(),
-    })
-}
-
-// 使用指定源获取网站favicon
-#[tauri::command]
-async fn fetch_favicon_with_source(
-    app_handle: AppHandle,
-    url: String,
-    source: String,
-) -> Result<String, String> {
-    app_config::require_plugin_enabled(&app_handle, "local-launcher")?;
-    let icon_source = icon::IconSource::from_str(&source);
-    Ok(
-        match icon::fetch_favicon_with_source(&url, icon_source).await {
-            Some(icon_data) => icon_data,
-            None => "".to_string(),
-        },
-    )
-}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -675,8 +630,8 @@ pub fn run() {
             register_shortcut_by_frontend,    // 注册快捷键
             get_shortcuts,                    // 获取快捷键
             get_hotkey_config_map,            // 获取动态快捷键配置
-            hotkey_config_command,            // 快捷键配置
-            hotkey_update_command,            // 快捷键更新
+            commands::hotkey_config_command,  // 快捷键配置
+            commands::hotkey_update_command,  // 快捷键更新
             plugins::local_launcher::open_app_command,                 // 打开应用
             plugins::local_launcher::open_app_as_admin_command,        // 以管理员身份打开应用
             plugins::local_launcher::open_app_file_location_command,    // 打开应用文件位置
@@ -708,8 +663,8 @@ pub fn run() {
             set_update_install_on_restart,    // 设置下次启动自动安装
             perform_update,                   // 执行更新
             check_update_manually,            // 手动检查更新
-            fetch_favicon,                    // 获取网站favicon
-            fetch_favicon_with_source,        // 使用指定源获取网站favicon
+            commands::fetch_favicon,          // 获取网站favicon
+            commands::fetch_favicon_with_source, // 使用指定源获取网站favicon
             extract_icon_from_app,            // 提取应用图标
             clear_icon_cache,                 // 清理图标缓存（保留索引与历史）
             plugins::local_launcher::search_apps,                      // 搜索应用
