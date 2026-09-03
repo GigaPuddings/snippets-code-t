@@ -25,6 +25,7 @@ import { Window } from '@tauri-apps/api/window';
 import { logger, ocrDiagnosticLogger } from '@/utils/logger';
 import {
   chatWithAi,
+  createSelectionAiContext,
   getAiProviderStatus,
   LOCAL_AI_PROVIDER_ID,
   startAiProvider
@@ -4449,7 +4450,19 @@ export class ScreenshotManager {
                 }
               ]
             }
-          ]
+          ],
+          context: createSelectionAiContext(
+            'Selected screenshot region for visual translation',
+            {
+              source: 'screenshot.visual-translation',
+              metadata: {
+                x,
+                y,
+                width,
+                height
+              }
+            }
+          )
         },
         { providerId: LOCAL_AI_PROVIDER_ID, capability: 'vision' }
       );

@@ -66,6 +66,7 @@ Screenshot、OCR、Recorder、Translation、Todo、Wallpaper、Launcher、Local 
 - `src/ai/providerRegistry.ts`：统一 AI provider id、capability、上下文、状态、启动、非流式 chat 和 translate 协议。
 - `src/ai/localAiProvider.ts`：把现有 Local AI Tauri command 包装为默认 provider。
 - `src/ai/index.ts`：提供 `chatWithAi`、`translateWithAi`、`getAiProviderStatus`、`startAiProvider` 这类稳定应用服务入口。
+- `src/ai/context.ts`：统一构造、归一化和合并 workspace、selection、search 请求上下文，调用侧不再手写 context payload。
 - `src/ai/preferences.ts` 与设置页 `AI 能力`：将 `chat`、`vision`、`translation` 的默认 provider 偏好保存到核心配置，显式指定 provider 的旧调用保持兼容。
 - `src/ai/providerStatus.ts` 与设置页 `AI 能力`：提供启用 provider 的状态快照、模型信息和启动入口，避免设置页直接依赖具体插件实现。
 - `src/plugins/ai-providers.ts`：把 `context.registerAiProvider` 接入 AI provider registry，并在插件禁用/卸载时按 pluginId 清理。

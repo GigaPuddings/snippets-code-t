@@ -781,7 +781,11 @@ import {
   type LocalAiModelScan,
   type LocalAiServiceStatus
 } from '@/api/localAi';
-import { chatWithAi, LOCAL_AI_PROVIDER_ID } from '@/ai';
+import {
+  chatWithAi,
+  createSelectionAiContext,
+  LOCAL_AI_PROVIDER_ID
+} from '@/ai';
 import { ConfirmDialog } from '@/components/UI';
 import {
   cloneLocalAiAttachments,
@@ -1227,15 +1231,9 @@ const requestEnhancedPrompt = async (
       temperature: retryForChinese ? 0.05 : 0.1,
       enableThinking: false,
       maxTokens: enhancementRequest.maxTokens,
-      context: {
-        items: [
-          {
-            kind: 'selection',
-            content: source,
-            source: 'local-ai.prompt-enhancement'
-          }
-        ]
-      }
+      context: createSelectionAiContext(source, {
+        source: 'local-ai.prompt-enhancement'
+      })
     },
     { providerId: LOCAL_AI_PROVIDER_ID, capability: 'chat' }
   );

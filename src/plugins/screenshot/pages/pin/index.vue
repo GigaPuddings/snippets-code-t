@@ -553,7 +553,11 @@ import {
   getModelCacheInfo,
   warmupOfflineTranslator
 } from '@/plugins/translation/utils/offlineTranslator';
-import { LOCAL_AI_PROVIDER_ID, translateWithAi } from '@/ai';
+import {
+  createSelectionAiContext,
+  LOCAL_AI_PROVIDER_ID,
+  translateWithAi
+} from '@/ai';
 import {
   canTranslateDetectedLanguage,
   detectTranslationLanguage
@@ -1511,15 +1515,7 @@ const translateOcrText = async (
         text: source,
         from: 'auto',
         to,
-        context: {
-          items: [
-            {
-              kind: 'selection',
-              content: source,
-              source: 'pin.ocr'
-            }
-          ]
-        }
+        context: createSelectionAiContext(source, { source: 'pin.ocr' })
       },
       { providerId: LOCAL_AI_PROVIDER_ID }
     );

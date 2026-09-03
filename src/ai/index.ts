@@ -11,6 +11,7 @@ import {
 } from './providerRegistry';
 import { LOCAL_AI_PROVIDER_ID } from './localAiProvider';
 import { ensureBuiltinAiProvidersRegistered } from './builtinProviders';
+import { withAiRequestContext } from './context';
 import {
   getAiProviderPreferences,
   type AiProviderPreferenceMap
@@ -46,6 +47,19 @@ export type {
   AiProviderDescriptor,
   AiProviderStatusSnapshot
 } from './providerStatus';
+export {
+  AI_CONTEXT_ITEM_MAX_LENGTH,
+  AI_CONTEXT_MAX_ITEMS,
+  createAiContextItem,
+  createAiRequestContext,
+  createSearchAiContext,
+  createSelectionAiContext,
+  createWorkspaceAiContext,
+  mergeAiRequestContexts,
+  normalizeAiRequestContext,
+  withAiRequestContext
+} from './context';
+export type { AiContextItemInput, AiContextOptions } from './context';
 export {
   AI_PROVIDER_CAPABILITIES,
   AI_PROVIDER_PREFERENCES_CONFIG_KEY,
@@ -215,7 +229,9 @@ export const chatWithAi = async (
 ): Promise<AiChatResponse> => {
   const capability = capabilityForRequest(request, options.capability);
   const provider = await resolveProvider(options, capability);
-  const response = await provider.chat(request);
+  const response = await provider.chat(
+    withAiRequestContext(request, undefined)
+  );
   return {
     ...response,
     providerId: response.providerId || provider.id
@@ -237,7 +253,9 @@ export const translateWithAi = async (
     throw new Error(`AI provider ${provider.id} 不支持 translate`);
   }
 
-  const response = await provider.translate(request);
+  const response = await provider.translate(
+    withAiRequestContext(request, undefined)
+  );
   return {
     ...response,
     providerId: response.providerId || provider.id
