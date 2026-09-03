@@ -11,6 +11,7 @@ import {
   runUniversalSearch,
   withUniversalSearchSource
 } from './universalSearch';
+import { SearchSourceRegistry } from './sourceRegistry';
 
 type Invoke = typeof import('@tauri-apps/api/core').invoke;
 
@@ -223,6 +224,104 @@ describe('runUniversalSearch', () => {
     expect(response.items.map((item) => item.metadata?.source)).toEqual([
       'quick-tools'
     ]);
+  });
+
+  it('records provider health in the source registry', async () => {
+    const registry = new SearchSourceRegistry();
+    const provider: SearchSourceProvider = {
+      pluginId: 'quick-tools',
+      source: 'quick-tools',
+      search: vi.fn(async () => [
+        {
+          source: 'quick-tools',
+          items: [contentItem('calc', 'calc answer', 'tool', '2')]
+        }
+      ])
+    };
+    registry.register(provider);
+    const invoke = createInvoke({
+      search_markdown_files_optimized: [],
+      get_search_history: []
+    });
+
+    await runUniversalSearch(
+      {
+        text: 'calc',
+        deepSearch: false,
+        searchEngines: []
+      },
+      {
+        invoke,
+        providers: registry.list(),
+        registry,
+        isPluginEnabled: () => true
+      }
+    );
+
+    expect(registry.getState('quick-tools', 'quick-tools')).toMatchObject({
+      health: 'healthy',
+      lastDurationMs: expect.any(Number)
+    });
+  });
+
+  it('times out slow providers without blocking other search results', async () => {
+    vi.useFakeTimers();
+    const registry = new SearchSourceRegistry();
+    const onProviderError = vi.fn();
+    const slowProvider = {
+      pluginId: 'slow-plugin',
+      source: 'slow',
+      timeoutMs: 20,
+      search: vi.fn(async () => new Promise<never>(() => undefined))
+    };
+    const healthyProvider: SearchSourceProvider = {
+      pluginId: 'quick-tools',
+      source: 'quick-tools',
+      search: vi.fn(async () => [
+        {
+          source: 'quick-tools',
+          items: [contentItem('calc', 'calc answer', 'tool', '2')]
+        }
+      ])
+    };
+    registry.register(slowProvider);
+    registry.register(healthyProvider);
+    const invoke = createInvoke({
+      search_markdown_files_optimized: [],
+      get_search_history: []
+    });
+
+    const searchPromise = runUniversalSearch(
+      {
+        text: 'calc',
+        deepSearch: false,
+        searchEngines: []
+      },
+      {
+        invoke,
+        providers: registry.list(),
+        registry,
+        isPluginEnabled: () => true,
+        onProviderError
+      }
+    );
+    await vi.advanceTimersByTimeAsync(20);
+    const response = await searchPromise;
+    vi.useRealTimers();
+
+    expect(response.items.map((item) => item.metadata?.source)).toEqual([
+      'quick-tools'
+    ]);
+    expect(onProviderError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pluginId: 'slow-plugin',
+        source: 'slow'
+      })
+    );
+    expect(registry.getState('slow-plugin', 'slow')).toMatchObject({
+      health: 'failed',
+      lastError: '搜索源 slow-plugin:slow 超时'
+    });
   });
 
   it('removes stale results owned by disabled plugin sources', () => {

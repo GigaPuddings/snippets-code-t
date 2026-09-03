@@ -7,45 +7,30 @@ import type {
 } from '@/types';
 import { isContentType } from '@/utils/type-guards';
 import { isURL, normalizeURL } from '@/utils/url';
-import type { SearchSourceProvider } from '@/plugins/search';
-import { searchSourceProviders } from '@/plugins/search-providers';
+import type { SearchSourceResult } from '@/plugins/search';
+import {
+  getEnabledSearchSourceProviders,
+  searchSourceRegistry
+} from '@/plugins/search-providers';
 import {
   createDefaultSearchResult,
   createEngineShortcutResult,
   findSearchEngine
 } from '@/plugins/search-engines/searchRuntime';
 import { rankSearchResults, type SearchHistoryMeta } from '@/search/ranking';
+import { getUniversalSearchSourcePluginId } from './sourceCatalog';
+import type {
+  SearchSourceRegistration,
+  SearchSourceRegistry
+} from './sourceRegistry';
+
+export { UNIVERSAL_SEARCH_SOURCES } from './sourceCatalog';
 
 export type UniversalSearchIntent =
   | 'empty'
   | 'url-open'
   | 'engine-shortcut'
   | 'results';
-
-export type UniversalSearchDomain =
-  | 'workspace'
-  | 'apps'
-  | 'files'
-  | 'bookmarks'
-  | 'tools'
-  | 'web';
-
-export interface UniversalSearchSourceDescriptor {
-  source: string;
-  domain: UniversalSearchDomain;
-  pluginId?: string;
-}
-
-export const UNIVERSAL_SEARCH_SOURCES: UniversalSearchSourceDescriptor[] = [
-  { source: 'markdown', domain: 'workspace' },
-  { source: 'app', domain: 'apps', pluginId: 'local-launcher' },
-  { source: 'bookmark', domain: 'bookmarks', pluginId: 'local-launcher' },
-  { source: 'file', domain: 'files', pluginId: 'desktop-files' },
-  { source: 'quick-tools', domain: 'tools', pluginId: 'quick-tools' },
-  { source: 'engine-shortcut', domain: 'web', pluginId: 'search-engines' },
-  { source: 'default-search', domain: 'web', pluginId: 'search-engines' },
-  { source: 'url-open', domain: 'web' }
-];
 
 export interface UniversalSearchRequest {
   text: string;
@@ -68,7 +53,8 @@ export interface UniversalSearchCommandError {
 
 export interface UniversalSearchRuntime {
   invoke?: typeof tauriInvoke;
-  providers?: SearchSourceProvider[];
+  providers?: SearchSourceRegistration[];
+  registry?: SearchSourceRegistry;
   isPluginEnabled(pluginId: string): boolean;
   shouldContinue?: () => boolean;
   onProviderError?: (error: UniversalSearchProviderError) => void;
@@ -80,11 +66,10 @@ export interface UniversalSearchResponse {
   items: ContentType[];
 }
 
-const SOURCE_PLUGIN_IDS = new Map(
-  UNIVERSAL_SEARCH_SOURCES.flatMap((source) =>
-    source.pluginId ? [[source.source, source.pluginId] as const] : []
-  )
-);
+interface ProviderSearchOutput {
+  provider: SearchSourceRegistration;
+  results: SearchSourceResult[];
+}
 
 export const getUniversalSearchResultSource = (item: ContentType): string =>
   typeof item.metadata?.source === 'string'
@@ -96,7 +81,7 @@ export const removeDisabledPluginResults = (
   isPluginEnabled: (pluginId: string) => boolean
 ): ContentType[] =>
   results.filter((item) => {
-    const pluginId = SOURCE_PLUGIN_IDS.get(
+    const pluginId = getUniversalSearchSourcePluginId(
       getUniversalSearchResultSource(item)
     );
     return !pluginId || isPluginEnabled(pluginId);
@@ -220,21 +205,58 @@ const loadSearchHistory = async (
 };
 
 const searchProvider = async (
-  provider: SearchSourceProvider,
+  provider: SearchSourceRegistration,
   text: string,
   runtime: UniversalSearchRuntime
-) => {
+): Promise<ProviderSearchOutput> => {
+  const registry =
+    runtime.registry ?? (runtime.providers ? undefined : searchSourceRegistry);
+  const startedAt = Date.now();
+  registry?.markSearching(provider, startedAt);
+
   try {
-    return await provider.search(text);
+    const result = await runProviderWithOptionalTimeout(provider, text);
+    registry?.markSuccess(provider, startedAt);
+    return {
+      provider,
+      results: Array.isArray(result) ? result : []
+    };
   } catch (error) {
+    registry?.markFailure(provider, error, startedAt);
     runtime.onProviderError?.({
       pluginId: provider.pluginId,
       source: provider.source,
       query: text,
       error
     });
-    return [];
+    return { provider, results: [] };
   }
+};
+
+const runProviderWithOptionalTimeout = (
+  provider: SearchSourceRegistration,
+  text: string
+): Promise<SearchSourceResult[]> => {
+  const searchPromise = provider.search(text);
+  if (!provider.timeoutMs || provider.timeoutMs <= 0) {
+    return searchPromise;
+  }
+
+  return new Promise((resolve, reject) => {
+    const timer = globalThis.setTimeout(() => {
+      reject(new Error(`搜索源 ${provider.pluginId}:${provider.source} 超时`));
+    }, provider.timeoutMs);
+
+    searchPromise
+      .then((result) => {
+        globalThis.clearTimeout(timer);
+        resolve(result);
+      })
+      .catch((error) => {
+        globalThis.clearTimeout(timer);
+        reject(error);
+      });
+  });
 };
 
 export const runUniversalSearch = async (
@@ -276,10 +298,10 @@ export const runUniversalSearch = async (
   }
 
   const query = text.toLowerCase();
-  const providers = runtime.providers ?? searchSourceProviders;
-  const enabledProviders = providers.filter((provider) =>
-    runtime.isPluginEnabled(provider.pluginId)
-  );
+  const enabledProviders =
+    runtime.providers?.filter((provider) =>
+      runtime.isPluginEnabled(String(provider.pluginId))
+    ) ?? getEnabledSearchSourceProviders(runtime.isPluginEnabled);
   const providerSearches = enabledProviders.map((provider) =>
     searchProvider(provider, text, runtime)
   );
@@ -297,12 +319,12 @@ export const runUniversalSearch = async (
     withUniversalSearchSource(item, 'markdown', index)
   );
 
-  for (const sourceResults of providerResultGroups) {
-    for (const sourceResult of sourceResults) {
+  for (const providerOutput of providerResultGroups) {
+    for (const sourceResult of providerOutput.results) {
       const source =
         typeof sourceResult.source === 'string' && sourceResult.source
           ? sourceResult.source
-          : 'unknown';
+          : providerOutput.provider.source;
       const items = Array.isArray(sourceResult.items) ? sourceResult.items : [];
       results.push(
         ...items

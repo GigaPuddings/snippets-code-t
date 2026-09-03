@@ -15,7 +15,10 @@ import * as VueI18nRuntime from 'vue-i18n';
 import type { RouteComponent, RouteRecordRaw, Router } from 'vue-router';
 import type { RegisteredPlugin } from './protocol';
 import type { SearchSourceProvider, SearchSourceResult } from './search';
-import { searchSourceProviders } from './search-providers';
+import {
+  registerSearchSourceProvider,
+  unregisterSearchSourceProvidersForPlugin
+} from './search-providers';
 import {
   pluginSettingsComponents,
   pluginSettingsMenuItems,
@@ -836,16 +839,7 @@ const createRuntimeContext = (
       source: provider.source,
       search: provider.search
     } satisfies SearchSourceProvider;
-    const existingIndex = searchSourceProviders.findIndex(
-      (candidate) =>
-        candidate.pluginId === plugin.id && candidate.source === provider.source
-    );
-
-    if (existingIndex === -1) {
-      searchSourceProviders.push(nextProvider);
-    } else {
-      searchSourceProviders[existingIndex] = nextProvider;
-    }
+    registerSearchSourceProvider(nextProvider);
     appendCapability(plugin, 'searchSources', provider.source);
   },
   registerTitlebarAction(action) {
@@ -1128,11 +1122,7 @@ export function clearRuntimePluginRegistrations(
     }
   }
 
-  for (let index = searchSourceProviders.length - 1; index >= 0; index -= 1) {
-    if (searchSourceProviders[index].pluginId === pluginId) {
-      searchSourceProviders.splice(index, 1);
-    }
-  }
+  unregisterSearchSourceProvidersForPlugin(pluginId);
 
   for (let index = titlebarPluginActions.length - 1; index >= 0; index -= 1) {
     const action = titlebarPluginActions[index];

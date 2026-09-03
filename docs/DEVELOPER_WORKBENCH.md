@@ -1,6 +1,6 @@
 # Developer Workbench 架构收敛方案
 
-> 状态：P2-A 已启动
+> 状态：P2-A 核心与 Search Source Registry 已落地
 > 更新日期：2026-09-03
 > 范围：Workspace、Universal Search、Plugin Platform、AI Capability Layer
 
@@ -47,13 +47,15 @@ Screenshot、OCR、Recorder、Translation、Todo、Wallpaper、Launcher、Local 
 
 - `src/search/ranking.ts`：搜索排序、历史权重、去重和匹配规则。
 - `src/search/universalSearch.ts`：统一搜索应用服务，编排 URL、Markdown、插件 provider、搜索历史和默认搜索引擎。
+- `src/search/sourceCatalog.ts`：声明稳定 source、domain、plugin 归属和默认优先级。
+- `src/search/sourceRegistry.ts`：统一注册、替换、注销搜索 provider，并记录 provider 运行健康状态。
 - `src/hooks/useSearch.ts`：仅保留 Vue 状态、输入防抖、生命周期和回车动作。
 
 后续可继续演进：
 
-- 将搜索源注册表从插件 runtime 数组升级为显式 registry。
-- 为 source 增加稳定 id、domain、权重、超时、禁用原因和健康状态。
-- 将 quick-tools、search-engines、local-launcher、desktop-files 都收敛为同一种 provider 形态。
+- 为 source 健康状态增加设置页或诊断面板入口。
+- 为慢 provider 制定产品级默认超时和降级提示。
+- 将 search-engines 也收敛为标准 provider，而不是由 Universal Search 特判快捷方式和默认搜索项。
 
 ### P2-B AI Capability Layer
 
