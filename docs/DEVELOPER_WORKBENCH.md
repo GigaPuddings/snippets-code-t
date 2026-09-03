@@ -1,7 +1,7 @@
 # Developer Workbench 架构收敛方案
 
 > 状态：P2-B AI Capability Layer 已启动
-> 更新日期：2026-09-03
+> 更新日期：2026-09-04
 > 范围：Workspace、Universal Search、Plugin Platform、AI Capability Layer
 
 ## 1. 长期产品形态
@@ -67,6 +67,7 @@ Screenshot、OCR、Recorder、Translation、Todo、Wallpaper、Launcher、Local 
 - `src/ai/localAiProvider.ts`：把现有 Local AI Tauri command 包装为默认 provider。
 - `src/ai/index.ts`：提供 `chatWithAi`、`translateWithAi`、`getAiProviderStatus`、`startAiProvider` 这类稳定应用服务入口。
 - `src/ai/preferences.ts` 与设置页 `AI 能力`：将 `chat`、`vision`、`translation` 的默认 provider 偏好保存到核心配置，显式指定 provider 的旧调用保持兼容。
+- `src/ai/providerStatus.ts` 与设置页 `AI 能力`：提供启用 provider 的状态快照、模型信息和启动入口，避免设置页直接依赖具体插件实现。
 - `src/plugins/ai-providers.ts`：把 `context.registerAiProvider` 接入 AI provider registry，并在插件禁用/卸载时按 pluginId 清理。
 - `src/plugins/screenshot/utils/aiOcr.ts`：AI OCR 通过 vision provider 调用，不再直接依赖 Local AI chat command。
 - `src/plugins/screenshot/pages/screenshot/core/ScreenshotManager.ts`：截图视觉翻译通过 AI capability layer 调用。

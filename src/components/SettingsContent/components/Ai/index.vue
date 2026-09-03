@@ -77,6 +77,86 @@
       <section v-if="!enabledProviderCount" class="provider-empty">
         {{ t('settings.ai.noProviders') }}
       </section>
+
+      <section v-else class="provider-status-section">
+        <div class="provider-status-header">
+          <div>
+            <div class="provider-status-title">
+              {{ t('settings.ai.runtimeStatus') }}
+            </div>
+            <div class="provider-status-desc">
+              {{ t('settings.ai.runtimeStatusDesc') }}
+            </div>
+          </div>
+          <CustomButton
+            size="small"
+            plain
+            :loading="statusLoading"
+            @click="refreshStatuses"
+          >
+            {{ t('settings.ai.refreshStatus') }}
+          </CustomButton>
+        </div>
+
+        <div class="provider-status-list">
+          <article
+            v-for="provider in providerSnapshots"
+            :key="provider.id"
+            class="provider-status-card"
+          >
+            <div class="provider-status-main">
+              <div class="provider-status-name-row">
+                <span class="provider-status-name">{{ provider.label }}</span>
+                <span class="provider-status-id">{{ provider.id }}</span>
+                <span
+                  class="provider-status-chip"
+                  :class="statusChipClass(provider.status)"
+                >
+                  {{ statusLabel(provider.status) }}
+                </span>
+              </div>
+              <div class="provider-status-meta">
+                {{ providerMeta(provider) }}
+                <span v-if="provider.status.modelName">
+                  {{
+                    t('settings.ai.modelName', {
+                      model: provider.status.modelName
+                    })
+                  }}
+                </span>
+                <span v-if="provider.status.baseUrl">
+                  {{ provider.status.baseUrl }}
+                </span>
+              </div>
+              <div class="provider-capabilities">
+                <span
+                  v-for="capability in provider.capabilities"
+                  :key="capability"
+                  class="provider-capability-chip"
+                >
+                  {{ capabilityLabel(capability) }}
+                </span>
+              </div>
+              <div
+                v-if="provider.status.lastError"
+                class="provider-status-error"
+              >
+                {{ provider.status.lastError }}
+              </div>
+            </div>
+
+            <CustomButton
+              v-if="provider.canStart"
+              size="small"
+              plain
+              :loading="startingProviderId === provider.id"
+              @click="handleStartProvider(provider.id)"
+            >
+              {{ t('settings.ai.startProvider') }}
+            </CustomButton>
+          </article>
+        </div>
+      </section>
     </main>
   </div>
 </template>
@@ -86,15 +166,14 @@ import { useI18n } from 'vue-i18n';
 import { CustomButton } from '@/components/UI';
 import {
   AI_PROVIDER_CAPABILITIES,
-  aiProviderRegistry,
-  ensureBuiltinAiProvidersRegistered,
   getAiProviderPreferences,
   setAiProviderPreference,
-  type AiProvider,
-  type AiProviderCapability
+  type AiProviderCapability,
+  type AiProviderStatusSnapshot
 } from '@/ai';
 import { usePluginStore } from '@/store';
 import modal from '@/utils/modal';
+import { useAiProviderStatusList } from './useAiProviderStatusList';
 
 defineOptions({
   name: 'AiSettings'
@@ -111,33 +190,37 @@ const selectedProviderIds = reactive<Record<AiProviderCapability, string>>({
   vision: '',
   translation: ''
 });
-
-const listProviders = (capability: AiProviderCapability): AiProvider[] =>
-  aiProviderRegistry.list({
-    capability,
-    isPluginEnabled: (pluginId) => pluginStore.isEnabled(pluginId)
-  });
+const {
+  statusLoading,
+  startingProviderId,
+  providerSnapshots,
+  providerMeta,
+  statusLabel,
+  statusChipClass,
+  refreshStatuses,
+  handleStartProvider
+} = useAiProviderStatusList();
 
 const providersByCapability = computed<
-  Record<AiProviderCapability, AiProvider[]>
+  Record<AiProviderCapability, AiProviderStatusSnapshot[]>
 >(() => {
   pluginStore.runtimeRevision;
   return {
-    chat: listProviders('chat'),
-    vision: listProviders('vision'),
-    translation: listProviders('translation')
+    chat: providerSnapshots.value.filter((provider) =>
+      provider.capabilities.includes('chat')
+    ),
+    vision: providerSnapshots.value.filter((provider) =>
+      provider.capabilities.includes('vision')
+    ),
+    translation: providerSnapshots.value.filter((provider) =>
+      provider.capabilities.includes('translation')
+    )
   };
 });
 
 const enabledProviderCount = computed(() => {
   pluginStore.runtimeRevision;
-  return new Set(
-    aiProviderRegistry
-      .list({
-        isPluginEnabled: (pluginId) => pluginStore.isEnabled(pluginId)
-      })
-      .map((provider) => provider.id)
-  ).size;
+  return providerSnapshots.value.length;
 });
 
 const capabilityLabel = (capability: AiProviderCapability): string =>
@@ -145,11 +228,6 @@ const capabilityLabel = (capability: AiProviderCapability): string =>
 
 const capabilityDescription = (capability: AiProviderCapability): string =>
   t(`settings.ai.capabilityDescriptions.${capability}`);
-
-const providerMeta = (provider: AiProvider): string =>
-  provider.pluginId
-    ? t('settings.ai.pluginProvider', { plugin: provider.pluginId })
-    : t('settings.ai.coreProvider');
 
 const preferenceUnavailable = (capability: AiProviderCapability): boolean => {
   const providerId = selectedProviderIds[capability];
@@ -172,8 +250,8 @@ const refresh = async (): Promise<void> => {
   try {
     await pluginStore.initialize();
     await pluginStore.loadEnabledPluginEntries();
-    ensureBuiltinAiProvidersRegistered();
     applyPreferences(await getAiProviderPreferences());
+    await refreshStatuses();
   } catch (error) {
     modal.msg(`${t('settings.ai.loadFailed')}: ${error}`, 'error');
   } finally {
@@ -206,56 +284,4 @@ onMounted(() => {
 });
 </script>
 
-<style scoped lang="scss">
-.ai-settings-header {
-  @apply flex items-center justify-between gap-3;
-}
-
-.ai-settings-content {
-  @apply flex flex-col gap-0;
-}
-
-.provider-count {
-  @apply rounded border border-panel bg-hover px-2 py-1 text-xs text-panel-text-secondary;
-}
-
-.ai-provider-row {
-  @apply flex items-start justify-between gap-4 border-b border-panel py-3 last:border-b-0;
-}
-
-.provider-label {
-  @apply min-w-0 flex-1;
-}
-
-.provider-title {
-  @apply text-sm font-medium text-panel;
-}
-
-.provider-desc {
-  @apply mt-1 text-xs leading-5 text-panel-text-secondary;
-}
-
-.provider-warning {
-  @apply mt-2 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs leading-5 text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200;
-}
-
-.provider-control {
-  @apply shrink-0;
-}
-
-.provider-select {
-  @apply w-56;
-}
-
-.provider-option {
-  @apply flex min-w-0 items-center justify-between gap-3;
-
-  small {
-    @apply truncate text-xs text-panel-text-secondary;
-  }
-}
-
-.provider-empty {
-  @apply mt-3 rounded border border-panel bg-hover px-3 py-2 text-xs leading-5 text-panel-text-secondary;
-}
-</style>
+<style scoped lang="scss" src="./ai-settings.scss"></style>

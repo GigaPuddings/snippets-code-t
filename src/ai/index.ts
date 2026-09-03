@@ -9,7 +9,8 @@ import {
   type AiTranslateRequest,
   type AiTranslateResponse
 } from './providerRegistry';
-import { LOCAL_AI_PROVIDER_ID, localAiProvider } from './localAiProvider';
+import { LOCAL_AI_PROVIDER_ID } from './localAiProvider';
+import { ensureBuiltinAiProvidersRegistered } from './builtinProviders';
 import {
   getAiProviderPreferences,
   type AiProviderPreferenceMap
@@ -36,6 +37,15 @@ export type {
   AiTranslateResponse
 } from './providerRegistry';
 export { LOCAL_AI_PROVIDER_ID, localAiProvider } from './localAiProvider';
+export { ensureBuiltinAiProvidersRegistered } from './builtinProviders';
+export {
+  getAiProviderStatusSnapshots,
+  listAiProviders
+} from './providerStatus';
+export type {
+  AiProviderDescriptor,
+  AiProviderStatusSnapshot
+} from './providerStatus';
 export {
   AI_PROVIDER_CAPABILITIES,
   AI_PROVIDER_PREFERENCES_CONFIG_KEY,
@@ -67,14 +77,6 @@ const capabilityForRequest = (
   capability?: AiProviderCapability
 ): AiProviderCapability =>
   capability ?? (requestUsesVision(request) ? 'vision' : 'chat');
-
-export const ensureBuiltinAiProvidersRegistered = (
-  registry = aiProviderRegistry
-): void => {
-  if (!registry.get(LOCAL_AI_PROVIDER_ID)) {
-    registry.register(localAiProvider);
-  }
-};
 
 const resolvePreferredProviderId = async (
   options: AiProviderRequestOptions,
