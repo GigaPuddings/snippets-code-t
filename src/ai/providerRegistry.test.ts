@@ -116,6 +116,112 @@ describe('AiProviderRegistry', () => {
     });
   });
 
+  it('uses preferred providers before priority defaults', async () => {
+    const registry = new AiProviderRegistry();
+    const priorityDefault = provider({
+      id: 'local-ai',
+      priority: 100
+    });
+    const preferred = provider({
+      id: 'remote-ai',
+      priority: 10
+    });
+    registry.register(priorityDefault);
+    registry.register(preferred);
+
+    const response = await chatWithAi(
+      {
+        messages: [{ role: 'user', content: 'hello' }]
+      },
+      {
+        registry,
+        providerPreferences: {
+          chat: 'remote-ai'
+        }
+      }
+    );
+
+    expect(priorityDefault.chat).not.toHaveBeenCalled();
+    expect(preferred.chat).toHaveBeenCalledOnce();
+    expect(response.providerId).toBe('remote-ai');
+  });
+
+  it('falls back when a preferred provider cannot satisfy the capability', async () => {
+    const registry = new AiProviderRegistry();
+    const textProvider = provider({
+      id: 'text-ai',
+      priority: 100,
+      capabilities: ['chat']
+    });
+    const visionProvider = provider({
+      id: 'vision-ai',
+      priority: 10,
+      capabilities: ['chat', 'vision']
+    });
+    registry.register(textProvider);
+    registry.register(visionProvider);
+
+    const response = await chatWithAi(
+      {
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: 'read this' },
+              {
+                type: 'image_url',
+                image_url: { url: 'data:image/png;base64,' }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        registry,
+        providerPreferences: {
+          vision: 'text-ai'
+        }
+      }
+    );
+
+    expect(textProvider.chat).not.toHaveBeenCalled();
+    expect(visionProvider.chat).toHaveBeenCalledOnce();
+    expect(response.providerId).toBe('vision-ai');
+  });
+
+  it('falls back when a preferred plugin provider is disabled', async () => {
+    const registry = new AiProviderRegistry();
+    const disabledProvider = provider({
+      id: 'remote-ai',
+      pluginId: 'remote-ai-plugin',
+      priority: 100
+    });
+    const fallbackProvider = provider({
+      id: 'local-ai',
+      pluginId: 'local-ai',
+      priority: 10
+    });
+    registry.register(disabledProvider);
+    registry.register(fallbackProvider);
+
+    const response = await chatWithAi(
+      {
+        messages: [{ role: 'user', content: 'hello' }]
+      },
+      {
+        registry,
+        isPluginEnabled: (pluginId) => pluginId === 'local-ai',
+        providerPreferences: {
+          chat: 'remote-ai'
+        }
+      }
+    );
+
+    expect(disabledProvider.chat).not.toHaveBeenCalled();
+    expect(fallbackProvider.chat).toHaveBeenCalledOnce();
+    expect(response.providerId).toBe('local-ai');
+  });
+
   it('routes translation requests through providers with translation capability', async () => {
     const registry = new AiProviderRegistry();
     const selected = {

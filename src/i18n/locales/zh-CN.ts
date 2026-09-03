@@ -144,6 +144,34 @@ export default {
     exitAppSuccess: '退出应用成功',
     settingFailed: '设置失败',
     exitFailed: '退出失败',
+    ai: {
+      menu: 'AI 能力',
+      title: 'AI 能力',
+      refresh: '刷新',
+      defaultProviders: '默认 Provider',
+      defaultProvidersDesc:
+        '为通用 AI Capability 选择默认服务。显式指定 Local AI 的功能仍保持原有行为。',
+      providerCount: '{count} 个可用 Provider',
+      automatic: '自动选择',
+      pluginProvider: '插件：{plugin}',
+      coreProvider: '核心能力',
+      noProviders:
+        '当前没有可用的 AI Provider。请先启用 Local AI 或安装 AI Provider 插件。',
+      loadFailed: '加载 AI Provider 失败',
+      saved: 'AI Provider 偏好已保存',
+      saveFailed: '保存 AI Provider 偏好失败',
+      preferenceUnavailable: '已保存的 Provider“{provider}”当前不可用。',
+      capabilities: {
+        chat: '对话',
+        vision: '视觉',
+        translation: '翻译'
+      },
+      capabilityDescriptions: {
+        chat: '用于文本对话、提示词增强和通用助手请求。',
+        vision: '用于图片理解、视觉 OCR 和截图识别。',
+        translation: '用于 AI 翻译请求。'
+      }
+    },
     developer: {
       menu: '开发者模式',
       title: '开发者诊断',

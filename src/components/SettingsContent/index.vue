@@ -58,6 +58,7 @@ const canShowGitSyncTab = ref(false);
 
 const coreMenuItems: PluginSettingsMenuItem[] = [
   { id: 'general', labelKey: 'settings.general', icon: SettingTwo },
+  { id: 'ai', labelKey: 'settings.ai.menu', icon: SettingTwo },
   { id: 'plugins', labelKey: 'plugins.title', icon: Data },
   { id: 'shortcut', labelKey: 'shortcut.title', icon: EnterTheKeyboard },
   { id: 'data', labelKey: 'dataManager.title', icon: Data },
@@ -114,6 +115,7 @@ const Manger = defineAsyncComponent(
 const Plugins = defineAsyncComponent(
   () => import('./components/Plugins/index.vue')
 );
+const Ai = defineAsyncComponent(() => import('./components/Ai/index.vue'));
 const Developer = defineAsyncComponent(
   () => import('./components/Developer/index.vue')
 );
@@ -145,6 +147,7 @@ const componentMap = computed<Record<string, any>>(() => {
     shortcut: Shortcut,
     data: Manger,
     plugins: Plugins,
+    ai: Ai,
     developer: Developer,
     ...pluginSettingsComponents
   };

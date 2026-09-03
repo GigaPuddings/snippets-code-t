@@ -151,6 +151,35 @@ export default {
     exitAppSuccess: 'Application exited',
     settingFailed: 'Setting failed',
     exitFailed: 'Exit failed',
+    ai: {
+      menu: 'AI Capabilities',
+      title: 'AI Capabilities',
+      refresh: 'Refresh',
+      defaultProviders: 'Default Providers',
+      defaultProvidersDesc:
+        'Choose default services for the shared AI capability layer. Features that explicitly target Local AI keep their existing behavior.',
+      providerCount: '{count} available providers',
+      automatic: 'Automatic',
+      pluginProvider: 'Plugin: {plugin}',
+      coreProvider: 'Core capability',
+      noProviders:
+        'No AI providers are available. Enable Local AI or install an AI provider plugin first.',
+      loadFailed: 'Failed to load AI providers',
+      saved: 'AI provider preference saved',
+      saveFailed: 'Failed to save AI provider preference',
+      preferenceUnavailable: 'Saved provider "{provider}" is not available.',
+      capabilities: {
+        chat: 'Chat',
+        vision: 'Vision',
+        translation: 'Translation'
+      },
+      capabilityDescriptions: {
+        chat: 'Used for text chat, prompt enhancement, and assistant requests.',
+        vision:
+          'Used for image understanding, visual OCR, and screenshot recognition.',
+        translation: 'Used for AI translation requests.'
+      }
+    },
     developer: {
       menu: 'Developer Mode',
       title: 'Developer Diagnostics',
