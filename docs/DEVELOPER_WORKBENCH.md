@@ -68,11 +68,13 @@ Screenshot、OCR、Recorder、Translation、Todo、Wallpaper、Launcher、Local 
 - `src/ai/index.ts`：提供 `chatWithAi`、`translateWithAi`、`getAiProviderStatus`、`startAiProvider` 这类稳定应用服务入口。
 - `src/plugins/screenshot/utils/aiOcr.ts`：AI OCR 通过 vision provider 调用，不再直接依赖 Local AI chat command。
 - `src/plugins/screenshot/pages/screenshot/core/ScreenshotManager.ts`：截图视觉翻译通过 AI capability layer 调用。
+- `src/plugins/translation/pages/translate/index.vue`：Translation 插件的 Local AI 引擎通过 `translateWithAi` 调用。
+- `src/plugins/local-ai/pages/chat/index.vue`：提示词增强通过 `chatWithAi` 调用，流式聊天仍保留原 Local AI stream API。
 
 目标：
 
 - 继续统一本地/远端 AI provider。
-- 定义 workspace context、selection context、search context。
+- 继续完善 workspace context、selection context、search context 的注入策略。
 - 让 OCR、Translation、Local AI、未来代码助手共享能力层。
 
 ### P2-C Developer Workbench Shell

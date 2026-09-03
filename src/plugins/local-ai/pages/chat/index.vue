@@ -765,7 +765,6 @@ import {
 } from '@icon-park/vue-next';
 import {
   cancelLocalAiChatStream,
-  chatWithLocalAi,
   clearLocalAiChatHistories,
   createLocalAiStreamRequestId,
   deleteLocalAiChatHistory,
@@ -782,6 +781,7 @@ import {
   type LocalAiModelScan,
   type LocalAiServiceStatus
 } from '@/api/localAi';
+import { chatWithAi, LOCAL_AI_PROVIDER_ID } from '@/ai';
 import { ConfirmDialog } from '@/components/UI';
 import {
   cloneLocalAiAttachments,
@@ -1215,18 +1215,30 @@ const requestEnhancedPrompt = async (
     source,
     retryForChinese
   );
-  const response = await chatWithLocalAi({
-    messages: [
-      {
-        role: 'system',
-        content: enhancementRequest.systemPrompt
-      },
-      { role: 'user', content: enhancementRequest.userPrompt }
-    ],
-    temperature: retryForChinese ? 0.05 : 0.1,
-    enableThinking: false,
-    maxTokens: enhancementRequest.maxTokens
-  });
+  const response = await chatWithAi(
+    {
+      messages: [
+        {
+          role: 'system',
+          content: enhancementRequest.systemPrompt
+        },
+        { role: 'user', content: enhancementRequest.userPrompt }
+      ],
+      temperature: retryForChinese ? 0.05 : 0.1,
+      enableThinking: false,
+      maxTokens: enhancementRequest.maxTokens,
+      context: {
+        items: [
+          {
+            kind: 'selection',
+            content: source,
+            source: 'local-ai.prompt-enhancement'
+          }
+        ]
+      }
+    },
+    { providerId: LOCAL_AI_PROVIDER_ID, capability: 'chat' }
+  );
   return normalizeEnhancedPrompt(response.content);
 };
 const enhancePrompt = async (): Promise<void> => {
