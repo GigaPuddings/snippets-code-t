@@ -553,6 +553,7 @@ import {
   getModelCacheInfo,
   warmupOfflineTranslator
 } from '@/plugins/translation/utils/offlineTranslator';
+import { LOCAL_AI_PROVIDER_ID, translateWithAi } from '@/ai';
 import {
   canTranslateDetectedLanguage,
   detectTranslationLanguage
@@ -1503,10 +1504,32 @@ const translateOcrText = async (
     return translateOffline(source);
   }
 
+  const to = sourceLanguage === 'zh' ? 'en' : 'zh';
+  if (currentTranslateEngine.value === 'local-ai') {
+    const response = await translateWithAi(
+      {
+        text: source,
+        from: 'auto',
+        to,
+        context: {
+          items: [
+            {
+              kind: 'selection',
+              content: source,
+              source: 'pin.ocr'
+            }
+          ]
+        }
+      },
+      { providerId: LOCAL_AI_PROVIDER_ID }
+    );
+    return response.text;
+  }
+
   return (await invoke('translate_text', {
     text: source,
     from: 'auto',
-    to: sourceLanguage === 'zh' ? 'en' : 'zh',
+    to,
     engine: currentTranslateEngine.value
   })) as string;
 };
