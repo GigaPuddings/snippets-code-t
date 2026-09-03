@@ -433,7 +433,7 @@ Frontend Workspace
 - 编辑器已暴露“语言、框架、类型”属性栏，并提供前端常用语言、框架、片段类型的内置选项。
 - 保存链路已修复“只修改标签或语义元数据时可能跳过写入”的问题，确保 frontmatter 能正确落盘。
 - 新增工程优先级进度文档 `docs/ENGINEERING_PRIORITY_PROGRESS.md`，用于按任务标记推进状态。
-- 新增 Vitest 测试入口，并将搜索排序逻辑抽为 `src/hooks/searchRanking.ts`，已覆盖第一批搜索排序用例，同时修复普通片段正文被当作文件名评分的边界问题。
+- 新增 Vitest 测试入口，并将搜索排序逻辑抽为 `src/search/ranking.ts`，已覆盖第一批搜索排序用例，同时修复普通片段正文被当作文件名评分的边界问题。
 - 已补充 wikilink 解析和 TipTap JSON 到 Markdown 序列化测试，开始覆盖编辑器长期维护风险较高的基础转换链路。
 - 插件前端 command/backend 权限判断已抽为可测试纯模块，并覆盖精确权限、通配权限和拒绝路径。
 - 搜索语法解析和语义过滤测试已补齐，`getFragmentList` 已复用统一过滤引擎，避免 `lang/framework/kind` 在不同入口表现不一致。

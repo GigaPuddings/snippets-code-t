@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { logger } from '@/utils/logger';
-import { getPrimarySearchHistoryKey } from '@/hooks/searchRanking';
+import { getPrimarySearchHistoryKey } from '@/search/ranking';
 import { getSearchResultLaunchPath } from './useSearchResultPaths';
 import { modal } from '@/utils/modal';
 import { openSearchResultInConfig } from './openConfigContent';

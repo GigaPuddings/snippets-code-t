@@ -298,7 +298,7 @@ import { RecycleScroller } from 'vue-virtual-scroller';
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css';
 import EditDialog from './components/EditDialog.vue';
 import { ConfirmDialog } from '@/components/UI';
-import { getPrimarySearchHistoryKey } from '@/hooks/searchRanking';
+import { getPrimarySearchHistoryKey } from '@/search/ranking';
 import {
   refreshRecycleScroller,
   type RecycleScrollerInstance

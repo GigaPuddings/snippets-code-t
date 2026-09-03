@@ -24,7 +24,7 @@ const result = (
 });
 
 describe('useSearch plugin lifecycle', () => {
-  it('drops stale app and bookmark results after local-launcher is disabled', () => {
+  it('drops stale plugin-owned results after their plugin is disabled', () => {
     const results = [
       result('app', 'app', 'app'),
       result('bookmark', 'bookmark', 'bookmark'),
@@ -33,7 +33,6 @@ describe('useSearch plugin lifecycle', () => {
     ];
 
     expect(removeDisabledPluginResults(results, () => false)).toEqual([
-      results[2],
       results[3]
     ]);
   });

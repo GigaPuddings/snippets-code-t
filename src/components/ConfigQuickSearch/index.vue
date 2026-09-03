@@ -100,7 +100,7 @@ import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { getCategories } from '@/api/fragment';
 import { useSearch } from '@/hooks/useSearch';
-import { getPrimarySearchHistoryKey } from '@/hooks/searchRanking';
+import { getPrimarySearchHistoryKey } from '@/search/ranking';
 import {
   getRawSearchResultId,
   useSearchResultDisplay

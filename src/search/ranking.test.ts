@@ -7,7 +7,7 @@ import {
   getSearchTokens,
   isRelevantSearchResult,
   rankSearchResults
-} from './searchRanking';
+} from './ranking';
 
 const createItem = (overrides: Partial<ContentType>): ContentType => ({
   id: overrides.id ?? 'item',

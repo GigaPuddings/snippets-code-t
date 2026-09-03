@@ -112,8 +112,8 @@ Git 同步已经是插件，但配置页仍直接管理 Git 冲突弹窗、自�
 进度任务：
 
 - [x] 新增 Vitest 依赖和 `pnpm test` / `pnpm test:watch` 脚本。
-- [x] 将搜索排序/匹配逻辑从 `useSearch.ts` 抽为可测试纯模块 `src/hooks/searchRanking.ts`。
-- [x] 新增 `src/hooks/searchRanking.test.ts`，覆盖分词、浅/深搜索、标题优先、历史权重、后端分数封顶。
+- [x] 将搜索排序/匹配逻辑从 `useSearch.ts` 抽为可测试纯模块 `src/search/ranking.ts`。
+- [x] 新增 `src/search/ranking.test.ts`，覆盖分词、浅/深搜索、标题优先、历史权重、后端分数封顶。
 - [x] 修复搜索排序边界：普通片段正文不再被当作文件名参与评分，避免正文命中压过标题精确命中。
 - [x] 新增 `src/utils/wikilink-parser.test.ts`，覆盖 wikilink 解析、去重、替换、HTML 渲染和正则状态复用。
 - [x] 新增 `src/components/TipTapEditor/utils/markdown.test.ts`，覆盖 TipTap JSON 到 Markdown 的标题、段落、标记、任务列表、代码块和图片路径序列化。
