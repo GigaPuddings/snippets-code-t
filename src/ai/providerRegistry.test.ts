@@ -44,6 +44,15 @@ describe('AiProviderRegistry', () => {
     expect(registry.require('local-ai').priority).toBe(50);
   });
 
+  it('rejects providers that collide with another owner', () => {
+    const registry = new AiProviderRegistry();
+    registry.register(provider({ id: 'local-ai', pluginId: 'local-ai' }));
+
+    expect(() =>
+      registry.register(provider({ id: 'local-ai', pluginId: 'remote-ai' }))
+    ).toThrow('已由 local-ai 注册');
+  });
+
   it('filters providers by plugin enabled state', () => {
     const registry = new AiProviderRegistry();
     registry.register(

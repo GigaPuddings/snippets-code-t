@@ -66,6 +66,7 @@ Screenshot、OCR、Recorder、Translation、Todo、Wallpaper、Launcher、Local 
 - `src/ai/providerRegistry.ts`：统一 AI provider id、capability、上下文、状态、启动、非流式 chat 和 translate 协议。
 - `src/ai/localAiProvider.ts`：把现有 Local AI Tauri command 包装为默认 provider。
 - `src/ai/index.ts`：提供 `chatWithAi`、`translateWithAi`、`getAiProviderStatus`、`startAiProvider` 这类稳定应用服务入口。
+- `src/plugins/ai-providers.ts`：把 `context.registerAiProvider` 接入 AI provider registry，并在插件禁用/卸载时按 pluginId 清理。
 - `src/plugins/screenshot/utils/aiOcr.ts`：AI OCR 通过 vision provider 调用，不再直接依赖 Local AI chat command。
 - `src/plugins/screenshot/pages/screenshot/core/ScreenshotManager.ts`：截图视觉翻译通过 AI capability layer 调用。
 - `src/plugins/screenshot/pages/pin/index.vue`：Pin 窗口 OCR 结果的 Local AI 翻译通过 `translateWithAi` 调用。

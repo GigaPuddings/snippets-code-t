@@ -15,6 +15,7 @@ export interface PluginCapabilities {
   settingsTabs?: string[];
   hotkeys?: string[];
   searchSources?: string[];
+  aiProviders?: string[];
   titlebarActions?: string[];
   trayItems?: string[];
   windows?: string[];
@@ -100,6 +101,7 @@ export interface RegisteredPlugin {
   settingsTabs?: string[];
   hotkeys?: string[];
   searchSources?: string[];
+  aiProviders?: string[];
   resourceHintKey?: string;
   resourceFor?: string;
   installedAt?: string;

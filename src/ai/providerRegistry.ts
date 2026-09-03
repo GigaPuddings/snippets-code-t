@@ -106,6 +106,13 @@ export class AiProviderRegistry {
       throw new Error(`AI provider ${id} 缺少 capability`);
     }
 
+    const existing = this.providers.get(id);
+    if (existing && existing.pluginId !== provider.pluginId) {
+      throw new Error(
+        `AI provider ${id} 已由 ${existing.pluginId ?? 'core'} 注册`
+      );
+    }
+
     this.providers.set(id, {
       ...provider,
       id

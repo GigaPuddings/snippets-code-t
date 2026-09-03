@@ -36,6 +36,7 @@ export interface BuiltinPlugin {
   hotkeys?: string[];
   trayItems?: string[];
   searchSources?: string[];
+  aiProviders?: string[];
   dependencies?: string[];
   resourceHintKey?: string;
 }

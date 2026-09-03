@@ -501,6 +501,7 @@ export default {
       settings: '设置入口',
       hotkeys: '快捷键',
       search: '搜索来源',
+      ai: 'AI 能力',
       titlebar: '标题栏动作',
       tray: '托盘入口',
       windows: '窗口能力'

@@ -29,6 +29,7 @@ export const createRegisteredPlugin = (
   settingsTabs: manifest.capabilities?.settingsTabs,
   hotkeys: manifest.capabilities?.hotkeys,
   searchSources: manifest.capabilities?.searchSources,
+  aiProviders: manifest.capabilities?.aiProviders,
   resourceHintKey: manifest.resources?.hintKey,
   resourceFor: manifest.resourceFor
 });

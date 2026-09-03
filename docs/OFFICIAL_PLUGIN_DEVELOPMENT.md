@@ -19,7 +19,7 @@ plugin-registry/packages/<plugin-id>/
   dist/frontend.js
 ```
 
-运行时入口必须调用与 manifest 能力匹配的插件桥注册方法。以快速搜索工具为例，`plugin.json` 需要在 `capabilities.searchSources` 中声明搜索来源，`runtime-entry.ts` 需要调用 `context.registerSearchProvider(...)`。
+运行时入口必须调用与 manifest 能力匹配的插件桥注册方法。以快速搜索工具为例，`plugin.json` 需要在 `capabilities.searchSources` 中声明搜索来源，`runtime-entry.ts` 需要调用 `context.registerSearchProvider(...)`。AI provider 同理需要声明 `capabilities.aiProviders`，并通过 `context.registerAiProvider(...)` 注册。
 
 ## 应用接入清单
 
@@ -111,6 +111,13 @@ pnpm plugins:verify-marketplace -- --local
 - 已安装插件处于启用状态。
 - 搜索页签过滤器没有隐藏该来源。Quick search 的工具结果应该出现在 `全部` 和 `工具` 下。
 - 查询示例写在插件 README 中，用户不应该靠猜语法使用。
+
+## AI Provider 插件清单
+
+- manifest 声明 `capabilities.aiProviders`。
+- 运行时入口通过 `context.registerAiProvider` 注册 provider，并声明 `chat`、`vision` 或 `translation` capability。
+- provider id 必须稳定，不能和其他插件或内置 provider 冲突。
+- 插件禁用或卸载后，runtime 会清理该插件注册的 AI provider。
 
 ## 常见失败模式
 

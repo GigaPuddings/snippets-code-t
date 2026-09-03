@@ -505,6 +505,7 @@ export default {
       settings: 'Settings tab',
       hotkeys: 'Hotkeys',
       search: 'Search source',
+      ai: 'AI provider',
       titlebar: 'Titlebar action',
       tray: 'Tray item',
       windows: 'Window access'

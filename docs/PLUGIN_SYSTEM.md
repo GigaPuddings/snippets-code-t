@@ -122,6 +122,7 @@ Current package manifest shape:
     "settingsTabs": ["example"],
     "hotkeys": ["example_hotkey"],
     "searchSources": ["example-source"],
+    "aiProviders": ["example-ai"],
     "titlebarActions": [],
     "trayItems": [],
     "windows": []
@@ -503,7 +504,7 @@ The settings marketplace treats `included` official entries that have
 frontend runtime into `<data-root>/packages/plugins/<plugin-id>`.
 
 Official plugin routes, settings tabs, titlebar actions, host components, window
-shortcuts, and search providers are not statically registered. After a
+shortcuts, search providers, and AI providers are not statically registered. After a
 matching official manifest package is installed, the runtime bridge loads the
 official plugin entry and registers those capabilities for that installed
 plugin id.
