@@ -1,9 +1,5 @@
-import {
-  chatWithLocalAi,
-  getLocalAiConfig,
-  getLocalAiStatus,
-  scanLocalAiModels
-} from '@/api/localAi';
+import { getLocalAiConfig, scanLocalAiModels } from '@/api/localAi';
+import { chatWithAi, getAiProviderStatus, LOCAL_AI_PROVIDER_ID } from '@/ai';
 
 export type AiOcrSectionKind =
   | 'title'
@@ -236,27 +232,30 @@ export const recognizeImageWithLocalAi = async (
   }
 
   const recognize = async (retry: boolean) => {
-    const response = await chatWithLocalAi({
-      messages: [
-        { role: 'system', content: AI_OCR_SYSTEM_PROMPT },
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: retry
-                ? `${languageHints[language] || languageHints.auto}。上一次转写可能不完整，请重新独立阅读整张图片，尤其检查标题之后、列表和底部的所有文字。只输出完整原文。`
-                : `${languageHints[language] || languageHints.auto}。请完整转写这张图片中的全部文字，只输出原文。`
-            },
-            {
-              type: 'image_url',
-              image_url: { url: imageData }
-            }
-          ]
-        }
-      ],
-      enableThinking: false
-    });
+    const response = await chatWithAi(
+      {
+        messages: [
+          { role: 'system', content: AI_OCR_SYSTEM_PROMPT },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: retry
+                  ? `${languageHints[language] || languageHints.auto}。上一次转写可能不完整，请重新独立阅读整张图片，尤其检查标题之后、列表和底部的所有文字。只输出完整原文。`
+                  : `${languageHints[language] || languageHints.auto}。请完整转写这张图片中的全部文字，只输出原文。`
+              },
+              {
+                type: 'image_url',
+                image_url: { url: imageData }
+              }
+            ]
+          }
+        ],
+        enableThinking: false
+      },
+      { providerId: LOCAL_AI_PROVIDER_ID, capability: 'vision' }
+    );
     return parseAiOcrResponse(response.content);
   };
 
@@ -270,7 +269,9 @@ export const recognizeImageWithLocalAi = async (
       countMeaningfulCharacters(initialResult.text)
       ? retryResult
       : initialResult;
-  const serviceStatus = await getLocalAiStatus().catch(() => null);
+  const serviceStatus = await getAiProviderStatus(LOCAL_AI_PROVIDER_ID).catch(
+    () => null
+  );
   const modelName =
     fileNameFromPath(serviceStatus?.modelPath) ||
     fileNameFromPath(modelScan.selectedModelPath) ||

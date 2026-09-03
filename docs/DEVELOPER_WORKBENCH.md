@@ -1,6 +1,6 @@
 # Developer Workbench 架构收敛方案
 
-> 状态：P2-A 核心与 Search Source Registry 已落地
+> 状态：P2-B AI Capability Layer 已启动
 > 更新日期：2026-09-03
 > 范围：Workspace、Universal Search、Plugin Platform、AI Capability Layer
 
@@ -61,9 +61,17 @@ Screenshot、OCR、Recorder、Translation、Todo、Wallpaper、Launcher、Local 
 
 在 Universal Search 稳定后再做 AI Provider，避免 AI 直接绑 UI 或插件内部命令。
 
+已启动的第一批边界：
+
+- `src/ai/providerRegistry.ts`：统一 AI provider id、capability、上下文、状态、启动、非流式 chat 和 translate 协议。
+- `src/ai/localAiProvider.ts`：把现有 Local AI Tauri command 包装为默认 provider。
+- `src/ai/index.ts`：提供 `chatWithAi`、`translateWithAi`、`getAiProviderStatus`、`startAiProvider` 这类稳定应用服务入口。
+- `src/plugins/screenshot/utils/aiOcr.ts`：AI OCR 通过 vision provider 调用，不再直接依赖 Local AI chat command。
+- `src/plugins/screenshot/pages/screenshot/core/ScreenshotManager.ts`：截图视觉翻译通过 AI capability layer 调用。
+
 目标：
 
-- 统一本地/远端 AI provider。
+- 继续统一本地/远端 AI provider。
 - 定义 workspace context、selection context、search context。
 - 让 OCR、Translation、Local AI、未来代码助手共享能力层。
 

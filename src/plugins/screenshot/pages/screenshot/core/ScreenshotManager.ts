@@ -24,10 +24,11 @@ import { invoke } from '@tauri-apps/api/core';
 import { Window } from '@tauri-apps/api/window';
 import { logger, ocrDiagnosticLogger } from '@/utils/logger';
 import {
-  chatWithLocalAi,
-  startLocalAiService,
-  getLocalAiStatus
-} from '@/api/localAi';
+  chatWithAi,
+  getAiProviderStatus,
+  LOCAL_AI_PROVIDER_ID,
+  startAiProvider
+} from '@/ai';
 import {
   canTranslateDetectedLanguage,
   detectTranslationLanguage
@@ -4397,10 +4398,10 @@ export class ScreenshotManager {
       this.onStateChange?.();
 
       // 先检查服务状态，如果未运行则主动启动
-      const status = await getLocalAiStatus();
+      const status = await getAiProviderStatus(LOCAL_AI_PROVIDER_ID);
       if (!status.running) {
         logger.info('[截图] AI 服务未运行，正在启动...');
-        await startLocalAiService();
+        await startAiProvider(LOCAL_AI_PROVIDER_ID);
         logger.info('[截图] AI 服务启动完成');
       }
 
@@ -4417,38 +4418,41 @@ export class ScreenshotManager {
       // 短暂延迟让浏览器有机会重绘 Canvas，显示"正在由 AI 识图翻译..."
       await new Promise((resolve) => setTimeout(resolve, 100));
 
-      const response = await chatWithLocalAi({
-        temperature: 0.2,
-        maxTokens: 4096,
-        messages: [
-          {
-            role: 'system',
-            content: [
-              'You are a visual translation engine.',
-              'Read the text in the supplied screenshot directly; do not describe the image and do not copy source text.',
-              'The target language is always Simplified Chinese. Translate every readable non-Chinese fragment (including English, Japanese, Korean, and other languages) into Simplified Chinese.',
-              'For mixed-language screenshots, retain existing Simplified Chinese and translate only the non-Chinese fragments, preserving their original reading order.',
-              'Preserve headings, paragraphs, lists, tables, code, numbers, URLs, labels, and the reading order as faithfully as possible.',
-              'Do not use English as the target language. Return only the final translated text, with no source-language label, explanation, or Markdown fence.'
-            ].join(' ')
-          },
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text' as const,
-                text: 'Translate all readable text in this screenshot.'
-              },
-              {
-                type: 'image_url' as const,
-                image_url: {
-                  url: `data:image/png;base64,${capture.image}`
+      const response = await chatWithAi(
+        {
+          temperature: 0.2,
+          maxTokens: 4096,
+          messages: [
+            {
+              role: 'system',
+              content: [
+                'You are a visual translation engine.',
+                'Read the text in the supplied screenshot directly; do not describe the image and do not copy source text.',
+                'The target language is always Simplified Chinese. Translate every readable non-Chinese fragment (including English, Japanese, Korean, and other languages) into Simplified Chinese.',
+                'For mixed-language screenshots, retain existing Simplified Chinese and translate only the non-Chinese fragments, preserving their original reading order.',
+                'Preserve headings, paragraphs, lists, tables, code, numbers, URLs, labels, and the reading order as faithfully as possible.',
+                'Do not use English as the target language. Return only the final translated text, with no source-language label, explanation, or Markdown fence.'
+              ].join(' ')
+            },
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  text: 'Translate all readable text in this screenshot.'
+                },
+                {
+                  type: 'image_url',
+                  image_url: {
+                    url: `data:image/png;base64,${capture.image}`
+                  }
                 }
-              }
-            ]
-          }
-        ]
-      });
+              ]
+            }
+          ]
+        },
+        { providerId: LOCAL_AI_PROVIDER_ID, capability: 'vision' }
+      );
 
       const translatedText = response.content.trim();
       if (!translatedText) {
