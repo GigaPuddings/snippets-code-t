@@ -5,7 +5,7 @@ use crate::plugins::search_engines::SearchEngine;
 
 // 获取所有搜索引擎
 pub fn get_all_search_engines() -> Result<Vec<SearchEngine>, rusqlite::Error> {
-    let conn = DbConnectionManager::get()?;
+    let conn = DbConnectionManager::get_core()?;
 
     let mut stmt =
         conn.prepare("SELECT id, keyword, name, icon, url, enabled FROM search_engines")?;
@@ -29,7 +29,7 @@ pub fn get_all_search_engines() -> Result<Vec<SearchEngine>, rusqlite::Error> {
 
 // 替换所有搜索引擎
 pub fn replace_all_search_engines(engines: &[SearchEngine]) -> Result<(), rusqlite::Error> {
-    let mut conn = DbConnectionManager::get()?;
+    let mut conn = DbConnectionManager::get_core()?;
     let tx = conn.transaction()?;
 
     tx.execute("DELETE FROM search_engines", [])?;

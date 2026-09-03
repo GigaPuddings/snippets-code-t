@@ -8,6 +8,38 @@ use crate::plugins::local_launcher::invalidate_apps_cache;
 
 // ============= 应用相关数据库操作 =============
 
+fn table_exists(conn: &rusqlite::Connection, table_name: &str) -> Result<bool, rusqlite::Error> {
+    conn.query_row(
+        "SELECT EXISTS(
+             SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?1
+         )",
+        [table_name],
+        |row| row.get(0),
+    )
+}
+
+fn delete_scanned_app_by_id(id: &str) -> Result<(), rusqlite::Error> {
+    let conn = DbConnectionManager::get_search()?;
+    if table_exists(&conn, "apps")? {
+        conn.execute(
+            "DELETE FROM apps WHERE id = ?1 AND source_kind = 'scanner'",
+            rusqlite::params![id],
+        )?;
+    }
+    Ok(())
+}
+
+fn delete_scanned_app_by_content(content: &str) -> Result<(), rusqlite::Error> {
+    let conn = DbConnectionManager::get_search()?;
+    if table_exists(&conn, "apps")? {
+        conn.execute(
+            "DELETE FROM apps WHERE content = ?1 AND source_kind = 'scanner'",
+            rusqlite::params![content],
+        )?;
+    }
+    Ok(())
+}
+
 // 批量插入应用
 pub fn insert_apps(apps: &[AppInfo]) -> Result<(), rusqlite::Error> {
     let result = insert_entities(apps);
@@ -57,15 +89,16 @@ pub fn count_scanned_apps() -> Result<i64, rusqlite::Error> {
 
 // 添加单个应用
 pub fn add_app(title: String, content: String, icon: Option<String>) -> Result<String, String> {
-    let conn = DbConnectionManager::get().map_err(|e| e.to_string())?;
+    let conn = DbConnectionManager::get_core().map_err(|e| e.to_string())?;
 
     let id = uuid::Uuid::new_v4().to_string();
     conn.execute(
         "INSERT INTO apps (id, title, content, icon, summarize, source_kind)
          VALUES (?1, ?2, ?3, ?4, ?5, 'user')",
-        rusqlite::params![id, title, content, icon, "app"],
+        rusqlite::params![&id, &title, &content, &icon, "app"],
     )
     .map_err(|e| e.to_string())?;
+    delete_scanned_app_by_content(&content).map_err(|e| e.to_string())?;
 
     invalidate_apps_cache();
 
@@ -79,15 +112,26 @@ pub fn update_app(
     content: String,
     icon: Option<String>,
 ) -> Result<(), String> {
-    let conn = DbConnectionManager::get().map_err(|e| e.to_string())?;
+    let conn = DbConnectionManager::get_core().map_err(|e| e.to_string())?;
 
-    conn.execute(
-        "UPDATE apps
+    let updated = conn
+        .execute(
+            "UPDATE apps
          SET title = ?1, content = ?2, icon = ?3, source_kind = 'user'
          WHERE id = ?4",
-        rusqlite::params![title, content, icon, id],
-    )
-    .map_err(|e| e.to_string())?;
+            rusqlite::params![&title, &content, &icon, &id],
+        )
+        .map_err(|e| e.to_string())?;
+    if updated == 0 {
+        conn.execute(
+            "INSERT INTO apps (id, title, content, icon, summarize, source_kind)
+             VALUES (?1, ?2, ?3, ?4, ?5, 'user')",
+            rusqlite::params![&id, &title, &content, &icon, "app"],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    delete_scanned_app_by_id(&id).map_err(|e| e.to_string())?;
+    delete_scanned_app_by_content(&content).map_err(|e| e.to_string())?;
 
     invalidate_apps_cache();
 
@@ -96,10 +140,11 @@ pub fn update_app(
 
 // 删除单个应用
 pub fn delete_app(id: String) -> Result<(), String> {
-    let conn = DbConnectionManager::get().map_err(|e| e.to_string())?;
+    let conn = DbConnectionManager::get_core().map_err(|e| e.to_string())?;
 
-    conn.execute("DELETE FROM apps WHERE id = ?1", rusqlite::params![id])
+    conn.execute("DELETE FROM apps WHERE id = ?1", rusqlite::params![&id])
         .map_err(|e| e.to_string())?;
+    delete_scanned_app_by_id(&id).map_err(|e| e.to_string())?;
 
     invalidate_apps_cache();
 

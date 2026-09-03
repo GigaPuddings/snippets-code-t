@@ -1,4 +1,7 @@
-use crate::db::DbConnectionManager;
+use crate::db::{
+    connection::{CORE_DB_SCHEMA, SEARCH_DB_SCHEMA},
+    DbConnectionManager,
+};
 use crate::{apps::AppInfo, bookmarks::BookmarkInfo};
 
 // ============= 通用数据库实体框架 =============
@@ -117,45 +120,95 @@ impl DbEntity for BookmarkInfo {
 
 // ============= 通用数据库操作函数 =============
 
-// 通用查询所有实体（带使用计数和排序）
-pub(crate) fn get_all_entities<T: DbEntity>() -> Result<Vec<T>, rusqlite::Error> {
-    let conn = DbConnectionManager::get()?;
+fn table_exists_in_schema(
+    conn: &rusqlite::Connection,
+    schema: &str,
+    table_name: &str,
+) -> Result<bool, rusqlite::Error> {
+    conn.query_row(
+        &format!(
+            "SELECT EXISTS(
+                SELECT 1 FROM {}.sqlite_master WHERE type = 'table' AND name = ?1
+            )",
+            schema
+        ),
+        [table_name],
+        |row| row.get(0),
+    )
+}
 
-    // 检查是否存在 created_at 列
-    let has_created_at = conn
-        .prepare(&format!("SELECT created_at FROM {} LIMIT 1", T::TABLE_NAME))
-        .is_ok();
-
-    // 使用 search_history 表中的 usage_count 来排序。
-    //
-    // 历史记录的 key 与前端 searchRanking.getPrimarySearchHistoryKey 保持一致：
-    // `{summarize}:{kind}:{normalized_content}`，其中 normalized_content 的规则为
-    // trim → 小写 → 反斜杠转正斜杠 → 去掉尾部斜杠。
-    // 实体主键 id 是每次扫描重新生成的 UUID，不能直接用来 JOIN 历史记录。
-    let history_key_expr = format!(
+fn history_key_expr<T: DbEntity>() -> String {
+    format!(
         "'{}:{}:' || RTRIM(REPLACE(LOWER(TRIM(t.content)), '\\', '/'), '/')",
         T::SUMMARIZE_TYPE,
         T::HISTORY_KEY_KIND
+    )
+}
+
+fn select_entities_sql<T: DbEntity>(schema: &str, predicate: &str) -> String {
+    format!(
+        "SELECT
+            t.id,
+            t.title,
+            t.content,
+            t.icon,
+            t.summarize,
+            COALESCE(h.usage_count, 0) AS usage_count,
+            COALESCE(t.created_at, '') AS sort_created_at
+         FROM {}.{} t
+         LEFT JOIN main.search_history h ON h.id = {}
+         WHERE {}",
+        schema,
+        T::TABLE_NAME,
+        history_key_expr::<T>(),
+        predicate
+    )
+}
+
+// 通用查询所有实体（带使用计数和排序）
+pub(crate) fn get_all_entities<T: DbEntity>() -> Result<Vec<T>, rusqlite::Error> {
+    let conn = DbConnectionManager::get_core()?;
+    DbConnectionManager::attach_search_database(&conn)?;
+
+    let mut selects = Vec::new();
+    let core_table_exists = table_exists_in_schema(&conn, "main", T::TABLE_NAME)?;
+    if core_table_exists {
+        selects.push(select_entities_sql::<T>(
+            "main",
+            "COALESCE(t.source_kind, 'user') <> 'scanner'",
+        ));
+    }
+    if table_exists_in_schema(&conn, SEARCH_DB_SCHEMA, T::TABLE_NAME)? {
+        let search_predicate = if core_table_exists {
+            format!(
+                "COALESCE(t.source_kind, 'scanner') = 'scanner'
+                 AND NOT EXISTS (
+                    SELECT 1 FROM main.{} core
+                    WHERE COALESCE(core.source_kind, 'user') <> 'scanner'
+                      AND core.content = t.content
+                 )",
+                T::TABLE_NAME
+            )
+        } else {
+            "COALESCE(t.source_kind, 'scanner') = 'scanner'".to_string()
+        };
+        selects.push(select_entities_sql::<T>(
+            SEARCH_DB_SCHEMA,
+            &search_predicate,
+        ));
+    }
+    if selects.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    // 使用 core.search_history 的 usage_count 排序。历史 key 与前端
+    // searchRanking.getPrimarySearchHistoryKey 保持一致。
+    let query = format!(
+        "SELECT id, title, content, icon, summarize, usage_count
+         FROM ({})
+         ORDER BY usage_count DESC, sort_created_at DESC",
+        selects.join(" UNION ALL ")
     );
-    let query = if has_created_at {
-        format!(
-            "SELECT t.id, t.title, t.content, t.icon, t.summarize, COALESCE(h.usage_count, 0) as usage_count
-             FROM {} t
-             LEFT JOIN search_history h ON h.id = {}
-             ORDER BY COALESCE(h.usage_count, 0) DESC, t.created_at DESC",
-            T::TABLE_NAME,
-            history_key_expr
-        )
-    } else {
-        format!(
-            "SELECT t.id, t.title, t.content, t.icon, t.summarize, COALESCE(h.usage_count, 0) as usage_count
-             FROM {} t
-             LEFT JOIN search_history h ON h.id = {}
-             ORDER BY COALESCE(h.usage_count, 0) DESC",
-            T::TABLE_NAME,
-            history_key_expr
-        )
-    };
 
     let mut stmt = conn.prepare(&query)?;
     let iter = stmt.query_map([], |row| T::from_row(row))?;
@@ -168,27 +221,76 @@ pub(crate) fn update_entity_icon<T: DbEntity>(
     entity_id: &str,
     icon: &str,
 ) -> Result<(), rusqlite::Error> {
-    let conn = DbConnectionManager::get()?;
-    conn.execute(
-        &format!("UPDATE {} SET icon = ?1 WHERE id = ?2", T::TABLE_NAME),
-        rusqlite::params![icon, entity_id],
-    )?;
+    let search = DbConnectionManager::get_search()?;
+    if table_exists_in_schema(&search, "main", T::TABLE_NAME)? {
+        let updated = search.execute(
+            &format!("UPDATE {} SET icon = ?1 WHERE id = ?2", T::TABLE_NAME),
+            rusqlite::params![icon, entity_id],
+        )?;
+        if updated > 0 {
+            return Ok(());
+        }
+    }
+
+    let core = DbConnectionManager::get_core()?;
+    if table_exists_in_schema(&core, "main", T::TABLE_NAME)? {
+        core.execute(
+            &format!("UPDATE {} SET icon = ?1 WHERE id = ?2", T::TABLE_NAME),
+            rusqlite::params![icon, entity_id],
+        )?;
+    }
     Ok(())
 }
 
 // 通用计数
 pub(crate) fn count_entities<T: DbEntity>() -> Result<i64, rusqlite::Error> {
-    let conn = DbConnectionManager::get()?;
-    let count = conn.query_row(
-        &format!("SELECT COUNT(*) FROM {}", T::TABLE_NAME),
-        [],
-        |row| row.get(0),
-    )?;
+    let conn = DbConnectionManager::get_core()?;
+    DbConnectionManager::attach_search_database(&conn)?;
+
+    let mut count = 0;
+    let core_table_exists = table_exists_in_schema(&conn, "main", T::TABLE_NAME)?;
+    if core_table_exists {
+        count += conn.query_row(
+            &format!(
+                "SELECT COUNT(*) FROM main.{} WHERE COALESCE(source_kind, 'user') <> 'scanner'",
+                T::TABLE_NAME
+            ),
+            [],
+            |row| row.get::<_, i64>(0),
+        )?;
+    }
+    if table_exists_in_schema(&conn, SEARCH_DB_SCHEMA, T::TABLE_NAME)? {
+        let query = if core_table_exists {
+            format!(
+                "SELECT COUNT(*)
+                 FROM {}.{} t
+                 WHERE COALESCE(t.source_kind, 'scanner') = 'scanner'
+                   AND NOT EXISTS (
+                      SELECT 1 FROM main.{} core
+                      WHERE COALESCE(core.source_kind, 'user') <> 'scanner'
+                        AND core.content = t.content
+                   )",
+                SEARCH_DB_SCHEMA,
+                T::TABLE_NAME,
+                T::TABLE_NAME
+            )
+        } else {
+            format!(
+                "SELECT COUNT(*) FROM {}.{} WHERE COALESCE(source_kind, 'scanner') = 'scanner'",
+                SEARCH_DB_SCHEMA,
+                T::TABLE_NAME
+            )
+        };
+        count += conn.query_row(&query, [], |row| row.get::<_, i64>(0))?;
+    }
     Ok(count)
 }
 
 pub(crate) fn count_scanner_entities<T: DbEntity>() -> Result<i64, rusqlite::Error> {
-    let conn = DbConnectionManager::get()?;
+    let conn = DbConnectionManager::get_search()?;
+    if !table_exists_in_schema(&conn, "main", T::TABLE_NAME)? {
+        return Ok(0);
+    }
     conn.query_row(
         &format!(
             "SELECT COUNT(*) FROM {} WHERE source_kind = 'scanner'",
@@ -226,9 +328,16 @@ fn reconcile_legacy_entities<T: DbEntity>(
 
 // 通用批量插入
 pub(crate) fn insert_entities<T: DbEntity>(entities: &[T]) -> Result<(), rusqlite::Error> {
-    let mut conn = DbConnectionManager::get()?;
+    let mut core = DbConnectionManager::get_core()?;
+    {
+        let transaction = core.transaction()?;
+        reconcile_legacy_entities::<T>(&transaction, entities)?;
+        transaction.commit()?;
+    }
+
+    let mut conn = DbConnectionManager::get_search()?;
+    DbConnectionManager::attach_core_database(&conn)?;
     let transaction = conn.transaction()?;
-    reconcile_legacy_entities::<T>(&transaction, entities)?;
     if entities.is_empty() {
         return transaction.commit();
     }
@@ -237,9 +346,10 @@ pub(crate) fn insert_entities<T: DbEntity>(entities: &[T]) -> Result<(), rusqlit
         "INSERT OR REPLACE INTO {} (id, title, content, icon, summarize, source_kind)
          SELECT ?1, ?2, ?3, ?4, ?5, 'scanner'
          WHERE NOT EXISTS (
-             SELECT 1 FROM {} WHERE source_kind = 'user' AND content = ?3
+             SELECT 1 FROM {}.{} WHERE source_kind <> 'scanner' AND content = ?3
          )",
         T::TABLE_NAME,
+        CORE_DB_SCHEMA,
         T::TABLE_NAME
     );
 
@@ -258,9 +368,16 @@ pub(crate) fn insert_entities<T: DbEntity>(entities: &[T]) -> Result<(), rusqlit
 /// 在单个事务中替换扫描来源索引，保留用户手动项。扫描与解析先在事务外完成，
 /// 写入失败时旧索引仍可继续使用，不会留下只清空一半的状态。
 pub(crate) fn replace_entities<T: DbEntity>(entities: &[T]) -> Result<(), rusqlite::Error> {
-    let mut conn = DbConnectionManager::get()?;
+    let mut core = DbConnectionManager::get_core()?;
+    {
+        let transaction = core.transaction()?;
+        reconcile_legacy_entities::<T>(&transaction, entities)?;
+        transaction.commit()?;
+    }
+
+    let mut conn = DbConnectionManager::get_search()?;
+    DbConnectionManager::attach_core_database(&conn)?;
     let transaction = conn.transaction()?;
-    reconcile_legacy_entities::<T>(&transaction, entities)?;
     transaction.execute(
         &format!(
             "DELETE FROM {} WHERE source_kind = 'scanner'",
@@ -273,9 +390,10 @@ pub(crate) fn replace_entities<T: DbEntity>(entities: &[T]) -> Result<(), rusqli
             "INSERT OR REPLACE INTO {} (id, title, content, icon, summarize, source_kind)
              SELECT ?1, ?2, ?3, ?4, ?5, 'scanner'
              WHERE NOT EXISTS (
-                 SELECT 1 FROM {} WHERE source_kind = 'user' AND content = ?3
+                 SELECT 1 FROM {}.{} WHERE source_kind <> 'scanner' AND content = ?3
              )",
             T::TABLE_NAME,
+            CORE_DB_SCHEMA,
             T::TABLE_NAME
         );
         let mut stmt = transaction.prepare(&query)?;

@@ -8,6 +8,38 @@ use crate::plugins::local_launcher::invalidate_bookmarks_cache;
 
 // ============= 书签相关数据库操作 =============
 
+fn table_exists(conn: &rusqlite::Connection, table_name: &str) -> Result<bool, rusqlite::Error> {
+    conn.query_row(
+        "SELECT EXISTS(
+             SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?1
+         )",
+        [table_name],
+        |row| row.get(0),
+    )
+}
+
+fn delete_scanned_bookmark_by_id(id: &str) -> Result<(), rusqlite::Error> {
+    let conn = DbConnectionManager::get_search()?;
+    if table_exists(&conn, "bookmarks")? {
+        conn.execute(
+            "DELETE FROM bookmarks WHERE id = ?1 AND source_kind = 'scanner'",
+            rusqlite::params![id],
+        )?;
+    }
+    Ok(())
+}
+
+fn delete_scanned_bookmark_by_content(content: &str) -> Result<(), rusqlite::Error> {
+    let conn = DbConnectionManager::get_search()?;
+    if table_exists(&conn, "bookmarks")? {
+        conn.execute(
+            "DELETE FROM bookmarks WHERE content = ?1 AND source_kind = 'scanner'",
+            rusqlite::params![content],
+        )?;
+    }
+    Ok(())
+}
+
 // 批量插入书签
 pub fn insert_bookmarks(bookmarks: &[BookmarkInfo]) -> Result<(), rusqlite::Error> {
     let result = insert_entities(bookmarks);
@@ -61,15 +93,16 @@ pub fn add_bookmark(
     content: String,
     icon: Option<String>,
 ) -> Result<String, String> {
-    let conn = DbConnectionManager::get().map_err(|e| e.to_string())?;
+    let conn = DbConnectionManager::get_core().map_err(|e| e.to_string())?;
 
     let id = uuid::Uuid::new_v4().to_string();
     conn.execute(
         "INSERT INTO bookmarks (id, title, content, icon, summarize, source_kind)
          VALUES (?1, ?2, ?3, ?4, ?5, 'user')",
-        rusqlite::params![id, title, content, icon, "bookmark"],
+        rusqlite::params![&id, &title, &content, &icon, "bookmark"],
     )
     .map_err(|e| e.to_string())?;
+    delete_scanned_bookmark_by_content(&content).map_err(|e| e.to_string())?;
 
     invalidate_bookmarks_cache();
 
@@ -83,15 +116,26 @@ pub fn update_bookmark(
     content: String,
     icon: Option<String>,
 ) -> Result<(), String> {
-    let conn = DbConnectionManager::get().map_err(|e| e.to_string())?;
+    let conn = DbConnectionManager::get_core().map_err(|e| e.to_string())?;
 
-    conn.execute(
-        "UPDATE bookmarks
+    let updated = conn
+        .execute(
+            "UPDATE bookmarks
          SET title = ?1, content = ?2, icon = ?3, source_kind = 'user'
          WHERE id = ?4",
-        rusqlite::params![title, content, icon, id],
-    )
-    .map_err(|e| e.to_string())?;
+            rusqlite::params![&title, &content, &icon, &id],
+        )
+        .map_err(|e| e.to_string())?;
+    if updated == 0 {
+        conn.execute(
+            "INSERT INTO bookmarks (id, title, content, icon, summarize, source_kind)
+             VALUES (?1, ?2, ?3, ?4, ?5, 'user')",
+            rusqlite::params![&id, &title, &content, &icon, "bookmark"],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    delete_scanned_bookmark_by_id(&id).map_err(|e| e.to_string())?;
+    delete_scanned_bookmark_by_content(&content).map_err(|e| e.to_string())?;
 
     invalidate_bookmarks_cache();
 
@@ -100,10 +144,14 @@ pub fn update_bookmark(
 
 // 删除单个书签
 pub fn delete_bookmark(id: String) -> Result<(), String> {
-    let conn = DbConnectionManager::get().map_err(|e| e.to_string())?;
+    let conn = DbConnectionManager::get_core().map_err(|e| e.to_string())?;
 
-    conn.execute("DELETE FROM bookmarks WHERE id = ?1", rusqlite::params![id])
-        .map_err(|e| e.to_string())?;
+    conn.execute(
+        "DELETE FROM bookmarks WHERE id = ?1",
+        rusqlite::params![&id],
+    )
+    .map_err(|e| e.to_string())?;
+    delete_scanned_bookmark_by_id(&id).map_err(|e| e.to_string())?;
 
     invalidate_bookmarks_cache();
 

@@ -513,12 +513,7 @@ fn remove_cached_icon(key: &str) {
     let mut cache = ICON_CACHE.lock().unwrap();
     cache.pop(key);
     // 同时从数据库中删除
-    if let Ok(conn) = crate::db::DbConnectionManager::get() {
-        let _ = conn.execute(
-            "DELETE FROM icon_cache WHERE key = ?1",
-            rusqlite::params![key],
-        );
-    }
+    let _ = db::delete_icon_from_cache(key);
 }
 
 pub fn remove_icon_cache_for_path(path: &str) {
@@ -572,12 +567,7 @@ pub fn load_icon_cache(_app_handle: &AppHandle) {
         // 删除无效的缓存
         drop(cache);
         for key in invalid_keys {
-            if let Ok(conn) = crate::db::DbConnectionManager::get() {
-                let _ = conn.execute(
-                    "DELETE FROM icon_cache WHERE key = ?1",
-                    rusqlite::params![key],
-                );
-            }
+            let _ = db::delete_icon_from_cache(&key);
         }
 
         // log::info!("加载了 {} 个有效图标缓存", loaded_count);
@@ -972,6 +962,10 @@ fn run_app_and_bookmark_initialization(
     force_rebuild: bool,
 ) {
     if !local_launcher_job_active(app_handle, generation) {
+        return;
+    }
+    if let Err(error) = db::ensure_plugin_storage("local-launcher") {
+        log::error!("[LocalLauncher] 初始化本地启动器存储失败: {}", error);
         return;
     }
 
@@ -1525,7 +1519,7 @@ fn batch_update_app_icons_silent(updates: &[(String, String)]) -> Result<(), rus
         updates.len()
     );
 
-    let mut conn = db::DbConnectionManager::get()?;
+    let mut conn = db::DbConnectionManager::get_search()?;
     let tx = conn.transaction()?;
     {
         let mut stmt = tx.prepare("UPDATE apps SET icon = ?1 WHERE id = ?2")?;
@@ -1554,7 +1548,7 @@ fn batch_update_bookmark_icons_silent(updates: &[(String, String)]) -> Result<()
         updates.len()
     );
 
-    let mut conn = db::DbConnectionManager::get()?;
+    let mut conn = db::DbConnectionManager::get_search()?;
     let tx = conn.transaction()?;
     {
         let mut stmt = tx.prepare("UPDATE bookmarks SET icon = ?1 WHERE id = ?2")?;

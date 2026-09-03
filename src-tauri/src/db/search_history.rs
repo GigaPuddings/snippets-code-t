@@ -1,4 +1,4 @@
-use crate::db::DbConnectionManager;
+use crate::db::{connection::SEARCH_DB_SCHEMA, DbConnectionManager};
 use chrono::Local;
 use serde::{Deserialize, Serialize};
 use tauri::Emitter;
@@ -15,7 +15,7 @@ pub struct SearchHistoryItem {
 
 // 添加或更新搜索历史
 pub fn add_search_history_item(id: &str) -> Result<(), rusqlite::Error> {
-    let conn = DbConnectionManager::get()?;
+    let conn = DbConnectionManager::get_core()?;
     let now = Local::now().to_rfc3339();
 
     conn.execute(
@@ -31,7 +31,7 @@ pub fn add_search_history_item(id: &str) -> Result<(), rusqlite::Error> {
 
 // 获取所有搜索历史
 pub fn get_all_search_history() -> Result<Vec<SearchHistoryItem>, rusqlite::Error> {
-    let conn = DbConnectionManager::get()?;
+    let conn = DbConnectionManager::get_core()?;
 
     let mut stmt = conn.prepare("SELECT id, usage_count, last_used_at FROM search_history")?;
     let history_iter = stmt.query_map([], |row| {
@@ -53,12 +53,16 @@ pub fn clear_search_history_scope(
     scope: &str,
     markdown_workspace_root: Option<&std::path::Path>,
 ) -> Result<usize, rusqlite::Error> {
-    let conn = DbConnectionManager::get()?;
-    let table_exists = |table: &str| {
+    let conn = DbConnectionManager::get_core()?;
+    DbConnectionManager::attach_search_database(&conn)?;
+    let table_exists = |schema: &str, table: &str| {
         conn.query_row(
-            "SELECT EXISTS(
-                 SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?1
-             )",
+            &format!(
+                "SELECT EXISTS(
+                    SELECT 1 FROM {}.sqlite_master WHERE type = 'table' AND name = ?1
+                )",
+                schema
+            ),
             [table],
             |row| row.get::<_, bool>(0),
         )
@@ -66,32 +70,23 @@ pub fn clear_search_history_scope(
     };
     match scope {
         "all" => conn.execute("DELETE FROM search_history", []),
-        "apps" if table_exists("apps") => conn.execute(
-            "DELETE FROM search_history
-             WHERE id LIKE 'app:path:%' OR id IN (SELECT id FROM apps)",
-            [],
+        "apps" => clear_history_for_tables(
+            &conn,
+            "id LIKE 'app:path:%'",
+            &[("main", "apps"), (SEARCH_DB_SCHEMA, "apps")],
+            &table_exists,
         ),
-        "apps" => conn.execute("DELETE FROM search_history WHERE id LIKE 'app:path:%'", []),
-        "bookmarks" if table_exists("bookmarks") => conn.execute(
-            "DELETE FROM search_history
-             WHERE id LIKE 'bookmark:url:%' OR id IN (SELECT id FROM bookmarks)",
-            [],
+        "bookmarks" => clear_history_for_tables(
+            &conn,
+            "id LIKE 'bookmark:url:%'",
+            &[("main", "bookmarks"), (SEARCH_DB_SCHEMA, "bookmarks")],
+            &table_exists,
         ),
-        "bookmarks" => conn.execute(
-            "DELETE FROM search_history WHERE id LIKE 'bookmark:url:%'",
-            [],
-        ),
-        "desktopFiles" if table_exists("desktop_file_cache") => conn.execute(
-            "DELETE FROM search_history
-             WHERE id LIKE 'file:path:%'
-                OR id LIKE 'desktop-file:%'
-                OR id IN (SELECT id FROM desktop_file_cache)",
-            [],
-        ),
-        "desktopFiles" => conn.execute(
-            "DELETE FROM search_history
-             WHERE id LIKE 'file:path:%' OR id LIKE 'desktop-file:%'",
-            [],
+        "desktopFiles" => clear_history_for_tables(
+            &conn,
+            "id LIKE 'file:path:%' OR id LIKE 'desktop-file:%'",
+            &[(SEARCH_DB_SCHEMA, "desktop_file_cache")],
+            &table_exists,
         ),
         "markdown" => {
             let root = markdown_workspace_root
@@ -121,6 +116,27 @@ pub fn clear_search_history_scope(
             scope
         ))),
     }
+}
+
+fn clear_history_for_tables(
+    conn: &rusqlite::Connection,
+    base_predicate: &str,
+    tables: &[(&str, &str)],
+    table_exists: &impl Fn(&str, &str) -> bool,
+) -> Result<usize, rusqlite::Error> {
+    let mut predicates = vec![base_predicate.to_string()];
+    for (schema, table) in tables {
+        if table_exists(schema, table) {
+            predicates.push(format!("id IN (SELECT id FROM {}.{})", schema, table));
+        }
+    }
+    conn.execute(
+        &format!(
+            "DELETE FROM search_history WHERE {}",
+            predicates.join(" OR ")
+        ),
+        [],
+    )
 }
 
 // 清理过期的搜索历史（保留最近6个月的数据和使用次数>5的记录）
