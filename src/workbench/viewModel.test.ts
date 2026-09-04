@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { buildCapabilityItems } from './workbenchCapabilities';
+import type { MarkdownFile } from '@/types';
+import { buildCapabilityItems } from './capabilities';
 import {
+  buildWorkbenchRecentItems,
   buildWorkbenchLayers,
   buildWorkbenchMetrics,
   statusChipClass,
   type WorkbenchTranslator,
   type WorkbenchViewModelInput
-} from './workbenchViewModel';
+} from './viewModel';
 
 const t: WorkbenchTranslator = (key, params): string =>
   params ? `${key}:${JSON.stringify(params)}` : key;
@@ -41,6 +43,43 @@ describe('buildWorkbenchMetrics', () => {
       { id: 'plugins', value: 1 },
       { id: 'search', value: 3 },
       { id: 'ai', value: 2 }
+    ]);
+  });
+});
+
+describe('buildWorkbenchRecentItems', () => {
+  it('returns the newest workspace files with navigable routes', () => {
+    const file = (
+      id: string,
+      modified: string,
+      categoryId: number
+    ): MarkdownFile => ({
+      id,
+      title: id,
+      content: '',
+      categoryId,
+      categoryName: 'Docs',
+      tags: [],
+      created: modified,
+      modified,
+      type: 'note',
+      favorite: false,
+      filePath: `E:/Workspace/${id}.md`
+    });
+
+    const recent = buildWorkbenchRecentItems(
+      [
+        file('older', '2026-01-01T00:00:00.000Z', 1),
+        file('newer', '2026-02-01T00:00:00.000Z', 2)
+      ],
+      1
+    );
+
+    expect(recent).toEqual([
+      expect.objectContaining({
+        title: 'newer',
+        path: `/config/category/contentList/2/content/${encodeURIComponent('E:/Workspace/newer.md')}`
+      })
     ]);
   });
 });

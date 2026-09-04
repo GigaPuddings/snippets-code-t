@@ -37,6 +37,23 @@ export default {
     operationFailed: '操作失败'
   },
 
+  workbenchHome: {
+    eyebrow: '开发者工作台',
+    title: 'Developer Workbench',
+    workspaceNotSet: '尚未设置工作区',
+    refresh: '刷新',
+    searchPlaceholder: '搜索片段、笔记、应用、文件和命令',
+    metrics: '工作台概览',
+    recent: '最近内容',
+    viewAll: '查看全部',
+    noRecent: '暂无最近内容',
+    openWorkspace: '打开工作区',
+    configureWorkspace: '设置工作区',
+    quickActions: '常用入口',
+    systemStatus: '能力状态',
+    manage: '管理'
+  },
+
   // 设置向导
   setup: {
     welcome: '欢迎',
@@ -788,6 +805,12 @@ export default {
   // 侧边栏导航
   nav: {
     quickActions: '快捷操作',
+    workbench: '工作台',
+    workspace: '工作区',
+    launcher: '启动器',
+    webSearch: '网络搜索',
+    todo: '待办',
+    aiChat: 'AI 对话',
     allSnippets: '所有片段',
     uncategorized: '未分类',
     folders: '文件夹',

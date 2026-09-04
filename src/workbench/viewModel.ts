@@ -7,12 +7,14 @@ import {
 } from '@icon-park/vue-next';
 import { AI_PROVIDER_CAPABILITIES } from '@/ai';
 import { DEFAULT_SEARCH_PROVIDER_TIMEOUT_MS } from '@/search/sourceCatalog';
+import type { MarkdownFile } from '@/types';
+import { compareTimestamps } from '@/utils/time-format';
 import type {
   WorkbenchAiSummary,
   WorkbenchContentSummary,
   WorkbenchPluginSummary,
   WorkbenchSearchSummary
-} from './workbenchSummary';
+} from './summary';
 
 export type WorkbenchStatus = 'ready' | 'attention' | 'inactive';
 
@@ -32,6 +34,15 @@ export interface WorkbenchMetric {
   label: string;
   value: number;
   meta: string;
+}
+
+export interface WorkbenchRecentItem {
+  id: string;
+  title: string;
+  type: MarkdownFile['type'];
+  categoryName: string;
+  modified: string;
+  path: string;
 }
 
 export interface WorkbenchLayer {
@@ -56,11 +67,32 @@ export interface WorkbenchOverviewController {
   metrics: ComputedRef<WorkbenchMetric[]>;
   layers: ComputedRef<WorkbenchLayer[]>;
   capabilities: ComputedRef<CapabilityItem[]>;
+  workspaceRoot: Ref<string>;
+  recentItems: ComputedRef<WorkbenchRecentItem[]>;
   refresh: () => Promise<void>;
   navigateTo: (action: WorkbenchAction) => void;
   statusLabel: (status: WorkbenchStatus) => string;
   statusChipClass: (status: WorkbenchStatus) => Record<string, boolean>;
 }
+
+export const buildWorkbenchRecentItems = (
+  files: MarkdownFile[],
+  limit = 6
+): WorkbenchRecentItem[] =>
+  [...files]
+    .sort((left, right) => compareTimestamps(right.modified, left.modified))
+    .slice(0, Math.max(0, limit))
+    .map((file) => {
+      const id = file.filePath || file.id;
+      return {
+        id,
+        title: file.title || id,
+        type: file.type,
+        categoryName: file.categoryName,
+        modified: file.modified,
+        path: `/config/category/contentList/${file.categoryId}/content/${encodeURIComponent(id)}`
+      };
+    });
 
 export type WorkbenchTranslator = (
   key: string,

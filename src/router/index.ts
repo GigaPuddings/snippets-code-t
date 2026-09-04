@@ -36,7 +36,13 @@ const routes: RouteRecordRaw[] = [
         path: 'config',
         component: () => import('@/pages/config/index.vue'),
         name: 'Config',
+        redirect: '/config/workbench',
         children: [
+          {
+            path: 'workbench',
+            component: () => import('@/pages/workbench/index.vue'),
+            name: 'Workbench'
+          },
           {
             path: 'category',
             component: () =>

@@ -1,7 +1,7 @@
 # Developer Workbench 架构收敛方案
 
 > 状态：P2-C Developer Workbench Shell 已启动
-> 更新日期：2026-09-04
+> 更新日期：2026-09-05
 > 范围：Workspace、Universal Search、Plugin Platform、AI Capability Layer
 
 ## 1. 长期产品形态
@@ -92,6 +92,9 @@ Screenshot、OCR、Recorder、Translation、Todo、Wallpaper、Launcher、Local 
 - 设置页新增 `Developer Workbench` 总览入口，聚合 Workspace、Universal Search、Plugin Platform、AI Capability Layer 四层运行状态。
 - 总览页展示内容数量、插件能力面、搜索 provider 健康状态、AI provider 可用性，以及 Screenshot、OCR、Recorder、Translation、Todo、Wallpaper、Launcher、Local AI、Git Sync 等产品能力状态。
 - 工作台总览只读取现有应用服务、插件 store、搜索 provider registry 和 AI provider registry，不重新发明独立运行时。
+- 主窗口新增 `/config/workbench` 产品首页，集中承载全局搜索入口、最近内容、已启用产品入口和四层能力状态。
+- 配置窗口的新建与启动过渡默认进入 Workbench 首页，Workspace 内容管理仍保留为独立一线入口。
+- Workbench 状态模型提升到 `src/workbench`，由产品首页和设置总览共同复用，避免产品页面依赖设置页私有实现。
 
 目标：
 

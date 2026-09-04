@@ -25,6 +25,8 @@
             <component
               :is="scope.item.icon"
               class="text-panel"
+              :title="t(scope.item.labelKey)"
+              :aria-label="t(scope.item.labelKey)"
               theme="outline"
               size="18"
               :strokeWidth="3"
@@ -236,7 +238,10 @@
       </div>
     </div>
   </main>
-  <ConfigQuickSearch v-model="quickSearchVisible" />
+  <ConfigQuickSearch
+    :model-value="quickSearchVisible"
+    @update:model-value="setQuickSearchVisible"
+  />
 </template>
 
 <script setup lang="ts">
@@ -262,6 +267,7 @@ import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import SegmentedToggle from '@/components/SegmentedToggle/index.vue';
 import ConfigQuickSearch from '@/components/ConfigQuickSearch/index.vue';
+import { useConfigQuickSearch } from '@/composables/useConfigQuickSearch';
 import { useLayoutStore, usePluginStore } from '@/store';
 import {
   configNavigationTabs,
@@ -271,6 +277,11 @@ import {
 const { t } = useI18n();
 const layoutStore = useLayoutStore();
 const pluginStore = usePluginStore();
+const {
+  visible: quickSearchVisible,
+  open: openConfigQuickSearch,
+  setVisible: setQuickSearchVisible
+} = useConfigQuickSearch();
 
 /** 窄屏/最小窗口断点：小于等于此宽度时 左侧仅应用名+版本、导航居中、右侧仅折叠菜单+窗口控制 */
 const TITLEBAR_NARROW_BREAKPOINT = 720;
@@ -317,8 +328,6 @@ const state = reactive({
 });
 
 const hasUpdate = ref(false);
-const quickSearchVisible = ref(false);
-
 // 当前激活的tab索引
 const activeTabIndex = ref(0);
 
@@ -359,10 +368,6 @@ const handleUpdateClick = async () => {
   } else {
     await invoke('check_update_manually');
   }
-};
-
-const openConfigQuickSearch = () => {
-  quickSearchVisible.value = true;
 };
 
 const handleGlobalKeydown = (event: KeyboardEvent) => {

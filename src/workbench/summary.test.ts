@@ -8,7 +8,7 @@ import {
   summarizeWorkbenchContent,
   summarizeWorkbenchPlugins,
   summarizeWorkbenchSearch
-} from './workbenchSummary';
+} from './summary';
 
 const markdownFile = (
   id: string,

@@ -90,7 +90,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import { CustomButton } from '@/components/UI';
-import { useWorkbenchOverview } from './useWorkbenchOverview';
+import { useWorkbenchOverview } from '@/workbench/useWorkbenchOverview';
 
 defineOptions({ name: 'WorkbenchSettings' });
 

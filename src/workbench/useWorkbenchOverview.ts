@@ -16,8 +16,9 @@ import {
   summarizeWorkbenchContent,
   summarizeWorkbenchPlugins,
   summarizeWorkbenchSearch
-} from './workbenchSummary';
+} from './summary';
 import {
+  buildWorkbenchRecentItems,
   buildWorkbenchLayers,
   buildWorkbenchMetrics,
   statusChipClass,
@@ -26,8 +27,8 @@ import {
   type WorkbenchOverviewController,
   type WorkbenchTranslator,
   type WorkbenchViewModelInput
-} from './workbenchViewModel';
-import { buildCapabilityItems } from './workbenchCapabilities';
+} from './viewModel';
+import { buildCapabilityItems } from './capabilities';
 
 type PluginStore = ReturnType<typeof usePluginStore>;
 
@@ -145,14 +146,11 @@ const createCapabilities = (
     )
   );
 
-export function useWorkbenchOverview(): WorkbenchOverviewController {
-  const { t } = useI18n();
-  const router = useRouter();
-  const pluginStore = usePluginStore();
-  const refs = createWorkbenchRefs();
-  const translate: WorkbenchTranslator = (key, params) =>
-    params ? t(key, params) : t(key);
-
+const createViewModelInput = (
+  refs: WorkbenchStateRefs,
+  pluginStore: PluginStore,
+  translate: WorkbenchTranslator
+): ComputedRef<WorkbenchViewModelInput> => {
   const content = computed(() => summarizeWorkbenchContent(refs.files.value));
   const plugins = computed(() =>
     summarizeWorkbenchPlugins(pluginStore.plugins, (pluginId) =>
@@ -163,7 +161,8 @@ export function useWorkbenchOverview(): WorkbenchOverviewController {
     summarizeWorkbenchSearch(refs.searchSources.value)
   );
   const ai = computed(() => summarizeWorkbenchAi(refs.aiProviders.value));
-  const input = computed<WorkbenchViewModelInput>(() => ({
+
+  return computed(() => ({
     t: translate,
     workspaceRoot: refs.workspaceRoot.value,
     categoriesCount: refs.categories.value.length,
@@ -174,8 +173,22 @@ export function useWorkbenchOverview(): WorkbenchOverviewController {
     settingsAction: (tab, labelKey) =>
       createSettingsAction(translate, tab, labelKey)
   }));
+};
+
+export function useWorkbenchOverview(): WorkbenchOverviewController {
+  const { t } = useI18n();
+  const router = useRouter();
+  const pluginStore = usePluginStore();
+  const refs = createWorkbenchRefs();
+  const translate: WorkbenchTranslator = (key, params) =>
+    params ? t(key, params) : t(key);
+
+  const input = createViewModelInput(refs, pluginStore, translate);
   const metrics = computed(() => buildWorkbenchMetrics(input.value));
   const layers = computed(() => buildWorkbenchLayers(input.value));
+  const recentItems = computed(() =>
+    buildWorkbenchRecentItems(refs.files.value)
+  );
   const capabilities = createCapabilities(pluginStore, translate);
   const refresh = (): Promise<void> =>
     refreshWorkbench({ pluginStore, t: translate, refs });
@@ -190,6 +203,8 @@ export function useWorkbenchOverview(): WorkbenchOverviewController {
     metrics,
     layers,
     capabilities,
+    workspaceRoot: refs.workspaceRoot,
+    recentItems,
     refresh,
     navigateTo: createActionNavigator(router),
     statusLabel: (status) => translate(`settings.workbench.status.${status}`),

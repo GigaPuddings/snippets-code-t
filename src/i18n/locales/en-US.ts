@@ -37,6 +37,23 @@ export default {
     operationFailed: 'Operation failed'
   },
 
+  workbenchHome: {
+    eyebrow: 'Developer workspace',
+    title: 'Developer Workbench',
+    workspaceNotSet: 'Workspace is not configured',
+    refresh: 'Refresh',
+    searchPlaceholder: 'Search snippets, notes, apps, files, and commands',
+    metrics: 'Workbench overview',
+    recent: 'Recent Content',
+    viewAll: 'View All',
+    noRecent: 'No recent content',
+    openWorkspace: 'Open Workspace',
+    configureWorkspace: 'Configure Workspace',
+    quickActions: 'Quick Access',
+    systemStatus: 'Capability Status',
+    manage: 'Manage'
+  },
+
   // Setup Wizard
   setup: {
     welcome: 'Welcome',
@@ -809,6 +826,12 @@ export default {
   // Sidebar Navigation
   nav: {
     quickActions: 'Quick Actions',
+    workbench: 'Workbench',
+    workspace: 'Workspace',
+    launcher: 'Launcher',
+    webSearch: 'Web Search',
+    todo: 'Todo',
+    aiChat: 'AI Chat',
     allSnippets: 'All Snippets',
     uncategorized: 'Uncategorized',
     folders: 'Folders',

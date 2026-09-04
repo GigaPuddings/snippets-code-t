@@ -2,7 +2,7 @@ import type {
   CapabilityItem,
   WorkbenchStatus,
   WorkbenchTranslator
-} from './workbenchViewModel';
+} from './viewModel';
 
 interface CapabilityConfig {
   id: string;
