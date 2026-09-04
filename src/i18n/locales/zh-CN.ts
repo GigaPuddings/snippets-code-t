@@ -208,6 +208,18 @@ export default {
       frontendIssues: '前端问题',
       backendIssues: '后端问题',
       errorWarnCount: '{errors} 错误 · {warnings} 警告',
+      searchSources: '搜索源',
+      searchSourceSummary: '{total} 个已注册 · {failed} 失败',
+      searchSourceMeta:
+        '阶段 {phase} · 领域 {domain} · 优先级 {priority} · {timing}',
+      searchSourceTiming: '耗时 {duration} ms',
+      searchSourceTimingNever: '尚未搜索',
+      searchSourceHealth: {
+        idle: '未搜索',
+        searching: '搜索中',
+        healthy: '健康',
+        failed: '失败'
+      },
       overview: '概览',
       frontendLogs: '前端日志',
       backendLogs: '后端日志',

@@ -217,6 +217,18 @@ export default {
       frontendIssues: 'Frontend Issues',
       backendIssues: 'Backend Issues',
       errorWarnCount: '{errors} errors · {warnings} warnings',
+      searchSources: 'Search Sources',
+      searchSourceSummary: '{total} registered · {failed} failed',
+      searchSourceMeta:
+        'Phase {phase} · Domain {domain} · Priority {priority} · {timing}',
+      searchSourceTiming: '{duration} ms',
+      searchSourceTimingNever: 'Not searched yet',
+      searchSourceHealth: {
+        idle: 'Idle',
+        searching: 'Searching',
+        healthy: 'Healthy',
+        failed: 'Failed'
+      },
       overview: 'Overview',
       frontendLogs: 'Frontend Logs',
       backendLogs: 'Backend Logs',

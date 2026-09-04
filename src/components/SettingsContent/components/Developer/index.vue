@@ -131,6 +131,25 @@
             }}
           </small>
         </article>
+        <article
+          class="summary-card"
+          :class="
+            issueCardClass(searchSourceFailedCount, searchSourceIssueCount)
+          "
+        >
+          <span class="summary-label">
+            {{ t('settings.developer.searchSources') }}
+          </span>
+          <strong>{{ searchSourceStates.length }}</strong>
+          <small>
+            {{
+              t('settings.developer.searchSourceSummary', {
+                total: searchSourceStates.length,
+                failed: searchSourceFailedCount
+              })
+            }}
+          </small>
+        </article>
       </section>
 
       <nav class="diagnostic-tabs">
@@ -171,6 +190,46 @@
                 <dd>{{ diagnostics?.logDir || '-' }}</dd>
               </div>
             </dl>
+          </article>
+
+          <article class="overview-card">
+            <h4>{{ t('settings.developer.searchSources') }}</h4>
+            <div v-if="searchSourceStates.length" class="compact-list">
+              <div
+                v-for="source in searchSourceStates"
+                :key="source.key"
+                class="compact-item"
+              >
+                <div class="compact-item-title">
+                  <span
+                    class="status-dot"
+                    :class="searchSourceDotClass(source.health)"
+                  ></span>
+                  <strong>{{ source.pluginId }}:{{ source.source }}</strong>
+                  <span class="state-text">
+                    {{
+                      t(
+                        `settings.developer.searchSourceHealth.${source.health}`
+                      )
+                    }}
+                  </span>
+                </div>
+                <small>
+                  {{
+                    t('settings.developer.searchSourceMeta', {
+                      phase: source.phase,
+                      domain: source.domain || '-',
+                      priority: source.priority,
+                      timing: formatSearchSourceTiming(source)
+                    })
+                  }}
+                </small>
+                <small v-if="source.lastError" class="error-text">
+                  {{ source.lastError }}
+                </small>
+              </div>
+            </div>
+            <p v-else class="empty-text">{{ t('settings.developer.empty') }}</p>
           </article>
 
           <article class="overview-card">
@@ -262,6 +321,8 @@ import {
   summarizeFrontendDiagnostics,
   type FrontendDiagnosticEntry
 } from '@/utils/developer-diagnostics';
+import { getSearchSourceRuntimeStates } from '@/plugins/search-providers';
+import type { SearchSourceRuntimeState } from '@/search/sourceRegistry';
 import modal from '@/utils/modal';
 
 type DiagnosticTab = 'overview' | 'frontend' | 'backend' | 'report';
@@ -274,6 +335,7 @@ const { t } = useI18n();
 const developerMode = ref(isDeveloperModeEnabled());
 const diagnostics = ref<DeveloperDiagnostics | null>(null);
 const frontendLogs = ref<FrontendDiagnosticEntry[]>([]);
+const searchSourceStates = ref<SearchSourceRuntimeState[]>([]);
 const loading = ref(false);
 const activeTab = ref<DiagnosticTab>('overview');
 const logSearch = ref('');
@@ -290,11 +352,23 @@ const frontendIssueCount = computed(() => frontendSummary.value.total);
 const backendErrorCount = computed(() => backendSummary.value.errors);
 const backendWarningCount = computed(() => backendSummary.value.warnings);
 const backendIssueCount = computed(() => backendSummary.value.total);
+const searchSourceFailedCount = computed(
+  () =>
+    searchSourceStates.value.filter((source) => source.health === 'failed')
+      .length
+);
+const searchSourceIssueCount = computed(() => searchSourceFailedCount.value);
 const totalErrorCount = computed(
-  () => frontendErrorCount.value + backendErrorCount.value
+  () =>
+    frontendErrorCount.value +
+    backendErrorCount.value +
+    searchSourceFailedCount.value
 );
 const totalIssueCount = computed(
-  () => frontendIssueCount.value + backendIssueCount.value
+  () =>
+    frontendIssueCount.value +
+    backendIssueCount.value +
+    searchSourceIssueCount.value
 );
 const ignoredWarningCount = computed(
   () =>
@@ -315,6 +389,23 @@ const backendLogText = computed(
     redactDiagnosticText(diagnostics.value?.recentBackendLogs || '') ||
     t('settings.developer.empty')
 );
+const searchSourceReportText = computed(() =>
+  searchSourceStates.value.length
+    ? searchSourceStates.value
+        .map((source) =>
+          [
+            `${source.pluginId}:${source.source}`,
+            `phase=${source.phase}`,
+            `health=${source.health}`,
+            `domain=${source.domain ?? '-'}`,
+            `priority=${source.priority}`,
+            `lastDurationMs=${source.lastDurationMs ?? '-'}`,
+            `lastError=${source.lastError ?? '-'}`
+          ].join(' | ')
+        )
+        .join('\n')
+    : t('settings.developer.empty')
+);
 
 const reportText = computed(() => {
   const { recentBackendLogs: _recentBackendLogs, ...summary } =
@@ -328,6 +419,9 @@ const reportText = computed(() => {
       '',
       '===== Frontend diagnostics =====',
       frontendLogText.value,
+      '',
+      '===== Search source health =====',
+      searchSourceReportText.value,
       '',
       '===== Backend logs =====',
       backendLogText.value
@@ -389,11 +483,29 @@ const formatBytes = (bytes: number): string => {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 };
 
+const formatSearchSourceTiming = (source: SearchSourceRuntimeState): string => {
+  if (typeof source.lastDurationMs === 'number') {
+    return t('settings.developer.searchSourceTiming', {
+      duration: source.lastDurationMs
+    });
+  }
+  return t('settings.developer.searchSourceTimingNever');
+};
+
+const searchSourceDotClass = (
+  health: SearchSourceRuntimeState['health']
+): Record<string, boolean> => ({
+  'status-dot--active': health === 'healthy',
+  'status-dot--warning': health === 'searching',
+  'status-dot--danger': health === 'failed'
+});
+
 const refresh = async () => {
   loading.value = true;
   try {
     const includeLogs = developerMode.value;
     frontendLogs.value = includeLogs ? getFrontendDiagnostics() : [];
+    searchSourceStates.value = getSearchSourceRuntimeStates();
     diagnostics.value = await getDeveloperDiagnostics(includeLogs);
   } catch (error) {
     modal.msg(`${t('settings.developer.refreshFailed')}: ${error}`, 'error');
@@ -496,7 +608,7 @@ onMounted(() => {
 
 .diagnostic-summary {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -656,6 +768,18 @@ onMounted(() => {
   &--active {
     background: #22c55e;
   }
+
+  &--warning {
+    background: #f59e0b;
+  }
+
+  &--danger {
+    background: #ef4444;
+  }
+}
+
+.error-text {
+  color: #ef4444;
 }
 
 .log-panel {
