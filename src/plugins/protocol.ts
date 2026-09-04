@@ -16,6 +16,7 @@ export interface PluginCapabilities {
   hotkeys?: string[];
   searchSources?: string[];
   aiProviders?: string[];
+  aiContextProviders?: string[];
   titlebarActions?: string[];
   trayItems?: string[];
   windows?: string[];
@@ -102,6 +103,7 @@ export interface RegisteredPlugin {
   hotkeys?: string[];
   searchSources?: string[];
   aiProviders?: string[];
+  aiContextProviders?: string[];
   resourceHintKey?: string;
   resourceFor?: string;
   installedAt?: string;

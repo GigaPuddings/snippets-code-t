@@ -25,6 +25,11 @@ import {
   type RuntimeAiProviderRegistration
 } from './ai-providers';
 import {
+  registerPluginAiContextProvider,
+  unregisterAiContextProvidersForPlugin,
+  type RuntimeAiContextProviderRegistration
+} from './ai-context-providers';
+import {
   pluginSettingsComponents,
   pluginSettingsMenuItems,
   type PluginSettingsMenuItem
@@ -121,6 +126,9 @@ export interface PluginFrontendRuntimeContext {
   registerSettingsTab(tab: RuntimeSettingsRegistration): void;
   registerSearchProvider(provider: RuntimeSearchProviderRegistration): void;
   registerAiProvider(provider: RuntimeAiProviderRegistration): void;
+  registerAiContextProvider(
+    provider: RuntimeAiContextProviderRegistration
+  ): void;
   registerTitlebarAction(action: RuntimeTitlebarActionRegistration): void;
   registerWindowShortcut(shortcut: RuntimeWindowShortcutRegistration): void;
   registerHostComponent(component: RuntimeHostComponentRegistration): void;
@@ -743,7 +751,8 @@ const appendCapability = (
     | 'settingsTabs'
     | 'hotkeys'
     | 'searchSources'
-    | 'aiProviders',
+    | 'aiProviders'
+    | 'aiContextProviders',
   value: string
 ): void => {
   const current = plugin[key] ?? [];
@@ -856,6 +865,10 @@ const createRuntimeContext = (
   registerAiProvider(provider) {
     registerPluginAiProvider(String(plugin.id), provider);
     appendCapability(plugin, 'aiProviders', provider.id.trim());
+  },
+  registerAiContextProvider(provider): void {
+    registerPluginAiContextProvider(String(plugin.id), provider);
+    appendCapability(plugin, 'aiContextProviders', provider.id.trim());
   },
   registerTitlebarAction(action) {
     const registrationKey = runtimeRegistrationKey(
@@ -1015,6 +1028,7 @@ const frontendCapabilityKeys = [
   'settingsTabs',
   'searchSources',
   'aiProviders',
+  'aiContextProviders',
   'titlebarActions',
   'windows'
 ] as const;
@@ -1140,6 +1154,7 @@ export function clearRuntimePluginRegistrations(
 
   unregisterSearchSourceProvidersForPlugin(pluginId);
   unregisterAiProvidersForPlugin(pluginId);
+  unregisterAiContextProvidersForPlugin(pluginId);
 
   for (let index = titlebarPluginActions.length - 1; index >= 0; index -= 1) {
     const action = titlebarPluginActions[index];

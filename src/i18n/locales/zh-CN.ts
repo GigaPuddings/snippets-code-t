@@ -542,6 +542,7 @@ export default {
       hotkeys: '快捷键',
       search: '搜索来源',
       ai: 'AI 能力',
+      aiContext: 'AI 上下文来源',
       titlebar: '标题栏动作',
       tray: '托盘入口',
       windows: '窗口能力'

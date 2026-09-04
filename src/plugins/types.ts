@@ -37,6 +37,7 @@ export interface BuiltinPlugin {
   trayItems?: string[];
   searchSources?: string[];
   aiProviders?: string[];
+  aiContextProviders?: string[];
   dependencies?: string[];
   resourceHintKey?: string;
 }

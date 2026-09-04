@@ -61,6 +61,20 @@ export {
 } from './context';
 export type { AiContextItemInput, AiContextOptions } from './context';
 export {
+  aiContextProviderRegistry,
+  collectAiRequestContext,
+  createAiContextProviderRegistry,
+  AiContextProviderRegistry
+} from './contextRegistry';
+export type {
+  AiContextCollectionOptions,
+  AiContextCollectionRequest,
+  AiContextOperation,
+  AiContextProviderListOptions,
+  AiContextProviderRegistration,
+  AiContextProviderResult
+} from './contextRegistry';
+export {
   AI_PROVIDER_CAPABILITIES,
   AI_PROVIDER_PREFERENCES_CONFIG_KEY,
   getAiProviderPreferences,

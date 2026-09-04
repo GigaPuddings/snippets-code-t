@@ -123,6 +123,7 @@ Current package manifest shape:
     "hotkeys": ["example_hotkey"],
     "searchSources": ["example-source"],
     "aiProviders": ["example-ai"],
+    "aiContextProviders": ["example-ai-context"],
     "titlebarActions": [],
     "trayItems": [],
     "windows": []
@@ -186,6 +187,8 @@ The activation context exposes these registration methods:
 - `registerRoute`
 - `registerSettingsTab`
 - `registerSearchProvider`
+- `registerAiProvider`
+- `registerAiContextProvider`
 - `registerTitlebarAction`
 - `registerWindowShortcut`
 

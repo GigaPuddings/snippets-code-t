@@ -548,6 +548,7 @@ export default {
       hotkeys: 'Hotkeys',
       search: 'Search source',
       ai: 'AI provider',
+      aiContext: 'AI context source',
       titlebar: 'Titlebar action',
       tray: 'Tray item',
       windows: 'Window access'
