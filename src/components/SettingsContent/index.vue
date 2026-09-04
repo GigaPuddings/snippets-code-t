@@ -36,7 +36,12 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
-import { Data, EnterTheKeyboard, SettingTwo } from '@icon-park/vue-next';
+import {
+  Data,
+  EnterTheKeyboard,
+  SettingTwo,
+  Workbench as WorkbenchIcon
+} from '@icon-park/vue-next';
 import {
   pluginSettingsComponents,
   pluginSettingsMenuItems,
@@ -57,6 +62,7 @@ const pluginStore = usePluginStore();
 const canShowGitSyncTab = ref(false);
 
 const coreMenuItems: PluginSettingsMenuItem[] = [
+  { id: 'workbench', labelKey: 'settings.workbench.menu', icon: WorkbenchIcon },
   { id: 'general', labelKey: 'settings.general', icon: SettingTwo },
   { id: 'ai', labelKey: 'settings.ai.menu', icon: SettingTwo },
   { id: 'plugins', labelKey: 'plugins.title', icon: Data },
@@ -101,8 +107,11 @@ const menuItems = computed(() => {
     });
 });
 
-const activeTab = ref('general');
-const loadedTabs = ref<string[]>(['general']); // 已加载的 tab
+const activeTab = ref('workbench');
+const loadedTabs = ref<string[]>(['workbench']); // 已加载的 tab
+const WorkbenchOverview = defineAsyncComponent(
+  () => import('./components/Workbench/index.vue')
+);
 const General = defineAsyncComponent(
   () => import('./components/General/index.vue')
 );
@@ -143,6 +152,7 @@ const componentMap = computed<Record<string, any>>(() => {
   pluginStore.runtimeRevision;
 
   return {
+    workbench: WorkbenchOverview,
     general: General,
     shortcut: Shortcut,
     data: Manger,

@@ -151,6 +151,74 @@ export default {
     exitAppSuccess: 'Application exited',
     settingFailed: 'Setting failed',
     exitFailed: 'Exit failed',
+    workbench: {
+      menu: 'Workbench',
+      title: 'Developer Workbench',
+      refresh: 'Refresh',
+      loadFailed: 'Failed to refresh workbench status',
+      workspaceNotSet: 'Not set',
+      status: {
+        ready: 'Ready',
+        attention: 'Needs Attention',
+        inactive: 'Inactive'
+      },
+      metrics: {
+        content: 'Content Assets',
+        contentMeta: '{snippets} snippets · {notes} notes',
+        plugins: 'Enabled Plugins',
+        pluginsMeta: '{total} installed',
+        searchSources: 'Search Sources',
+        searchSourcesMeta: '{failed} failed',
+        aiProviders: 'AI Providers',
+        aiProvidersMeta: '{total} available'
+      },
+      layers: {
+        workspace: 'Workspace',
+        search: 'Universal Search',
+        plugins: 'Plugin Platform',
+        ai: 'AI Capability Layer'
+      },
+      stats: {
+        path: 'Path',
+        categories: 'Categories',
+        favorites: 'Favorites',
+        sources: 'Sources',
+        failed: 'Failed',
+        timeout: 'Default Timeout',
+        installed: 'Installed',
+        enabled: 'Enabled',
+        surfaces: 'Surfaces',
+        providers: 'Providers',
+        healthy: 'Healthy',
+        capabilities: 'Capabilities'
+      },
+      actions: {
+        openWorkspace: 'Open Content',
+        data: 'Data',
+        diagnostics: 'Diagnostics',
+        plugins: 'Plugins',
+        ai: 'AI Settings',
+        chat: 'AI Chat'
+      },
+      capabilityTitle: 'Product Capabilities',
+      capabilities: {
+        screenshot: 'Screenshot',
+        ocr: 'OCR',
+        recorder: 'Recorder',
+        translation: 'Translation',
+        todo: 'Todo',
+        wallpaper: 'Wallpaper',
+        launcher: 'Launcher',
+        localAi: 'Local AI',
+        gitSync: 'Git Sync'
+      },
+      capabilityMeta: {
+        ready: 'Available',
+        disabled: 'Disabled',
+        notInstalled: 'Not installed',
+        resourceMissing: 'Missing resource'
+      }
+    },
     ai: {
       menu: 'AI Capabilities',
       title: 'AI Capabilities',

@@ -144,6 +144,74 @@ export default {
     exitAppSuccess: '退出应用成功',
     settingFailed: '设置失败',
     exitFailed: '退出失败',
+    workbench: {
+      menu: '工作台',
+      title: 'Developer Workbench',
+      refresh: '刷新',
+      loadFailed: '刷新工作台状态失败',
+      workspaceNotSet: '未设置',
+      status: {
+        ready: '就绪',
+        attention: '需关注',
+        inactive: '未启用'
+      },
+      metrics: {
+        content: '内容资产',
+        contentMeta: '{snippets} 片段 · {notes} 笔记',
+        plugins: '启用插件',
+        pluginsMeta: '共 {total} 个已安装',
+        searchSources: '搜索源',
+        searchSourcesMeta: '{failed} 个失败',
+        aiProviders: 'AI Provider',
+        aiProvidersMeta: '共 {total} 个可用'
+      },
+      layers: {
+        workspace: 'Workspace',
+        search: 'Universal Search',
+        plugins: 'Plugin Platform',
+        ai: 'AI Capability Layer'
+      },
+      stats: {
+        path: '路径',
+        categories: '分类',
+        favorites: '收藏',
+        sources: '来源',
+        failed: '失败',
+        timeout: '默认超时',
+        installed: '已安装',
+        enabled: '已启用',
+        surfaces: '接入面',
+        providers: 'Provider',
+        healthy: '健康',
+        capabilities: '能力'
+      },
+      actions: {
+        openWorkspace: '打开内容',
+        data: '数据管理',
+        diagnostics: '诊断',
+        plugins: '插件平台',
+        ai: 'AI 设置',
+        chat: 'AI 聊天'
+      },
+      capabilityTitle: '产品能力',
+      capabilities: {
+        screenshot: 'Screenshot',
+        ocr: 'OCR',
+        recorder: 'Recorder',
+        translation: 'Translation',
+        todo: 'Todo',
+        wallpaper: 'Wallpaper',
+        launcher: 'Launcher',
+        localAi: 'Local AI',
+        gitSync: 'Git Sync'
+      },
+      capabilityMeta: {
+        ready: '可用',
+        disabled: '未启用',
+        notInstalled: '未安装',
+        resourceMissing: '资源缺失'
+      }
+    },
     ai: {
       menu: 'AI 能力',
       title: 'AI 能力',
