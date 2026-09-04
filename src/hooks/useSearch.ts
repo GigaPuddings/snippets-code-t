@@ -1,4 +1,5 @@
 import { debounce } from '@/utils';
+import i18n from '@/i18n';
 import { isURL, normalizeURL } from '@/utils/url';
 import { invoke } from '@tauri-apps/api/core';
 import {
@@ -14,10 +15,12 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type { ContentType, SearchEngine } from '@/types';
 import { ErrorHandler, ErrorType } from '@/utils/error-handler';
 import { usePluginStore } from '@/store';
+import modal from '@/utils/modal';
 import {
   removeDisabledPluginResults,
   runUniversalSearch,
-  UNIVERSAL_SEARCH_SOURCES
+  UNIVERSAL_SEARCH_SOURCES,
+  type UniversalSearchDegradedSource
 } from '@/search/universalSearch';
 import {
   findSearchEngine,
@@ -28,6 +31,8 @@ import {
 } from '@/plugins/search-engines/searchRuntime';
 
 export { removeDisabledPluginResults } from '@/search/universalSearch';
+
+const SEARCH_DEGRADATION_NOTICE_COOLDOWN_MS = 30_000;
 
 /**
  * 搜索功能配置选项
@@ -103,6 +108,7 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
   let unlistenSearchHistoryCleared: UnlistenFn | null = null;
   let isSearchActive = true;
   let searchRequestVersion = 0;
+  let lastSearchDegradationNoticeAt = 0;
 
   const hasResults = computed(() => searchResults.value.length > 0);
 
@@ -179,6 +185,47 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
     });
   };
 
+  const showSearchDegradationNotice = (
+    degradedSources: UniversalSearchDegradedSource[] | undefined
+  ): void => {
+    const timedOutSources = (degradedSources ?? []).filter(
+      (source) => source.reason === 'timeout'
+    );
+    if (timedOutSources.length === 0) return;
+
+    const now = Date.now();
+    if (
+      now - lastSearchDegradationNoticeAt <
+      SEARCH_DEGRADATION_NOTICE_COOLDOWN_MS
+    ) {
+      return;
+    }
+
+    lastSearchDegradationNoticeAt = now;
+    const sourceNames = Array.from(
+      new Set(
+        timedOutSources.map((source) => `${source.pluginId}:${source.source}`)
+      )
+    );
+    const visibleSourceNames = sourceNames.slice(0, 3);
+    const hiddenCount = sourceNames.length - visibleSourceNames.length;
+    const sources =
+      hiddenCount > 0
+        ? `${visibleSourceNames.join(', ')} +${hiddenCount}`
+        : visibleSourceNames.join(', ');
+
+    modal.msg(
+      String(
+        i18n.global.t('search.providerDegraded', {
+          sources
+        })
+      ),
+      'warning',
+      'top-right',
+      4000
+    );
+  };
+
   /**
    * 防抖搜索函数
    */
@@ -237,6 +284,7 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
       if (!isLatestSearchRequest(requestVersion)) return;
 
       searchResults.value = response.items;
+      showSearchDegradationNotice(response.degradedSources);
     } catch (error) {
       if (!isLatestSearchRequest(requestVersion)) return;
 

@@ -220,7 +220,9 @@ export default {
       searchSources: 'Search Sources',
       searchSourceSummary: '{total} registered · {failed} failed',
       searchSourceMeta:
-        'Phase {phase} · Domain {domain} · Priority {priority} · {timing}',
+        'Phase {phase} · Domain {domain} · Priority {priority} · Timeout {timeout} · {timing}',
+      searchSourceTimeout: '{timeout} ms',
+      searchSourceTimeoutDisabled: 'off',
       searchSourceTiming: '{duration} ms',
       searchSourceTimingNever: 'Not searched yet',
       searchSourceHealth: {
@@ -1065,6 +1067,8 @@ export default {
     noResults: 'No Results',
     suggestRelax: 'Try relaxing filter conditions',
     askAi: 'Ask in AI Chat',
+    providerDegraded:
+      'Some search sources were slow, showing available results first: {sources}',
     deepSearch: 'Deep Search',
     deepSearchOn:
       'Deep search on: matching titles, content, notes, paths, and tags',

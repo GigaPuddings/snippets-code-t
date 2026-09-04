@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { SearchSourceRegistry } from './sourceRegistry';
+import { DEFAULT_SEARCH_PROVIDER_TIMEOUT_MS } from './sourceCatalog';
 
 const provider = (overrides: {
   pluginId: string;
@@ -32,6 +33,7 @@ describe('SearchSourceRegistry', () => {
       phase: 'results',
       domain: 'files',
       priority: 40,
+      timeoutMs: DEFAULT_SEARCH_PROVIDER_TIMEOUT_MS,
       health: 'idle'
     });
   });
@@ -54,7 +56,34 @@ describe('SearchSourceRegistry', () => {
     expect(
       registry.getState('search-engines', 'engine-shortcut')
     ).toMatchObject({
-      phase: 'preflight'
+      phase: 'preflight',
+      timeoutMs: DEFAULT_SEARCH_PROVIDER_TIMEOUT_MS
+    });
+  });
+
+  it('keeps explicit timeout overrides and allows timeout opt-out', () => {
+    const registry = new SearchSourceRegistry();
+
+    registry.register(
+      provider({
+        pluginId: 'slow-plugin',
+        source: 'slow',
+        timeoutMs: 1200
+      })
+    );
+    registry.register(
+      provider({
+        pluginId: 'streaming-plugin',
+        source: 'streaming',
+        timeoutMs: 0
+      })
+    );
+
+    expect(registry.getState('slow-plugin', 'slow')).toMatchObject({
+      timeoutMs: 1200
+    });
+    expect(registry.getState('streaming-plugin', 'streaming')).toMatchObject({
+      timeoutMs: 0
     });
   });
 

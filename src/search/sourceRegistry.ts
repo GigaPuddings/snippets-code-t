@@ -3,6 +3,7 @@ import type {
   SearchSourceProviderPhase
 } from '@/plugins/search';
 import {
+  DEFAULT_SEARCH_PROVIDER_TIMEOUT_MS,
   getUniversalSearchSourceDescriptor,
   getUniversalSearchSourcePriority,
   type UniversalSearchDomain
@@ -17,6 +18,7 @@ export interface SearchSourceRuntimeState {
   phase: SearchSourceProviderPhase;
   domain?: UniversalSearchDomain;
   priority: number;
+  timeoutMs?: number;
   health: SearchSourceHealth;
   lastSearchedAt?: number;
   lastSuccessfulAt?: number;
@@ -55,7 +57,10 @@ export class SearchSourceRegistry {
       descriptor?.priority ??
       getUniversalSearchSourcePriority(source);
     const domain = provider.domain ?? descriptor?.domain;
-    const timeoutMs = provider.timeoutMs ?? descriptor?.timeoutMs;
+    const timeoutMs =
+      provider.timeoutMs ??
+      descriptor?.timeoutMs ??
+      DEFAULT_SEARCH_PROVIDER_TIMEOUT_MS;
     this.providers.set(key, {
       ...provider,
       source,
@@ -72,6 +77,7 @@ export class SearchSourceRegistry {
       phase,
       domain,
       priority,
+      timeoutMs,
       health: this.states.get(key)?.health ?? 'idle'
     });
   }
@@ -176,17 +182,22 @@ export class SearchSourceRegistry {
       provider.priority ??
       descriptor?.priority ??
       getUniversalSearchSourcePriority(source);
+    const timeoutMs =
+      provider.timeoutMs ??
+      descriptor?.timeoutMs ??
+      DEFAULT_SEARCH_PROVIDER_TIMEOUT_MS;
 
     this.states.set(key, {
+      ...previous,
+      ...patch,
       key,
       pluginId: String(provider.pluginId),
       source,
       phase,
       domain: provider.domain ?? descriptor?.domain,
       priority,
-      health: previous?.health ?? 'idle',
-      ...previous,
-      ...patch
+      timeoutMs,
+      health: patch.health ?? previous?.health ?? 'idle'
     });
   }
 }

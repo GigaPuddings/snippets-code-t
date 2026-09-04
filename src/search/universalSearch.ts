@@ -11,7 +11,10 @@ import {
   searchSourceRegistry
 } from '@/plugins/search-providers';
 import { rankSearchResults, type SearchHistoryMeta } from '@/search/ranking';
-import { getUniversalSearchSourcePluginId } from './sourceCatalog';
+import {
+  DEFAULT_SEARCH_PROVIDER_TIMEOUT_MS,
+  getUniversalSearchSourcePluginId
+} from './sourceCatalog';
 import type {
   SearchSourceRegistration,
   SearchSourceRegistry
@@ -33,8 +36,11 @@ export interface UniversalSearchRequest {
 export interface UniversalSearchProviderError {
   pluginId: string;
   source?: string;
+  phase?: SearchSourceProviderPhase;
   query: string;
   error: unknown;
+  timedOut?: boolean;
+  timeoutMs?: number;
 }
 
 export interface UniversalSearchCommandError {
@@ -56,12 +62,53 @@ export interface UniversalSearchRuntime {
 export interface UniversalSearchResponse {
   intent: UniversalSearchIntent;
   items: ContentType[];
+  degradedSources?: UniversalSearchDegradedSource[];
+}
+
+export interface UniversalSearchDegradedSource {
+  pluginId: string;
+  source: string;
+  phase: SearchSourceProviderPhase;
+  reason: 'timeout';
+  timeoutMs: number;
 }
 
 interface ProviderSearchOutput {
   provider: SearchSourceRegistration;
   results: SearchSourceResult[];
+  timedOut?: boolean;
+  timeoutMs?: number;
 }
+
+export class SearchProviderTimeoutError extends Error {
+  readonly code = 'SEARCH_PROVIDER_TIMEOUT';
+
+  constructor(
+    readonly pluginId: string,
+    readonly source: string,
+    readonly timeoutMs: number
+  ) {
+    super(`搜索源 ${pluginId}:${source} 超时`);
+    this.name = 'SearchProviderTimeoutError';
+  }
+}
+
+export const isSearchProviderTimeoutError = (
+  error: unknown
+): error is SearchProviderTimeoutError => {
+  if (error instanceof SearchProviderTimeoutError) {
+    return true;
+  }
+
+  if (typeof error !== 'object' || error === null) {
+    return false;
+  }
+
+  return (
+    (error as { code?: unknown }).code === 'SEARCH_PROVIDER_TIMEOUT' ||
+    (error as { name?: unknown }).name === 'SearchProviderTimeoutError'
+  );
+};
 
 export const getUniversalSearchResultSource = (item: ContentType): string =>
   typeof item.metadata?.source === 'string'
@@ -155,6 +202,9 @@ const getProviderPhase = (
   provider: SearchSourceRegistration
 ): SearchSourceProviderPhase => provider.phase ?? 'results';
 
+const getProviderTimeoutMs = (provider: SearchSourceRegistration): number =>
+  provider.timeoutMs ?? DEFAULT_SEARCH_PROVIDER_TIMEOUT_MS;
+
 const searchMarkdown = async (
   query: string,
   runtime: UniversalSearchRuntime
@@ -218,14 +268,19 @@ const searchProvider = async (
       results: Array.isArray(result) ? result : []
     };
   } catch (error) {
+    const timedOut = isSearchProviderTimeoutError(error);
+    const timeoutMs = timedOut ? getProviderTimeoutMs(provider) : undefined;
     registry?.markFailure(provider, error, startedAt);
     runtime.onProviderError?.({
       pluginId: provider.pluginId,
       source: provider.source,
+      phase: getProviderPhase(provider),
       query: text,
-      error
+      error,
+      timedOut,
+      timeoutMs
     });
-    return { provider, results: [] };
+    return { provider, results: [], timedOut, timeoutMs };
   }
 };
 
@@ -234,14 +289,22 @@ const runProviderWithOptionalTimeout = (
   text: string
 ): Promise<SearchSourceResult[]> => {
   const searchPromise = provider.search(text);
-  if (!provider.timeoutMs || provider.timeoutMs <= 0) {
+  const timeoutMs = getProviderTimeoutMs(provider);
+
+  if (timeoutMs <= 0) {
     return searchPromise;
   }
 
   return new Promise((resolve, reject) => {
     const timer = globalThis.setTimeout(() => {
-      reject(new Error(`搜索源 ${provider.pluginId}:${provider.source} 超时`));
-    }, provider.timeoutMs);
+      reject(
+        new SearchProviderTimeoutError(
+          String(provider.pluginId),
+          provider.source,
+          timeoutMs
+        )
+      );
+    }, timeoutMs);
 
     searchPromise
       .then((result) => {
@@ -284,6 +347,48 @@ const getProviderSearchItems = (
   }
 
   return items;
+};
+
+const collectDegradedSources = (
+  ...providerResultGroups: ProviderSearchOutput[][]
+): UniversalSearchDegradedSource[] => {
+  const degradedSources: UniversalSearchDegradedSource[] = [];
+  const seen = new Set<string>();
+
+  for (const providerResults of providerResultGroups) {
+    for (const providerOutput of providerResults) {
+      if (!providerOutput.timedOut) continue;
+
+      const key = `${providerOutput.provider.pluginId}:${providerOutput.provider.source}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      degradedSources.push({
+        pluginId: String(providerOutput.provider.pluginId),
+        source: providerOutput.provider.source,
+        phase: getProviderPhase(providerOutput.provider),
+        reason: 'timeout',
+        timeoutMs:
+          providerOutput.timeoutMs ??
+          getProviderTimeoutMs(providerOutput.provider)
+      });
+    }
+  }
+
+  return degradedSources;
+};
+
+const withDegradedSources = (
+  response: UniversalSearchResponse,
+  ...providerResultGroups: ProviderSearchOutput[][]
+): UniversalSearchResponse => {
+  const degradedSources = collectDegradedSources(...providerResultGroups);
+  return degradedSources.length > 0
+    ? {
+        ...response,
+        degradedSources
+      }
+    : response;
 };
 
 const getExclusiveProviderResponse = (
@@ -349,7 +454,10 @@ export const runUniversalSearch = async (
     preflightProviderResults
   );
   if (exclusiveProviderResponse) {
-    return exclusiveProviderResponse;
+    return withDegradedSources(
+      exclusiveProviderResponse,
+      preflightProviderResults
+    );
   }
 
   const query = text.toLowerCase();
@@ -393,13 +501,18 @@ export const runUniversalSearch = async (
   );
   const appendResults = getProviderSearchItems(appendProviderResultGroups);
 
-  return {
-    intent: 'results',
-    items: [
-      ...rankSearchResults(results, query, createSearchHistoryMap(history), {
-        deepSearch: request.deepSearch
-      }),
-      ...appendResults
-    ]
-  };
+  return withDegradedSources(
+    {
+      intent: 'results',
+      items: [
+        ...rankSearchResults(results, query, createSearchHistoryMap(history), {
+          deepSearch: request.deepSearch
+        }),
+        ...appendResults
+      ]
+    },
+    preflightProviderResults,
+    providerResultGroups,
+    appendProviderResultGroups
+  );
 };

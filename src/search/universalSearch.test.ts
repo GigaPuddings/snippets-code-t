@@ -17,6 +17,7 @@ import {
   withUniversalSearchSource
 } from './universalSearch';
 import { SearchSourceRegistry } from './sourceRegistry';
+import { DEFAULT_SEARCH_PROVIDER_TIMEOUT_MS } from './sourceCatalog';
 
 type Invoke = typeof import('@tauri-apps/api/core').invoke;
 
@@ -55,6 +56,17 @@ const contentItem = (
   content,
   summarize,
   score: 100
+});
+
+const quickToolsProvider = (): SearchSourceProvider => ({
+  pluginId: 'quick-tools',
+  source: 'quick-tools',
+  search: vi.fn(async () => [
+    {
+      source: 'quick-tools',
+      items: [contentItem('calc', 'calc answer', 'tool', '2')]
+    }
+  ])
 });
 
 const createInvoke = (
@@ -293,16 +305,7 @@ describe('runUniversalSearch', () => {
       timeoutMs: 20,
       search: vi.fn(async () => new Promise<never>(() => undefined))
     };
-    const healthyProvider: SearchSourceProvider = {
-      pluginId: 'quick-tools',
-      source: 'quick-tools',
-      search: vi.fn(async () => [
-        {
-          source: 'quick-tools',
-          items: [contentItem('calc', 'calc answer', 'tool', '2')]
-        }
-      ])
-    };
+    const healthyProvider = quickToolsProvider();
     registry.register(slowProvider);
     registry.register(healthyProvider);
     const invoke = createInvoke({
@@ -333,13 +336,77 @@ describe('runUniversalSearch', () => {
     expect(onProviderError).toHaveBeenCalledWith(
       expect.objectContaining({
         pluginId: 'slow-plugin',
-        source: 'slow'
+        source: 'slow',
+        phase: 'results',
+        timedOut: true,
+        timeoutMs: 20
       })
     );
+    expect(response.degradedSources).toEqual([
+      {
+        pluginId: 'slow-plugin',
+        source: 'slow',
+        phase: 'results',
+        reason: 'timeout',
+        timeoutMs: 20
+      }
+    ]);
     expect(registry.getState('slow-plugin', 'slow')).toMatchObject({
       health: 'failed',
       lastError: '搜索源 slow-plugin:slow 超时'
     });
+  });
+
+  it('applies the product default timeout to providers without overrides', async () => {
+    vi.useFakeTimers();
+    const onProviderError = vi.fn();
+    const slowProvider: SearchSourceProvider = {
+      pluginId: 'slow-plugin',
+      source: 'slow',
+      search: vi.fn(async () => new Promise<never>(() => undefined))
+    };
+    const healthyProvider = quickToolsProvider();
+    const invoke = createInvoke({
+      search_markdown_files_optimized: [],
+      get_search_history: []
+    });
+
+    const searchPromise = runUniversalSearch(
+      {
+        text: 'calc',
+        deepSearch: false
+      },
+      {
+        invoke,
+        providers: [slowProvider, healthyProvider],
+        isPluginEnabled: () => true,
+        onProviderError
+      }
+    );
+    await vi.advanceTimersByTimeAsync(DEFAULT_SEARCH_PROVIDER_TIMEOUT_MS);
+    const response = await searchPromise;
+    vi.useRealTimers();
+
+    expect(response.items.map((item) => item.metadata?.source)).toEqual([
+      'quick-tools'
+    ]);
+    expect(onProviderError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pluginId: 'slow-plugin',
+        source: 'slow',
+        timedOut: true,
+        timeoutMs: DEFAULT_SEARCH_PROVIDER_TIMEOUT_MS
+      })
+    );
+    expect(response.degradedSources).toEqual([
+      {
+        pluginId: 'slow-plugin',
+        source: 'slow',
+        phase: 'results',
+        reason: 'timeout',
+        timeoutMs: DEFAULT_SEARCH_PROVIDER_TIMEOUT_MS
+      }
+    ]);
   });
 
   it('removes stale results owned by disabled plugin sources', () => {

@@ -220,6 +220,7 @@
                       phase: source.phase,
                       domain: source.domain || '-',
                       priority: source.priority,
+                      timeout: formatSearchSourceTimeout(source),
                       timing: formatSearchSourceTiming(source)
                     })
                   }}
@@ -399,6 +400,7 @@ const searchSourceReportText = computed(() =>
             `health=${source.health}`,
             `domain=${source.domain ?? '-'}`,
             `priority=${source.priority}`,
+            `timeoutMs=${source.timeoutMs ?? '-'}`,
             `lastDurationMs=${source.lastDurationMs ?? '-'}`,
             `lastError=${source.lastError ?? '-'}`
           ].join(' | ')
@@ -490,6 +492,18 @@ const formatSearchSourceTiming = (source: SearchSourceRuntimeState): string => {
     });
   }
   return t('settings.developer.searchSourceTimingNever');
+};
+
+const formatSearchSourceTimeout = (
+  source: SearchSourceRuntimeState
+): string => {
+  if (typeof source.timeoutMs === 'number' && source.timeoutMs > 0) {
+    return t('settings.developer.searchSourceTimeout', {
+      timeout: source.timeoutMs
+    });
+  }
+
+  return t('settings.developer.searchSourceTimeoutDisabled');
 };
 
 const searchSourceDotClass = (

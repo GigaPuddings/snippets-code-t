@@ -52,10 +52,7 @@ Screenshot、OCR、Recorder、Translation、Todo、Wallpaper、Launcher、Local 
 - `src/hooks/useSearch.ts`：仅保留 Vue 状态、输入防抖、生命周期和回车动作。
 - `search-engines` 插件通过标准 provider 注册 `engine-shortcut` 和 `default-search`，Universal Search 不再特判搜索引擎快捷方式和默认搜索项。
 - 开发者诊断页展示搜索源健康状态，并在完整报告中输出 source、phase、domain、priority、耗时和错误摘要。
-
-后续可继续演进：
-
-- 为慢 provider 制定产品级默认超时和降级提示。
+- 搜索 provider 默认 2500 ms 超时；慢 provider 会标记为降级来源，搜索页继续展示可用结果并节流提示，开发者诊断报告输出 `timeoutMs`。
 
 ### P2-B AI Capability Layer
 

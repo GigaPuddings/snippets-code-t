@@ -14,6 +14,8 @@ export interface UniversalSearchSourceDescriptor {
   timeoutMs?: number;
 }
 
+export const DEFAULT_SEARCH_PROVIDER_TIMEOUT_MS = 2500;
+
 export const UNIVERSAL_SEARCH_SOURCES: UniversalSearchSourceDescriptor[] = [
   { source: 'markdown', domain: 'workspace', priority: 80 },
   {

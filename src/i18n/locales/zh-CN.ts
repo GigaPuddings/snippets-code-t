@@ -211,7 +211,9 @@ export default {
       searchSources: '搜索源',
       searchSourceSummary: '{total} 个已注册 · {failed} 失败',
       searchSourceMeta:
-        '阶段 {phase} · 领域 {domain} · 优先级 {priority} · {timing}',
+        '阶段 {phase} · 领域 {domain} · 优先级 {priority} · 超时 {timeout} · {timing}',
+      searchSourceTimeout: '{timeout} ms',
+      searchSourceTimeoutDisabled: '关闭',
       searchSourceTiming: '耗时 {duration} ms',
       searchSourceTimingNever: '尚未搜索',
       searchSourceHealth: {
@@ -1025,6 +1027,7 @@ export default {
     noResults: '无匹配结果',
     suggestRelax: '尝试放宽筛选条件',
     askAi: '在 AI 聊天中提问',
+    providerDegraded: '部分搜索源响应较慢，已先展示可用结果：{sources}',
     deepSearch: '深度检索',
     deepSearchOn: '深度检索已开启：匹配标题、内容、笔记、路径和标签',
     deepSearchOff: '深度检索已关闭：仅匹配标题',
