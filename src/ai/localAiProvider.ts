@@ -1,7 +1,9 @@
 import {
+  cancelLocalAiChatStream,
   chatWithLocalAi,
   getLocalAiStatus,
   startLocalAiService,
+  streamChatWithLocalAi,
   translateWithLocalAi,
   type LocalAiChatRequest,
   type LocalAiMessage,
@@ -10,6 +12,9 @@ import {
 import { formatAiRequestContext } from './context';
 import type {
   AiChatRequest,
+  AiChatResponse,
+  AiChatStreamDeltaHandler,
+  AiChatStreamOptions,
   AiProvider,
   AiProviderStatus,
   AiRequestContext,
@@ -139,6 +144,27 @@ export const localAiProvider: AiProvider = {
       providerId: LOCAL_AI_PROVIDER_ID,
       content: response.content
     };
+  },
+  async streamChat(
+    request: AiChatRequest,
+    onDelta: AiChatStreamDeltaHandler,
+    options: AiChatStreamOptions = {}
+  ): Promise<AiChatResponse> {
+    const response = await streamChatWithLocalAi(
+      withContextMessage(request),
+      onDelta,
+      {
+        requestId: options.requestId,
+        onStats: options.onStats
+      }
+    );
+    return {
+      providerId: LOCAL_AI_PROVIDER_ID,
+      content: response.content
+    };
+  },
+  async cancelChatStream(requestId: string): Promise<boolean> {
+    return await cancelLocalAiChatStream(requestId);
   },
   async translate(request: AiTranslateRequest) {
     if (request.context?.items.length) {

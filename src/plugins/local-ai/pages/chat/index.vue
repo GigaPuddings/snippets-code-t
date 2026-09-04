@@ -764,9 +764,7 @@ import {
   CheckSmall
 } from '@icon-park/vue-next';
 import {
-  cancelLocalAiChatStream,
   clearLocalAiChatHistories,
-  createLocalAiStreamRequestId,
   deleteLocalAiChatHistory,
   getLocalAiConfig,
   getLocalAiChatHistories,
@@ -775,13 +773,18 @@ import {
   saveLocalAiChatHistory,
   saveLocalAiConfig,
   scanLocalAiModels,
-  streamChatWithLocalAi,
   type LocalAiConfig,
   type LocalAiMessage,
   type LocalAiModelScan,
   type LocalAiServiceStatus
 } from '@/api/localAi';
-import { chatWithAi, LOCAL_AI_PROVIDER_ID } from '@/ai';
+import {
+  cancelAiChatStream,
+  chatWithAi,
+  createAiChatStreamRequestId,
+  LOCAL_AI_PROVIDER_ID,
+  streamChatWithAi
+} from '@/ai';
 import { ConfirmDialog } from '@/components/UI';
 import {
   cloneLocalAiAttachments,
@@ -1792,7 +1795,7 @@ const stopStatsTicker = () => {
   statsTick.value = Date.now();
 };
 const beginGeneration = (assistantMessage: ChatMessage): string => {
-  const requestId = createLocalAiStreamRequestId();
+  const requestId = createAiChatStreamRequestId();
   stopRequested.value = false;
   currentStreamRequestId.value = requestId;
   currentStreamingMessage.value = assistantMessage;
@@ -1866,7 +1869,9 @@ const streamAssistantMessage = async (
       repetitionStopRequested = true;
       stopRequested.value = true;
       assistantMessage.repetitionStopped = true;
-      void cancelLocalAiChatStream(requestId).catch((error) =>
+      void cancelAiChatStream(requestId, {
+        providerId: LOCAL_AI_PROVIDER_ID
+      }).catch((error) =>
         logger.warn('[LocalAI] repetition stop failed', error)
       );
     }
@@ -1902,7 +1907,7 @@ const streamAssistantMessage = async (
     });
   };
 
-  const response = await streamChatWithLocalAi(
+  const response = await streamChatWithAi(
     {
       messages,
       maxTokens: requestMaxTokens(),
@@ -1914,6 +1919,7 @@ const streamAssistantMessage = async (
       enqueueContent(delta);
     },
     {
+      providerId: LOCAL_AI_PROVIDER_ID,
       requestId,
       onStats: (stats) => {
         const mergedStats = mergeChatStreamStats(assistantMessage.stats, stats);
@@ -1977,7 +1983,7 @@ const stopGeneration = async () => {
   }
   if (!requestId) return;
   try {
-    await cancelLocalAiChatStream(requestId);
+    await cancelAiChatStream(requestId, { providerId: LOCAL_AI_PROVIDER_ID });
   } catch (error) {
     logger.warn('[LocalAI] cancel stream failed', error);
   }
@@ -2388,7 +2394,9 @@ onUnmounted(() => {
   window.removeEventListener('pointercancel', finishMessagePointerScroll);
   window.removeEventListener('keydown', handleGlobalKeydown);
   if (currentStreamRequestId.value) {
-    void cancelLocalAiChatStream(currentStreamRequestId.value);
+    void cancelAiChatStream(currentStreamRequestId.value, {
+      providerId: LOCAL_AI_PROVIDER_ID
+    });
   }
   clearMarkdownState();
   stopStatsTicker();

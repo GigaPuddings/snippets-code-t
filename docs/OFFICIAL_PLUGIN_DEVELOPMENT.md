@@ -116,6 +116,7 @@ pnpm plugins:verify-marketplace -- --local
 
 - manifest 声明 `capabilities.aiProviders`。
 - 运行时入口通过 `context.registerAiProvider` 注册 provider，并声明 `chat`、`vision` 或 `translation` capability。
+- provider 可以可选实现 `streamChat` 和 `cancelChatStream`；没有实现 `streamChat` 时，应用层会回退到普通 `chat` 并把完整结果作为一次 delta 返回。
 - provider id 必须稳定，不能和其他插件或内置 provider 冲突。
 - 插件禁用或卸载后，runtime 会清理该插件注册的 AI provider。
 

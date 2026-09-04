@@ -6,6 +6,9 @@ export {
 export type {
   AiChatRequest,
   AiChatResponse,
+  AiChatStreamDeltaHandler,
+  AiChatStreamOptions,
+  AiChatStreamStats,
   AiContentPart,
   AiContextItem,
   AiContextKind,
@@ -71,9 +74,15 @@ export {
   getAiProviderStatus,
   startAiProvider,
   chatWithAi,
+  cancelAiChatStream,
+  createAiChatStreamRequestId,
+  streamChatWithAi,
   translateWithAi
 } from './service';
-export type { AiProviderRequestOptions } from './service';
+export type {
+  AiProviderChatStreamOptions,
+  AiProviderRequestOptions
+} from './service';
 export {
   AI_PROVIDER_CAPABILITIES,
   AI_PROVIDER_PREFERENCES_CONFIG_KEY,

@@ -33,6 +33,23 @@ export interface AiChatResponse {
   modelName?: string;
 }
 
+export interface AiChatStreamStats {
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+  ctxSize?: number;
+  generationTimeMs?: number;
+  tokensPerSecond?: number;
+  finishReason?: string;
+}
+
+export type AiChatStreamDeltaHandler = (content: string) => void;
+
+export interface AiChatStreamOptions {
+  requestId?: string;
+  onStats?: (stats: AiChatStreamStats) => void;
+}
+
 export type AiContextKind = 'workspace' | 'selection' | 'search';
 
 export interface AiContextItem {
@@ -81,6 +98,12 @@ export interface AiProvider {
   getStatus?(): Promise<AiProviderStatus>;
   start?(): Promise<AiProviderStatus>;
   chat(request: AiChatRequest): Promise<AiChatResponse>;
+  streamChat?(
+    request: AiChatRequest,
+    onDelta: AiChatStreamDeltaHandler,
+    options?: AiChatStreamOptions
+  ): Promise<AiChatResponse>;
+  cancelChatStream?(requestId: string): Promise<boolean>;
   translate?(request: AiTranslateRequest): Promise<AiTranslateResponse>;
 }
 

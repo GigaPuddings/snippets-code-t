@@ -194,6 +194,8 @@ The activation context exposes these registration methods:
 
 It also exposes `context.ui.h` and `context.ui.defineComponent` so simple local plugins can register Vue components without bundling their own copy of Vue.
 
+AI providers registered with `registerAiProvider` may implement optional `streamChat` and `cancelChatStream` methods. Application code should call `streamChatWithAi` and `cancelAiChatStream` rather than binding directly to a provider-specific transport; non-streaming providers fall back to ordinary `chat`.
+
 AI context providers registered with `registerAiContextProvider` are collected by application services such as `chatWithAi` and `translateWithAi` only when the caller passes `contextCollection`. The built-in collection input supports explicit selection text, selection metadata, current workspace content metadata, and workspace search queries; plugin providers receive the same normalized collection request.
 
 Each local plugin has an isolated JSON data file exposed through `context.storage.get`, `context.storage.set`, and `context.storage.delete`. Persistent state is stored under `<data-root>/state/plugins/<plugin-id>/data.json`, not inside the plugin package directory. Updating, disabling, or ordinary uninstalling a plugin preserves this state; only the explicit "uninstall and delete data" path removes plugin state, index data, and cache.

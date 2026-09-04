@@ -146,13 +146,13 @@ import {
   normalizeAiMarkdown,
   resolvePreviewImageUrls
 } from '@/components/TipTapEditor/utils/markdown';
+import { getLocalAiConfig, type LocalAiMessage } from '@/api/localAi';
 import {
-  createLocalAiStreamRequestId,
-  cancelLocalAiChatStream,
-  getLocalAiConfig,
-  streamChatWithLocalAi,
-  type LocalAiMessage
-} from '@/api/localAi';
+  cancelAiChatStream,
+  createAiChatStreamRequestId,
+  LOCAL_AI_PROVIDER_ID,
+  streamChatWithAi
+} from '@/ai';
 import { useFragmentRag } from '@/composables/useFragmentRag';
 
 type AssistAction =
@@ -350,7 +350,7 @@ const cancelGeneration = async () => {
   if (!requestId) return;
 
   try {
-    await cancelLocalAiChatStream(requestId);
+    await cancelAiChatStream(requestId, { providerId: LOCAL_AI_PROVIDER_ID });
   } catch {
     // 窗口正在销毁时 invoke 可能来不及送达；后端窗口销毁兜底会负责取消。
   }
@@ -489,7 +489,7 @@ const runAction = async (
   errorMessage.value = '';
   finishReason.value = '';
   isGenerating.value = true;
-  const requestId = createLocalAiStreamRequestId();
+  const requestId = createAiChatStreamRequestId();
   const requestEpoch = ++generationEpoch;
   currentRequestId.value = requestId;
   try {
@@ -573,7 +573,7 @@ const runAction = async (
               ) -
               128
           );
-    const response = await streamChatWithLocalAi(
+    const response = await streamChatWithAi(
       {
         temperature: action === 'rewrite' ? 0.45 : 0.2,
         maxTokens: requestMaxTokens,
@@ -588,6 +588,7 @@ const runAction = async (
         }
       },
       {
+        providerId: LOCAL_AI_PROVIDER_ID,
         requestId,
         onStats: (stats) => {
           if (requestEpoch !== generationEpoch) return;

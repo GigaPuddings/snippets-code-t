@@ -2,6 +2,8 @@ import {
   aiProviderRegistry,
   type AiChatRequest,
   type AiChatResponse,
+  type AiChatStreamDeltaHandler,
+  type AiChatStreamOptions,
   type AiProvider,
   type AiProviderCapability,
   type AiProviderRegistry,
@@ -32,6 +34,15 @@ export interface AiProviderRequestOptions
   providerPreferences?: AiProviderPreferenceMap;
   contextCollection?: AiContextCollectionControl;
 }
+
+export interface AiProviderChatStreamOptions
+  extends AiProviderRequestOptions,
+    AiChatStreamOptions {}
+
+export const createAiChatStreamRequestId = (): string =>
+  typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `ai-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
 const requestUsesVision = (request: AiChatRequest): boolean =>
   request.messages.some(
@@ -195,6 +206,56 @@ export const chatWithAi = async (
     ...response,
     providerId: response.providerId || provider.id
   };
+};
+
+const providerStreamOptionsFrom = (
+  options: AiProviderChatStreamOptions
+): AiChatStreamOptions => ({
+  requestId: options.requestId,
+  onStats: options.onStats
+});
+
+export const streamChatWithAi = async (
+  request: AiChatRequest,
+  onDelta: AiChatStreamDeltaHandler,
+  options: AiProviderChatStreamOptions = {}
+): Promise<AiChatResponse> => {
+  const capability = capabilityForRequest(request, options.capability);
+  const provider = await resolveProvider(options, capability);
+  const context = await collectContextForProvider(
+    options,
+    capability,
+    'chat',
+    provider.id,
+    defaultChatContextInput(request)
+  );
+  const requestWithContext = withAiRequestContext(request, context);
+  const response = provider.streamChat
+    ? await provider.streamChat(
+        requestWithContext,
+        onDelta,
+        providerStreamOptionsFrom(options)
+      )
+    : await provider.chat(requestWithContext);
+
+  if (!provider.streamChat && response.content) {
+    onDelta(response.content);
+  }
+
+  return {
+    ...response,
+    providerId: response.providerId || provider.id
+  };
+};
+
+export const cancelAiChatStream = async (
+  requestId: string,
+  options: AiProviderRequestOptions = {}
+): Promise<boolean> => {
+  const provider = await resolveProvider(options, options.capability ?? 'chat');
+  return provider.cancelChatStream
+    ? await provider.cancelChatStream(requestId)
+    : false;
 };
 
 export const translateWithAi = async (
