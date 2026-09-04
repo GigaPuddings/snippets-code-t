@@ -14,7 +14,11 @@ import * as VueRouterRuntime from 'vue-router';
 import * as VueI18nRuntime from 'vue-i18n';
 import type { RouteComponent, RouteRecordRaw, Router } from 'vue-router';
 import type { RegisteredPlugin } from './protocol';
-import type { SearchSourceProvider, SearchSourceResult } from './search';
+import type {
+  SearchSourceProvider,
+  SearchSourceProviderPhase,
+  SearchSourceResult
+} from './search';
 import {
   registerSearchSourceProvider,
   unregisterSearchSourceProvidersForPlugin
@@ -72,6 +76,7 @@ interface RuntimeSettingsRegistration {
 
 interface RuntimeSearchProviderRegistration {
   source: string;
+  phase?: SearchSourceProviderPhase;
   search(query: string): Promise<SearchSourceResult[]>;
 }
 
@@ -857,6 +862,7 @@ const createRuntimeContext = (
     const nextProvider = {
       pluginId: plugin.id,
       source: provider.source,
+      phase: provider.phase,
       search: provider.search
     } satisfies SearchSourceProvider;
     registerSearchSourceProvider(nextProvider);

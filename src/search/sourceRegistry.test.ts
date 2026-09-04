@@ -4,11 +4,13 @@ import { SearchSourceRegistry } from './sourceRegistry';
 const provider = (overrides: {
   pluginId: string;
   source: string;
+  phase?: 'preflight' | 'results' | 'append';
   priority?: number;
   timeoutMs?: number;
 }) => ({
   pluginId: overrides.pluginId,
   source: overrides.source,
+  phase: overrides.phase,
   priority: overrides.priority,
   timeoutMs: overrides.timeoutMs,
   search: vi.fn(async () => [])
@@ -27,9 +29,32 @@ describe('SearchSourceRegistry', () => {
       'file'
     ]);
     expect(registry.getState('desktop-files', 'file')).toMatchObject({
+      phase: 'results',
       domain: 'files',
       priority: 40,
       health: 'idle'
+    });
+  });
+
+  it('keeps provider phase in registrations and runtime state', () => {
+    const registry = new SearchSourceRegistry();
+    registry.register(
+      provider({
+        pluginId: 'search-engines',
+        source: 'engine-shortcut',
+        phase: 'preflight'
+      })
+    );
+
+    expect(registry.list()[0]).toMatchObject({
+      pluginId: 'search-engines',
+      source: 'engine-shortcut',
+      phase: 'preflight'
+    });
+    expect(
+      registry.getState('search-engines', 'engine-shortcut')
+    ).toMatchObject({
+      phase: 'preflight'
     });
   });
 

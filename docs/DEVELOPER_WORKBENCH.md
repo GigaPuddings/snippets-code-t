@@ -50,12 +50,12 @@ Screenshot、OCR、Recorder、Translation、Todo、Wallpaper、Launcher、Local 
 - `src/search/sourceCatalog.ts`：声明稳定 source、domain、plugin 归属和默认优先级。
 - `src/search/sourceRegistry.ts`：统一注册、替换、注销搜索 provider，并记录 provider 运行健康状态。
 - `src/hooks/useSearch.ts`：仅保留 Vue 状态、输入防抖、生命周期和回车动作。
+- `search-engines` 插件通过标准 provider 注册 `engine-shortcut` 和 `default-search`，Universal Search 不再特判搜索引擎快捷方式和默认搜索项。
 
 后续可继续演进：
 
 - 为 source 健康状态增加设置页或诊断面板入口。
 - 为慢 provider 制定产品级默认超时和降级提示。
-- 将 search-engines 也收敛为标准 provider，而不是由 Universal Search 特判快捷方式和默认搜索项。
 
 ### P2-B AI Capability Layer
 

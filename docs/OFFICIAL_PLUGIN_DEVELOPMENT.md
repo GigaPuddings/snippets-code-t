@@ -107,6 +107,7 @@ pnpm plugins:verify-marketplace -- --local
 
 - manifest 声明 `capabilities.searchSources`。
 - 运行时入口导入搜索提供器，并通过 `context.registerSearchProvider` 注册。
+- Search provider 默认处于 `results` 阶段；需要在 URL 判断后、索引搜索前抢占结果时使用 `phase: 'preflight'`，需要在排序后追加兜底结果时使用 `phase: 'append'`。
 - marketplace 版本高于用户已安装插件版本，这样插件设置页才会显示可更新。
 - 已安装插件处于启用状态。
 - 搜索页签过滤器没有隐藏该来源。Quick search 的工具结果应该出现在 `全部` 和 `工具` 下。

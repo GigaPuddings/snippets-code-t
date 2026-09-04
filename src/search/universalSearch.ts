@@ -1,22 +1,15 @@
 import { invoke as tauriInvoke } from '@tauri-apps/api/core';
-import type {
-  ContentType,
-  MarkdownFile,
-  SearchEngine,
-  SearchHistoryItem
-} from '@/types';
+import type { ContentType, MarkdownFile, SearchHistoryItem } from '@/types';
 import { isContentType } from '@/utils/type-guards';
 import { isURL, normalizeURL } from '@/utils/url';
-import type { SearchSourceResult } from '@/plugins/search';
+import type {
+  SearchSourceProviderPhase,
+  SearchSourceResult
+} from '@/plugins/search';
 import {
   getEnabledSearchSourceProviders,
   searchSourceRegistry
 } from '@/plugins/search-providers';
-import {
-  createDefaultSearchResult,
-  createEngineShortcutResult,
-  findSearchEngine
-} from '@/plugins/search-engines/searchRuntime';
 import { rankSearchResults, type SearchHistoryMeta } from '@/search/ranking';
 import { getUniversalSearchSourcePluginId } from './sourceCatalog';
 import type {
@@ -35,7 +28,6 @@ export type UniversalSearchIntent =
 export interface UniversalSearchRequest {
   text: string;
   deepSearch: boolean;
-  searchEngines: SearchEngine[];
 }
 
 export interface UniversalSearchProviderError {
@@ -159,6 +151,10 @@ const shouldKeepSearching = (runtime: UniversalSearchRuntime): boolean =>
 const getInvoke = (runtime: UniversalSearchRuntime): typeof tauriInvoke =>
   runtime.invoke ?? tauriInvoke;
 
+const getProviderPhase = (
+  provider: SearchSourceRegistration
+): SearchSourceProviderPhase => provider.phase ?? 'results';
+
 const searchMarkdown = async (
   query: string,
   runtime: UniversalSearchRuntime
@@ -259,6 +255,57 @@ const runProviderWithOptionalTimeout = (
   });
 };
 
+const getProviderSourceResultItems = (
+  providerOutput: ProviderSearchOutput,
+  sourceResult: SearchSourceResult
+): ContentType[] => {
+  const source =
+    typeof sourceResult.source === 'string' && sourceResult.source
+      ? sourceResult.source
+      : providerOutput.provider.source;
+  const items = Array.isArray(sourceResult.items) ? sourceResult.items : [];
+
+  return items
+    .filter(isContentType)
+    .map((item, index) => withUniversalSearchSource(item, source, index));
+};
+
+const getProviderSearchItems = (
+  providerResultGroups: ProviderSearchOutput[],
+  filterResult?: (sourceResult: SearchSourceResult) => boolean
+): ContentType[] => {
+  const items: ContentType[] = [];
+
+  for (const providerOutput of providerResultGroups) {
+    for (const sourceResult of providerOutput.results) {
+      if (filterResult && !filterResult(sourceResult)) continue;
+      items.push(...getProviderSourceResultItems(providerOutput, sourceResult));
+    }
+  }
+
+  return items;
+};
+
+const getExclusiveProviderResponse = (
+  providerResultGroups: ProviderSearchOutput[]
+): UniversalSearchResponse | null => {
+  for (const providerOutput of providerResultGroups) {
+    for (const sourceResult of providerOutput.results) {
+      if (!sourceResult.exclusive) continue;
+
+      const items = getProviderSourceResultItems(providerOutput, sourceResult);
+      if (items.length === 0) continue;
+
+      return {
+        intent: sourceResult.intent ?? 'results',
+        items
+      };
+    }
+  }
+
+  return null;
+};
+
 export const runUniversalSearch = async (
   request: UniversalSearchRequest,
   runtime: UniversalSearchRuntime
@@ -281,34 +328,53 @@ export const runUniversalSearch = async (
     };
   }
 
-  if (runtime.isPluginEnabled('search-engines')) {
-    const engineMatch = findSearchEngine(request.searchEngines, text, false);
-    if (engineMatch) {
-      return {
-        intent: 'engine-shortcut',
-        items: [
-          withUniversalSearchSource(
-            createEngineShortcutResult(engineMatch.engine, engineMatch.query),
-            'engine-shortcut',
-            0
-          )
-        ]
-      };
-    }
-  }
-
-  const query = text.toLowerCase();
   const enabledProviders =
     runtime.providers?.filter((provider) =>
       runtime.isPluginEnabled(String(provider.pluginId))
     ) ?? getEnabledSearchSourceProviders(runtime.isPluginEnabled);
-  const providerSearches = enabledProviders.map((provider) =>
+
+  const preflightProviders = enabledProviders.filter(
+    (provider) => getProviderPhase(provider) === 'preflight'
+  );
+  const preflightProviderResults = await Promise.all(
+    preflightProviders.map((provider) =>
+      searchProvider(provider, text, runtime)
+    )
+  );
+  if (!shouldKeepSearching(runtime)) {
+    return { intent: 'results', items: [] };
+  }
+
+  const exclusiveProviderResponse = getExclusiveProviderResponse(
+    preflightProviderResults
+  );
+  if (exclusiveProviderResponse) {
+    return exclusiveProviderResponse;
+  }
+
+  const query = text.toLowerCase();
+  const resultProviders = enabledProviders.filter(
+    (provider) => getProviderPhase(provider) === 'results'
+  );
+  const appendProviders = enabledProviders.filter(
+    (provider) => getProviderPhase(provider) === 'append'
+  );
+  const providerSearches = resultProviders.map((provider) =>
+    searchProvider(provider, text, runtime)
+  );
+  const appendProviderSearches = appendProviders.map((provider) =>
     searchProvider(provider, text, runtime)
   );
 
-  const [markdownResults, providerResultGroups, history] = await Promise.all([
+  const [
+    markdownResults,
+    providerResultGroups,
+    appendProviderResultGroups,
+    history
+  ] = await Promise.all([
     searchMarkdown(query, runtime),
     Promise.all(providerSearches),
+    Promise.all(appendProviderSearches),
     loadSearchHistory(query, runtime)
   ]);
   if (!shouldKeepSearching(runtime)) {
@@ -318,32 +384,14 @@ export const runUniversalSearch = async (
   const results = markdownResults.map((item, index) =>
     withUniversalSearchSource(item, 'markdown', index)
   );
-
-  for (const providerOutput of providerResultGroups) {
-    for (const sourceResult of providerOutput.results) {
-      const source =
-        typeof sourceResult.source === 'string' && sourceResult.source
-          ? sourceResult.source
-          : providerOutput.provider.source;
-      const items = Array.isArray(sourceResult.items) ? sourceResult.items : [];
-      results.push(
-        ...items
-          .filter(isContentType)
-          .map((item, index) => withUniversalSearchSource(item, source, index))
-      );
-    }
-  }
-
-  const defaultEngine = runtime.isPluginEnabled('search-engines')
-    ? request.searchEngines.find((engine) => engine.enabled)
-    : undefined;
-  const defaultSearchResult = defaultEngine
-    ? withUniversalSearchSource(
-        createDefaultSearchResult(defaultEngine, query),
-        'default-search',
-        0
-      )
-    : null;
+  results.push(
+    ...getProviderSearchItems(
+      preflightProviderResults,
+      (sourceResult) => !sourceResult.exclusive
+    ),
+    ...getProviderSearchItems(providerResultGroups)
+  );
+  const appendResults = getProviderSearchItems(appendProviderResultGroups);
 
   return {
     intent: 'results',
@@ -351,7 +399,7 @@ export const runUniversalSearch = async (
       ...rankSearchResults(results, query, createSearchHistoryMap(history), {
         deepSearch: request.deepSearch
       }),
-      ...(defaultSearchResult ? [defaultSearchResult] : [])
+      ...appendResults
     ]
   };
 };

@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ContentType, MarkdownFile, SearchEngine } from '@/types';
 import type { SearchSourceProvider } from '@/plugins/search';
+import {
+  createSearchEngineDefaultProvider,
+  createSearchEngineShortcutProvider,
+  type SearchEngineSearchProviderRegistration
+} from '@/plugins/search-engines/searchProvider';
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn()
@@ -66,6 +71,13 @@ const createInvoke = (
     return handler;
   }) as unknown as Invoke;
 
+const withSearchEnginesPlugin = (
+  provider: SearchEngineSearchProviderRegistration
+): SearchSourceProvider => ({
+  pluginId: 'search-engines',
+  ...provider
+});
+
 describe('runUniversalSearch', () => {
   it('handles URL input before running workspace or plugin providers', async () => {
     const providerSearch = vi.fn();
@@ -74,8 +86,7 @@ describe('runUniversalSearch', () => {
     const response = await runUniversalSearch(
       {
         text: 'github.com',
-        deepSearch: false,
-        searchEngines: [engine]
+        deepSearch: false
       },
       {
         invoke,
@@ -105,12 +116,16 @@ describe('runUniversalSearch', () => {
     const response = await runUniversalSearch(
       {
         text: 'g vue',
-        deepSearch: false,
-        searchEngines: [engine]
+        deepSearch: false
       },
       {
         invoke,
         providers: [
+          withSearchEnginesPlugin(
+            createSearchEngineShortcutProvider({
+              loadSearchEngines: async () => [engine]
+            })
+          ),
           {
             pluginId: 'local-launcher',
             source: 'local-launcher',
@@ -153,12 +168,18 @@ describe('runUniversalSearch', () => {
     const response = await runUniversalSearch(
       {
         text: 'code',
-        deepSearch: false,
-        searchEngines: [engine]
+        deepSearch: false
       },
       {
         invoke,
-        providers: [provider],
+        providers: [
+          provider,
+          withSearchEnginesPlugin(
+            createSearchEngineDefaultProvider({
+              loadSearchEngines: async () => [engine]
+            })
+          )
+        ],
         isPluginEnabled: () => true
       }
     );
@@ -203,8 +224,7 @@ describe('runUniversalSearch', () => {
     const response = await runUniversalSearch(
       {
         text: '1+1',
-        deepSearch: false,
-        searchEngines: []
+        deepSearch: false
       },
       {
         invoke,
@@ -247,8 +267,7 @@ describe('runUniversalSearch', () => {
     await runUniversalSearch(
       {
         text: 'calc',
-        deepSearch: false,
-        searchEngines: []
+        deepSearch: false
       },
       {
         invoke,
@@ -294,8 +313,7 @@ describe('runUniversalSearch', () => {
     const searchPromise = runUniversalSearch(
       {
         text: 'calc',
-        deepSearch: false,
-        searchEngines: []
+        deepSearch: false
       },
       {
         invoke,

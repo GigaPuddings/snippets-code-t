@@ -188,8 +188,7 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
       const response = await runUniversalSearch(
         {
           text,
-          deepSearch: deepSearchEnabled.value,
-          searchEngines: searchEngines.value
+          deepSearch: deepSearchEnabled.value
         },
         {
           invoke,

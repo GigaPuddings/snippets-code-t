@@ -1,4 +1,7 @@
-import type { SearchSourceProvider } from '@/plugins/search';
+import type {
+  SearchSourceProvider,
+  SearchSourceProviderPhase
+} from '@/plugins/search';
 import {
   getUniversalSearchSourceDescriptor,
   getUniversalSearchSourcePriority,
@@ -11,6 +14,7 @@ export interface SearchSourceRuntimeState {
   key: string;
   pluginId: string;
   source: string;
+  phase: SearchSourceProviderPhase;
   domain?: UniversalSearchDomain;
   priority: number;
   health: SearchSourceHealth;
@@ -45,6 +49,7 @@ export class SearchSourceRegistry {
 
     const key = providerKey(String(provider.pluginId), source);
     const descriptor = getUniversalSearchSourceDescriptor(source);
+    const phase = provider.phase ?? 'results';
     const priority =
       provider.priority ??
       descriptor?.priority ??
@@ -54,6 +59,7 @@ export class SearchSourceRegistry {
     this.providers.set(key, {
       ...provider,
       source,
+      phase,
       domain,
       priority,
       timeoutMs
@@ -63,6 +69,7 @@ export class SearchSourceRegistry {
       key,
       pluginId: String(provider.pluginId),
       source,
+      phase,
       domain,
       priority,
       health: this.states.get(key)?.health ?? 'idle'
@@ -164,6 +171,7 @@ export class SearchSourceRegistry {
     const key = providerKey(String(provider.pluginId), source);
     const previous = this.states.get(key);
     const descriptor = getUniversalSearchSourceDescriptor(source);
+    const phase = provider.phase ?? 'results';
     const priority =
       provider.priority ??
       descriptor?.priority ??
@@ -173,6 +181,7 @@ export class SearchSourceRegistry {
       key,
       pluginId: String(provider.pluginId),
       source,
+      phase,
       domain: provider.domain ?? descriptor?.domain,
       priority,
       health: previous?.health ?? 'idle',

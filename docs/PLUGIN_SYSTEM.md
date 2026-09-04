@@ -194,6 +194,13 @@ The activation context exposes these registration methods:
 
 It also exposes `context.ui.h` and `context.ui.defineComponent` so simple local plugins can register Vue components without bundling their own copy of Vue.
 
+Search providers registered with `registerSearchProvider` run in the `results`
+phase by default. Providers can opt into `phase: 'preflight'` for short-circuit
+results that should run after URL detection but before indexed search, or
+`phase: 'append'` for fallback items that should appear after ranked results.
+Preflight providers may return a `SearchSourceResult` with `exclusive: true` and
+an `intent` such as `engine-shortcut` to stop the rest of Universal Search.
+
 AI providers registered with `registerAiProvider` may implement optional `streamChat` and `cancelChatStream` methods. Application code should call `streamChatWithAi` and `cancelAiChatStream` rather than binding directly to a provider-specific transport; non-streaming providers fall back to ordinary `chat`.
 
 AI context providers registered with `registerAiContextProvider` are collected by application services such as `chatWithAi` and `translateWithAi` only when the caller passes `contextCollection`. The built-in collection input supports explicit selection text, selection metadata, current workspace content metadata, and workspace search queries; plugin providers receive the same normalized collection request.
