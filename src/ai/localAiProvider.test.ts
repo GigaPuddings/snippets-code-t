@@ -6,6 +6,7 @@ import {
   translateWithLocalAi,
   type LocalAiServiceStatus
 } from '@/api/localAi';
+import { createSelectionAiContext } from './context';
 import { LOCAL_AI_PROVIDER_ID, localAiProvider } from './localAiProvider';
 
 vi.mock('@/api/localAi', () => ({
@@ -96,5 +97,60 @@ describe('localAiProvider', () => {
       messages: [{ role: 'user', content: 'hello' }]
     });
     expect(translateWithLocalAi).toHaveBeenCalledWith('hello', 'en', 'zh');
+  });
+
+  it('injects request context into local AI chat messages', async () => {
+    vi.mocked(chatWithLocalAi).mockResolvedValue({ content: 'answer' });
+
+    await localAiProvider.chat({
+      messages: [{ role: 'user', content: 'explain it' }],
+      context: createSelectionAiContext('const value = 1;', {
+        title: 'Current selection',
+        source: 'editor'
+      })
+    });
+
+    expect(chatWithLocalAi).toHaveBeenCalledWith({
+      messages: [
+        expect.objectContaining({
+          role: 'system',
+          content: expect.stringContaining(
+            '### 1. Selection - Current selection (editor)'
+          )
+        }),
+        { role: 'user', content: 'explain it' }
+      ]
+    });
+  });
+
+  it('uses contextual chat for translation requests with context', async () => {
+    vi.mocked(chatWithLocalAi).mockResolvedValue({ content: '你好' });
+
+    await expect(
+      localAiProvider.translate?.({
+        text: 'hello',
+        from: 'en',
+        to: 'zh',
+        context: createSelectionAiContext('hello', { source: 'translation' })
+      })
+    ).resolves.toEqual({
+      providerId: LOCAL_AI_PROVIDER_ID,
+      text: '你好'
+    });
+
+    expect(translateWithLocalAi).not.toHaveBeenCalled();
+    expect(chatWithLocalAi).toHaveBeenCalledWith({
+      temperature: 0.2,
+      enableThinking: false,
+      messages: [
+        expect.objectContaining({
+          role: 'system',
+          content: expect.stringContaining(
+            'Use the Snippets Code request context only to resolve ambiguity.'
+          )
+        }),
+        { role: 'user', content: 'hello' }
+      ]
+    });
   });
 });

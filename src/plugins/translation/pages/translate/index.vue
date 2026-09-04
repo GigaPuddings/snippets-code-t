@@ -9,11 +9,7 @@ import { useI18n } from 'vue-i18n';
 import { logger } from '@/utils/logger';
 import { processTextForTranslation, detectLanguage } from '@/utils/text';
 import { usePluginStore } from '@/store';
-import {
-  createSelectionAiContext,
-  LOCAL_AI_PROVIDER_ID,
-  translateWithAi
-} from '@/ai';
+import { LOCAL_AI_PROVIDER_ID, translateWithAi } from '@/ai';
 import {
   translateOffline,
   canUseOfflineTranslation,
@@ -382,12 +378,18 @@ const translateWithEngine = async (engine: string, generation: number) => {
         {
           text: textToTranslate,
           from: sourceLanguage.value,
-          to: currentTargetLang,
-          context: createSelectionAiContext(textToTranslate, {
-            source: 'translation'
-          })
+          to: currentTargetLang
         },
-        { providerId: LOCAL_AI_PROVIDER_ID }
+        {
+          providerId: LOCAL_AI_PROVIDER_ID,
+          contextCollection: {
+            kind: 'selection',
+            input: {
+              selectionText: textToTranslate,
+              selectionSource: 'translation'
+            }
+          }
+        }
       );
       translatedText = response.text;
     } else {

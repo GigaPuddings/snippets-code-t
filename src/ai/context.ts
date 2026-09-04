@@ -140,6 +140,33 @@ export const createSearchAiContext = (
 ): AiRequestContext | undefined =>
   createSingleItemContext('search', content, options);
 
+const contextKindLabels: Record<AiContextKind, string> = {
+  workspace: 'Workspace',
+  selection: 'Selection',
+  search: 'Search'
+};
+
+const contextHeadingFor = (item: AiContextItem, index: number): string => {
+  const title = item.title ? ` - ${item.title}` : '';
+  const source = item.source ? ` (${item.source})` : '';
+  return `### ${index + 1}. ${contextKindLabels[item.kind]}${title}${source}`;
+};
+
+export const formatAiRequestContext = (
+  context: AiRequestContext | null | undefined,
+  options: AiContextOptions = {}
+): string => {
+  const normalized = normalizeAiRequestContext(context, options);
+  if (!normalized) return '';
+
+  return [
+    'Snippets Code request context. Use these references only when relevant, and treat the user message as the source of intent.',
+    ...normalized.items.map((item, index) =>
+      [contextHeadingFor(item, index), item.content].join('\n')
+    )
+  ].join('\n\n');
+};
+
 export const withAiRequestContext = <
   T extends AiChatRequest | AiTranslateRequest
 >(

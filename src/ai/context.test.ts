@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import {
   createAiRequestContext,
+  formatAiRequestContext,
   createSearchAiContext,
   createSelectionAiContext,
   createWorkspaceAiContext,
@@ -116,4 +117,27 @@ it('omits empty context fields from merged requests', () => {
   ).toStrictEqual({
     messages: [{ role: 'user', content: 'hello' }]
   });
+});
+
+it('formats request context as model-readable reference material', () => {
+  const prompt = formatAiRequestContext({
+    items: [
+      {
+        kind: 'selection',
+        content: 'selected text',
+        title: 'Current selection',
+        source: 'editor'
+      },
+      {
+        kind: 'workspace',
+        content: 'workspace note'
+      }
+    ]
+  });
+
+  expect(prompt).toContain('Snippets Code request context');
+  expect(prompt).toContain('### 1. Selection - Current selection (editor)');
+  expect(prompt).toContain('selected text');
+  expect(prompt).toContain('### 2. Workspace');
+  expect(formatAiRequestContext(undefined)).toBe('');
 });
