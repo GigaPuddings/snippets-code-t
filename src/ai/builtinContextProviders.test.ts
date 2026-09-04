@@ -49,7 +49,10 @@ it('collects explicit selection context input', async () => {
         selectionSource: 'editor',
         selectionFilePath: 'src/App.vue',
         selectionStartLine: 12,
-        selectionEndLine: 14
+        selectionEndLine: 14,
+        selectionMetadata: {
+          retry: false
+        }
       }
     })
   ).resolves.toEqual({
@@ -60,6 +63,7 @@ it('collects explicit selection context input', async () => {
         source: 'editor',
         content: 'const answer = 42',
         metadata: {
+          retry: false,
           filePath: 'src/App.vue',
           startLine: 12,
           endLine: 14

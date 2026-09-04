@@ -123,7 +123,7 @@ pnpm plugins:verify-marketplace -- --local
 
 - manifest 声明 `capabilities.aiContextProviders`。
 - 运行时入口通过 `context.registerAiContextProvider` 注册 provider，并声明 `workspace`、`selection` 或 `search` kind。
-- 应用侧调用 `chatWithAi` 或 `translateWithAi` 时，通过 `contextCollection` 显式收集上下文；内置 provider 支持 `selectionText`、`currentContent`、`currentFilePath`、`workspaceRoot`、`query` / `searchQuery` 等 input 字段。
+- 应用侧调用 `chatWithAi` 或 `translateWithAi` 时，通过 `contextCollection` 显式收集上下文；内置 provider 支持 `selectionText`、`selectionMetadata`、`currentContent`、`currentFilePath`、`workspaceRoot`、`query` / `searchQuery` 等 input 字段。
 - context provider id 必须在插件内稳定；同一插件重复注册同 id 会替换旧实现。
 - 插件禁用或卸载后，runtime 会清理该插件注册的 AI context provider。
 

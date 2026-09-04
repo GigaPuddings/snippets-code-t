@@ -43,6 +43,16 @@ const inputNumber = (
     : undefined;
 };
 
+const inputRecord = (
+  request: AiContextCollectionRequest,
+  key: string
+): Record<string, unknown> | undefined => {
+  const value = request.input?.[key];
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? { ...(value as Record<string, unknown>) }
+    : undefined;
+};
+
 const compactMetadata = (
   metadata: Record<string, unknown>
 ): Record<string, unknown> | undefined => {
@@ -113,6 +123,7 @@ const createSelectionProvider = (): AiContextProviderRegistration => ({
       source: inputText(request, 'selectionSource') ?? 'selection',
       content: selectionText,
       metadata: compactMetadata({
+        ...(inputRecord(request, 'selectionMetadata') ?? {}),
         language: inputText(request, 'selectionLanguage'),
         filePath: inputText(request, 'selectionFilePath'),
         startLine: inputNumber(request, 'selectionStartLine'),

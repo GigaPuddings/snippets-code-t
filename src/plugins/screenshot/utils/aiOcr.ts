@@ -1,10 +1,5 @@
 import { getLocalAiConfig, scanLocalAiModels } from '@/api/localAi';
-import {
-  chatWithAi,
-  createSelectionAiContext,
-  getAiProviderStatus,
-  LOCAL_AI_PROVIDER_ID
-} from '@/ai';
+import { chatWithAi, getAiProviderStatus, LOCAL_AI_PROVIDER_ID } from '@/ai';
 
 export type AiOcrSectionKind =
   | 'title'
@@ -257,16 +252,23 @@ export const recognizeImageWithLocalAi = async (
             ]
           }
         ],
-        enableThinking: false,
-        context: createSelectionAiContext('Screenshot image OCR request', {
-          source: 'screenshot.ocr',
-          metadata: {
-            language,
-            retry
-          }
-        })
+        enableThinking: false
       },
-      { providerId: LOCAL_AI_PROVIDER_ID, capability: 'vision' }
+      {
+        providerId: LOCAL_AI_PROVIDER_ID,
+        capability: 'vision',
+        contextCollection: {
+          kind: 'selection',
+          input: {
+            selectionText: 'Screenshot image OCR request',
+            selectionSource: 'screenshot.ocr',
+            selectionLanguage: language,
+            selectionMetadata: {
+              retry
+            }
+          }
+        }
+      }
     );
     return parseAiOcrResponse(response.content);
   };

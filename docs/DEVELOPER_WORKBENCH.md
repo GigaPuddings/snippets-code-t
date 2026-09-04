@@ -77,6 +77,7 @@ Screenshot、OCR、Recorder、Translation、Todo、Wallpaper、Launcher、Local 
 - `src/plugins/translation/pages/translate/index.vue`：Translation 插件的 Local AI 引擎通过 `translateWithAi` 调用。
 - `src/plugins/local-ai/pages/chat/index.vue`：提示词增强通过 `chatWithAi` 调用，流式聊天仍保留原 Local AI stream API。
 - `src/ai/localAiProvider.ts`：将标准 `AiRequestContext` 转换为 Local AI system message，让现有 Rust chat 后端可以实际消费上下文。
+- Local AI 提示词增强、Pin OCR 翻译、AI OCR 和截图视觉翻译已通过 `contextCollection` 进入内置 selection provider，不再在产品调用点手写 selection context payload。
 
 目标：
 
