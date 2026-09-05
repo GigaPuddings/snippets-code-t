@@ -3,9 +3,11 @@
 
 use crate::APP;
 use log::info;
-use std::sync::Mutex;
+use serde::Serialize;
+use std::path::Path;
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
-use tauri::Manager;
+use tauri::{Emitter, Listener, Manager};
 
 // App 初始化防抖机制（防止多窗口重复初始化）
 static APP_INIT_STATE: Mutex<Option<Instant>> = Mutex::new(None);
@@ -16,6 +18,103 @@ pub const POST_UPDATE_STARTUP_DELAY_MILLIS: u64 = 1800;
 const SETUP_RESTART_ARG: &str = "--setup-restart";
 const SETUP_RESTART_DELAY_ARG: &str = "--setup-restart-delay-ms";
 const MAX_SETUP_RESTART_DELAY_MILLIS: u64 = 5_000;
+
+pub fn initialize_managed_state(app: &mut tauri::App, data_dir: &Path) {
+    app.manage(Arc::new(RwLock::new(None::<crate::markdown::IndexManager>)));
+
+    match crate::app_config::AppConfigManager::new(data_dir) {
+        Ok(manager) => {
+            app.manage(Arc::new(RwLock::new(manager)));
+        }
+        Err(error) => log::warn!("[Startup] AppConfigManager init failed: {}", error),
+    }
+
+    let fallback_config_dir = data_dir.join(".snippets-code");
+    if let Err(error) = std::fs::create_dir_all(&fallback_config_dir) {
+        log::warn!(
+            "[Startup] Failed to create Markdown config directory: {}",
+            error
+        );
+    }
+    match crate::markdown::CacheManager::new_silent(fallback_config_dir) {
+        Ok(manager) => {
+            app.manage(Arc::new(RwLock::new(manager)));
+        }
+        Err(error) => log::warn!("[Startup] CacheManager init failed: {}", error),
+    }
+
+    app.manage(Arc::new(Mutex::new(None::<crate::markdown::FileWatcher>)));
+    app.manage(Arc::new(Mutex::new(
+        None::<crate::git_sync::AutoSyncManager>,
+    )));
+    app.manage(Arc::new(Mutex::new(
+        None::<crate::desktop_watcher::DesktopFileWatcher>,
+    )));
+    app.manage(Arc::new(Mutex::new(
+        Vec::<crate::git_sync::ConflictPayload>::new(),
+    )));
+    app.manage(Arc::new(Mutex::new(Vec::<
+        crate::git_sync::RepoNotFoundPayload,
+    >::new())));
+    app.manage(Arc::new(Mutex::new(Vec::<String>::new())));
+}
+
+pub fn register_pending_event_forwarders(app: &mut tauri::App) {
+    let conflict_app = app.handle().clone();
+    app.listen("config_ready", move |_| {
+        if let Some(state) =
+            conflict_app.try_state::<Arc<Mutex<Vec<crate::git_sync::ConflictPayload>>>>()
+        {
+            if let Ok(mut queue) = state.lock() {
+                for payload in queue.drain(..) {
+                    if let Err(error) =
+                        conflict_app.emit_to("config", "git-conflict-detected", payload)
+                    {
+                        log::error!("[Git] Failed to forward pending conflicts: {}", error);
+                    }
+                }
+            }
+        }
+    });
+
+    let missing_repo_app = app.handle().clone();
+    app.listen("config_ready", move |_| {
+        if let Some(state) =
+            missing_repo_app.try_state::<Arc<Mutex<Vec<crate::git_sync::RepoNotFoundPayload>>>>()
+        {
+            if let Ok(mut queue) = state.lock() {
+                for payload in queue.drain(..) {
+                    if let Err(error) =
+                        missing_repo_app.emit_to("config", "git-repo-not-found", payload)
+                    {
+                        log::error!("[Git] Failed to forward missing repository: {}", error);
+                    }
+                }
+            }
+        }
+    });
+
+    #[derive(Clone, Serialize)]
+    struct OpenMarkdownFromSystemPayload {
+        file_path: String,
+    }
+
+    let open_file_app = app.handle().clone();
+    app.listen("config_ready", move |_| {
+        if let Some(state) = open_file_app.try_state::<Arc<Mutex<Vec<String>>>>() {
+            if let Ok(mut queue) = state.lock() {
+                for file_path in queue.drain(..) {
+                    let payload = OpenMarkdownFromSystemPayload { file_path };
+                    if let Err(error) =
+                        open_file_app.emit_to("config", "open-markdown-from-system", payload)
+                    {
+                        log::error!("[OpenFile] Failed to forward pending file: {}", error);
+                    }
+                }
+            }
+        }
+    });
+}
 
 /// 检测本次启动是否为 setup 重启
 pub fn is_setup_restart_launch() -> bool {

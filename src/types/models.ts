@@ -243,6 +243,9 @@ export interface AppConfig {
   git: GitSettings;
   plugins?: Record<string, { enabled: boolean }>;
   pluginInstallDir?: string | null;
+  ai_provider_preferences?: Partial<
+    Record<'chat' | 'vision' | 'translation', string>
+  >;
 }
 
 /**

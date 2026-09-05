@@ -1,7 +1,8 @@
 <template>
   <main
     data-tauri-drag-region
-    :class="[activeTabIndex !== 2 ? 'gradient titlebar' : 'titlebar']"
+    class="titlebar"
+    :class="{ gradient: activeTab?.id !== 'webSearch' }"
   >
     <!-- 左侧：品牌 + 版本号；宽屏时含导航 -->
     <div class="titlebar-left" data-tauri-drag-region>
@@ -25,6 +26,8 @@
             <component
               :is="scope.item.icon"
               class="text-panel"
+              :title="t(scope.item.labelKey)"
+              :aria-label="t(scope.item.labelKey)"
               theme="outline"
               size="18"
               :strokeWidth="3"
@@ -131,16 +134,31 @@
         :teleported="true"
         @command="handleMoreMenuCommand"
       >
-        <div
+        <button
+          type="button"
           class="titlebar-button titlebar-button--more"
           :title="$t('titlebar.more')"
           :aria-label="$t('titlebar.more')"
         >
           <more-one class="icon" theme="outline" size="18" :strokeWidth="3" />
           <span v-if="hasUpdate" class="update-dot"></span>
-        </div>
+        </button>
         <template #dropdown>
           <el-dropdown-menu>
+            <template v-if="isNarrow">
+              <el-dropdown-item
+                v-for="tab in visibleTabs"
+                :key="tab.id"
+                :command="`navigate:${tab.id}`"
+              >
+                <component :is="tab.icon" theme="outline" size="16" />
+                <span class="ml-2">{{ tab.label }}</span>
+              </el-dropdown-item>
+            </template>
+            <el-dropdown-item v-if="hideQuickSearch" command="search">
+              <Search theme="outline" size="16" />
+              <span class="ml-2">{{ $t('titlebar.quickSearch') }}</span>
+            </el-dropdown-item>
             <el-dropdown-item command="userCenter">
               <me
                 theme="outline"
@@ -236,7 +254,10 @@
       </div>
     </div>
   </main>
-  <ConfigQuickSearch v-model="quickSearchVisible" />
+  <ConfigQuickSearch
+    :model-value="quickSearchVisible"
+    @update:model-value="setQuickSearchVisible"
+  />
 </template>
 
 <script setup lang="ts">
@@ -262,6 +283,7 @@ import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import SegmentedToggle from '@/components/SegmentedToggle/index.vue';
 import ConfigQuickSearch from '@/components/ConfigQuickSearch/index.vue';
+import { useConfigQuickSearch } from '@/composables/useConfigQuickSearch';
 import { useLayoutStore, usePluginStore } from '@/store';
 import {
   configNavigationTabs,
@@ -271,6 +293,11 @@ import {
 const { t } = useI18n();
 const layoutStore = useLayoutStore();
 const pluginStore = usePluginStore();
+const {
+  visible: quickSearchVisible,
+  open: openConfigQuickSearch,
+  setVisible: setQuickSearchVisible
+} = useConfigQuickSearch();
 
 /** 窄屏/最小窗口断点：小于等于此宽度时 左侧仅应用名+版本、导航居中、右侧仅折叠菜单+窗口控制 */
 const TITLEBAR_NARROW_BREAKPOINT = 720;
@@ -317,16 +344,15 @@ const state = reactive({
 });
 
 const hasUpdate = ref(false);
-const quickSearchVisible = ref(false);
-
 // 当前激活的tab索引
 const activeTabIndex = ref(0);
 
 const visibleTabs = computed(() =>
-  configNavigationTabs.filter(
-    (tab) => !tab.pluginId || pluginStore.isEnabled(tab.pluginId)
-  )
+  configNavigationTabs
+    .filter((tab) => !tab.pluginId || pluginStore.isEnabled(tab.pluginId))
+    .map((tab) => ({ ...tab, label: t(tab.labelKey) }))
 );
+const activeTab = computed(() => visibleTabs.value[activeTabIndex.value]);
 
 // 根据当前路由设置激活的 tab。插件启用状态初始化后 visibleTabs 会异步变化，
 // 因此路由和可见 Tab 列表都必须触发同步，避免索引停留在上一个页面。
@@ -335,9 +361,7 @@ const setActiveTabFromRoute = () => {
   const index = visibleTabs.value.findIndex((tab) =>
     isConfigNavigationPathActive(currentPath, tab.path)
   );
-  if (index !== -1) {
-    activeTabIndex.value = index;
-  }
+  activeTabIndex.value = index;
 };
 
 const navigateTo = (path: string) => {
@@ -359,10 +383,6 @@ const handleUpdateClick = async () => {
   } else {
     await invoke('check_update_manually');
   }
-};
-
-const openConfigQuickSearch = () => {
-  quickSearchVisible.value = true;
 };
 
 const handleGlobalKeydown = (event: KeyboardEvent) => {
@@ -414,7 +434,17 @@ const goToUserCenter = () => {
 
 /** 窄屏折叠菜单命令 */
 const handleMoreMenuCommand = (command: string) => {
+  const tab = visibleTabs.value.find(
+    (item) => command === `navigate:${item.id}`
+  );
+  if (tab) {
+    navigateTo(tab.path);
+    return;
+  }
   switch (command) {
+    case 'search':
+      openConfigQuickSearch();
+      break;
     case 'userCenter':
       goToUserCenter();
       break;
@@ -431,24 +461,31 @@ const handleMoreMenuCommand = (command: string) => {
 };
 
 let unListen: UnlistenFn;
+let disposed = false;
 
 onMounted(async () => {
-  await initEnv();
-  await pluginStore.initialize();
-  state.appName = appName;
-  state.appVersion = appVersion;
-
-  // 检查是否有更新
-  hasUpdate.value = await invoke('get_update_status');
   window.addEventListener('keydown', handleGlobalKeydown);
-
-  // 监听更新状态变化
-  unListen = await listen('update-available', (event: any) => {
-    hasUpdate.value = event.payload;
-  });
-
-  // 设置初始激活的tab
-  setActiveTabFromRoute();
+  const results = await Promise.allSettled([
+    initEnv().then(() => {
+      state.appName = appName;
+      state.appVersion = appVersion;
+    }),
+    pluginStore.initialize(),
+    invoke<boolean>('get_update_status').then((available) => {
+      hasUpdate.value = available;
+    }),
+    listen<boolean>('update-available', (event) => {
+      hasUpdate.value = event.payload;
+    }).then((stop) => {
+      if (disposed) stop();
+      else unListen = stop;
+    })
+  ]);
+  for (const result of results) {
+    if (result.status === 'rejected') {
+      console.warn('[Titlebar] initialization failed:', result.reason);
+    }
+  }
 });
 
 // 监听路由变化，同步更新activeTabIndex
@@ -464,6 +501,7 @@ watch(
 );
 
 onUnmounted(() => {
+  disposed = true;
   if (unListen) {
     unListen();
   }

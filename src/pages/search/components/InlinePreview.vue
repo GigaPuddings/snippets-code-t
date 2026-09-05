@@ -305,7 +305,7 @@ import {
 import type { ContentType } from '@/types/models';
 import CodeMirrorEditor from '@/components/CodeMirrorEditor/index.vue';
 import { getSearchResultIcon } from '../composables/useSearchResultIcon';
-import { getPrimarySearchHistoryKey } from '@/hooks/searchRanking';
+import { getPrimarySearchHistoryKey } from '@/search/ranking';
 import {
   getSearchResultDisplayPath,
   getSearchResultLaunchPath,

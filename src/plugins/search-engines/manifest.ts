@@ -8,5 +8,5 @@ export const searchEnginesPlugin: BuiltinPlugin = {
   enabledByDefault: true,
   routeNames: ['Retrieve'],
   settingsTabs: ['retrieve'],
-  searchSources: ['web-search']
+  searchSources: ['engine-shortcut', 'default-search']
 };

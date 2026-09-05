@@ -26,6 +26,6 @@
   "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-wallpaper-switcher/releases/tag/2.0.84",
   "entry": {
     "frontend": "dist/frontend.js",
-    "styles": ["dist/assets/runtime-entry-CXjCdDTm.css"]
+    "styles": ["dist/assets/runtime-entry-BTzEQlMu.css"]
   }
 }

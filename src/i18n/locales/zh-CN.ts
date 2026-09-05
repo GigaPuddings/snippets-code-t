@@ -37,6 +37,23 @@ export default {
     operationFailed: '操作失败'
   },
 
+  workbenchHome: {
+    eyebrow: '开发者工作台',
+    title: 'Developer Workbench',
+    workspaceNotSet: '尚未设置工作区',
+    refresh: '刷新',
+    searchPlaceholder: '搜索片段、笔记、应用、文件和命令',
+    metrics: '工作台概览',
+    recent: '最近内容',
+    viewAll: '查看全部',
+    noRecent: '暂无最近内容',
+    openWorkspace: '打开工作区',
+    configureWorkspace: '设置工作区',
+    quickActions: '常用入口',
+    systemStatus: '能力状态',
+    manage: '管理'
+  },
+
   // 设置向导
   setup: {
     welcome: '欢迎',
@@ -144,6 +161,114 @@ export default {
     exitAppSuccess: '退出应用成功',
     settingFailed: '设置失败',
     exitFailed: '退出失败',
+    workbench: {
+      menu: '工作台',
+      title: 'Developer Workbench',
+      refresh: '刷新',
+      loadFailed: '刷新工作台状态失败',
+      workspaceNotSet: '未设置',
+      status: {
+        ready: '就绪',
+        attention: '需关注',
+        inactive: '未启用'
+      },
+      metrics: {
+        content: '内容资产',
+        contentMeta: '{snippets} 片段 · {notes} 笔记',
+        plugins: '启用插件',
+        pluginsMeta: '共 {total} 个已安装',
+        searchSources: '搜索源',
+        searchSourcesMeta: '{failed} 个失败',
+        aiProviders: 'AI Provider',
+        aiProvidersMeta: '共 {total} 个已注册'
+      },
+      layers: {
+        workspace: 'Workspace',
+        search: 'Universal Search',
+        plugins: 'Plugin Platform',
+        ai: 'AI Capability Layer'
+      },
+      stats: {
+        path: '路径',
+        categories: '分类',
+        favorites: '收藏',
+        sources: '来源',
+        failed: '失败',
+        timeout: '默认超时',
+        installed: '已安装',
+        enabled: '已启用',
+        surfaces: '接入面',
+        providers: 'Provider',
+        healthy: '健康',
+        capabilities: '能力'
+      },
+      actions: {
+        openWorkspace: '打开内容',
+        data: '数据管理',
+        diagnostics: '诊断',
+        plugins: '插件平台',
+        ai: 'AI 设置',
+        chat: 'AI 聊天'
+      },
+      capabilityTitle: '产品能力',
+      capabilities: {
+        screenshot: 'Screenshot',
+        ocr: 'OCR',
+        recorder: 'Recorder',
+        translation: 'Translation',
+        todo: 'Todo',
+        wallpaper: 'Wallpaper',
+        launcher: 'Launcher',
+        localAi: 'Local AI',
+        gitSync: 'Git Sync'
+      },
+      capabilityMeta: {
+        ready: '可用',
+        disabled: '未启用',
+        notInstalled: '未安装',
+        resourceMissing: '资源缺失'
+      }
+    },
+    ai: {
+      menu: 'AI 能力',
+      title: 'AI 能力',
+      refresh: '刷新',
+      defaultProviders: '默认 Provider',
+      defaultProvidersDesc:
+        '为通用 AI Capability 选择默认服务。显式指定 Local AI 的功能仍保持原有行为。',
+      providerCount: '{count} 个可用 Provider',
+      automatic: '自动选择',
+      pluginProvider: '插件：{plugin}',
+      coreProvider: '核心能力',
+      noProviders:
+        '当前没有可用的 AI Provider。请先启用 Local AI 或安装 AI Provider 插件。',
+      loadFailed: '加载 AI Provider 失败',
+      saved: 'AI Provider 偏好已保存',
+      saveFailed: '保存 AI Provider 偏好失败',
+      preferenceUnavailable: '已保存的 Provider“{provider}”当前不可用。',
+      runtimeStatus: 'Provider 状态',
+      runtimeStatusDesc: '查看已启用 AI Provider 的可用性、模型和运行状态。',
+      refreshStatus: '刷新状态',
+      statusLoadFailed: '刷新 AI Provider 状态失败',
+      statusAvailable: '可用',
+      statusUnavailable: '不可用',
+      statusRunning: '运行中',
+      statusHealthy: '健康',
+      modelName: '模型：{model}',
+      startProvider: '启动',
+      started: 'AI Provider 已启动',
+      startFailed: '启动 AI Provider 失败',
+      capabilities: {
+        chat: '对话',
+        vision: '视觉',
+        translation: '翻译'
+      },
+      capabilityDescriptions: {
+        chat: '用于文本对话、提示词增强和通用助手请求。',
+        vision: '用于图片理解、视觉 OCR 和截图识别。',
+        translation: '用于 AI 翻译请求。'
+      }
+    },
     developer: {
       menu: '开发者模式',
       title: '开发者诊断',
@@ -168,6 +293,20 @@ export default {
       frontendIssues: '前端问题',
       backendIssues: '后端问题',
       errorWarnCount: '{errors} 错误 · {warnings} 警告',
+      searchSources: '搜索源',
+      searchSourceSummary: '{total} 个已注册 · {failed} 失败',
+      searchSourceMeta:
+        '阶段 {phase} · 领域 {domain} · 优先级 {priority} · 超时 {timeout} · {timing}',
+      searchSourceTimeout: '{timeout} ms',
+      searchSourceTimeoutDisabled: '关闭',
+      searchSourceTiming: '耗时 {duration} ms',
+      searchSourceTimingNever: '尚未搜索',
+      searchSourceHealth: {
+        idle: '未搜索',
+        searching: '搜索中',
+        healthy: '健康',
+        failed: '失败'
+      },
       overview: '概览',
       frontendLogs: '前端日志',
       backendLogs: '后端日志',
@@ -501,6 +640,8 @@ export default {
       settings: '设置入口',
       hotkeys: '快捷键',
       search: '搜索来源',
+      ai: 'AI 能力',
+      aiContext: 'AI 上下文来源',
       titlebar: '标题栏动作',
       tray: '托盘入口',
       windows: '窗口能力'
@@ -664,6 +805,12 @@ export default {
   // 侧边栏导航
   nav: {
     quickActions: '快捷操作',
+    workbench: '工作台',
+    workspace: '工作区',
+    launcher: '启动器',
+    webSearch: '网络搜索',
+    todo: '待办',
+    aiChat: 'AI 对话',
     allSnippets: '所有片段',
     uncategorized: '未分类',
     folders: '文件夹',
@@ -971,6 +1118,7 @@ export default {
     noResults: '无匹配结果',
     suggestRelax: '尝试放宽筛选条件',
     askAi: '在 AI 聊天中提问',
+    providerDegraded: '部分搜索源响应较慢，已先展示可用结果：{sources}',
     deepSearch: '深度检索',
     deepSearchOn: '深度检索已开启：匹配标题、内容、笔记、路径和标签',
     deepSearchOff: '深度检索已关闭：仅匹配标题',

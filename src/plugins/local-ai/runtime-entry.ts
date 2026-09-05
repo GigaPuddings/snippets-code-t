@@ -1,8 +1,10 @@
 import { defineAsyncComponent } from 'vue';
 import { SettingTwo } from '@icon-park/vue-next';
 import type { PluginFrontendRuntimeContext } from '../runtime';
+import { localAiProvider } from '@/ai';
 
 export const activate = (context: PluginFrontendRuntimeContext): void => {
+  context.registerAiProvider(localAiProvider);
   context.registerRoute({
     target: 'config',
     path: 'local-ai/chat',

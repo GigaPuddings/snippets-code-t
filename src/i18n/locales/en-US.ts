@@ -37,6 +37,23 @@ export default {
     operationFailed: 'Operation failed'
   },
 
+  workbenchHome: {
+    eyebrow: 'Developer workspace',
+    title: 'Developer Workbench',
+    workspaceNotSet: 'Workspace is not configured',
+    refresh: 'Refresh',
+    searchPlaceholder: 'Search snippets, notes, apps, files, and commands',
+    metrics: 'Workbench overview',
+    recent: 'Recent Content',
+    viewAll: 'View All',
+    noRecent: 'No recent content',
+    openWorkspace: 'Open Workspace',
+    configureWorkspace: 'Configure Workspace',
+    quickActions: 'Quick Access',
+    systemStatus: 'Capability Status',
+    manage: 'Manage'
+  },
+
   // Setup Wizard
   setup: {
     welcome: 'Welcome',
@@ -151,6 +168,116 @@ export default {
     exitAppSuccess: 'Application exited',
     settingFailed: 'Setting failed',
     exitFailed: 'Exit failed',
+    workbench: {
+      menu: 'Workbench',
+      title: 'Developer Workbench',
+      refresh: 'Refresh',
+      loadFailed: 'Failed to refresh workbench status',
+      workspaceNotSet: 'Not set',
+      status: {
+        ready: 'Ready',
+        attention: 'Needs Attention',
+        inactive: 'Inactive'
+      },
+      metrics: {
+        content: 'Content Assets',
+        contentMeta: '{snippets} snippets · {notes} notes',
+        plugins: 'Enabled Plugins',
+        pluginsMeta: '{total} installed',
+        searchSources: 'Search Sources',
+        searchSourcesMeta: '{failed} failed',
+        aiProviders: 'AI Providers',
+        aiProvidersMeta: '{total} registered'
+      },
+      layers: {
+        workspace: 'Workspace',
+        search: 'Universal Search',
+        plugins: 'Plugin Platform',
+        ai: 'AI Capability Layer'
+      },
+      stats: {
+        path: 'Path',
+        categories: 'Categories',
+        favorites: 'Favorites',
+        sources: 'Sources',
+        failed: 'Failed',
+        timeout: 'Default Timeout',
+        installed: 'Installed',
+        enabled: 'Enabled',
+        surfaces: 'Surfaces',
+        providers: 'Providers',
+        healthy: 'Healthy',
+        capabilities: 'Capabilities'
+      },
+      actions: {
+        openWorkspace: 'Open Content',
+        data: 'Data',
+        diagnostics: 'Diagnostics',
+        plugins: 'Plugins',
+        ai: 'AI Settings',
+        chat: 'AI Chat'
+      },
+      capabilityTitle: 'Product Capabilities',
+      capabilities: {
+        screenshot: 'Screenshot',
+        ocr: 'OCR',
+        recorder: 'Recorder',
+        translation: 'Translation',
+        todo: 'Todo',
+        wallpaper: 'Wallpaper',
+        launcher: 'Launcher',
+        localAi: 'Local AI',
+        gitSync: 'Git Sync'
+      },
+      capabilityMeta: {
+        ready: 'Available',
+        disabled: 'Disabled',
+        notInstalled: 'Not installed',
+        resourceMissing: 'Missing resource'
+      }
+    },
+    ai: {
+      menu: 'AI Capabilities',
+      title: 'AI Capabilities',
+      refresh: 'Refresh',
+      defaultProviders: 'Default Providers',
+      defaultProvidersDesc:
+        'Choose default services for the shared AI capability layer. Features that explicitly target Local AI keep their existing behavior.',
+      providerCount: '{count} available providers',
+      automatic: 'Automatic',
+      pluginProvider: 'Plugin: {plugin}',
+      coreProvider: 'Core capability',
+      noProviders:
+        'No AI providers are available. Enable Local AI or install an AI provider plugin first.',
+      loadFailed: 'Failed to load AI providers',
+      saved: 'AI provider preference saved',
+      saveFailed: 'Failed to save AI provider preference',
+      preferenceUnavailable: 'Saved provider "{provider}" is not available.',
+      runtimeStatus: 'Provider Status',
+      runtimeStatusDesc:
+        'Inspect availability, model, and runtime state for enabled AI providers.',
+      refreshStatus: 'Refresh Status',
+      statusLoadFailed: 'Failed to refresh AI provider status',
+      statusAvailable: 'Available',
+      statusUnavailable: 'Unavailable',
+      statusRunning: 'Running',
+      statusHealthy: 'Healthy',
+      modelName: 'Model: {model}',
+      startProvider: 'Start',
+      started: 'AI provider started',
+      startFailed: 'Failed to start AI provider',
+      capabilities: {
+        chat: 'Chat',
+        vision: 'Vision',
+        translation: 'Translation'
+      },
+      capabilityDescriptions: {
+        chat: 'Used for text chat, prompt enhancement, and assistant requests.',
+        vision:
+          'Used for image understanding, visual OCR, and screenshot recognition.',
+        translation: 'Used for AI translation requests.'
+      }
+    },
     developer: {
       menu: 'Developer Mode',
       title: 'Developer Diagnostics',
@@ -175,6 +302,20 @@ export default {
       frontendIssues: 'Frontend Issues',
       backendIssues: 'Backend Issues',
       errorWarnCount: '{errors} errors · {warnings} warnings',
+      searchSources: 'Search Sources',
+      searchSourceSummary: '{total} registered · {failed} failed',
+      searchSourceMeta:
+        'Phase {phase} · Domain {domain} · Priority {priority} · Timeout {timeout} · {timing}',
+      searchSourceTimeout: '{timeout} ms',
+      searchSourceTimeoutDisabled: 'off',
+      searchSourceTiming: '{duration} ms',
+      searchSourceTimingNever: 'Not searched yet',
+      searchSourceHealth: {
+        idle: 'Idle',
+        searching: 'Searching',
+        healthy: 'Healthy',
+        failed: 'Failed'
+      },
       overview: 'Overview',
       frontendLogs: 'Frontend Logs',
       backendLogs: 'Backend Logs',
@@ -505,6 +646,8 @@ export default {
       settings: 'Settings tab',
       hotkeys: 'Hotkeys',
       search: 'Search source',
+      ai: 'AI provider',
+      aiContext: 'AI context source',
       titlebar: 'Titlebar action',
       tray: 'Tray item',
       windows: 'Window access'
@@ -683,6 +826,12 @@ export default {
   // Sidebar Navigation
   nav: {
     quickActions: 'Quick Actions',
+    workbench: 'Workbench',
+    workspace: 'Workspace',
+    launcher: 'Launcher',
+    webSearch: 'Web Search',
+    todo: 'Todo',
+    aiChat: 'AI Chat',
     allSnippets: 'All Snippets',
     uncategorized: 'Uncategorized',
     folders: 'Folders',
@@ -1009,6 +1158,8 @@ export default {
     noResults: 'No Results',
     suggestRelax: 'Try relaxing filter conditions',
     askAi: 'Ask in AI Chat',
+    providerDegraded:
+      'Some search sources were slow, showing available results first: {sources}',
     deepSearch: 'Deep Search',
     deepSearchOn:
       'Deep search on: matching titles, content, notes, paths, and tags',

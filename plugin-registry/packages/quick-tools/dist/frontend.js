@@ -61,23 +61,78 @@ const M = "CNY", T = "[\\d.]+|[零〇一二两三四五六七八九十百千万]
   升: { base: "ml", factor: 1e3, label: "升", defaultTarget: "ml" },
   ml: { base: "ml", factor: 1, label: "毫升", defaultTarget: "L" },
   毫升: { base: "ml", factor: 1, label: "毫升", defaultTarget: "L" },
-  km2: { base: "m2", factor: 1e6, label: "平方千米", defaultTarget: "平方米" },
-  "km²": { base: "m2", factor: 1e6, label: "平方千米", defaultTarget: "平方米" },
-  平方千米: { base: "m2", factor: 1e6, label: "平方千米", defaultTarget: "平方米" },
-  平方公里: { base: "m2", factor: 1e6, label: "平方千米", defaultTarget: "平方米" },
+  km2: {
+    base: "m2",
+    factor: 1e6,
+    label: "平方千米",
+    defaultTarget: "平方米"
+  },
+  "km²": {
+    base: "m2",
+    factor: 1e6,
+    label: "平方千米",
+    defaultTarget: "平方米"
+  },
+  平方千米: {
+    base: "m2",
+    factor: 1e6,
+    label: "平方千米",
+    defaultTarget: "平方米"
+  },
+  平方公里: {
+    base: "m2",
+    factor: 1e6,
+    label: "平方千米",
+    defaultTarget: "平方米"
+  },
   m2: { base: "m2", factor: 1, label: "平方米", defaultTarget: "cm2" },
   "m²": { base: "m2", factor: 1, label: "平方米", defaultTarget: "cm2" },
   "㎡": { base: "m2", factor: 1, label: "平方米", defaultTarget: "cm2" },
   平方: { base: "m2", factor: 1, label: "平方米", defaultTarget: "cm2" },
   平方米: { base: "m2", factor: 1, label: "平方米", defaultTarget: "cm2" },
   平米: { base: "m2", factor: 1, label: "平方米", defaultTarget: "cm2" },
-  cm2: { base: "m2", factor: 1e-4, label: "平方厘米", defaultTarget: "平方米" },
-  "cm²": { base: "m2", factor: 1e-4, label: "平方厘米", defaultTarget: "平方米" },
-  平方厘米: { base: "m2", factor: 1e-4, label: "平方厘米", defaultTarget: "平方米" },
-  mm2: { base: "m2", factor: 1e-6, label: "平方毫米", defaultTarget: "平方米" },
-  "mm²": { base: "m2", factor: 1e-6, label: "平方毫米", defaultTarget: "平方米" },
-  平方毫米: { base: "m2", factor: 1e-6, label: "平方毫米", defaultTarget: "平方米" },
-  亩: { base: "m2", factor: 666.6666666667, label: "亩", defaultTarget: "平方米" },
+  cm2: {
+    base: "m2",
+    factor: 1e-4,
+    label: "平方厘米",
+    defaultTarget: "平方米"
+  },
+  "cm²": {
+    base: "m2",
+    factor: 1e-4,
+    label: "平方厘米",
+    defaultTarget: "平方米"
+  },
+  平方厘米: {
+    base: "m2",
+    factor: 1e-4,
+    label: "平方厘米",
+    defaultTarget: "平方米"
+  },
+  mm2: {
+    base: "m2",
+    factor: 1e-6,
+    label: "平方毫米",
+    defaultTarget: "平方米"
+  },
+  "mm²": {
+    base: "m2",
+    factor: 1e-6,
+    label: "平方毫米",
+    defaultTarget: "平方米"
+  },
+  平方毫米: {
+    base: "m2",
+    factor: 1e-6,
+    label: "平方毫米",
+    defaultTarget: "平方米"
+  },
+  亩: {
+    base: "m2",
+    factor: 666.6666666667,
+    label: "亩",
+    defaultTarget: "平方米"
+  },
   公顷: { base: "m2", factor: 1e4, label: "公顷", defaultTarget: "平方米" },
   ha: { base: "m2", factor: 1e4, label: "公顷", defaultTarget: "平方米" }
 }, P = (a) => a.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), g = Object.keys(d).sort((a, e) => e.length - a.length).map(P).join("|"), v = {
@@ -114,7 +169,7 @@ const M = "CNY", T = "[\\d.]+|[零〇一二两三四五六七八九十百千万]
     t += (l || 1) * o, l = 0;
   }
   return e + t + l;
-}, S = (a) => /^[\d.]+$/.test(a) ? Number(a) : h(a) ?? Number.NaN, f = (a) => d[a.trim()] ?? d[a.trim().toLowerCase()], $ = (a, e) => {
+}, $ = (a) => /^[\d.]+$/.test(a) ? Number(a) : h(a) ?? Number.NaN, f = (a) => d[a.trim()] ?? d[a.trim().toLowerCase()], N = (a, e) => {
   const t = a.trim();
   return /^[a-zA-Z0-9µμ²]+$/.test(t) ? t : e.label;
 }, I = (a, e, t, l, r = {}) => ({
@@ -139,18 +194,24 @@ const M = "CNY", T = "[\\d.]+|[零〇一二两三四五六七八九十百千万]
     const t = Function(`"use strict"; return (${e})`)();
     if (typeof t != "number" || !Number.isFinite(t)) return null;
     const l = s(t);
-    return I("quick-tools-calc", `${e} = ${l}`, l, a, {
-      tool: "calculator",
-      toolName: "计算器",
-      input: e,
-      outputValue: l,
-      outputUnit: "",
-      rows: [
-        { label: "原始输入", value: a },
-        { label: "表达式", value: e },
-        { label: "展示策略", value: "结果列表显示摘要，右侧展示结构化答案" }
-      ]
-    });
+    return I(
+      "quick-tools-calc",
+      `${e} = ${l}`,
+      l,
+      a,
+      {
+        tool: "calculator",
+        toolName: "计算器",
+        input: e,
+        outputValue: l,
+        outputUnit: "",
+        rows: [
+          { label: "原始输入", value: a },
+          { label: "表达式", value: e },
+          { label: "展示策略", value: "结果列表显示摘要，右侧展示结构化答案" }
+        ]
+      }
+    );
   } catch {
     return null;
   }
@@ -160,22 +221,25 @@ const M = "CNY", T = "[\\d.]+|[零〇一二两三四五六七八九十百千万]
       `^(${T})\\s*(${g})\\s*(?:=|to|转|换算(?:成)?|是多少|等于多少|等于)?\\s*(${g})$`,
       "i"
     )
-  ), l = e.match(new RegExp(`^(${T})\\s*(${g})$`, "i"));
+  ), l = e.match(
+    new RegExp(`^(${T})\\s*(${g})$`, "i")
+  );
   if (t) {
-    const i = S(t[1]), n = f(t[2]), b = f(t[3]);
+    const i = $(t[1]), n = f(t[2]), b = f(t[3]);
     if (Number.isFinite(i) && n && b && n.base === b.base) {
       const k = i * n.factor / b.factor;
       return {
         amount: i,
-        fromLabel: $(t[2], n),
-        toLabel: $(t[3], b),
+        fromLabel: N(t[2], n),
+        toLabel: N(t[3], b),
         value: k
       };
     }
   }
   if (!l) return null;
-  const r = S(l[1]), o = f(l[2]), c = o?.defaultTarget ? f(o.defaultTarget) : void 0;
-  if (!Number.isFinite(r) || !o || !c || o.base !== c.base) return null;
+  const r = $(l[1]), o = f(l[2]), c = o?.defaultTarget ? f(o.defaultTarget) : void 0;
+  if (!Number.isFinite(r) || !o || !c || o.base !== c.base)
+    return null;
   const u = r * o.factor / c.factor;
   return {
     amount: r,
@@ -200,13 +264,20 @@ const M = "CNY", T = "[\\d.]+|[零〇一二两三四五六七八九十百千万]
       outputUnit: e.toLabel,
       rows: [
         { label: "原始输入", value: a },
-        { label: "识别单位", value: `${e.fromLabel} → ${e.toLabel}` },
+        {
+          label: "识别单位",
+          value: `${e.fromLabel} → ${e.toLabel}`
+        },
         { label: "展示策略", value: "结果列表显示摘要，右侧展示结构化答案" }
       ]
     }
   );
 }, m = (a) => p[a.trim().toLowerCase()] ?? p[a.trim()] ?? null, U = (a) => {
-  const e = a.trim(), t = e.match(/^([\d.]+)\s*([a-zA-Z]+|[\u4e00-\u9fa5]+)\s*(?:=|to|转|换算(?:成)?|是多少)?\s*([a-zA-Z]+|[\u4e00-\u9fa5]+)$/i), l = e.match(/^([\d.]+)\s*([a-zA-Z]+|[\u4e00-\u9fa5]+)$/i);
+  const e = a.trim(), t = e.match(
+    /^([\d.]+)\s*([a-zA-Z]+|[\u4e00-\u9fa5]+)\s*(?:=|to|转|换算(?:成)?|是多少)?\s*([a-zA-Z]+|[\u4e00-\u9fa5]+)$/i
+  ), l = e.match(
+    /^([\d.]+)\s*([a-zA-Z]+|[\u4e00-\u9fa5]+)$/i
+  );
   if (t) {
     const r = Number(t[1]), o = m(t[2]), c = m(t[3]);
     if (Number.isFinite(r) && o && c && o.code !== c.code)
@@ -243,7 +314,10 @@ const M = "CNY", T = "[\\d.]+|[零〇一二两三四五六七八九十百千万]
         provider: "Frankfurter",
         rows: [
           { label: "原始输入", value: a },
-          { label: "识别币种", value: `${e.from.code} → ${e.to.code}` },
+          {
+            label: "识别币种",
+            value: `${e.from.code} → ${e.to.code}`
+          },
           { label: "展示策略", value: "结果列表显示摘要，右侧展示结构化答案" }
         ]
       }
@@ -251,7 +325,7 @@ const M = "CNY", T = "[\\d.]+|[零〇一二两三四五六七八九十百千万]
   } catch {
     return null;
   }
-}, N = {
+}, S = {
   pluginId: "quick-tools",
   source: "quick-tools",
   async search(a) {
@@ -269,9 +343,9 @@ const M = "CNY", T = "[\\d.]+|[零〇一二两三四五六七八九十百千万]
   }
 };
 function H(a) {
-  a.registerSearchProvider({
-    source: N.source,
-    search: (e) => N.search(e)
+  a.search.registerProvider({
+    source: S.source,
+    search: (e) => S.search(e)
   });
 }
 export {

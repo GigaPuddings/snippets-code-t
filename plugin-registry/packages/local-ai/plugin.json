@@ -14,22 +14,37 @@
   "category": "automation",
   "enabledByDefault": true,
   "capabilities": {
-    "routeNames": ["LocalAiChat"],
-    "settingsTabs": ["localAi"],
-    "hotkeys": ["local_ai_chat"],
-    "searchSources": []
+    "routeNames": [
+      "LocalAiChat"
+    ],
+    "settingsTabs": [
+      "localAi"
+    ],
+    "hotkeys": [
+      "local_ai_chat"
+    ],
+    "searchSources": [],
+    "aiProviders": [
+      "local-ai"
+    ]
   },
   "resources": {
     "hintKey": "plugins.localAi.resourceHint",
     "bundled": false
   },
-  "dependencies": ["local-ai-llama-runtime"],
-  "permissions": ["command:*"],
+  "dependencies": [
+    "local-ai-llama-runtime"
+  ],
+  "permissions": [
+    "command:*"
+  ],
   "compatibleAppVersion": ">=2.1.60",
   "minAppVersion": "2.1.60",
   "entry": {
     "frontend": "dist/frontend.js",
-    "styles": ["dist/assets/runtime-entry-dG-mTyt_.css"]
+    "styles": [
+      "dist/assets/runtime-entry-Beer2tA3.css"
+    ]
   },
   "repository": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai",
   "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai/releases/tag/2.0.99"

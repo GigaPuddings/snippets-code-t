@@ -1,8 +1,8 @@
 # 数据存储、清理与索引管理方案
 
-> 状态：v1 已落地（安全清理、数据契约、增量桌面索引、本地图标批量读取、严格同步边界）；数据库物理拆分与图标文件化列入后续演进  
-> 适用版本：snippets-code 2.1.43
-> 更新日期：2026-07-26  
+> 状态：v1/P1-C 已落地（安全清理、数据契约、增量桌面索引、本地图标批量读取、严格同步边界、数据库物理拆分）；图标文件化列入后续演进
+> 适用版本：snippets-code 2.1.61
+> 更新日期：2026-09-03
 > 范围：核心数据、Markdown 工作区、官方插件、检索索引、图标、缓存、备份与迁移
 
 跨设备 GitHub/Git 同步的数据白名单、配置投影、新设备恢复与冲突策略，见 [跨设备数据同步方案](./DATA_SYNC.md)。
@@ -38,7 +38,7 @@
 | 插件更新重检索 | 已完成 | manifest 声明 storage/index/extractor 版本；只有索引契约变化才重建对应来源 |
 | 桌面文件增量索引 | 已完成 | watcher 按变化路径 UPSERT/DELETE；启动校验复用 mtime/size 未变化记录 |
 | 本地图标 | 已完成 v1 | Windows Shell 本地提取、浏览器 favicon 按数据库批量读取、30 天 TTL、独立清理入口 |
-| `core.db`/`search.db` 物理拆分 | 待演进 | v1 先以数据所有权、`source_kind` 和清理 API 建立逻辑隔离，避免高风险一次性迁库 |
+| `core.db`/`search.db` 物理拆分 | 已完成 P1-C | 旧 `snippets.db` 首次启动迁移为核心库和可重建搜索库；旧库保留为回滚参考 |
 | PNG 文件化图标缓存 | 待演进 | 当前仍兼容 Base64 数据库缓存；后续迁为按 hash 的文件缓存以继续降低 DB/IPC 成本 |
 | 浏览器/应用来源 watcher | 待演进 | 当前避免无条件重扫；后续可按 profile、Start Menu 和注册表快照进一步差量化 |
 
@@ -56,11 +56,12 @@
 | 附件 | 工作区内 `assets/...` | 用户内容事实源、二进制文件 | `attachment.rs` |
 | 工作区布局 | `<workspace>/.snippets-code/workspace.json` | 设备/工作区状态 | `markdown/workspace.rs` |
 | Markdown 元数据缓存 | `<workspace>/.snippets-code/cache.json` | 可重建索引 | `markdown/cache_manager.rs` |
-| 核心与插件 SQL | `<data-root>/snippets.db` | 同时混合持久状态和可重建索引 | `db/init.rs` |
+| 核心用户 SQL | `<data-root>/core.db` | 搜索历史、Git 设置、插件用户状态、手动/legacy launcher 项 | `db/init.rs`、`db/connection.rs` |
+| 搜索索引 SQL | `<data-root>/search.db` | 可重建来源索引、桌面文件缓存、图标缓存、索引版本元数据 | `db/init.rs`、`db/connection.rs` |
 | 插件包 | `<data-root>/packages/plugins/<plugin-id>/...` | 可重新安装的代码和资源；旧 `<data-root>/plugins/<plugin-id>` 仅作为兼容迁移来源 | `app_config.rs` |
 | 通用插件 KV | 改造前为 `<data-root>/plugins/<plugin-id>/data.json` | v1 已迁移到 `<data-root>/state/plugins/<plugin-id>/data.json`，后续不得写回插件包目录 | `app_config.rs` |
 | 本地 AI 配置/历史 | 改造前为 `<data-root>/.snippets-code/local-ai*.json` | v1 已迁至 `<data-root>/state/plugins/local-ai/`；服务日志迁至平台日志目录 | `plugins/local_ai.rs` |
-| 图标缓存 | `snippets.db.icon_cache` 和各实体的 `icon` 字段 | Base64 文本形式的可重建缓存 | `icon.rs`、`db/icon_cache.rs` |
+| 图标缓存 | `search.db.icon_cache` 和 search 侧实体的 `icon` 字段 | Base64 文本形式的可重建缓存 | `icon.rs`、`db/icon_cache.rs` |
 | 壁纸与录屏中间数据 | `app_cache_dir/<plugin-id>/...` | 可清理缓存/临时数据 | `wallpaper_switcher.rs`、`screen_recorder.rs` |
 | 日志 | `app_log_dir` | 诊断数据，当前保留 7 天 | `app_setup.rs` |
 | 前端状态 | WebView `localStorage` | 同时包含配置副本、Pinia 状态、导航临时态、诊断日志 | `src/store`、`developer-diagnostics.ts` |
@@ -71,16 +72,17 @@
 
 | 表 | 所有者 | 建议分类 | 是否可直接重建 |
 | --- | --- | --- | --- |
-| `apps` | local-launcher | 系统来源索引与用户编辑混存 | 部分可重建 |
-| `bookmarks` | local-launcher | 浏览器来源索引与用户编辑混存 | 部分可重建 |
-| `desktop_file_cache` | desktop-files | 派生索引 | 是 |
-| `icon_cache` | 核心图标服务 | 派生缓存 | 是 |
-| `search_history` | 核心搜索 | 用户个性化状态 | 否 |
-| `user_settings` | 核心/Git | 用户配置，且与 `app.json` 有职责重叠 | 否 |
-| `search_engines` | search-engines | 插件用户配置 | 否 |
-| `alarm_cards` | todo | 插件用户内容 | 否 |
+| `apps` | local-launcher | `core.db` 保存 user/legacy，`search.db` 保存 scanner | scanner 可重建 |
+| `bookmarks` | local-launcher | `core.db` 保存 user/legacy，`search.db` 保存 scanner | scanner 可重建 |
+| `desktop_file_cache` | desktop-files | `search.db` 派生索引 | 是 |
+| `icon_cache` | 核心图标服务 | `search.db` 派生缓存 | 是 |
+| `index_meta` | 索引契约 | `search.db` 索引版本元数据 | 是 |
+| `search_history` | 核心搜索 | `core.db` 用户个性化状态 | 否 |
+| `user_settings` | 核心/Git | `core.db` 用户配置，且与 `app.json` 有职责重叠 | 否 |
+| `search_engines` | search-engines | `core.db` 插件用户配置 | 否 |
+| `alarm_cards` | todo | `core.db` 插件用户内容 | 否 |
 
-核心问题不是“表太多”，而是同一个 `snippets.db` 中没有清晰区分不可丢失的持久数据和可重建索引，清理命令只能依靠开发者记住每张表的语义。
+当前已通过物理拆库区分不可丢失的持久数据和可重建索引。清理命令仍必须按数据域执行，避免把“缓存清理”重新扩展为不透明的整目录删除。
 
 ### 2.3 当前检索和更新行为
 
@@ -157,9 +159,9 @@ desktop-files 在每次启用运行时时都会调用 `refresh_desktop_files_cac
 
 ### 3.3 已处理与剩余边界
 
-- 已处理：扫描项和用户项分型；重建事务化；插件状态与插件包分离；JSON 原子写入；SQLite 一致性备份；迁移版本记录；完整数据根迁移。
+- 已处理：扫描项和用户项分型；`core.db`/`search.db` 物理拆分；重建事务化；插件状态与插件包分离；JSON 原子写入；SQLite 一致性备份；迁移版本记录；完整数据根迁移。
 - 已处理：插件覆盖更新不删除持久状态，普通卸载也默认保留状态和现有本地数据。
-- 待演进：把混合在 `snippets.db` 的核心状态和派生索引物理拆为 `core.db`、`search.db`。
+- 待演进：把当前 launcher 的 user/legacy 表进一步收敛为 `user_launcher_items`，并引入独立 `launcher_overrides`。
 - 待演进：把 Base64 图标正文迁到按内容 hash 去重的文件缓存。
 
 ## 4. 目标数据架构
@@ -552,11 +554,11 @@ created_at, last_accessed_at, failed_until
 
 ### 阶段 2：拆分事实数据和索引（部分完成）
 
-- [ ] 新建 `core.db` 和 `search.db`。
+- [x] 新建 `core.db` 和 `search.db`。
 - [x] app/bookmark 使用稳定 content 键关联历史，并增加 `source_kind` 区分 scanner/user。
-- 重新扫描系统来源并做匹配：
+- [x] 重新扫描系统来源并做匹配：
   - 能匹配扫描来源的旧行迁入索引。
-  - 无法匹配的旧行保守迁为 `user_launcher_items`，避免丢失用户手动数据。
+  - 无法匹配的旧行保守留在 `core.db` 的 user/legacy launcher 行，避免丢失用户手动数据。
 - [x] 用户手动添加和编辑项在重建后保留。
 - [ ] 用户隐藏/标题覆盖进一步迁为独立 `launcher_overrides`。
 - [ ] 导出 Base64 图标为去重 PNG 文件，实体表改存 `icon_key`。
@@ -612,7 +614,7 @@ factory_reset(delete_packages, delete_logs)
 
 ## 10. 验收标准
 
-以下是完整目标验收表。v1 已覆盖清理边界、事务重建、更新契约、本地离线图标和数据安全；“图标数据库不保存 Base64 正文”、来源 watcher、数据库物理拆分属于第 2/3 阶段剩余项。
+以下是完整目标验收表。v1/P1-C 已覆盖清理边界、事务重建、更新契约、本地离线图标、数据安全和数据库物理拆分；“图标数据库不保存 Base64 正文”和来源 watcher 属于后续剩余项。
 
 ### 清理
 
@@ -654,6 +656,7 @@ factory_reset(delete_packages, delete_logs)
 | P0 | 区分扫描项、手动项和用户编辑项 | 已完成；独立覆盖表待演进 |
 | P0 | 替换危险 `clear_cache`、修复 WAL 备份 | 已完成 |
 | P1 | schema migration + `index_meta` | 已完成 |
+| P1 | `core.db`/`search.db` 物理拆分 | 已完成 |
 | P1 | 浏览器 favicon 批量读取 | 已完成 |
 | P1 | 图标文件化并与文本索引解耦 | 待演进 |
 | P1 | desktop watcher 单项更新 | 已完成 |

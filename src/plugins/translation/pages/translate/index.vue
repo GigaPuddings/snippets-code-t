@@ -9,6 +9,7 @@ import { useI18n } from 'vue-i18n';
 import { logger } from '@/utils/logger';
 import { processTextForTranslation, detectLanguage } from '@/utils/text';
 import { usePluginStore } from '@/store';
+import { LOCAL_AI_PROVIDER_ID, translateWithAi } from '@/ai';
 import {
   translateOffline,
   canUseOfflineTranslation,
@@ -372,6 +373,25 @@ const translateWithEngine = async (engine: string, generation: number) => {
       }
 
       translatedText = await translateOffline(textToTranslate);
+    } else if (engine === 'local-ai') {
+      const response = await translateWithAi(
+        {
+          text: textToTranslate,
+          from: sourceLanguage.value,
+          to: currentTargetLang
+        },
+        {
+          providerId: LOCAL_AI_PROVIDER_ID,
+          contextCollection: {
+            kind: 'selection',
+            input: {
+              selectionText: textToTranslate,
+              selectionSource: 'translation'
+            }
+          }
+        }
+      );
+      translatedText = response.text;
     } else {
       // 调用Rust后端进行翻译
       translatedText = await invoke<string>('translate_text', {

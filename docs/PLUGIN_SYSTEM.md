@@ -122,6 +122,8 @@ Current package manifest shape:
     "settingsTabs": ["example"],
     "hotkeys": ["example_hotkey"],
     "searchSources": ["example-source"],
+    "aiProviders": ["example-ai"],
+    "aiContextProviders": ["example-ai-context"],
     "titlebarActions": [],
     "trayItems": [],
     "windows": []
@@ -141,7 +143,7 @@ Current package manifest shape:
     "indexSchemaVersion": 1,
     "extractorVersion": 1
   },
-  "permissions": ["network", "workspace:read", "backend:*"],
+  "permissions": ["network:https://api.example.com", "workspace:read", "backend:*"],
   "dependencies": ["example-runtime-resource"],
   "compatibleAppVersion": ">=1.5.6"
 }
@@ -180,15 +182,41 @@ Local package installation currently accepts either an unpacked directory that c
 
 Frontend local plugin entries now use `entry.frontend`. When an enabled local plugin is initialized, the runtime loads that module from the installed package directory and calls `activate(context)`.
 
-The activation context exposes these registration methods:
+The activation context exposes stable Snippets Code capability namespaces:
+
+- `context.workspace.getRoot`, `context.workspace.read`, and
+  `context.workspace.write`
+- `context.storage.get`, `context.storage.set`, and
+  `context.storage.delete`
+- `context.search.registerProvider`
+- `context.network.fetch`
+- `context.clipboard.read` and `context.clipboard.write`
+- `context.notification.show`
+- `context.window.create` and `context.window.registerShortcut`
+
+The older root-level registration methods remain available as a compatibility
+layer for existing packages:
 
 - `registerRoute`
 - `registerSettingsTab`
 - `registerSearchProvider`
+- `registerAiProvider`
+- `registerAiContextProvider`
 - `registerTitlebarAction`
 - `registerWindowShortcut`
 
 It also exposes `context.ui.h` and `context.ui.defineComponent` so simple local plugins can register Vue components without bundling their own copy of Vue.
+
+Search providers registered with `registerSearchProvider` run in the `results`
+phase by default. Providers can opt into `phase: 'preflight'` for short-circuit
+results that should run after URL detection but before indexed search, or
+`phase: 'append'` for fallback items that should appear after ranked results.
+Preflight providers may return a `SearchSourceResult` with `exclusive: true` and
+an `intent` such as `engine-shortcut` to stop the rest of Universal Search.
+
+AI providers registered with `registerAiProvider` may implement optional `streamChat` and `cancelChatStream` methods. Application code should call `streamChatWithAi` and `cancelAiChatStream` rather than binding directly to a provider-specific transport; non-streaming providers fall back to ordinary `chat`.
+
+AI context providers registered with `registerAiContextProvider` are collected by application services such as `chatWithAi` and `translateWithAi` only when the caller passes `contextCollection`. The built-in collection input supports explicit selection text, selection metadata, current workspace content metadata, and workspace search queries; plugin providers receive the same normalized collection request.
 
 Each local plugin has an isolated JSON data file exposed through `context.storage.get`, `context.storage.set`, and `context.storage.delete`. Persistent state is stored under `<data-root>/state/plugins/<plugin-id>/data.json`, not inside the plugin package directory. Updating, disabling, or ordinary uninstalling a plugin preserves this state; only the explicit "uninstall and delete data" path removes plugin state, index data, and cache.
 
@@ -211,7 +239,13 @@ provides `sha256`. Mutable development branch archives that require
 examples; published official packages must pin immutable release artifacts or
 tags and provide integrity metadata.
 
-`context.api.invoke` is permission-gated. A local plugin must declare `command:<tauri-command-name>` or `command:*` in `permissions` before it can call a Tauri command through the provided context API.
+Capability APIs are permission-gated when they cross data or system boundaries.
+For example, workspace calls require `workspace:read`, `workspace:write`,
+`workspace:*`, `capability:workspace`, or `capability:*`; network calls require
+`network`, `network:<origin>`, `network:<url-prefix>`, `network:*`,
+`capability:network`, or `capability:*`.
+
+`context.api.invoke` is the legacy escape hatch and remains permission-gated. A local plugin must declare `command:<tauri-command-name>` or `command:*` in `permissions` before it can call a Tauri command through the provided context API.
 
 `context.api.invokeBackend(command, payload)` calls the plugin's own native
 host backend declared by `entry.backend`. A local plugin must declare
@@ -503,7 +537,7 @@ The settings marketplace treats `included` official entries that have
 frontend runtime into `<data-root>/packages/plugins/<plugin-id>`.
 
 Official plugin routes, settings tabs, titlebar actions, host components, window
-shortcuts, and search providers are not statically registered. After a
+shortcuts, search providers, and AI providers are not statically registered. After a
 matching official manifest package is installed, the runtime bridge loads the
 official plugin entry and registers those capabilities for that installed
 plugin id.
@@ -525,6 +559,9 @@ Current security checks:
 
 - `context.api.invoke` is gated in the frontend by `command:<name>` or
   `command:*`.
+- Capability APIs are gated in the frontend by capability permissions such as
+  `workspace:read`, `workspace:write`, `network:<origin>`, or
+  `capability:<name>`.
 - `context.api.invokeBackend` is gated in the frontend and again in Rust by
   `backend:<name>` or `backend:*`.
 - Rust re-reads the installed manifest before native-host execution, verifies

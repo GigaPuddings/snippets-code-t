@@ -746,6 +746,8 @@ const capabilityLabelMap: Record<keyof PluginCapabilities, string> = {
   settingsTabs: 'plugins.permissionCapabilities.settings',
   hotkeys: 'plugins.permissionCapabilities.hotkeys',
   searchSources: 'plugins.permissionCapabilities.search',
+  aiProviders: 'plugins.permissionCapabilities.ai',
+  aiContextProviders: 'plugins.permissionCapabilities.aiContext',
   titlebarActions: 'plugins.permissionCapabilities.titlebar',
   trayItems: 'plugins.permissionCapabilities.tray',
   windows: 'plugins.permissionCapabilities.windows'

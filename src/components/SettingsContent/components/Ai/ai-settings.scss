@@ -1,0 +1,124 @@
+.ai-settings-header {
+  @apply flex items-center justify-between gap-3;
+}
+
+.ai-settings-content {
+  @apply flex flex-col gap-0;
+}
+
+.provider-count {
+  @apply rounded border border-panel bg-hover px-2 py-1 text-xs text-panel-text-secondary;
+}
+
+.ai-provider-row {
+  @apply flex items-start justify-between gap-4 border-b border-panel py-3 last:border-b-0;
+}
+
+.provider-label {
+  @apply min-w-0 flex-1;
+}
+
+.provider-title {
+  @apply text-sm font-medium text-panel;
+}
+
+.provider-desc {
+  @apply mt-1 text-xs leading-5 text-panel-text-secondary;
+}
+
+.provider-warning {
+  @apply mt-2 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs leading-5 text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200;
+}
+
+.provider-control {
+  @apply shrink-0;
+}
+
+.provider-select {
+  @apply w-56;
+}
+
+.provider-option {
+  @apply flex min-w-0 items-center justify-between gap-3;
+
+  small {
+    @apply truncate text-xs text-panel-text-secondary;
+  }
+}
+
+.provider-empty {
+  @apply mt-3 rounded border border-panel bg-hover px-3 py-2 text-xs leading-5 text-panel-text-secondary;
+}
+
+.provider-status-section {
+  @apply mt-4 border-t border-panel pt-4;
+}
+
+.provider-status-header {
+  @apply mb-3 flex items-center justify-between gap-3;
+}
+
+.provider-status-title {
+  @apply text-sm font-medium text-panel;
+}
+
+.provider-status-desc {
+  @apply mt-1 text-xs leading-5 text-panel-text-secondary;
+}
+
+.provider-status-list {
+  @apply flex flex-col gap-2;
+}
+
+.provider-status-card {
+  @apply flex items-start justify-between gap-4 rounded border border-panel bg-panel px-3 py-2;
+}
+
+.provider-status-main {
+  @apply min-w-0 flex-1;
+}
+
+.provider-status-name-row {
+  @apply flex min-w-0 flex-wrap items-center gap-2;
+}
+
+.provider-status-name {
+  @apply text-sm font-medium text-panel;
+}
+
+.provider-status-id {
+  @apply rounded bg-hover px-1.5 py-0.5 text-xs text-panel-text-secondary;
+}
+
+.provider-status-chip,
+.provider-capability-chip {
+  @apply rounded px-1.5 py-0.5 text-xs;
+}
+
+.provider-status-chip--success {
+  @apply bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300;
+}
+
+.provider-status-chip--warning {
+  @apply bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300;
+}
+
+.provider-status-chip--danger {
+  @apply bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300;
+}
+
+.provider-status-meta {
+  @apply mt-1 flex flex-wrap gap-2 text-xs leading-5 text-panel-text-secondary;
+}
+
+.provider-capabilities {
+  @apply mt-2 flex flex-wrap gap-1;
+}
+
+.provider-capability-chip {
+  @apply border border-panel bg-hover text-panel-text-secondary;
+}
+
+.provider-status-error {
+  @apply mt-2 rounded border border-red-200 bg-red-50 px-2 py-1 text-xs leading-5 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300;
+}

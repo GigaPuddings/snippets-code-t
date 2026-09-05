@@ -1,45 +1,114 @@
 use crate::json_config;
 use crate::APP;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 
 // ============= 数据库连接管理器 =============
 
+pub const CORE_DB_FILE_NAME: &str = "core.db";
+pub const SEARCH_DB_FILE_NAME: &str = "search.db";
+pub const LEGACY_DB_FILE_NAME: &str = "snippets.db";
+pub(crate) const CORE_DB_SCHEMA: &str = "core_db";
+pub(crate) const SEARCH_DB_SCHEMA: &str = "search_db";
+
 // 数据库连接管理器 - 统一管理数据库连接并设置优化参数
 pub struct DbConnectionManager;
 
 impl DbConnectionManager {
-    // 获取数据库连接并统一设置优化参数
+    // 兼容旧调用：默认返回核心用户数据数据库。
     pub fn get() -> Result<rusqlite::Connection, rusqlite::Error> {
+        Self::get_core()
+    }
+
+    pub fn get_core() -> Result<rusqlite::Connection, rusqlite::Error> {
         let app = APP
             .get()
             .ok_or_else(|| rusqlite::Error::InvalidPath("APP 未初始化".into()))?;
-        let db_path = get_database_path(app);
-        let conn = rusqlite::Connection::open(db_path)?;
-
-        // 统一设置数据库优化参数
-        // WAL模式：提升并发性能（持久化配置，只需设置一次但重复设置无害）
-        let _ = conn.execute("PRAGMA journal_mode=WAL", []);
-        // 降低磁盘同步频率：提升写入性能
-        let _ = conn.execute("PRAGMA synchronous=NORMAL", []);
-        // 增加缓存大小：提升查询性能
-        let _ = conn.execute("PRAGMA cache_size=10000", []);
-        // 临时数据存储在内存中：提升临时表性能
-        let _ = conn.execute("PRAGMA temp_store=memory", []);
-        // 锁等待超时：缓解并发读写时偶发卡顿（单位：毫秒）
-        let _ = conn.execute("PRAGMA busy_timeout=800", []);
-
-        Ok(conn)
+        open_database(get_core_database_path(app))
     }
+
+    pub fn get_search() -> Result<rusqlite::Connection, rusqlite::Error> {
+        let app = APP
+            .get()
+            .ok_or_else(|| rusqlite::Error::InvalidPath("APP 未初始化".into()))?;
+        open_database(get_search_database_path(app))
+    }
+
+    pub(crate) fn open_core_at(data_dir: &Path) -> Result<rusqlite::Connection, rusqlite::Error> {
+        open_database(data_dir.join(CORE_DB_FILE_NAME))
+    }
+
+    pub(crate) fn open_search_at(data_dir: &Path) -> Result<rusqlite::Connection, rusqlite::Error> {
+        open_database(data_dir.join(SEARCH_DB_FILE_NAME))
+    }
+
+    pub(crate) fn attach_core_database(conn: &rusqlite::Connection) -> Result<(), rusqlite::Error> {
+        let app = APP
+            .get()
+            .ok_or_else(|| rusqlite::Error::InvalidPath("APP 未初始化".into()))?;
+        attach_database(conn, CORE_DB_SCHEMA, &get_core_database_path(app))
+    }
+
+    pub(crate) fn attach_search_database(
+        conn: &rusqlite::Connection,
+    ) -> Result<(), rusqlite::Error> {
+        let app = APP
+            .get()
+            .ok_or_else(|| rusqlite::Error::InvalidPath("APP 未初始化".into()))?;
+        attach_database(conn, SEARCH_DB_SCHEMA, &get_search_database_path(app))
+    }
+}
+
+fn open_database(db_path: PathBuf) -> Result<rusqlite::Connection, rusqlite::Error> {
+    let conn = rusqlite::Connection::open(db_path)?;
+    configure_connection(&conn);
+    Ok(conn)
+}
+
+fn configure_connection(conn: &rusqlite::Connection) {
+    // WAL模式：提升并发性能（持久化配置，只需设置一次但重复设置无害）
+    let _ = conn.execute("PRAGMA journal_mode=WAL", []);
+    // 降低磁盘同步频率：提升写入性能
+    let _ = conn.execute("PRAGMA synchronous=NORMAL", []);
+    // 增加缓存大小：提升查询性能
+    let _ = conn.execute("PRAGMA cache_size=10000", []);
+    // 临时数据存储在内存中：提升临时表性能
+    let _ = conn.execute("PRAGMA temp_store=memory", []);
+    // 锁等待超时：缓解并发读写时偶发卡顿（单位：毫秒）
+    let _ = conn.execute("PRAGMA busy_timeout=800", []);
+}
+
+fn attach_database(
+    conn: &rusqlite::Connection,
+    schema: &str,
+    db_path: &Path,
+) -> Result<(), rusqlite::Error> {
+    conn.execute(
+        &format!("ATTACH DATABASE ?1 AS {}", schema),
+        [db_path.to_string_lossy().as_ref()],
+    )?;
+    Ok(())
 }
 
 // ============= 数据库路径管理 =============
 
-// 获取数据库路径（使用 JSON 配置系统）
+pub fn get_core_database_path(app_handle: &tauri::AppHandle) -> PathBuf {
+    json_config::get_data_dir(app_handle).join(CORE_DB_FILE_NAME)
+}
+
+pub fn get_search_database_path(app_handle: &tauri::AppHandle) -> PathBuf {
+    json_config::get_data_dir(app_handle).join(SEARCH_DB_FILE_NAME)
+}
+
+pub fn get_legacy_database_path(app_handle: &tauri::AppHandle) -> PathBuf {
+    json_config::get_data_dir(app_handle).join(LEGACY_DB_FILE_NAME)
+}
+
+// 获取核心数据库路径（使用 JSON 配置系统）
 pub fn get_database_path(app_handle: &tauri::AppHandle) -> PathBuf {
-    json_config::get_data_dir(app_handle).join("snippets.db")
+    get_core_database_path(app_handle)
 }
 
 // 获取数据库路径字符串
@@ -61,7 +130,9 @@ pub fn get_db_path() -> String {
 #[tauri::command]
 pub fn get_data_dir_info(app_handle: tauri::AppHandle) -> serde_json::Value {
     let data_dir = json_config::get_data_dir(&app_handle);
-    let db_path = data_dir.join("snippets.db");
+    let db_path = get_core_database_path(&app_handle);
+    let search_db_path = get_search_database_path(&app_handle);
+    let legacy_db_path = get_legacy_database_path(&app_handle);
     let recommended_path = json_config::get_default_data_dir(&app_handle);
 
     // 检查路径来源
@@ -81,16 +152,22 @@ pub fn get_data_dir_info(app_handle: tauri::AppHandle) -> serde_json::Value {
     serde_json::json!({
         "path": data_dir.to_str().unwrap_or(""),
         "dbPath": db_path.to_str().unwrap_or(""),
+        "coreDbPath": db_path.to_str().unwrap_or(""),
+        "searchDbPath": search_db_path.to_str().unwrap_or(""),
+        "legacyDbPath": legacy_db_path.to_str().unwrap_or(""),
+        "hasLegacyDb": legacy_db_path.exists(),
         "source": source,
         "recommendedPath": recommended_path.to_str().unwrap_or("")
     })
 }
 
-fn backup_database_to_path(target_path: &std::path::Path) -> Result<(), String> {
-    let source = DbConnectionManager::get().map_err(|e| format!("打开源数据库失败: {}", e))?;
+fn backup_connection_to_path(
+    source: &rusqlite::Connection,
+    target_path: &std::path::Path,
+) -> Result<(), String> {
     let mut target = rusqlite::Connection::open(target_path)
         .map_err(|e| format!("创建备份数据库失败: {}", e))?;
-    let backup = rusqlite::backup::Backup::new(&source, &mut target)
+    let backup = rusqlite::backup::Backup::new(source, &mut target)
         .map_err(|e| format!("初始化数据库备份失败: {}", e))?;
     backup
         .run_to_completion(64, std::time::Duration::from_millis(20), None)
@@ -109,7 +186,16 @@ fn copy_data_directory(source: &std::path::Path, target: &std::path::Path) -> Re
         let name_text = name.to_string_lossy();
         if matches!(
             name_text.as_ref(),
-            "snippets.db" | "snippets.db-wal" | "snippets.db-shm" | "path.json"
+            "core.db"
+                | "core.db-wal"
+                | "core.db-shm"
+                | "search.db"
+                | "search.db-wal"
+                | "search.db-shm"
+                | "snippets.db"
+                | "snippets.db-wal"
+                | "snippets.db-shm"
+                | "path.json"
         ) {
             continue;
         }
@@ -176,7 +262,12 @@ pub async fn set_custom_db_path(app_handle: tauri::AppHandle) -> Result<String, 
                 folder_pathbuf.join(format!(".snippets-code-migration-{}", uuid::Uuid::new_v4()));
             let migration_result = (|| -> Result<(), String> {
                 copy_data_directory(&old_data_dir, &staging_dir)?;
-                backup_database_to_path(&staging_dir.join("snippets.db"))?;
+                let core = DbConnectionManager::get_core()
+                    .map_err(|e| format!("打开核心数据库失败: {}", e))?;
+                backup_connection_to_path(&core, &staging_dir.join(CORE_DB_FILE_NAME))?;
+                let search = DbConnectionManager::get_search()
+                    .map_err(|e| format!("打开搜索索引数据库失败: {}", e))?;
+                backup_connection_to_path(&search, &staging_dir.join(SEARCH_DB_FILE_NAME))?;
                 fs::rename(&staging_dir, &new_data_dir).map_err(|e| {
                     format!(
                         "提交数据目录迁移失败 {} -> {}: {}",

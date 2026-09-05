@@ -1,13 +1,10 @@
 import type { PluginFrontendRuntimeContext } from '../runtime';
 
 export const activate = (context: PluginFrontendRuntimeContext): void => {
-  context.registerRoute({
-    target: 'window',
+  context.window.create({
     path: '/wallpaper-switcher',
     name: 'WallpaperSwitcher',
-    component: () => import('./pages/switcher/index.vue')
-  });
-  context.registerWindowShortcut({
-    label: 'wallpaper_switcher'
+    component: () => import('./pages/switcher/index.vue'),
+    shortcutLabel: 'wallpaper_switcher'
   });
 };

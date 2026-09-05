@@ -18,7 +18,7 @@ pub fn reset_rebuildable_indexes(
     reset_bookmarks: bool,
     reset_desktop_files: bool,
 ) -> Result<(), rusqlite::Error> {
-    let mut connection = DbConnectionManager::get()?;
+    let mut connection = DbConnectionManager::get_search()?;
     let transaction = connection.transaction()?;
 
     if reset_apps && table_exists(&transaction, "apps")? {

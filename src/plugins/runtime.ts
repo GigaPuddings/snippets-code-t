@@ -14,8 +14,33 @@ import * as VueRouterRuntime from 'vue-router';
 import * as VueI18nRuntime from 'vue-i18n';
 import type { RouteComponent, RouteRecordRaw, Router } from 'vue-router';
 import type { RegisteredPlugin } from './protocol';
-import type { SearchSourceProvider, SearchSourceResult } from './search';
-import { searchSourceProviders } from './search-providers';
+import type { SearchSourceProvider } from './search';
+import {
+  registerSearchSourceProvider,
+  unregisterSearchSourceProvidersForPlugin
+} from './search-providers';
+import {
+  registerPluginAiProvider,
+  unregisterAiProvidersForPlugin,
+  type RuntimeAiProviderRegistration
+} from './ai-providers';
+import {
+  registerPluginAiContextProvider,
+  unregisterAiContextProvidersForPlugin,
+  type RuntimeAiContextProviderRegistration
+} from './ai-context-providers';
+import {
+  createPluginCapabilities,
+  type PluginRuntimeCapabilities,
+  type RuntimeHostComponentRegistration,
+  type RuntimeRouteComponent,
+  type RuntimeRouteRegistration,
+  type RuntimeRouteTarget,
+  type RuntimeSearchProviderRegistration,
+  type RuntimeSettingsRegistration,
+  type RuntimeTitlebarActionRegistration,
+  type RuntimeWindowShortcutRegistration
+} from './capabilities';
 import {
   pluginSettingsComponents,
   pluginSettingsMenuItems,
@@ -23,62 +48,16 @@ import {
 } from './settings';
 import { titlebarPluginActions, type TitlebarPluginAction } from './titlebar';
 import { pluginWindowShortcuts, type PluginWindowShortcut } from './windows';
-import {
-  pluginHostComponents,
-  type PluginHostComponentTarget
-} from './host-components';
+import { pluginHostComponents } from './host-components';
 import { logger } from '@/utils/logger';
 import {
   assertCanInvokeBackendCommand,
   assertCanInvokeCommand
 } from './permissions';
 
-type RuntimeRouteTarget = 'config' | 'layout' | 'window';
-type RuntimeRouteComponent = RouteComponent | (() => Promise<unknown>);
 type VueAsyncRouteComponent = RouteComponent & {
   __asyncLoader?: () => Promise<unknown>;
 };
-
-interface RuntimeRouteRegistration {
-  target?: RuntimeRouteTarget;
-  path: string;
-  name: string;
-  component?: RuntimeRouteComponent;
-  componentUrl?: string;
-  meta?: Record<string, unknown>;
-}
-
-interface RuntimeSettingsRegistration {
-  id: string;
-  labelKey?: string;
-  label?: string;
-  icon?: Component;
-  component?: Component;
-  componentUrl?: string;
-}
-
-interface RuntimeSearchProviderRegistration {
-  source: string;
-  search(query: string): Promise<SearchSourceResult[]>;
-}
-
-interface RuntimeTitlebarActionRegistration {
-  id: string;
-  component?: Component;
-  componentUrl?: string;
-}
-
-interface RuntimeWindowShortcutRegistration {
-  label: string;
-  closeCommandLabel?: string;
-}
-
-interface RuntimeHostComponentRegistration {
-  id: string;
-  target?: PluginHostComponentTarget;
-  component?: Component;
-  componentUrl?: string;
-}
 
 type RuntimeCleanup = () => void | Promise<void>;
 type RuntimeActivationResult =
@@ -89,7 +68,8 @@ type RuntimeActivationResult =
       dispose?: RuntimeCleanup;
     };
 
-export interface PluginFrontendRuntimeContext {
+export interface PluginFrontendRuntimeContext
+  extends PluginRuntimeCapabilities {
   pluginId: string;
   packagePath: string;
   manifest: RegisteredPlugin['manifest'];
@@ -104,14 +84,13 @@ export interface PluginFrontendRuntimeContext {
     h: typeof h;
     defineComponent: typeof defineComponent;
   };
-  storage: {
-    get<T = unknown>(key: string): Promise<T | null>;
-    set(key: string, value: unknown): Promise<void>;
-    delete(key: string): Promise<void>;
-  };
   registerRoute(route: RuntimeRouteRegistration): void;
   registerSettingsTab(tab: RuntimeSettingsRegistration): void;
   registerSearchProvider(provider: RuntimeSearchProviderRegistration): void;
+  registerAiProvider(provider: RuntimeAiProviderRegistration): void;
+  registerAiContextProvider(
+    provider: RuntimeAiContextProviderRegistration
+  ): void;
   registerTitlebarAction(action: RuntimeTitlebarActionRegistration): void;
   registerWindowShortcut(shortcut: RuntimeWindowShortcutRegistration): void;
   registerHostComponent(component: RuntimeHostComponentRegistration): void;
@@ -729,7 +708,13 @@ const removeRoutesForPlugin = (
 
 const appendCapability = (
   plugin: RegisteredPlugin,
-  key: 'routeNames' | 'settingsTabs' | 'hotkeys' | 'searchSources',
+  key:
+    | 'routeNames'
+    | 'settingsTabs'
+    | 'hotkeys'
+    | 'searchSources'
+    | 'aiProviders'
+    | 'aiContextProviders',
   value: string
 ): void => {
   const current = plugin[key] ?? [];
@@ -748,45 +733,8 @@ const runtimeRegistrationKey = (pluginId: string, id: string): string =>
 
 const createRuntimeContext = (
   plugin: RegisteredPlugin
-): PluginFrontendRuntimeContext => ({
-  pluginId: String(plugin.id),
-  packagePath: plugin.packagePath ?? '',
-  manifest: plugin.manifest,
-  resolveAssetUrl: (relativePath: string) =>
-    resolvePluginAssetUrl(plugin, relativePath),
-  api: {
-    invoke: createPluginInvoke(plugin),
-    invokeBackend: createPluginBackendInvoke(plugin),
-    listen: createPluginListen(plugin),
-    emit
-  },
-  ui: {
-    h,
-    defineComponent
-  },
-  storage: {
-    get: async <T = unknown>(key: string): Promise<T | null> => {
-      const value = await invoke<T | null>('get_local_plugin_data', {
-        pluginId: plugin.id,
-        key
-      });
-      return value ?? null;
-    },
-    set: async (key: string, value: unknown): Promise<void> => {
-      await invoke('set_local_plugin_data', {
-        pluginId: plugin.id,
-        key,
-        value
-      });
-    },
-    delete: async (key: string): Promise<void> => {
-      await invoke('delete_local_plugin_data', {
-        pluginId: plugin.id,
-        key
-      });
-    }
-  },
-  registerRoute(route) {
+): PluginFrontendRuntimeContext => {
+  const registerRoute = (route: RuntimeRouteRegistration): void => {
     const target = route.target ?? 'layout';
     appendCapability(plugin, 'routeNames', route.name);
     const routeRecord: RouteRecordRaw = {
@@ -803,8 +751,9 @@ const createRuntimeContext = (
       }
     } as RouteRecordRaw;
     pushRoute(target, routeRecord);
-  },
-  registerSettingsTab(tab) {
+  };
+
+  const registerSettingsTab = (tab: RuntimeSettingsRegistration): void => {
     const labelKey = tab.labelKey ?? `plugins.${plugin.id}.${tab.id}`;
     const item: PluginSettingsMenuItem = {
       id: tab.id,
@@ -829,26 +778,38 @@ const createRuntimeContext = (
       pluginSettingsComponents[tab.id] = component;
     }
     appendCapability(plugin, 'settingsTabs', tab.id);
-  },
-  registerSearchProvider(provider) {
+  };
+
+  const registerSearchProvider = (
+    provider: RuntimeSearchProviderRegistration
+  ): void => {
     const nextProvider = {
       pluginId: plugin.id,
       source: provider.source,
+      phase: provider.phase,
       search: provider.search
     } satisfies SearchSourceProvider;
-    const existingIndex = searchSourceProviders.findIndex(
-      (candidate) =>
-        candidate.pluginId === plugin.id && candidate.source === provider.source
-    );
-
-    if (existingIndex === -1) {
-      searchSourceProviders.push(nextProvider);
-    } else {
-      searchSourceProviders[existingIndex] = nextProvider;
-    }
+    registerSearchSourceProvider(nextProvider);
     appendCapability(plugin, 'searchSources', provider.source);
-  },
-  registerTitlebarAction(action) {
+  };
+
+  const registerAiProvider = (
+    provider: RuntimeAiProviderRegistration
+  ): void => {
+    registerPluginAiProvider(String(plugin.id), provider);
+    appendCapability(plugin, 'aiProviders', provider.id.trim());
+  };
+
+  const registerAiContextProvider = (
+    provider: RuntimeAiContextProviderRegistration
+  ): void => {
+    registerPluginAiContextProvider(String(plugin.id), provider);
+    appendCapability(plugin, 'aiContextProviders', provider.id.trim());
+  };
+
+  const registerTitlebarAction = (
+    action: RuntimeTitlebarActionRegistration
+  ): void => {
     const registrationKey = runtimeRegistrationKey(
       String(plugin.id),
       action.id
@@ -869,15 +830,21 @@ const createRuntimeContext = (
     } else if (runtimeTitlebarActionKeys.has(registrationKey)) {
       titlebarPluginActions[existingIndex] = titlebarAction;
     }
-  },
-  registerWindowShortcut(shortcut) {
+  };
+
+  const registerWindowShortcut = (
+    shortcut: RuntimeWindowShortcutRegistration
+  ): void => {
     pluginWindowShortcuts.push({
       label: shortcut.label,
       pluginId: plugin.id,
       closeCommandLabel: shortcut.closeCommandLabel
     } satisfies PluginWindowShortcut);
-  },
-  registerHostComponent(hostComponent) {
+  };
+
+  const registerHostComponent = (
+    hostComponent: RuntimeHostComponentRegistration
+  ): void => {
     const target = hostComponent.target ?? 'config';
     const nextComponent = {
       id: hostComponent.id,
@@ -901,8 +868,44 @@ const createRuntimeContext = (
     } else {
       pluginHostComponents[existingIndex] = nextComponent;
     }
-  }
-});
+  };
+
+  const capabilities = createPluginCapabilities(plugin, {
+    invoke,
+    registerRoute,
+    registerSearchProvider,
+    registerAiProvider,
+    registerAiContextProvider,
+    registerWindowShortcut
+  });
+
+  return {
+    pluginId: String(plugin.id),
+    packagePath: plugin.packagePath ?? '',
+    manifest: plugin.manifest,
+    resolveAssetUrl: (relativePath: string) =>
+      resolvePluginAssetUrl(plugin, relativePath),
+    api: {
+      invoke: createPluginInvoke(plugin),
+      invokeBackend: createPluginBackendInvoke(plugin),
+      listen: createPluginListen(plugin),
+      emit
+    },
+    ui: {
+      h,
+      defineComponent
+    },
+    ...capabilities,
+    registerRoute,
+    registerSettingsTab,
+    registerSearchProvider,
+    registerAiProvider,
+    registerAiContextProvider,
+    registerTitlebarAction,
+    registerWindowShortcut,
+    registerHostComponent
+  };
+};
 
 const activateFrontendModule = async (
   plugin: RegisteredPlugin,
@@ -1005,6 +1008,8 @@ const frontendCapabilityKeys = [
   'routeNames',
   'settingsTabs',
   'searchSources',
+  'aiProviders',
+  'aiContextProviders',
   'titlebarActions',
   'windows'
 ] as const;
@@ -1128,11 +1133,9 @@ export function clearRuntimePluginRegistrations(
     }
   }
 
-  for (let index = searchSourceProviders.length - 1; index >= 0; index -= 1) {
-    if (searchSourceProviders[index].pluginId === pluginId) {
-      searchSourceProviders.splice(index, 1);
-    }
-  }
+  unregisterSearchSourceProvidersForPlugin(pluginId);
+  unregisterAiProvidersForPlugin(pluginId);
+  unregisterAiContextProvidersForPlugin(pluginId);
 
   for (let index = titlebarPluginActions.length - 1; index >= 0; index -= 1) {
     const action = titlebarPluginActions[index];

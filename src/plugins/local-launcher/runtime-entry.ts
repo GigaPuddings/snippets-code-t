@@ -9,7 +9,7 @@ export const activate = (context: PluginFrontendRuntimeContext): void => {
     name: 'Local',
     component: () => import('./pages/config/index.vue')
   });
-  context.registerSearchProvider({
+  context.search.registerProvider({
     source: 'local-launcher',
     async search(query) {
       const results = [];

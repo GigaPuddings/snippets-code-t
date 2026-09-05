@@ -1153,7 +1153,7 @@ pub async fn open_config_with_loading_transition() {
 
     let spec = WindowSpec {
         label: "config",
-        url: "/#/config/category/contentList",
+        url: "/#/config/workbench",
         title: "配置",
         width: 1180.0,
         height: 696.0,
@@ -1317,7 +1317,7 @@ pub fn hotkey_config() {
     // 定义窗口规格 - 不等待 ready_event
     let spec = WindowSpec {
         label: "config",
-        url: "/#/config/category/contentList",
+        url: "/#/config/workbench",
         title: "配置",
         width: 1180.0,
         height: 696.0,

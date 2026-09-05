@@ -14,7 +14,7 @@ pub struct DesktopFileCacheRecord {
 }
 
 pub fn load_all_desktop_file_cache() -> Result<Vec<DesktopFileCacheRecord>, rusqlite::Error> {
-    let conn = DbConnectionManager::get()?;
+    let conn = DbConnectionManager::get_search()?;
     let mut stmt = conn.prepare(
         "SELECT id, title, content, icon, source_mtime, size, created, modified, last_indexed_at FROM desktop_file_cache ORDER BY last_indexed_at DESC",
     )?;
@@ -46,7 +46,7 @@ pub fn apply_desktop_file_cache_changes(
     records: &[DesktopFileCacheRecord],
     removed_ids: &[String],
 ) -> Result<(), rusqlite::Error> {
-    let mut conn = DbConnectionManager::get()?;
+    let mut conn = DbConnectionManager::get_search()?;
     let transaction = conn.transaction()?;
     if !removed_ids.is_empty() {
         let mut delete_stmt =
@@ -80,7 +80,7 @@ pub fn apply_desktop_file_cache_changes(
 pub fn replace_desktop_file_cache(
     records: &[DesktopFileCacheRecord],
 ) -> Result<(), rusqlite::Error> {
-    let mut conn = DbConnectionManager::get()?;
+    let mut conn = DbConnectionManager::get_search()?;
     let transaction = conn.transaction()?;
     transaction.execute("DELETE FROM desktop_file_cache", [])?;
     {

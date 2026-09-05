@@ -2,6 +2,18 @@ import { describe, expect, it } from 'vitest';
 import { isConfigNavigationPathActive } from './navigation';
 
 describe('config navigation path matching', () => {
+  it('matches the workbench home route without capturing workspace routes', () => {
+    expect(
+      isConfigNavigationPathActive('/config/workbench', '/config/workbench')
+    ).toBe(true);
+    expect(
+      isConfigNavigationPathActive(
+        '/config/category/contentList',
+        '/config/workbench'
+      )
+    ).toBe(false);
+  });
+
   it('matches the tab route and its nested routes', () => {
     expect(
       isConfigNavigationPathActive(
