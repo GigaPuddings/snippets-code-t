@@ -180,7 +180,7 @@ export default {
         searchSources: '搜索源',
         searchSourcesMeta: '{failed} 个失败',
         aiProviders: 'AI Provider',
-        aiProvidersMeta: '共 {total} 个可用'
+        aiProvidersMeta: '共 {total} 个已注册'
       },
       layers: {
         workspace: 'Workspace',

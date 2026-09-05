@@ -150,6 +150,58 @@ impl<'a> GitRepository<'a> {
         Ok(output.status.success())
     }
 
+    pub(crate) fn has_worktree_diff(&self, relative_path: &str) -> bool {
+        self.output(
+            &["diff", "--quiet", "--no-ext-diff", "--", relative_path],
+            "检查工作区差异失败",
+        )
+        .map(|output| !output.status.success())
+        .unwrap_or(true)
+    }
+
+    pub(crate) fn original_head(&self) -> Option<String> {
+        self.successful_stdout(&["rev-parse", "ORIG_HEAD"], "获取 ORIG_HEAD 失败")
+            .ok()
+            .filter(|value| !value.is_empty())
+    }
+
+    pub(crate) fn head_tree_paths(&self) -> Result<Output, String> {
+        self.output(
+            &["ls-tree", "-r", "-z", "--name-only", "HEAD"],
+            "获取首次拉取文件列表失败",
+        )
+    }
+
+    pub(crate) fn changed_paths(&self, from: &str, to: &str) -> Result<Output, String> {
+        self.output(
+            &["diff", "--name-status", "-z", from, to],
+            "获取变更文件列表失败",
+        )
+    }
+
+    pub(crate) fn conflict_paths(&self) -> Result<Output, String> {
+        self.output(&["diff", "--name-only", "--diff-filter=U"], "检测冲突失败")
+    }
+
+    pub(crate) fn switch_branch(&self, args: &[&str]) -> Result<Output, String> {
+        self.output(args, "切换分支失败")
+    }
+
+    pub(crate) fn workspace_path_exists(&self, relative_path: &str) -> bool {
+        self.workspace_root.join(relative_path).exists()
+    }
+
+    pub(crate) fn remove_workspace_path(&self, relative_path: &str) -> Result<(), String> {
+        let path = self.workspace_root.join(relative_path);
+        if path.is_dir() {
+            std::fs::remove_dir_all(&path)
+                .map_err(|e| format!("删除未跟踪目录失败 {}: {}", relative_path, e))
+        } else {
+            std::fs::remove_file(&path)
+                .map_err(|e| format!("删除未跟踪文件失败 {}: {}", relative_path, e))
+        }
+    }
+
     pub(crate) fn successful_stdout(
         &self,
         args: &[&str],

@@ -187,7 +187,7 @@ export default {
         searchSources: 'Search Sources',
         searchSourcesMeta: '{failed} failed',
         aiProviders: 'AI Providers',
-        aiProvidersMeta: '{total} available'
+        aiProvidersMeta: '{total} registered'
       },
       layers: {
         workspace: 'Workspace',

@@ -82,6 +82,9 @@ const createActionNavigator =
   };
 
 const refreshWorkspace = async (refs: WorkbenchStateRefs): Promise<void> => {
+  refs.workspaceRoot.value = '';
+  refs.categories.value = [];
+  refs.files.value = [];
   refs.workspaceRoot.value = await getWorkspaceRoot();
   if (!refs.workspaceRoot.value) {
     refs.categories.value = [];
@@ -114,18 +117,28 @@ const refreshWorkbench = async ({
   refs.loading.value = true;
   refs.loadError.value = '';
   try {
-    await pluginStore.initialize();
-    await pluginStore.loadEnabledPluginEntries();
-    await pluginStore.refreshPluginResourceStatus();
     const results = await Promise.allSettled([
       refreshWorkspace(refs),
-      refreshAiProviders(refs, pluginStore)
+      (async (): Promise<void> => {
+        refs.aiProviders.value = [];
+        refs.searchSources.value = [];
+        await pluginStore.initialize();
+        const pluginResults = await Promise.allSettled([
+          pluginStore.loadEnabledPluginEntries(),
+          pluginStore.refreshPluginResourceStatus()
+        ]);
+        refs.searchSources.value = getSearchSourceRuntimeStates();
+        await refreshAiProviders(refs, pluginStore);
+        const failed = pluginResults.find(
+          (result) => result.status === 'rejected'
+        );
+        if (failed) throw failed.reason;
+      })()
     ]);
     const failed = results.find((result) => result.status === 'rejected');
     if (failed) {
       refs.loadError.value = `${t('settings.workbench.loadFailed')}: ${formatError(failed.reason)}`;
     }
-    refs.searchSources.value = getSearchSourceRuntimeStates();
   } finally {
     refs.loading.value = false;
   }
@@ -190,8 +203,17 @@ export function useWorkbenchOverview(): WorkbenchOverviewController {
     buildWorkbenchRecentItems(refs.files.value)
   );
   const capabilities = createCapabilities(pluginStore, translate);
-  const refresh = (): Promise<void> =>
-    refreshWorkbench({ pluginStore, t: translate, refs });
+  let pendingRefresh: Promise<void> | undefined;
+  const refresh = (): Promise<void> => {
+    pendingRefresh ??= refreshWorkbench({
+      pluginStore,
+      t: translate,
+      refs
+    }).finally(() => {
+      pendingRefresh = undefined;
+    });
+    return pendingRefresh;
+  };
 
   onMounted(() => {
     void refresh();

@@ -1,4 +1,4 @@
-import { expect, it, vi } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import {
   getAiProviderStatusSnapshots,
   listAiProviders
@@ -6,8 +6,13 @@ import {
 import {
   AiProviderRegistry,
   type AiProvider,
-  type AiProviderCapability
+  type AiProviderCapability,
+  type AiProviderStatus
 } from './providerRegistry';
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 const provider = (overrides: {
   id: string;
@@ -127,3 +132,73 @@ it('filters status snapshots by enabled plugin providers', async () => {
     })
   ]);
 });
+
+it.each(['resolve', 'reject'] as const)(
+  'isolates a stalled probe and ignores its late %s',
+  async (settlement) => {
+    vi.useFakeTimers();
+    const registry = new AiProviderRegistry();
+    let resolveProbe!: (status: AiProviderStatus) => void;
+    let rejectProbe!: (error: Error) => void;
+    const probe = new Promise<AiProviderStatus>((resolve, reject) => {
+      resolveProbe = resolve;
+      rejectProbe = reject;
+    });
+    registry.register(provider({ id: 'stalled-ai', getStatus: () => probe }));
+    registry.register(
+      provider({
+        id: 'healthy-ai',
+        getStatus: async () => ({ providerId: 'healthy-ai', available: true })
+      })
+    );
+
+    const snapshotsPromise = getAiProviderStatusSnapshots({}, registry);
+    await vi.advanceTimersByTimeAsync(5000);
+    const snapshots = await snapshotsPromise;
+    expect(snapshots).toEqual([
+      expect.objectContaining({
+        id: 'healthy-ai',
+        status: { providerId: 'healthy-ai', available: true }
+      }),
+      expect.objectContaining({
+        id: 'stalled-ai',
+        status: {
+          providerId: 'stalled-ai',
+          available: false,
+          healthy: false,
+          lastError: expect.stringContaining('timed out')
+        }
+      })
+    ]);
+    if (settlement === 'resolve') {
+      resolveProbe({ providerId: 'stalled-ai', available: true });
+    } else {
+      rejectProbe(new Error('late failure'));
+    }
+    await vi.advanceTimersByTimeAsync(0);
+    expect(snapshots[1].status.available).toBe(false);
+    expect(vi.getTimerCount()).toBe(0);
+  }
+);
+
+it.each(['success', 'sync failure', 'async failure'])(
+  'clears probe timers after %s',
+  async (outcome) => {
+    vi.useFakeTimers();
+    const registry = new AiProviderRegistry();
+    registry.register(
+      provider({
+        id: 'test-ai',
+        getStatus: () => {
+          if (outcome === 'sync failure') throw new Error('sync failure');
+          if (outcome === 'async failure')
+            return Promise.reject(new Error('async failure'));
+          return Promise.resolve({ providerId: 'test-ai', available: true });
+        }
+      })
+    );
+    const snapshots = await getAiProviderStatusSnapshots({}, registry);
+    expect(snapshots[0].status.available).toBe(outcome === 'success');
+    expect(vi.getTimerCount()).toBe(0);
+  }
+);

@@ -2,11 +2,15 @@
   <div class="segmented">
     <div class="segmented-group">
       <!-- 通过 v-for 渲染选项 -->
-      <div
+      <button
         v-for="(item, index) in items"
+        type="button"
         :key="getItemKey(item, index)"
         class="segmented-item"
         :class="{ 'segmented-item-selected': modelValue === index }"
+        :disabled="disabled"
+        :aria-label="getItemLabel(item)"
+        :aria-pressed="modelValue === index"
         @click="selectItem(index)"
         ref="itemsRef"
       >
@@ -20,9 +24,13 @@
             {{ getItemLabel(item) }}
           </slot>
         </div>
-      </div>
+      </button>
       <!-- 滑块 -->
-      <div class="slider" ref="slider"></div>
+      <div
+        v-show="modelValue >= 0 && modelValue < items.length"
+        class="slider"
+        ref="slider"
+      ></div>
     </div>
   </div>
 </template>

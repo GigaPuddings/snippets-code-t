@@ -85,6 +85,13 @@ describe('buildWorkbenchRecentItems', () => {
 });
 
 describe('buildWorkbenchLayers', () => {
+  it('does not report an available but unhealthy AI provider as ready', () => {
+    const layers = buildWorkbenchLayers(
+      input({ ai: { providers: 1, healthy: 0, unavailable: 0 } })
+    );
+    expect(layers.find((layer) => layer.id === 'ai')?.status).toBe('attention');
+  });
+
   it('marks the four product layers by current runtime health', () => {
     const layers = buildWorkbenchLayers(
       input({

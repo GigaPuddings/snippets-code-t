@@ -173,7 +173,7 @@ const pluginStatus = (plugins: WorkbenchPluginSummary): WorkbenchStatus =>
 
 const aiStatus = (ai: WorkbenchAiSummary): WorkbenchStatus => {
   if (ai.providers === 0) return 'inactive';
-  return ai.unavailable > 0 ? 'attention' : 'ready';
+  return ai.healthy < ai.providers ? 'attention' : 'ready';
 };
 
 const buildWorkspaceLayer = (

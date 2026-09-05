@@ -58,11 +58,26 @@ const readProviderStatus = async (
   if (!provider.getStatus) {
     return defaultProviderStatus(provider);
   }
+  const getStatus = provider.getStatus;
 
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    return await provider.getStatus();
+    return await Promise.race([
+      Promise.resolve().then(() => getStatus()),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          reject(
+            new Error(
+              `AI provider ${provider.id} status probe timed out after 5000ms`
+            )
+          );
+        }, 5000);
+      })
+    ]);
   } catch (error) {
     return providerErrorStatus(provider, error);
+  } finally {
+    clearTimeout(timer);
   }
 };
 

@@ -169,55 +169,74 @@ pub(crate) fn migrate_legacy_database_at(data_dir: &Path) -> Result<(), rusqlite
     }
 
     if should_migrate_core {
-        match migrate_core_database_from_legacy(data_dir, &legacy_path) {
-            Ok(()) => {}
-            Err(error) => {
-                remove_database_files(data_dir, crate::db::connection::CORE_DB_FILE_NAME);
-                return Err(error);
-            }
-        }
+        migrate_database_from_legacy(
+            data_dir,
+            &legacy_path,
+            crate::db::connection::CORE_DB_FILE_NAME,
+            migrate_core_database_from_legacy,
+        )?;
     }
 
-    if should_migrate_search {
-        match migrate_search_database_from_legacy(data_dir, &legacy_path) {
-            Ok(()) => {}
-            Err(error) => {
-                remove_database_files(data_dir, crate::db::connection::SEARCH_DB_FILE_NAME);
-                return Err(error);
-            }
-        }
+    // Once core.db exists, missing search.db means rebuild, not legacy restoration.
+    if should_migrate_core && should_migrate_search {
+        migrate_database_from_legacy(
+            data_dir,
+            &legacy_path,
+            crate::db::connection::SEARCH_DB_FILE_NAME,
+            migrate_search_database_from_legacy,
+        )?;
     }
 
     Ok(())
 }
 
-fn migrate_core_database_from_legacy(
+fn migrate_database_from_legacy(
     data_dir: &Path,
     legacy_path: &Path,
+    file_name: &str,
+    migrate: fn(&rusqlite::Connection) -> Result<(), rusqlite::Error>,
 ) -> Result<(), rusqlite::Error> {
-    let core = DbConnectionManager::open_core_at(data_dir)?;
-    create_core_tables(&core)?;
-    create_local_launcher_tables(&core)?;
-    create_search_engines_table(&core)?;
-    create_alarm_cards_table(&core)?;
-    attach_legacy_database(&core, legacy_path)?;
-    copy_core_tables_from_legacy(&core)
+    let staging_name = format!("{}.migrating", file_name);
+    let staging_path = data_dir.join(&staging_name);
+    // This file is never opened by runtime readers. Restart an interrupted import.
+    remove_database_files(data_dir, &staging_name);
+    let mut connection = rusqlite::Connection::open(&staging_path)?;
+    connection.execute_batch("PRAGMA journal_mode = DELETE; PRAGMA synchronous = FULL;")?;
+    attach_legacy_database(&connection, legacy_path)?;
+    let transaction = connection.transaction()?;
+    migrate(&transaction)?;
+    transaction.commit()?;
+    connection.close().map_err(|(_, error)| error)?;
+    std::fs::rename(staging_path, data_dir.join(file_name)).map_err(|error| {
+        rusqlite::Error::SqliteFailure(
+            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
+            Some(format!(
+                "Publish migrated database {}: {}",
+                file_name, error
+            )),
+        )
+    })
+}
+
+fn migrate_core_database_from_legacy(core: &rusqlite::Connection) -> Result<(), rusqlite::Error> {
+    create_core_tables(core)?;
+    create_local_launcher_tables(core)?;
+    create_search_engines_table(core)?;
+    create_alarm_cards_table(core)?;
+    copy_core_tables_from_legacy(core)
 }
 
 fn migrate_search_database_from_legacy(
-    data_dir: &Path,
-    legacy_path: &Path,
+    search: &rusqlite::Connection,
 ) -> Result<(), rusqlite::Error> {
-    let search = DbConnectionManager::open_search_at(data_dir)?;
-    create_search_tables(&search)?;
-    create_local_launcher_tables(&search)?;
-    create_desktop_files_tables(&search)?;
-    attach_legacy_database(&search, legacy_path)?;
-    copy_search_tables_from_legacy(&search)
+    create_search_tables(search)?;
+    create_local_launcher_tables(search)?;
+    create_desktop_files_tables(search)?;
+    copy_search_tables_from_legacy(search)
 }
 
 fn remove_database_files(data_dir: &Path, file_name: &str) {
-    for suffix in ["", "-wal", "-shm"] {
+    for suffix in ["", "-wal", "-shm", "-journal"] {
         let _ = std::fs::remove_file(data_dir.join(format!("{}{}", file_name, suffix)));
     }
 }
@@ -1138,6 +1157,82 @@ mod tests {
     }
 
     #[test]
+    fn failed_legacy_import_is_not_published_and_can_retry() {
+        let temp = TempDataDir::new();
+        let legacy = create_legacy_db(&temp.path);
+        legacy
+            .execute_batch(
+                "INSERT INTO search_history VALUES ('saved', 7, '2026-01-01');
+             DROP TABLE user_settings;
+             CREATE TABLE user_settings (bad_column TEXT);",
+            )
+            .unwrap();
+
+        assert!(migrate_legacy_database_at(&temp.path).is_err());
+        assert!(!temp
+            .path
+            .join(crate::db::connection::CORE_DB_FILE_NAME)
+            .exists());
+        assert_eq!(count(&legacy, "SELECT COUNT(*) FROM search_history"), 1);
+
+        legacy.execute_batch("DROP TABLE user_settings").unwrap();
+        drop(legacy);
+        migrate_legacy_database_at(&temp.path).expect("retry failed import");
+        let core = DbConnectionManager::open_core_at(&temp.path).unwrap();
+        assert_eq!(
+            count(
+                &core,
+                "SELECT usage_count FROM search_history WHERE id = 'saved'"
+            ),
+            7
+        );
+        core.execute("UPDATE search_history SET usage_count = 10", [])
+            .unwrap();
+        migrate_legacy_database_at(&temp.path).expect("already imported");
+        assert_eq!(
+            count(
+                &core,
+                "SELECT usage_count FROM search_history WHERE id = 'saved'"
+            ),
+            10
+        );
+        assert!(!temp.path.join("core.db.migrating").exists());
+    }
+
+    #[test]
+    fn interrupted_staging_database_is_rebuilt_from_legacy() {
+        let temp = TempDataDir::new();
+        let legacy = create_legacy_db(&temp.path);
+        legacy
+            .execute(
+                "INSERT INTO search_history VALUES ('saved', 4, '2026-01-01')",
+                [],
+            )
+            .unwrap();
+        drop(legacy);
+        let staging = rusqlite::Connection::open(temp.path.join("core.db.migrating")).unwrap();
+        create_core_tables(&staging).unwrap();
+        staging
+            .execute(
+                "INSERT INTO search_history VALUES ('partial', 99, '2026-01-01')",
+                [],
+            )
+            .unwrap();
+        drop(staging);
+
+        migrate_legacy_database_at(&temp.path).expect("recover interrupted staging import");
+        let core = DbConnectionManager::open_core_at(&temp.path).unwrap();
+        assert_eq!(count(&core, "SELECT COUNT(*) FROM search_history"), 1);
+        assert_eq!(
+            count(
+                &core,
+                "SELECT usage_count FROM search_history WHERE id = 'saved'"
+            ),
+            4
+        );
+    }
+
+    #[test]
     fn search_database_can_be_recreated_without_core_data_loss() {
         let temp = TempDataDir::new();
         let legacy = create_legacy_db(&temp.path);
@@ -1165,6 +1260,11 @@ mod tests {
         migrate_legacy_database_at(&temp.path).expect("split legacy database");
 
         remove_database_files(&temp.path, crate::db::connection::SEARCH_DB_FILE_NAME);
+        migrate_legacy_database_at(&temp.path).expect("startup after deleting search database");
+        assert!(!temp
+            .path
+            .join(crate::db::connection::SEARCH_DB_FILE_NAME)
+            .exists());
         let core =
             rusqlite::Connection::open(temp.path.join(crate::db::connection::CORE_DB_FILE_NAME))
                 .unwrap();

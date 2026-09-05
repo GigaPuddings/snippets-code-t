@@ -43,15 +43,13 @@ use crate::window::{
     close_setup_window, create_setup_window, frontend_log, get_scan_progress_state,
     get_scan_progress_states, get_window_info, insert_text_to_last_window,
 };
-use serde::Serialize;
-
 use hotkey::*;
 use icon::{clear_icon_cache, extract_icon_from_app};
 use log::{info, LevelFilter};
 use std::sync::Mutex;
 use std::sync::OnceLock;
 use std::sync::{Arc, RwLock};
-use tauri::{AppHandle, Emitter, Listener, Manager};
+use tauri::{AppHandle, Manager};
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_log::{Target, TargetKind};
 use tauri_plugin_notification::NotificationExt;
@@ -150,20 +148,10 @@ pub fn run() {
             // 在应用启动时初始化 APP
             let _ = APP.set(app.handle().clone());
 
-            // 初始化 index_manager 状态（先设置为 None，后续异步初始化）
-            app.manage(Arc::new(RwLock::new(None::<markdown::IndexManager>)));
-
             // 应用级配置存放在 data_dir/.snippets-code，不能依赖 Markdown 工作区存在。
             // 插件安装/启用状态、设置页等都需要在未设置工作区时正常工作。
             let data_dir = json_config::get_data_dir(app.handle());
-            match app_config::AppConfigManager::new(&data_dir) {
-                Ok(app_config_manager) => {
-                    app.manage(Arc::new(RwLock::new(app_config_manager)));
-                }
-                Err(e) => {
-                    log::warn!("⚠️ [初始化] AppConfigManager 初始化失败: {}", e);
-                }
-            }
+            app_setup::initialize_managed_state(app, &data_dir);
 
             let is_setup_completed = db::is_setup_completed_internal(app.handle());
 
@@ -199,40 +187,6 @@ pub fn run() {
                 });
             }
 
-            // 初始化 Markdown 运行时状态。即使暂未配置工作区，命令状态也必须存在，
-            // 否则前端请求分类/文件列表时会触发 Tauri 的 state not managed 错误。
-            let fallback_config_dir = data_dir.join(".snippets-code");
-            if let Err(e) = std::fs::create_dir_all(&fallback_config_dir) {
-                log::warn!(
-                    "⚠️ [初始化] 创建默认 Markdown 配置目录失败: {}",
-                    e
-                );
-            }
-            match markdown::CacheManager::new_silent(fallback_config_dir) {
-                Ok(cache_manager) => {
-                    app.manage(Arc::new(RwLock::new(cache_manager)));
-                }
-                Err(e) => {
-                    log::warn!("⚠️ [初始化] 默认 CacheManager 初始化失败: {}", e);
-                }
-            }
-            app.manage(Arc::new(Mutex::new(None::<markdown::FileWatcher>)));
-
-            // 初始化 AutoSyncManager 状态（先设置为 None，后续根据配置启动）
-            app.manage(Arc::new(Mutex::new(None::<git_sync::AutoSyncManager>)));
-
-            // 初始化桌面文件监听器状态（必须持久化保存，否则 watcher 会在 setup 结束后被释放）
-            app.manage(Arc::new(Mutex::new(None::<desktop_watcher::DesktopFileWatcher>)));
-
-            // 初始化待处理的 Git 冲突队列（用于启动时 pull 检测到冲突但 Config 窗口未就绪）
-            app.manage(Arc::new(Mutex::new(Vec::<git_sync::ConflictPayload>::new())));
-
-            // 初始化待处理的 Git 仓库不存在队列（用于启动时 pull 检测到远程仓库不存在但 Config 窗口未就绪）
-            app.manage(Arc::new(Mutex::new(Vec::<git_sync::RepoNotFoundPayload>::new())));
-
-            // 初始化待处理的「系统打开 Markdown 文件」队列（用于双击/关联打开 .md 时 Config 窗口未就绪）
-            app.manage(Arc::new(Mutex::new(Vec::<String>::new())));
-
             // === Dark Mode 调度器：立即在后台启动（与窗口初始化完全并行）===
             let app_handle_scheduler = app.handle().clone();
             tauri::async_runtime::spawn(async move {
@@ -248,65 +202,7 @@ pub fn run() {
                 }
             });
 
-            // 监听 config_ready 事件，发送待处理的冲突
-            // 使用全局监听器而不是窗口监听器，确保能收到前端发送的事件
-            let app_handle_conflict = app.handle().clone();
-            let _listener_id = app.listen("config_ready", move |_event| {
-                if let Some(pending_conflicts) = app_handle_conflict.try_state::<Arc<Mutex<Vec<git_sync::ConflictPayload>>>>() {
-                    if let Ok(mut queue) = pending_conflicts.lock() {
-                        if !queue.is_empty() {
-                            for payload in queue.iter() {
-                                if let Err(e) = app_handle_conflict.emit_to("config", "git-conflict-detected", payload.clone()) {
-                                    log::error!("❌ [Git] 发送待处理冲突失败: {}", e);
-                                }
-                            }
-                            queue.clear();
-                        }
-                    }
-                }
-            });
-
-            // 监听 config_ready 事件，发送待处理的「仓库不存在」通知
-            let app_handle_repo_not_found = app.handle().clone();
-            let _repo_not_found_listener_id = app.listen("config_ready", move |_event| {
-                if let Some(pending_repo_not_found) = app_handle_repo_not_found.try_state::<Arc<Mutex<Vec<git_sync::RepoNotFoundPayload>>>>() {
-                    if let Ok(mut queue) = pending_repo_not_found.lock() {
-                        if !queue.is_empty() {
-                            for payload in queue.iter() {
-                                if let Err(e) = app_handle_repo_not_found.emit_to("config", "git-repo-not-found", payload.clone()) {
-                                    log::error!("❌ [Git] 发送待处理仓库不存在通知失败: {}", e);
-                                }
-                            }
-                            queue.clear();
-                        }
-                    }
-                }
-            });
-
-            // 监听 config_ready 事件，发送待处理的「系统打开 Markdown 文件」请求
-            let app_handle_open_file = app.handle().clone();
-            let _open_file_listener_id = app.listen("config_ready", move |_event| {
-                if let Some(queue_state) = app_handle_open_file.try_state::<Arc<Mutex<Vec<String>>>>() {
-                    if let Ok(mut queue) = queue_state.lock() {
-                        if !queue.is_empty() {
-                            #[derive(Serialize, Clone)]
-                            struct OpenMarkdownFromSystemPayload {
-                                file_path: String,
-                            }
-
-                            for p in queue.iter() {
-                                let payload = OpenMarkdownFromSystemPayload {
-                                    file_path: p.clone(),
-                                };
-                                if let Err(e) = app_handle_open_file.emit_to("config", "open-markdown-from-system", payload) {
-                                    log::error!("❌ [OpenFile] 发送待处理文件失败: {}", e);
-                                }
-                            }
-                            queue.clear();
-                        }
-                    }
-                }
-            });
+            app_setup::register_pending_event_forwarders(app);
 
             // 如果已完成设置，才初始化数据库
             if is_setup_completed {

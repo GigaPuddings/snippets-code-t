@@ -1,8 +1,26 @@
 # Developer Workbench 架构收敛方案
 
-> 状态：P2-C Developer Workbench Shell 已启动
+> 状态：P0-P2 当前架构基线已收口，进入持续产品化阶段
 > 更新日期：2026-09-05
 > 范围：Workspace、Universal Search、Plugin Platform、AI Capability Layer
+
+## 0. 阶段收口
+
+本轮收口的“完成”指 P0-P2 的可运行架构基线已经集成并通过门禁，不代表长期路线图中的每个外部资源、AI 模型和插件都随主程序预装。需要模型、可执行资源或第三方凭据的能力仍按插件资源包和 provider 配置按需启用。
+
+| 阶段 | 状态 | 已落地边界 |
+| --- | --- | --- |
+| P0 架构治理 | 已完成 | 核心/插件/数据/文档目录边界、主题与权限约束、全仓 lint/stylelint 门禁和架构文档已建立 |
+| P1-A Rust 模块化 | 已完成首批职责拆分 | `app_config` 已收敛为门面并按配置模型、持久化、下载、安装、资源和命令拆分；Git 的 Command、Application、Service、Repository 以及配置、历史、自动同步、冲突职责分层；`lib.rs` 的状态初始化和事件转发迁入 `app_setup` |
+| P1-B Plugin Capability API | 已完成 | 插件通过 `workspace`、`storage`、`search`、`ai`、`network`、`clipboard`、`notification`、`window` 命名空间接入；旧 `api.invoke` 仅作为权限门禁下的兼容入口 |
+| P1-C 数据库隔离 | 已完成 | `core.db` 保存不可丢用户状态，`search.db` 保存可重建索引；旧库通过 staging 原子迁移，删除 `search.db` 不会恢复旧索引或损坏核心数据 |
+| P2-A Universal Search | 已完成基线 | 搜索应用服务、来源目录与注册表、排序去重、历史权重、provider 超时降级和诊断已统一 |
+| P2-B AI Provider | 已完成基线 | provider/context registry、状态探测、默认偏好、chat/stream/translate 服务和插件注册清理已统一 |
+| P2-C Developer Workbench | 已完成基线 | Workbench 成为配置窗口默认产品首页，统一展示工作区、最近内容、搜索源、插件与 AI 健康状态，并提供全局搜索和产品能力入口 |
+
+收口验证包括：`pnpm lint`、`pnpm lint:style`、`pnpm test`（537 项）、`pnpm build`、`cargo fmt --check`、`cargo clippy --all-targets -- -D warnings`、`cargo test --all-targets`（25 项）、本地插件市场校验以及 Tauri debug 无 bundle 构建。原生隔离数据目录启动验收确认 Workbench 能读取工作区内容，窗口可响应，并通过 `config_ready` 正常完成启动切换。
+
+当前 ESLint 仍保留历史 warning 基线，但没有 error；warning 的逐步降噪属于持续治理，不阻断本轮集成。
 
 ## 1. 长期产品形态
 
@@ -77,7 +95,7 @@ Screenshot、OCR、Recorder、Translation、Todo、Wallpaper、Launcher、Local 
 - `src/ai/localAiProvider.ts`：将标准 `AiRequestContext` 转换为 Local AI system message，让现有 Rust chat 后端可以实际消费上下文。
 - Local AI 提示词增强、Pin OCR 翻译、AI OCR 和截图视觉翻译已通过 `contextCollection` 进入内置 selection provider，不再在产品调用点手写 selection context payload。
 
-目标：
+后续演进：
 
 - 继续统一本地/远端 AI provider。
 - 继续完善 workspace context、selection context、search context 的注入策略。
@@ -96,7 +114,7 @@ Screenshot、OCR、Recorder、Translation、Todo、Wallpaper、Launcher、Local 
 - 配置窗口的新建与启动过渡默认进入 Workbench 首页，Workspace 内容管理仍保留为独立一线入口。
 - Workbench 状态模型提升到 `src/workbench`，由产品首页和设置总览共同复用，避免产品页面依赖设置页私有实现。
 
-目标：
+后续演进：
 
 - Workspace 视图承载 Markdown、Snippet、Assets、Git。
 - Universal Search 成为跨内容、应用、文件、书签和工具的主入口。
