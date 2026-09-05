@@ -14,15 +14,21 @@ const Qw = (e) => {
     path: "local",
     name: "Local",
     component: () => Promise.resolve().then(() => Zw)
-  }), e.registerSearchProvider({
+  }), e.search.registerProvider({
     source: "local-launcher",
     async search(t) {
-      const n = [], o = await e.api.invoke("search_apps", { query: t });
+      const n = [], o = await e.api.invoke(
+        "search_apps",
+        { query: t }
+      );
       Array.isArray(o) && n.push({
         source: "app",
         items: o.filter(ri)
       });
-      const r = await e.api.invoke("search_bookmarks", { query: t });
+      const r = await e.api.invoke(
+        "search_bookmarks",
+        { query: t }
+      );
       return Array.isArray(r) && n.push({
         source: "bookmark",
         items: r.filter(ri).slice(0, 10)
@@ -9750,7 +9756,9 @@ const E1 = ["disabled"], k1 = {
     type: {
       type: String,
       default: "default",
-      validator: (e) => ["default", "primary", "success", "danger", "warning", "text"].includes(e)
+      validator: (e) => ["default", "primary", "success", "danger", "warning", "text"].includes(
+        e
+      )
     },
     size: {
       type: String,
@@ -9818,7 +9826,7 @@ const E1 = ["disabled"], k1 = {
   for (const [o, r] of t)
     n[o] = r;
   return n;
-}, wo = /* @__PURE__ */ Wn(T1, [["__scopeId", "data-v-5d7f8015"]]), $1 = { class: "dialog-footer-default" }, O1 = { class: "footer-left" }, I1 = { class: "footer-right" }, A1 = /* @__PURE__ */ D({
+}, wo = /* @__PURE__ */ Wn(T1, [["__scopeId", "data-v-8539c893"]]), $1 = { class: "dialog-footer-default" }, O1 = { class: "footer-left" }, I1 = { class: "footer-right" }, A1 = /* @__PURE__ */ D({
   __name: "CommonDialog",
   props: {
     modelValue: { type: Boolean, default: !1 },
@@ -9839,7 +9847,9 @@ const E1 = ["disabled"], k1 = {
   },
   emits: ["update:modelValue", "confirm", "cancel", "close"],
   setup(e, { expose: t, emit: n }) {
-    const o = e, r = n, i = O(o.modelValue), s = S(() => ["app-dialog", o.customClass].filter(Boolean).join(" "));
+    const o = e, r = n, i = O(o.modelValue), s = S(
+      () => ["app-dialog", o.customClass].filter(Boolean).join(" ")
+    );
     Z(
       () => o.modelValue,
       (c) => {
@@ -9936,7 +9946,7 @@ const E1 = ["disabled"], k1 = {
       ]), 1032, ["modelValue", "title", "width", "close-on-click-modal", "draggable", "center", "show-close", "close-on-press-escape", "append-to-body", "align-center", "custom-class"]);
     };
   }
-}), Ml = /* @__PURE__ */ Wn(A1, [["__scopeId", "data-v-a7e8a5d6"]]), x1 = { class: "confirm-content" }, P1 = { class: "confirm-footer" }, F1 = /* @__PURE__ */ D({
+}), Ml = /* @__PURE__ */ Wn(A1, [["__scopeId", "data-v-71ae260f"]]), x1 = { class: "confirm-content" }, P1 = { class: "confirm-footer" }, F1 = /* @__PURE__ */ D({
   __name: "ConfirmDialog",
   props: {
     modelValue: { type: Boolean, default: !1 },
@@ -10035,7 +10045,7 @@ const E1 = ["disabled"], k1 = {
       /* FORWARDED */
     }, 8, ["modelValue", "title", "width", "center", "show-close", "custom-class"]));
   }
-}), L1 = /* @__PURE__ */ Wn(F1, [["__scopeId", "data-v-875c8d56"]]), M1 = { class: "icon-section" }, R1 = { class: "icon-display" }, N1 = {
+}), L1 = /* @__PURE__ */ Wn(F1, [["__scopeId", "data-v-a3c6b31a"]]), M1 = { class: "icon-section" }, R1 = { class: "icon-display" }, N1 = {
   key: 0,
   class: "icon-preview has-icon"
 }, z1 = ["src", "alt"], B1 = { class: "icon-overlay" }, j1 = {
@@ -10059,7 +10069,11 @@ const E1 = ["disabled"], k1 = {
         { min: 1, max: 100, message: o("editDialog.nameLength"), trigger: "blur" }
       ],
       content: [
-        { required: !0, message: r.type === "app" ? o("editDialog.pathRequired") : o("editDialog.urlRequired"), trigger: "blur" }
+        {
+          required: !0,
+          message: r.type === "app" ? o("editDialog.pathRequired") : o("editDialog.urlRequired"),
+          trigger: "blur"
+        }
       ]
     }));
     Z(
@@ -10078,16 +10092,23 @@ const E1 = ["disabled"], k1 = {
     }, p = () => {
       s.value = !1, he(() => {
         a.value?.resetFields(), a.value?.clearValidate();
-      }), Object.assign(c, { id: void 0, title: "", content: "", icon: null });
+      }), Object.assign(c, {
+        id: void 0,
+        title: "",
+        content: "",
+        icon: null
+      });
     }, v = async () => {
       try {
         const m = await C1({
           multiple: !1,
           directory: !1,
-          filters: [{
-            name: o("editDialog.executableFiles"),
-            extensions: ["exe", "lnk"]
-          }]
+          filters: [
+            {
+              name: o("editDialog.executableFiles"),
+              extensions: ["exe", "lnk"]
+            }
+          ]
         });
         if (m && typeof m == "string") {
           if (c.content = m, !c.title) {
@@ -10096,9 +10117,12 @@ const E1 = ["disabled"], k1 = {
           }
           try {
             d.value = !0;
-            const w = await ke("extract_icon_from_app", {
-              appPath: m
-            });
+            const w = await ke(
+              "extract_icon_from_app",
+              {
+                appPath: m
+              }
+            );
             w && (c.icon = w);
           } catch (w) {
             console.error("提取图标失败:", w);
@@ -10245,7 +10269,9 @@ const E1 = ["disabled"], k1 = {
                   x(T, {
                     modelValue: l(c).title,
                     "onUpdate:modelValue": w[0] || (w[0] = (j) => l(c).title = j),
-                    placeholder: m.$t("editDialog.namePlaceholder", { type: m.type === "app" ? m.$t("local.apps") : m.$t("local.bookmarks") }),
+                    placeholder: m.$t("editDialog.namePlaceholder", {
+                      type: m.type === "app" ? m.$t("local.apps") : m.$t("local.bookmarks")
+                    }),
                     clearable: ""
                   }, null, 8, ["modelValue", "placeholder"])
                 ]),
@@ -10503,7 +10529,7 @@ const E1 = ["disabled"], k1 = {
       }, 8, ["modelValue", "title"]);
     };
   }
-}), ow = /* @__PURE__ */ Wn(nw, [["__scopeId", "data-v-3dcc1e80"]]), rw = (e) => String(e ?? "").trim().toLowerCase(), Rl = (e) => {
+}), ow = /* @__PURE__ */ Wn(nw, [["__scopeId", "data-v-94eb7139"]]), rw = (e) => String(e ?? "").trim().toLowerCase(), Rl = (e) => {
   const t = e.metadata?.source;
   return typeof t == "string" ? t : e.summarize ?? "text";
 }, br = (e) => String(e.metadata?.raw_id ?? e.id), iw = (e) => rw(e).replace(/\\/g, "/").replace(/\/+$/, ""), eo = (e, t, n) => {

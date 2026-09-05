@@ -1,13 +1,11 @@
 import { getCurrentInstance as we, inject as oe, ref as P, computed as _, unref as o, readonly as vl, getCurrentScope as ml, onScopeDispose as yl, onMounted as Oe, nextTick as mn, watch as et, isRef as yn, warn as bl, provide as kl, defineComponent as N, createElementBlock as C, openBlock as y, mergeProps as _l, renderSlot as ge, createElementVNode as s, normalizeClass as z, createVNode as d, Transition as Tt, withCtx as se, withDirectives as Ve, normalizeStyle as Be, createTextVNode as V, toDisplayString as f, vShow as Ke, shallowReactive as Cl, createBlock as j, createCommentVNode as F, resolveDynamicComponent as bn, Fragment as q, withModifiers as Ie, isVNode as Pe, render as Ge, onUnmounted as kn, renderList as We, withKeys as _n, useId as Sl } from "vue";
 import { useI18n as te } from "vue-i18n";
 const Xr = (e) => {
-  e.registerRoute({
-    target: "window",
+  e.window.create({
     path: "/wallpaper-switcher",
     name: "WallpaperSwitcher",
-    component: () => Promise.resolve().then(() => Jr)
-  }), e.registerWindowShortcut({
-    label: "wallpaper_switcher"
+    component: () => Promise.resolve().then(() => Jr),
+    shortcutLabel: "wallpaper_switcher"
   });
 };
 function Ll(e, t, n, l) {

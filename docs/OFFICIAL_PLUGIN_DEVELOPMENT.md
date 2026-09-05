@@ -19,7 +19,9 @@ plugin-registry/packages/<plugin-id>/
   dist/frontend.js
 ```
 
-运行时入口必须调用与 manifest 能力匹配的插件桥注册方法。以快速搜索工具为例，`plugin.json` 需要在 `capabilities.searchSources` 中声明搜索来源，`runtime-entry.ts` 需要调用 `context.registerSearchProvider(...)`。AI provider 同理需要声明 `capabilities.aiProviders`，并通过 `context.registerAiProvider(...)` 注册。AI 上下文来源需要声明 `capabilities.aiContextProviders`，并通过 `context.registerAiContextProvider(...)` 注册。
+运行时入口必须调用与 manifest 能力匹配的插件桥注册方法。以快速搜索工具为例，`plugin.json` 需要在 `capabilities.searchSources` 中声明搜索来源，`runtime-entry.ts` 需要调用 `context.search.registerProvider(...)`。旧的 `context.registerSearchProvider(...)` 仍作为兼容层保留，但新增或迁移官方插件应优先使用 capability namespace。
+
+AI provider 同理需要声明 `capabilities.aiProviders`，并通过 `context.ai.registerProvider(...)` 注册。AI 上下文来源需要声明 `capabilities.aiContextProviders`，并通过 `context.ai.registerContextProvider(...)` 注册。旧的 `context.registerAiProvider(...)`、`context.registerAiContextProvider(...)` 和 `context.api.invoke(...)` 保持兼容；`api.invoke` 仍检查原有命令权限。
 
 ## 应用接入清单
 
@@ -106,7 +108,7 @@ pnpm plugins:verify-marketplace -- --local
 ## 快速搜索插件清单
 
 - manifest 声明 `capabilities.searchSources`。
-- 运行时入口导入搜索提供器，并通过 `context.registerSearchProvider` 注册。
+- 运行时入口导入搜索提供器，并通过 `context.search.registerProvider` 注册。
 - Search provider 默认处于 `results` 阶段；需要在 URL 判断后、索引搜索前抢占结果时使用 `phase: 'preflight'`，需要在排序后追加兜底结果时使用 `phase: 'append'`。
 - marketplace 版本高于用户已安装插件版本，这样插件设置页才会显示可更新。
 - 已安装插件处于启用状态。
@@ -116,7 +118,7 @@ pnpm plugins:verify-marketplace -- --local
 ## AI Provider 插件清单
 
 - manifest 声明 `capabilities.aiProviders`。
-- 运行时入口通过 `context.registerAiProvider` 注册 provider，并声明 `chat`、`vision` 或 `translation` capability。
+- 运行时入口通过 `context.ai.registerProvider` 注册 provider，并声明 `chat`、`vision` 或 `translation` capability。
 - provider 可以可选实现 `streamChat` 和 `cancelChatStream`；没有实现 `streamChat` 时，应用层会回退到普通 `chat` 并把完整结果作为一次 delta 返回。
 - provider id 必须稳定，不能和其他插件或内置 provider 冲突。
 - 插件禁用或卸载后，runtime 会清理该插件注册的 AI provider。
@@ -124,7 +126,7 @@ pnpm plugins:verify-marketplace -- --local
 ## AI Context Provider 插件清单
 
 - manifest 声明 `capabilities.aiContextProviders`。
-- 运行时入口通过 `context.registerAiContextProvider` 注册 provider，并声明 `workspace`、`selection` 或 `search` kind。
+- 运行时入口通过 `context.ai.registerContextProvider` 注册 provider，并声明 `workspace`、`selection` 或 `search` kind。
 - 应用侧调用 `chatWithAi` 或 `translateWithAi` 时，通过 `contextCollection` 显式收集上下文；内置 provider 支持 `selectionText`、`selectionMetadata`、`currentContent`、`currentFilePath`、`workspaceRoot`、`query` / `searchQuery` 等 input 字段。
 - context provider id 必须在插件内稳定；同一插件重复注册同 id 会替换旧实现。
 - 插件禁用或卸载后，runtime 会清理该插件注册的 AI context provider。

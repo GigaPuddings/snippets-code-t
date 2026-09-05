@@ -1,3 +1,4 @@
+export * from './capabilities';
 export * from './loader';
 export * from './protocol';
 export * from './registry';

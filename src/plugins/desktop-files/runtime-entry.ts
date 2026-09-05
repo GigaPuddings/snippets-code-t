@@ -3,7 +3,7 @@ import { isContentType } from '@/utils/type-guards';
 import type { PluginFrontendRuntimeContext } from '../runtime';
 
 export const activate = (context: PluginFrontendRuntimeContext): void => {
-  context.registerSearchProvider({
+  context.search.registerProvider({
     source: 'desktop-files',
     async search(query) {
       const desktopFileResults = await context.api.invoke<ContentType[]>(

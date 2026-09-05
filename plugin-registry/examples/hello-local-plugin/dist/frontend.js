@@ -39,7 +39,7 @@ export async function activate(context) {
     component: Panel
   });
 
-  context.registerSearchProvider({
+  context.search.registerProvider({
     source: 'hello-local-plugin',
     async search(query) {
       if (!query.toLowerCase().includes('hello')) {
