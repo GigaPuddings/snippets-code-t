@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import {
   MARKETPLACE_PATH,
+  OWNER,
   pluginRepositories,
   ROOT
 } from './plugin-release-config.mjs';
@@ -288,6 +289,18 @@ async function verifyInstallablePackage(item) {
   );
   const archive = parseGithubArchivePackageUrl(item.packageUrl);
   const releaseAsset = parseGithubReleaseAssetPackageUrl(item.packageUrl);
+  if (item.packageSubdir) {
+    assert(
+      archive?.owner === OWNER && archive.repo === 'snippets-code-t',
+      `${item.id}: packageSubdir 只能引用主仓库归档`
+    );
+    if (archive.refKind === 'heads') {
+      assert(
+        archive.ref === 'main',
+        `${item.id}: 正式 marketplace 不允许引用临时分支 (${archive.ref})`
+      );
+    }
+  }
   const isDevelopmentSubdirArchive = Boolean(
     item.packageSubdir && archive?.refKind === 'heads'
   );
