@@ -1,13 +1,21 @@
 import { describe, expect, it, vi } from 'vitest';
 import { useConfigStartup } from './useConfigStartup';
 
-const createStartup = (
-  overrides: {
-    emitError?: Error;
-    shouldInit?: boolean;
-    measureValues?: number[];
-  } = {}
-) => {
+const uninstallCleanupPathReport = {
+  executablePath: 'C:\\Program Files\\snippets-code\\snippets-code.exe',
+  dataDir: 'D:\\snippets-code',
+  workspaceDir: 'D:\\workspace',
+  pluginDir: 'D:\\snippets-code\\packages\\plugins'
+};
+
+interface StartupOverrides {
+  emitError?: Error;
+  refreshError?: Error;
+  shouldInit?: boolean;
+  measureValues?: number[];
+}
+
+const createStartup = (overrides: StartupOverrides = {}) => {
   const measureValues = [...(overrides.measureValues ?? [100, 125, 160])];
   const window = {
     emit: vi.fn(async () => {
@@ -16,7 +24,6 @@ const createStartup = (
       }
     })
   };
-  const getWindow = vi.fn(() => window);
   const deps = {
     initializePlugins: vi.fn(async () => undefined),
     onReadyNavigationCheck: vi.fn(),
@@ -25,12 +32,17 @@ const createStartup = (
       info: vi.fn(),
       warn: vi.fn()
     },
-    getWindow,
+    getWindow: vi.fn(() => window),
     now: vi.fn(() => 1234),
     measureNow: vi.fn(() => measureValues.shift() ?? 160),
     nextRender: vi.fn((callback: () => void) => {
       callback();
     }),
+    refreshUninstallCleanupPaths: vi.fn(() =>
+      overrides.refreshError
+        ? Promise.reject(overrides.refreshError)
+        : Promise.resolve(uninstallCleanupPathReport)
+    ),
     checkShouldInitialize: vi.fn(async () => overrides.shouldInit ?? true),
     initCleanupCache: vi.fn(async () => undefined)
   };
@@ -98,5 +110,26 @@ describe('useConfigStartup', () => {
       })
     );
     expect(deps.onReadyNavigationCheck).toHaveBeenCalled();
+  });
+});
+
+describe('uninstall cleanup path startup refresh', () => {
+  it('logs failures without blocking startup', async () => {
+    const { startup, deps } = createStartup({
+      refreshError: new Error('registry denied'),
+      shouldInit: false
+    });
+
+    await expect(startup.start()).resolves.toEqual({
+      shouldInit: false
+    });
+
+    expect(deps.logger.warn).toHaveBeenCalledWith(
+      '[Config] 卸载清理路径刷新失败',
+      expect.objectContaining({
+        error: 'registry denied'
+      })
+    );
+    expect(deps.initializePlugins).toHaveBeenCalledOnce();
   });
 });

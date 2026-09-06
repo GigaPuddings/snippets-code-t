@@ -4,6 +4,10 @@ import {
   checkShouldInitialize as defaultCheckShouldInitialize,
   initCleanupCache as defaultInitCleanupCache
 } from '@/utils/app-init';
+import {
+  refreshUninstallCleanupPaths as defaultRefreshUninstallCleanupPaths,
+  type UninstallCleanupPathReport
+} from '@/api/uninstall';
 import { logger as defaultLogger } from '@/utils/logger';
 
 type ConfigStartupLogger = {
@@ -26,6 +30,23 @@ export interface ConfigStartupDeps {
   nextRender?: (callback: () => void) => void;
   checkShouldInitialize?: () => Promise<boolean>;
   initCleanupCache?: () => Promise<void>;
+  refreshUninstallCleanupPaths?: () => Promise<UninstallCleanupPathReport>;
+}
+
+async function refreshUninstallPaths(
+  refresh: () => Promise<UninstallCleanupPathReport>,
+  logger: ConfigStartupLogger,
+  now: () => number
+): Promise<void> {
+  try {
+    const report = await refresh();
+    logger.info('[Config] 卸载清理路径已刷新', report);
+  } catch (error) {
+    logger.warn('[Config] 卸载清理路径刷新失败', {
+      error: error instanceof Error ? error.message : String(error),
+      ts: now()
+    });
+  }
 }
 
 export function useConfigStartup(deps: ConfigStartupDeps) {
@@ -37,6 +58,8 @@ export function useConfigStartup(deps: ConfigStartupDeps) {
   const checkShouldInitialize =
     deps.checkShouldInitialize ?? defaultCheckShouldInitialize;
   const initCleanupCache = deps.initCleanupCache ?? defaultInitCleanupCache;
+  const refreshUninstallCleanupPaths =
+    deps.refreshUninstallCleanupPaths ?? defaultRefreshUninstallCleanupPaths;
 
   const start = async () => {
     const initStart = measureNow();
@@ -69,6 +92,8 @@ export function useConfigStartup(deps: ConfigStartupDeps) {
         deps.onReadyNavigationCheck();
       })();
     });
+
+    await refreshUninstallPaths(refreshUninstallCleanupPaths, logger, now);
 
     await deps.initializePlugins();
 

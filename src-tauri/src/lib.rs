@@ -542,6 +542,7 @@ pub fn run() {
             is_setup_completed,               // 检查是否已完成首次设置
             set_setup_completed,              // 标记首次设置已完成
             set_data_dir_from_setup,          // 从设置向导保存数据目录
+            uninstall::refresh_uninstall_cleanup_paths, // 刷新 Windows 卸载清理路径
             plugins::todo::get_alarm_cards,                  // 获取代办提醒卡片
             plugins::todo::add_alarm_card,                   // 添加代办提醒卡片
             plugins::todo::update_alarm_card,                // 更新代办提醒卡片
