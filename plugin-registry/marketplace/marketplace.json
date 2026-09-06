@@ -5,7 +5,7 @@
   "plugins": [
     {
       "id": "screenshot",
-      "version": "2.0.56",
+      "version": "2.0.57",
       "name": {
         "i18nKey": "plugins.screenshot.name",
         "fallback": "Screenshot, OCR, and Pins"
@@ -15,17 +15,25 @@
         "fallback": "Screenshot annotation, color picker, pin windows, OCR, and screenshot translation."
       },
       "category": "capture",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/archive/refs/tags/2.0.56.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/archive/refs/tags/2.0.57.zip",
       "builtinPluginId": "screenshot",
       "status": "included",
       "sizeBytes": 694267,
-      "sha256": "de113f6096ceff7f47cc1566dd79e73f5abf3fa6019e688840d0ef28c0a57e6a",
-      "dependencies": ["screenshot-rapidocr", "translation", "local-ai"],
-      "tags": ["screenshot", "ocr", "pin"],
-      "minAppVersion": "2.1.55",
-      "compatibleAppVersion": ">=2.1.55",
+      "sha256": "2f9a7a5152c9a654b34b21e1c15748bc4c123a26a21c6023edb443231ca9d41f",
+      "dependencies": [
+        "screenshot-rapidocr",
+        "translation",
+        "local-ai"
+      ],
+      "tags": [
+        "screenshot",
+        "ocr",
+        "pin"
+      ],
+      "minAppVersion": "2.1.61",
+      "compatibleAppVersion": ">=2.1.61",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot",
-      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/releases/tag/2.0.56"
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/releases/tag/2.0.57"
     },
     {
       "id": "screenshot-rapidocr",
@@ -43,7 +51,11 @@
       "status": "available",
       "sizeBytes": 168905850,
       "sha256": "0b8b4188766e606a542a0821dc6d501b05be0446734471d5b69b2e78f34d49b6",
-      "tags": ["ocr", "resource", "rapidocr"],
+      "tags": [
+        "ocr",
+        "resource",
+        "rapidocr"
+      ],
       "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot-rapidocr/archive/refs/tags/2.0.6.zip",
       "mirrorUrls": [
         "https://ghfast.top/https://github.com/GigaPuddings/snippets-code-plugin-screenshot-rapidocr/archive/refs/tags/2.0.6.zip"
@@ -70,8 +82,15 @@
       "status": "included",
       "sizeBytes": 156182,
       "sha256": "c537cbf46333212410fd72d0a817088a11fc7eb9a841ff5aecb7c781d5a110ef",
-      "dependencies": ["screen-recorder-ffmpeg"],
-      "tags": ["screen-recording", "mp4", "gif", "ffmpeg"],
+      "dependencies": [
+        "screen-recorder-ffmpeg"
+      ],
+      "tags": [
+        "screen-recording",
+        "mp4",
+        "gif",
+        "ffmpeg"
+      ],
       "minAppVersion": "2.1.40",
       "compatibleAppVersion": ">=2.1.40",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-screen-recorder",
@@ -93,7 +112,11 @@
       "status": "available",
       "sizeBytes": 236918515,
       "sha256": "71f48f29bcbe76dd44a92b6e827d6072c94fe45a264aedf60082b8e9494111f9",
-      "tags": ["screen-recording", "resource", "ffmpeg"],
+      "tags": [
+        "screen-recording",
+        "resource",
+        "ffmpeg"
+      ],
       "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screen-recorder-ffmpeg/archive/refs/tags/2.0.5.zip",
       "mirrorUrls": [
         "https://ghfast.top/https://github.com/GigaPuddings/snippets-code-plugin-screen-recorder-ffmpeg/archive/refs/tags/2.0.5.zip"
@@ -120,8 +143,13 @@
       "status": "included",
       "sizeBytes": 730929,
       "sha256": "2158ff422b13cca6afbf4435679e9dda78ea82e404dff58b66f217399e4364cc",
-      "dependencies": ["translation-offline-runtime"],
-      "tags": ["translate", "offline"],
+      "dependencies": [
+        "translation-offline-runtime"
+      ],
+      "tags": [
+        "translate",
+        "offline"
+      ],
       "minAppVersion": "2.1.55",
       "compatibleAppVersion": ">=2.1.55",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-translation",
@@ -143,7 +171,11 @@
       "status": "available",
       "sizeBytes": 1607,
       "sha256": "9d55632591046fe764c01a36a1a8928f40bc92165c23205f4846a5b6abccea38",
-      "tags": ["translate", "resource", "offline"],
+      "tags": [
+        "translate",
+        "resource",
+        "offline"
+      ],
       "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-translation-offline-runtime/archive/refs/tags/2.0.7.zip",
       "minAppVersion": "1.5.6",
       "compatibleAppVersion": ">=1.5.6",
@@ -166,8 +198,14 @@
       "status": "available",
       "sizeBytes": 403478,
       "sha256": "562c77bd8a1013901aa448bbe4986d99fadeaea10056f3feadae0e656ba6b2a5",
-      "dependencies": ["local-ai-llama-runtime"],
-      "tags": ["ai", "llama", "local"],
+      "dependencies": [
+        "local-ai-llama-runtime"
+      ],
+      "tags": [
+        "ai",
+        "llama",
+        "local"
+      ],
       "minAppVersion": "2.1.60",
       "compatibleAppVersion": ">=2.1.60",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai",
@@ -189,7 +227,12 @@
       "status": "available",
       "sizeBytes": 735854186,
       "sha256": "7ef156412cf4c7e79301ec6c39317b0cda68c928e7249bcc217c0d218087cf03",
-      "tags": ["ai", "llama", "resource", "cuda"],
+      "tags": [
+        "ai",
+        "llama",
+        "resource",
+        "cuda"
+      ],
       "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai-llama-runtime/releases/download/1.0.0/local-ai-llama-runtime-1.0.0.zip",
       "mirrorUrls": [
         "https://ghfast.top/https://github.com/GigaPuddings/snippets-code-plugin-local-ai-llama-runtime/releases/download/1.0.0/local-ai-llama-runtime-1.0.0.zip"
@@ -216,7 +259,10 @@
       "status": "included",
       "sizeBytes": 874246,
       "sha256": "ee3a47f65fc4651e7c869967627d4eb38e13cfe89cd75ba64fa608010cc201ca",
-      "tags": ["todo", "reminder"],
+      "tags": [
+        "todo",
+        "reminder"
+      ],
       "minAppVersion": "2.1.42",
       "compatibleAppVersion": ">=2.1.42",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-todo",
@@ -239,7 +285,10 @@
       "status": "included",
       "sizeBytes": 651092,
       "sha256": "c07c19d8686c0ed90083bf53237be0488df8c670a7acfcddfb862232cb786b7e",
-      "tags": ["theme", "dark-mode"],
+      "tags": [
+        "theme",
+        "dark-mode"
+      ],
       "minAppVersion": "2.1.42",
       "compatibleAppVersion": ">=2.1.42",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-system-theme",
@@ -262,7 +311,11 @@
       "status": "included",
       "sizeBytes": 178217,
       "sha256": "4bd6b40a455d0397fa291efdada45d7b9d3b6acc8372e74e3f7fc823413c14cf",
-      "tags": ["wallpaper", "wallhaven", "appearance"],
+      "tags": [
+        "wallpaper",
+        "wallhaven",
+        "appearance"
+      ],
       "minAppVersion": "2.1.50",
       "compatibleAppVersion": ">=2.1.50",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-wallpaper-switcher",
@@ -285,7 +338,11 @@
       "status": "included",
       "sizeBytes": 469478,
       "sha256": "9016ff2a5b2ab2150523f200f2a80f773c4ed8ae7d9cefd9ccec274794b5b369",
-      "tags": ["apps", "bookmarks", "launcher"],
+      "tags": [
+        "apps",
+        "bookmarks",
+        "launcher"
+      ],
       "minAppVersion": "2.1.54",
       "compatibleAppVersion": ">=2.1.54",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-local-launcher",
@@ -308,7 +365,11 @@
       "status": "included",
       "sizeBytes": 1425,
       "sha256": "4578ccb5e4e1a1226529ce6a08b81009377d7a829580084788636f5fd56f3d77",
-      "tags": ["desktop", "files", "search"],
+      "tags": [
+        "desktop",
+        "files",
+        "search"
+      ],
       "minAppVersion": "2.1.42",
       "compatibleAppVersion": ">=2.1.42",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-desktop-files",
@@ -331,7 +392,12 @@
       "status": "included",
       "sizeBytes": 14324,
       "sha256": "729a942140feee797de283a0e2f76874f1691b09d2bfd97510fa7c3625ad9505",
-      "tags": ["calculator", "currency", "unit", "search"],
+      "tags": [
+        "calculator",
+        "currency",
+        "unit",
+        "search"
+      ],
       "minAppVersion": "2.0.2",
       "compatibleAppVersion": ">=2.0.2",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-quick-tools",
@@ -354,7 +420,10 @@
       "status": "included",
       "sizeBytes": 660082,
       "sha256": "04afc40035d71c2b7bb0beddda670dc449f53d382b272bc73bc4419b421aac24",
-      "tags": ["git", "sync"],
+      "tags": [
+        "git",
+        "sync"
+      ],
       "minAppVersion": "2.1.40",
       "compatibleAppVersion": ">=2.1.40",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-git-sync",
@@ -376,7 +445,10 @@
       "packageSubdir": "plugin-registry/examples/hello-local-plugin",
       "status": "available",
       "sizeBytes": 2837,
-      "tags": ["example", "plugin"]
+      "tags": [
+        "example",
+        "plugin"
+      ]
     }
   ]
 }

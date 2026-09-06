@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "screenshot",
-  "version": "2.0.56",
+  "version": "2.0.57",
   "kind": "local",
   "name": {
     "i18nKey": "plugins.screenshot.name",
@@ -14,22 +14,37 @@
   "category": "capture",
   "enabledByDefault": true,
   "capabilities": {
-    "routeNames": ["Screenshot", "Pin"],
-    "hotkeys": ["screenshot"],
-    "trayItems": ["screenshot"]
+    "routeNames": [
+      "Screenshot",
+      "Pin"
+    ],
+    "hotkeys": [
+      "screenshot"
+    ],
+    "trayItems": [
+      "screenshot"
+    ]
   },
   "resources": {
     "hintKey": "plugins.screenshot.resourceHint",
     "bundled": false
   },
-  "permissions": ["command:*"],
-  "dependencies": ["screenshot-rapidocr", "translation", "local-ai"],
-  "compatibleAppVersion": ">=2.1.55",
+  "permissions": [
+    "command:*"
+  ],
+  "dependencies": [
+    "screenshot-rapidocr",
+    "translation",
+    "local-ai"
+  ],
+  "compatibleAppVersion": ">=2.1.61",
   "entry": {
     "frontend": "dist/frontend.js",
-    "styles": ["dist/assets/runtime-entry-Cpxn3yhl.css"]
+    "styles": [
+      "dist/assets/runtime-entry-DGbLx9ma.css"
+    ]
   },
-  "minAppVersion": "2.1.55",
+  "minAppVersion": "2.1.61",
   "repository": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot",
-  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/releases/tag/2.0.56"
+  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/releases/tag/2.0.57"
 }
