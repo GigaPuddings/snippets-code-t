@@ -43,13 +43,28 @@ fn is_safe_cleanup_path(path: &Path) -> bool {
     path.is_absolute() && path.parent().is_some()
 }
 
+fn is_managed_nsis_executable(executable_path: &Path) -> bool {
+    executable_path
+        .parent()
+        .is_some_and(|install_dir| install_dir.join("uninstall.exe").is_file())
+}
+
+#[cfg(target_os = "windows")]
+fn is_managed_nsis_installation() -> bool {
+    std::env::current_exe()
+        .ok()
+        .is_some_and(|executable_path| is_managed_nsis_executable(&executable_path))
+}
+
 #[cfg(target_os = "windows")]
 fn record_path(value_name: &str, path: &Path) {
     use winreg::enums::{HKEY_CURRENT_USER, KEY_WOW64_64KEY, KEY_WRITE};
     use winreg::RegKey;
 
-    if cfg!(debug_assertions) {
-        log::debug!("[Uninstall] debug 构建跳过生产卸载路径登记: {}", value_name);
+    // 只有真实 NSIS 安装目录中才存在同级 uninstall.exe。开发、测试和
+    // Playwright 运行不会写入生产卸载注册表，即使它们使用 release profile。
+    if !is_managed_nsis_installation() {
+        log::debug!("[Uninstall] 非 NSIS 安装环境，跳过路径登记: {}", value_name);
         return;
     }
 
@@ -88,7 +103,7 @@ fn clear_recorded_path(value_name: &str) {
     use winreg::enums::{HKEY_CURRENT_USER, KEY_WOW64_64KEY, KEY_WRITE};
     use winreg::RegKey;
 
-    if cfg!(debug_assertions) {
+    if !is_managed_nsis_installation() {
         return;
     }
 
@@ -123,5 +138,23 @@ mod tests {
         assert!(is_safe_cleanup_path(
             &std::env::temp_dir().join("snippets-code-cleanup-test")
         ));
+    }
+
+    #[test]
+    fn managed_nsis_install_requires_sibling_uninstaller() {
+        let install_dir =
+            std::env::temp_dir().join(format!("snippets-code-nsis-test-{}", std::process::id()));
+        let executable_path = install_dir.join("snippets-code.exe");
+        let uninstaller_path = install_dir.join("uninstall.exe");
+
+        std::fs::create_dir_all(&install_dir).unwrap();
+        let _ = std::fs::remove_file(&uninstaller_path);
+        assert!(!is_managed_nsis_executable(&executable_path));
+
+        std::fs::write(&uninstaller_path, []).unwrap();
+        assert!(is_managed_nsis_executable(&executable_path));
+
+        std::fs::remove_file(uninstaller_path).unwrap();
+        std::fs::remove_dir(install_dir).unwrap();
     }
 }
