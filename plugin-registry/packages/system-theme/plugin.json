@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "system-theme",
-  "version": "2.0.17",
+  "version": "2.0.18",
   "kind": "local",
   "name": {
     "i18nKey": "plugins.systemTheme.name",
@@ -14,17 +14,27 @@
   "category": "appearance",
   "enabledByDefault": true,
   "capabilities": {
-    "routeNames": ["DarkMode"],
-    "hotkeys": ["dark_mode"],
-    "trayItems": ["dark_mode"]
+    "routeNames": [
+      "DarkMode"
+    ],
+    "hotkeys": [
+      "dark_mode"
+    ],
+    "trayItems": [
+      "dark_mode"
+    ]
   },
-  "permissions": ["command:*"],
-  "compatibleAppVersion": ">=2.1.42",
+  "permissions": [
+    "command:*"
+  ],
+  "compatibleAppVersion": ">=2.1.61",
   "entry": {
     "frontend": "dist/frontend.js",
-    "styles": ["dist/assets/runtime-entry-0QtmBkpf.css"]
+    "styles": [
+      "dist/assets/runtime-entry-CSDw1TZN.css"
+    ]
   },
-  "minAppVersion": "2.1.42",
+  "minAppVersion": "2.1.61",
   "repository": "https://github.com/GigaPuddings/snippets-code-plugin-system-theme",
-  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-system-theme/releases/tag/2.0.17"
+  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-system-theme/releases/tag/2.0.18"
 }

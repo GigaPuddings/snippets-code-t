@@ -270,7 +270,7 @@
     },
     {
       "id": "system-theme",
-      "version": "2.0.17",
+      "version": "2.0.18",
       "name": {
         "i18nKey": "plugins.systemTheme.name",
         "fallback": "Auto Dark Mode"
@@ -280,19 +280,19 @@
         "fallback": "Auto dark mode, sunrise/sunset scheduling, and system theme hotkey toggling."
       },
       "category": "appearance",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-system-theme/archive/refs/tags/2.0.17.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-system-theme/archive/refs/tags/2.0.18.zip",
       "builtinPluginId": "system-theme",
       "status": "included",
       "sizeBytes": 651092,
-      "sha256": "c07c19d8686c0ed90083bf53237be0488df8c670a7acfcddfb862232cb786b7e",
+      "sha256": "1937a6039a180b10cbe99847e936ecbb168306e24df4431cf435ec1e7e77920a",
       "tags": [
         "theme",
         "dark-mode"
       ],
-      "minAppVersion": "2.1.42",
-      "compatibleAppVersion": ">=2.1.42",
+      "minAppVersion": "2.1.61",
+      "compatibleAppVersion": ">=2.1.61",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-system-theme",
-      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-system-theme/releases/tag/2.0.17"
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-system-theme/releases/tag/2.0.18"
     },
     {
       "id": "wallpaper-switcher",

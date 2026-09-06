@@ -6,7 +6,7 @@ const Ar = (e) => {
     path: "/dark-mode",
     name: "DarkMode",
     component: () => Promise.resolve().then(() => Er)
-  }), e.registerWindowShortcut({
+  }), e.window.registerShortcut({
     label: "dark_mode"
   });
 };
@@ -4034,7 +4034,9 @@ const Li = H("close", !1, function(e) {
       const l = d.value?.source || "";
       return l.startsWith("manual:") ? t("darkMode.sunCalcManualLocation", {
         city: l.replace("manual:", "")
-      }) : l.startsWith("ip:") ? t("darkMode.sunCalcAutoLocation", { city: l.replace("ip:", "") }) : l || "-";
+      }) : l.startsWith("ip:") ? t("darkMode.sunCalcAutoLocation", {
+        city: l.replace("ip:", "")
+      }) : l || "-";
     }), R = async () => {
       try {
         const l = await u("get_dark_mode_config");
@@ -4839,7 +4841,7 @@ const Li = H("close", !1, function(e) {
   for (const [o, s] of t)
     n[o] = s;
   return n;
-}, xr = /* @__PURE__ */ Dr(Nr, [["__scopeId", "data-v-5d4dd507"]]), Er = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+}, xr = /* @__PURE__ */ Dr(Nr, [["__scopeId", "data-v-dfa3b89e"]]), Er = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   default: xr
 }, Symbol.toStringTag, { value: "Module" }));
