@@ -4,7 +4,7 @@ import type { PluginFrontendRuntimeContext } from '../runtime';
 import { localAiProvider } from '@/ai';
 
 export const activate = (context: PluginFrontendRuntimeContext): void => {
-  context.registerAiProvider(localAiProvider);
+  context.ai.registerProvider(localAiProvider);
   context.registerRoute({
     target: 'config',
     path: 'local-ai/chat',
