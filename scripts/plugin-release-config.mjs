@@ -46,6 +46,12 @@ export const pluginRepositories = [
     kind: 'feature'
   },
   {
+    id: 'search-engines',
+    repo: 'snippets-code-plugin-search-engines',
+    sourceDir: 'plugin-registry/packages/search-engines',
+    kind: 'feature'
+  },
+  {
     id: 'quick-tools',
     repo: 'snippets-code-plugin-quick-tools',
     sourceDir: 'plugin-registry/packages/quick-tools',

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "search-engines",
-  "version": "2.0.15",
+  "version": "2.0.16",
   "kind": "local",
   "name": {
     "i18nKey": "plugins.searchEngines.name",
@@ -14,17 +14,28 @@
   "category": "search",
   "enabledByDefault": true,
   "capabilities": {
-    "routeNames": ["Retrieve"],
-    "settingsTabs": ["retrieve"],
-    "searchSources": ["engine-shortcut", "default-search"]
+    "routeNames": [
+      "Retrieve"
+    ],
+    "settingsTabs": [
+      "retrieve"
+    ],
+    "searchSources": [
+      "engine-shortcut",
+      "default-search"
+    ]
   },
-  "permissions": ["command:*"],
-  "compatibleAppVersion": ">=2.1.55",
+  "permissions": [
+    "command:*"
+  ],
+  "compatibleAppVersion": ">=2.1.61",
   "entry": {
     "frontend": "dist/frontend.js",
-    "styles": ["dist/assets/runtime-entry-BLr7fVjJ.css"]
+    "styles": [
+      "dist/assets/runtime-entry-BLr7fVjJ.css"
+    ]
   },
-  "minAppVersion": "2.1.55",
+  "minAppVersion": "2.1.61",
   "repository": "https://github.com/GigaPuddings/snippets-code-plugin-search-engines",
-  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-search-engines/releases/tag/2.0.15"
+  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-search-engines/releases/tag/2.0.16"
 }
