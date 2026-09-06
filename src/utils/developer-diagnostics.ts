@@ -9,6 +9,7 @@ const BENIGN_WARNING_PATTERNS = [
   /IPC custom protocol failed, Tauri will now use the postMessage interface instead/i,
   /defined using \\?"defineAsyncComponent\(\)\\?"/i,
   /检测到重复挂载或非最后窗口，跳过初始化/,
+  /迁移插件时目标已存在，跳过/,
   /duplicate mount or non-last window.+skip initialization/i
 ];
 

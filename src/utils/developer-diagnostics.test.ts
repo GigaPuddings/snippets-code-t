@@ -116,6 +116,7 @@ describe('diagnostic summaries', () => {
   it('counts backend log levels while ignoring expected warnings', () => {
     const summary = summarizeBackendDiagnostics(`
 [2026-06-01][08:02:30][tauri_app_lib::window][WARN] [Frontend] [AppInit] ⚠️ 检测到重复挂载或非最后窗口，跳过初始化
+[2026-06-01][08:02:30][tauri_app_lib::app_config::package_paths][WARN] [Plugin] 迁移插件时目标已存在，跳过: C:\\snippets-code\\packages\\plugins\\todo
 [2026-06-01][08:02:31][tauri_app_lib::window][WARN] recoverable warning
 [2026-06-01][08:02:32][tauri_app_lib::window][ERROR] save failed
 `);
@@ -123,7 +124,7 @@ describe('diagnostic summaries', () => {
     expect(summary).toEqual({
       errors: 1,
       warnings: 1,
-      ignoredWarnings: 1,
+      ignoredWarnings: 2,
       total: 2
     });
   });
