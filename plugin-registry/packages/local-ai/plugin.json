@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "local-ai",
-  "version": "2.0.99",
+  "version": "2.1.0",
   "kind": "local",
   "name": {
     "i18nKey": "plugins.localAi.name",
@@ -38,14 +38,14 @@
   "permissions": [
     "command:*"
   ],
-  "compatibleAppVersion": ">=2.1.60",
-  "minAppVersion": "2.1.60",
+  "compatibleAppVersion": ">=2.1.61",
+  "minAppVersion": "2.1.61",
   "entry": {
     "frontend": "dist/frontend.js",
     "styles": [
-      "dist/assets/runtime-entry-Beer2tA3.css"
+      "dist/assets/runtime-entry-CZR79pej.css"
     ]
   },
   "repository": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai",
-  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai/releases/tag/2.0.99"
+  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai/releases/tag/2.1.0"
 }
