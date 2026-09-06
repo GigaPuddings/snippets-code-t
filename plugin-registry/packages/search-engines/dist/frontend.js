@@ -93,19 +93,16 @@ const $i = (e, t, n = !1) => {
     const o = await e.api.invoke("get_search_engines");
     return t = Array.isArray(o) ? o : [], t;
   };
-  e.api.listen(
-    "search-engines-updated",
-    (o) => {
-      t = Array.isArray(o.payload) ? o.payload : null;
-    }
-  ), e.registerRoute({
+  e.api.listen("search-engines-updated", (o) => {
+    t = Array.isArray(o.payload) ? o.payload : null;
+  }), e.registerRoute({
     target: "config",
     path: "retrieve",
     name: "Retrieve",
     component: () => Promise.resolve().then(() => Ry)
-  }), e.registerSearchProvider(
+  }), e.search.registerProvider(
     Li({ loadSearchEngines: n })
-  ), e.registerSearchProvider(
+  ), e.search.registerProvider(
     Mi({ loadSearchEngines: n })
   );
 }, ws = Symbol(), Pn = "el", Ri = "is-", Gt = (e, t, n, o, r) => {
