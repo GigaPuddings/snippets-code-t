@@ -60,6 +60,12 @@ pub fn initialize_managed_state(app: &mut tauri::App, data_dir: &Path) {
 }
 
 pub fn register_pending_event_forwarders(app: &mut tauri::App) {
+    let uninstall_app = app.handle().clone();
+    app.listen("config_ready", move |_| {
+        // 前端配置加载完成后再次登记最终路径，覆盖安装器保留的旧值。
+        crate::uninstall::record_current_paths(&uninstall_app);
+    });
+
     let conflict_app = app.handle().clone();
     app.listen("config_ready", move |_| {
         if let Some(state) =
