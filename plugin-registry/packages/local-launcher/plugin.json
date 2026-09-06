@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "local-launcher",
-  "version": "2.0.32",
+  "version": "2.0.33",
   "kind": "local",
   "name": {
     "i18nKey": "plugins.localLauncher.name",
@@ -14,22 +14,33 @@
   "category": "search",
   "enabledByDefault": true,
   "capabilities": {
-    "routeNames": ["Local"],
-    "settingsTabs": ["local"],
-    "searchSources": ["apps", "bookmarks"]
+    "routeNames": [
+      "Local"
+    ],
+    "settingsTabs": [
+      "local"
+    ],
+    "searchSources": [
+      "apps",
+      "bookmarks"
+    ]
   },
-  "permissions": ["command:*"],
-  "compatibleAppVersion": ">=2.1.54",
+  "permissions": [
+    "command:*"
+  ],
+  "compatibleAppVersion": ">=2.1.61",
   "entry": {
     "frontend": "dist/frontend.js",
-    "styles": ["dist/assets/runtime-entry-d2uKyGxX.css"]
+    "styles": [
+      "dist/assets/runtime-entry-CX-at5Jn.css"
+    ]
   },
   "storage": {
     "schemaVersion": 1,
     "indexSchemaVersion": 1,
     "extractorVersion": 1
   },
-  "minAppVersion": "2.1.54",
+  "minAppVersion": "2.1.61",
   "repository": "https://github.com/GigaPuddings/snippets-code-plugin-local-launcher",
-  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-launcher/releases/tag/2.0.32"
+  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-launcher/releases/tag/2.0.33"
 }
