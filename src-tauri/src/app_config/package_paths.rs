@@ -123,7 +123,7 @@ fn migrate_installed_plugin_packages(old_dir: &Path, new_dir: &Path) -> Result<(
         };
         let target_path = new_dir.join(plugin_dir_name);
         if target_path.exists() {
-            warn!(
+            info!(
                 "[Plugin] 迁移插件时目标已存在，跳过: {}",
                 target_path.display()
             );

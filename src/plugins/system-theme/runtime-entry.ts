@@ -7,7 +7,7 @@ export const activate = (context: PluginFrontendRuntimeContext): void => {
     name: 'DarkMode',
     component: () => import('./pages/dark-mode/index.vue')
   });
-  context.registerWindowShortcut({
+  context.window.registerShortcut({
     label: 'dark_mode'
   });
 };

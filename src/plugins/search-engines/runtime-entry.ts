@@ -26,10 +26,10 @@ export const activate = (context: PluginFrontendRuntimeContext): void => {
     name: 'Retrieve',
     component: () => import('./pages/config/index.vue')
   });
-  context.registerSearchProvider(
+  context.search.registerProvider(
     createSearchEngineShortcutProvider({ loadSearchEngines })
   );
-  context.registerSearchProvider(
+  context.search.registerProvider(
     createSearchEngineDefaultProvider({ loadSearchEngines })
   );
 };
