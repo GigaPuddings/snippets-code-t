@@ -51,7 +51,25 @@ export default {
     configureWorkspace: 'Configure Workspace',
     quickActions: 'Quick Access',
     systemStatus: 'Capability Status',
-    manage: 'Manage'
+    manage: 'Manage',
+    heroTagline: 'Collect · Organize · Create',
+    heroSubtitle: 'Keep technical knowledge within reach',
+    quickActionDescriptions: {
+      workspace: 'Open the workspace panel',
+      launcher: 'Launch applications quickly',
+      todo: 'Manage your tasks',
+      aiChat: 'Work with your AI assistant'
+    },
+    status: {
+      ready: 'Healthy',
+      attention: 'Needs setup',
+      inactive: 'Inactive'
+    },
+    footer: {
+      workspaceReady: 'Workspace ready',
+      recentCount: '{count} recent items',
+      tagline: 'More efficient developer knowledge management'
+    }
   },
 
   // Setup Wizard

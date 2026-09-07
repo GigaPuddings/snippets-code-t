@@ -49,3 +49,39 @@
 - None required for this scoped change.
 
 final result: passed
+
+---
+
+## Developer Workbench Home
+
+**Comparison Target**
+
+- Source visual truth: `C:\Users\zero\AppData\Local\Temp\codex-clipboard-7da3499b-ac08-4999-a30a-43187837ae08.png`
+- Latest issue evidence: `C:\Users\zero\AppData\Local\Temp\codex-clipboard-f81fd867-4e7d-400e-a72e-84d1ef0edeb2.png`
+- State: light theme, configured workspace, installed plugins, AI provider awaiting configuration.
+- Scope: Developer Workbench page body only; the shared title bar remained unchanged.
+
+**Visual Findings**
+
+- The generated code-card artwork originally exposed its pale rectangular canvas. A local radial alpha mask now fades every canvas edge into the page while preserving the code card and light rays.
+- The four metrics remain on one row and the main content keeps the intended recent-content/sidebar hierarchy.
+- The compact breakpoint was aligned with the custom-title-bar window height so the final capability row is not clipped at `1366 x 768`.
+- No horizontal or vertical page scrollbar appeared at the four validated sizes.
+
+**Viewport Evidence**
+
+- `1180 x 696`: actual application default; six recent rows, four quick actions, four capability rows, and footer are fully visible.
+- `1366 x 768`: compact desktop layout; the capability status panel is fully visible after breakpoint correction.
+- `1440 x 900`: standard desktop layout; Hero artwork blends into the page with no visible rectangular edge.
+- `1536 x 960`: large desktop layout; all primary regions remain visible and aligned without overlap.
+
+**Implementation Checklist**
+
+- [x] Hero artwork is visually integrated instead of rendered as a rectangular image block.
+- [x] Four metric cards stay on one row.
+- [x] Recent content shows six rows without clipping.
+- [x] Quick actions remain a `2 x 2` grid.
+- [x] All four capability rows and their statuses remain visible.
+- [x] Shared title bar, router, stores, Rust backend, and global theme files are unchanged.
+
+final result: passed

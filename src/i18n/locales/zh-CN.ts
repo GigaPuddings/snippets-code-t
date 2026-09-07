@@ -51,7 +51,25 @@ export default {
     configureWorkspace: '设置工作区',
     quickActions: '常用入口',
     systemStatus: '能力状态',
-    manage: '管理'
+    manage: '管理',
+    heroTagline: '收集 · 整理 · 创造',
+    heroSubtitle: '让技术知识触手可及',
+    quickActionDescriptions: {
+      workspace: '打开工作区面板',
+      launcher: '快速启动应用',
+      todo: '管理我的任务',
+      aiChat: '与 AI 助手交流'
+    },
+    status: {
+      ready: '正常',
+      attention: '待配置',
+      inactive: '未启用'
+    },
+    footer: {
+      workspaceReady: 'Workspace 已就绪',
+      recentCount: '{count} 个最近内容',
+      tagline: '更高效的开发知识管理'
+    }
   },
 
   // 设置向导
