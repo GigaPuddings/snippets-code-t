@@ -196,9 +196,16 @@ const { t } = useI18n();
   }
 }
 
-:global(.dark) .workbench-hero__visual img {
-  filter: brightness(1.3) saturate(0.75);
-  opacity: 0.38;
+:global(.dark .workbench-hero__visual img) {
+  filter: invert(1) hue-rotate(180deg) brightness(1.65) saturate(1.2);
+  mix-blend-mode: screen;
+  opacity: 0.54;
+  mask-image: radial-gradient(
+    ellipse 55% 62% at 68% 50%,
+    #000 25%,
+    rgb(0 0 0 / 82%) 38%,
+    transparent 72%
+  );
 }
 
 .workbench-hero__message {

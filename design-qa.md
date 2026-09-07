@@ -75,6 +75,14 @@ final result: passed
 - `1440 x 900`: standard desktop layout; Hero artwork blends into the page with no visible rectangular edge.
 - `1536 x 960`: large desktop layout; all primary regions remain visible and aligned without overlap.
 
+**Dark Theme Evidence**
+
+- Root cause: `:global(.dark) .workbench-*` compiled to a bare `.dark` rule, so page-level light tokens overrode the inherited dark tokens and component-specific dark declarations never reached their targets.
+- Corrected selectors compile as `.dark .workbench-*` and now apply the dark background, text, card, border, footer, and Hero styles to the intended elements.
+- At `1180 x 696`, computed colors are `rgb(36 38 43)` for the page and `rgb(241 245 251)` for primary text; horizontal and vertical overflow both measure `0px`.
+- The dark Hero uses an inverted screen blend and a tighter radial mask so the code card remains visible without exposing the raster canvas boundary.
+- A light-theme regression capture at the same viewport retained `rgb(247 250 255)` page background and `rgb(23 32 51)` primary text.
+
 **Implementation Checklist**
 
 - [x] Hero artwork is visually integrated instead of rendered as a rectangular image block.
@@ -82,6 +90,7 @@ final result: passed
 - [x] Recent content shows six rows without clipping.
 - [x] Quick actions remain a `2 x 2` grid.
 - [x] All four capability rows and their statuses remain visible.
+- [x] Light and dark themes keep readable hierarchy and an integrated Hero image.
 - [x] Shared title bar, router, stores, Rust backend, and global theme files are unchanged.
 
 final result: passed

@@ -136,7 +136,7 @@ const openMetric = (metricId: string): void => {
   background: var(--wb-bg);
 }
 
-:global(.dark) .workbench-page {
+:global(.dark .workbench-page) {
   --wb-bg: #24262b;
   --wb-card-bg: rgb(31 34 40 / 84%);
   --wb-card-bg-strong: rgb(35 38 45 / 94%);
