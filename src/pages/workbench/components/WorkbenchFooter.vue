@@ -41,7 +41,7 @@ const { t } = useI18n();
   border-top: 1px solid var(--wb-card-border);
 }
 
-:global(.dark) .workbench-footer {
+:global(.dark .workbench-footer) {
   background: rgb(20 22 26 / 22%);
 }
 
