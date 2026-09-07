@@ -301,40 +301,8 @@ pub(crate) fn count_scanner_entities<T: DbEntity>() -> Result<i64, rusqlite::Err
     )
 }
 
-fn reconcile_legacy_entities<T: DbEntity>(
-    transaction: &rusqlite::Transaction<'_>,
-    entities: &[T],
-) -> Result<(), rusqlite::Error> {
-    let delete_matching = format!(
-        "DELETE FROM {} WHERE source_kind = 'legacy' AND content = ?1",
-        T::TABLE_NAME
-    );
-    {
-        let mut stmt = transaction.prepare(&delete_matching)?;
-        for entity in entities {
-            let params = entity.to_insert_params();
-            stmt.execute([params[2].as_ref()])?;
-        }
-    }
-    transaction.execute(
-        &format!(
-            "UPDATE {} SET source_kind = 'user' WHERE source_kind = 'legacy'",
-            T::TABLE_NAME
-        ),
-        [],
-    )?;
-    Ok(())
-}
-
 // 通用批量插入
 pub(crate) fn insert_entities<T: DbEntity>(entities: &[T]) -> Result<(), rusqlite::Error> {
-    let mut core = DbConnectionManager::get_core()?;
-    {
-        let transaction = core.transaction()?;
-        reconcile_legacy_entities::<T>(&transaction, entities)?;
-        transaction.commit()?;
-    }
-
     let mut conn = DbConnectionManager::get_search()?;
     DbConnectionManager::attach_core_database(&conn)?;
     let transaction = conn.transaction()?;
@@ -368,13 +336,6 @@ pub(crate) fn insert_entities<T: DbEntity>(entities: &[T]) -> Result<(), rusqlit
 /// 在单个事务中替换扫描来源索引，保留用户手动项。扫描与解析先在事务外完成，
 /// 写入失败时旧索引仍可继续使用，不会留下只清空一半的状态。
 pub(crate) fn replace_entities<T: DbEntity>(entities: &[T]) -> Result<(), rusqlite::Error> {
-    let mut core = DbConnectionManager::get_core()?;
-    {
-        let transaction = core.transaction()?;
-        reconcile_legacy_entities::<T>(&transaction, entities)?;
-        transaction.commit()?;
-    }
-
     let mut conn = DbConnectionManager::get_search()?;
     DbConnectionManager::attach_core_database(&conn)?;
     let transaction = conn.transaction()?;

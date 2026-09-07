@@ -1,11 +1,10 @@
-//! Package locations, directory migration, and install staging directories.
+//! Package locations, user-requested directory moves, and install staging directories.
 use super::persistence::AppConfigManager;
 use super::plugin_manifest::validate_plugin_package_id;
 use log::{info, warn};
-use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, OnceLock, RwLock};
+use std::sync::{Arc, RwLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{command, AppHandle, Manager};
 use walkdir::WalkDir;
@@ -13,9 +12,6 @@ use walkdir::WalkDir;
 const PLUGIN_PACKAGES_DIR_NAME: &str = "plugins";
 
 const PLUGIN_PACKAGES_ROOT_DIR_NAME: &str = "packages";
-
-static COMPLETED_DEFAULT_PLUGIN_MIGRATIONS: OnceLock<Mutex<HashSet<(String, String)>>> =
-    OnceLock::new();
 
 pub(super) fn plugin_packages_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
     if let Some(configured_root) = configured_plugin_install_root_dir(app_handle)? {
@@ -27,32 +23,13 @@ pub(super) fn plugin_packages_dir(app_handle: &AppHandle) -> Result<PathBuf, Str
 
 fn default_plugin_packages_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
     let data_dir = crate::json_config::get_data_dir(app_handle);
-    let packages_dir = default_plugin_packages_dir_for_data_dir(&data_dir);
-    let legacy_packages_dir = legacy_default_plugin_packages_dir_for_data_dir(&data_dir);
-    let migrated_count = migrate_installed_plugin_packages_once(
-        &legacy_packages_dir,
-        &packages_dir,
-        COMPLETED_DEFAULT_PLUGIN_MIGRATIONS.get_or_init(|| Mutex::new(HashSet::new())),
-    )?;
-    if migrated_count > 0 {
-        info!(
-            "[Plugin] 旧插件目录迁移完成: {} 个 ({} -> {})",
-            migrated_count,
-            legacy_packages_dir.display(),
-            packages_dir.display()
-        );
-    }
-    Ok(packages_dir)
+    Ok(default_plugin_packages_dir_for_data_dir(&data_dir))
 }
 
 fn default_plugin_packages_dir_for_data_dir(data_dir: &Path) -> PathBuf {
     data_dir
         .join(PLUGIN_PACKAGES_ROOT_DIR_NAME)
         .join(PLUGIN_PACKAGES_DIR_NAME)
-}
-
-fn legacy_default_plugin_packages_dir_for_data_dir(data_dir: &Path) -> PathBuf {
-    data_dir.join(PLUGIN_PACKAGES_DIR_NAME)
 }
 
 pub fn resolve_plugin_packages_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
@@ -117,38 +94,7 @@ fn same_path(left: &Path, right: &Path) -> bool {
         .eq_ignore_ascii_case(&path_to_display_string(&normalized_existing_path(right)))
 }
 
-fn migration_path_key(path: &Path) -> String {
-    let value = path_to_display_string(&normalized_existing_path(path));
-    if cfg!(windows) {
-        value.to_ascii_lowercase()
-    } else {
-        value
-    }
-}
-
-fn migrate_installed_plugin_packages_once(
-    old_dir: &Path,
-    new_dir: &Path,
-    completed_migrations: &Mutex<HashSet<(String, String)>>,
-) -> Result<usize, String> {
-    if same_path(old_dir, new_dir) || !old_dir.exists() {
-        return Ok(0);
-    }
-
-    let migration_key = (migration_path_key(old_dir), migration_path_key(new_dir));
-    let mut completed = completed_migrations
-        .lock()
-        .map_err(|_| "插件迁移状态锁已损坏".to_string())?;
-    if completed.contains(&migration_key) {
-        return Ok(0);
-    }
-
-    let migrated_count = migrate_installed_plugin_packages(old_dir, new_dir)?;
-    completed.insert(migration_key);
-    Ok(migrated_count)
-}
-
-fn migrate_installed_plugin_packages(old_dir: &Path, new_dir: &Path) -> Result<usize, String> {
+fn move_installed_plugin_packages(old_dir: &Path, new_dir: &Path) -> Result<usize, String> {
     if same_path(old_dir, new_dir) || !old_dir.exists() {
         return Ok(0);
     }
@@ -159,7 +105,7 @@ fn migrate_installed_plugin_packages(old_dir: &Path, new_dir: &Path) -> Result<u
     let entries = fs::read_dir(old_dir)
         .map_err(|e| format!("读取原插件目录失败: {} ({})", old_dir.display(), e))?;
 
-    let mut migrated_count = 0;
+    let mut moved_count = 0;
     for entry in entries.flatten() {
         let source_path = entry.path();
         if !source_path.join("plugin.json").is_file() {
@@ -175,7 +121,7 @@ fn migrate_installed_plugin_packages(old_dir: &Path, new_dir: &Path) -> Result<u
         }
 
         let temp_path = new_dir.join(format!(
-            ".migration-tmp-{}-{}",
+            ".move-tmp-{}-{}",
             plugin_dir_name.to_string_lossy(),
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
@@ -196,10 +142,10 @@ fn migrate_installed_plugin_packages(old_dir: &Path, new_dir: &Path) -> Result<u
             let _ = fs::remove_dir_all(&temp_path);
             return Err(error);
         }
-        migrated_count += 1;
+        moved_count += 1;
     }
 
-    Ok(migrated_count)
+    Ok(moved_count)
 }
 
 #[command]
@@ -245,11 +191,11 @@ pub fn set_plugin_install_dir(app_handle: AppHandle, path: Option<String>) -> Re
         (normalized_existing_path(&default_dir), None)
     };
 
-    let migrated_count = migrate_installed_plugin_packages(&old_plugins_dir, &new_plugins_dir)?;
-    if migrated_count > 0 {
+    let moved_count = move_installed_plugin_packages(&old_plugins_dir, &new_plugins_dir)?;
+    if moved_count > 0 {
         info!(
-            "[Plugin] 插件安装目录迁移完成: {} 个 ({} -> {})",
-            migrated_count,
+            "[Plugin] 插件安装目录移动完成: {} 个 ({} -> {})",
+            moved_count,
             old_plugins_dir.display(),
             new_plugins_dir.display()
         );
@@ -378,9 +324,9 @@ pub(super) fn cleanup_stale_plugin_install_temp_dirs(app_handle: &AppHandle) {
 mod tests {
     use super::*;
 
-    fn migration_test_dir(name: &str) -> PathBuf {
+    fn move_test_dir(name: &str) -> PathBuf {
         std::env::temp_dir().join(format!(
-            "snippets-code-plugin-migration-{}-{}-{}",
+            "snippets-code-plugin-move-{}-{}-{}",
             name,
             std::process::id(),
             SystemTime::now()
@@ -406,48 +352,25 @@ mod tests {
     }
 
     #[test]
-    fn plugin_migration_copies_missing_packages_without_overwriting_existing_targets() {
-        let root = migration_test_dir("copy");
+    fn plugin_directory_move_copies_missing_packages_without_overwriting_targets() {
+        let root = move_test_dir("copy");
         let old_dir = root.join("old");
         let new_dir = root.join("new");
-        write_test_plugin(&old_dir, "missing", "legacy");
-        write_test_plugin(&old_dir, "existing", "legacy");
+        write_test_plugin(&old_dir, "missing", "source");
+        write_test_plugin(&old_dir, "existing", "source");
         write_test_plugin(&new_dir, "existing", "current");
 
-        let migrated_count = migrate_installed_plugin_packages(&old_dir, &new_dir).unwrap();
+        let moved_count = move_installed_plugin_packages(&old_dir, &new_dir).unwrap();
 
-        assert_eq!(migrated_count, 1);
+        assert_eq!(moved_count, 1);
         assert_eq!(
             fs::read_to_string(new_dir.join("missing/marker.txt")).unwrap(),
-            "legacy"
+            "source"
         );
         assert_eq!(
             fs::read_to_string(new_dir.join("existing/marker.txt")).unwrap(),
             "current"
         );
-        fs::remove_dir_all(root).unwrap();
-    }
-
-    #[test]
-    fn default_plugin_migration_runs_once_for_each_path_pair() {
-        let root = migration_test_dir("once");
-        let old_dir = root.join("old");
-        let new_dir = root.join("new");
-        let completed_migrations = Mutex::new(HashSet::new());
-        write_test_plugin(&old_dir, "first", "legacy");
-
-        assert_eq!(
-            migrate_installed_plugin_packages_once(&old_dir, &new_dir, &completed_migrations)
-                .unwrap(),
-            1
-        );
-        write_test_plugin(&old_dir, "added-later", "legacy");
-        assert_eq!(
-            migrate_installed_plugin_packages_once(&old_dir, &new_dir, &completed_migrations)
-                .unwrap(),
-            0
-        );
-        assert!(!new_dir.join("added-later").exists());
         fs::remove_dir_all(root).unwrap();
     }
 }

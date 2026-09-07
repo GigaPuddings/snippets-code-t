@@ -9,7 +9,6 @@ use tauri_plugin_dialog::DialogExt;
 
 pub const CORE_DB_FILE_NAME: &str = "core.db";
 pub const SEARCH_DB_FILE_NAME: &str = "search.db";
-pub const LEGACY_DB_FILE_NAME: &str = "snippets.db";
 pub(crate) const CORE_DB_SCHEMA: &str = "core_db";
 pub(crate) const SEARCH_DB_SCHEMA: &str = "search_db";
 
@@ -17,11 +16,6 @@ pub(crate) const SEARCH_DB_SCHEMA: &str = "search_db";
 pub struct DbConnectionManager;
 
 impl DbConnectionManager {
-    // 兼容旧调用：默认返回核心用户数据数据库。
-    pub fn get() -> Result<rusqlite::Connection, rusqlite::Error> {
-        Self::get_core()
-    }
-
     pub fn get_core() -> Result<rusqlite::Connection, rusqlite::Error> {
         let app = APP
             .get()
@@ -102,26 +96,12 @@ pub fn get_search_database_path(app_handle: &tauri::AppHandle) -> PathBuf {
     json_config::get_data_dir(app_handle).join(SEARCH_DB_FILE_NAME)
 }
 
-pub fn get_legacy_database_path(app_handle: &tauri::AppHandle) -> PathBuf {
-    json_config::get_data_dir(app_handle).join(LEGACY_DB_FILE_NAME)
-}
-
-// 获取核心数据库路径（使用 JSON 配置系统）
-pub fn get_database_path(app_handle: &tauri::AppHandle) -> PathBuf {
-    get_core_database_path(app_handle)
-}
-
-// 获取数据库路径字符串
-pub fn get_database_path_str(app_handle: &tauri::AppHandle) -> String {
-    get_database_path(app_handle).to_str().unwrap().to_string()
-}
-
 // ============= Tauri 命令函数 =============
 
 #[tauri::command]
 pub fn get_db_path() -> String {
     match APP.get() {
-        Some(app) => get_database_path_str(app),
+        Some(app) => get_core_database_path(app).to_string_lossy().to_string(),
         None => String::new(),
     }
 }
@@ -132,7 +112,6 @@ pub fn get_data_dir_info(app_handle: tauri::AppHandle) -> serde_json::Value {
     let data_dir = json_config::get_data_dir(&app_handle);
     let db_path = get_core_database_path(&app_handle);
     let search_db_path = get_search_database_path(&app_handle);
-    let legacy_db_path = get_legacy_database_path(&app_handle);
     let recommended_path = json_config::get_default_data_dir(&app_handle);
 
     // 检查路径来源
@@ -154,8 +133,6 @@ pub fn get_data_dir_info(app_handle: tauri::AppHandle) -> serde_json::Value {
         "dbPath": db_path.to_str().unwrap_or(""),
         "coreDbPath": db_path.to_str().unwrap_or(""),
         "searchDbPath": search_db_path.to_str().unwrap_or(""),
-        "legacyDbPath": legacy_db_path.to_str().unwrap_or(""),
-        "hasLegacyDb": legacy_db_path.exists(),
         "source": source,
         "recommendedPath": recommended_path.to_str().unwrap_or("")
     })
@@ -192,9 +169,6 @@ fn copy_data_directory(source: &std::path::Path, target: &std::path::Path) -> Re
                 | "search.db"
                 | "search.db-wal"
                 | "search.db-shm"
-                | "snippets.db"
-                | "snippets.db-wal"
-                | "snippets.db-shm"
                 | "path.json"
         ) {
             continue;
@@ -534,7 +508,7 @@ pub fn set_data_dir_from_setup(
 
 // 优化数据库（VACUUM 和 ANALYZE）
 pub fn optimize_database() -> Result<(), rusqlite::Error> {
-    let conn = DbConnectionManager::get()?;
+    let conn = DbConnectionManager::get_core()?;
 
     // log::info!("开始优化数据库...");
 

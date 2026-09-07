@@ -135,21 +135,6 @@ fn clear_local_plugin_state(app_handle: &AppHandle, plugin_id: &str) -> Result<(
         })?;
     }
 
-    if plugin_id == "local-ai" {
-        let legacy_config = crate::json_config::get_data_dir(app_handle)
-            .join(".snippets-code")
-            .join("local-ai.json");
-        if legacy_config.is_file() {
-            fs::remove_file(&legacy_config).map_err(|error| {
-                format!(
-                    "删除本地 AI 旧配置失败: {} ({})",
-                    legacy_config.display(),
-                    error
-                )
-            })?;
-        }
-    }
-
     Ok(())
 }
 

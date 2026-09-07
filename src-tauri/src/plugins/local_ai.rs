@@ -288,36 +288,6 @@ fn local_ai_state_file(app_handle: &AppHandle, file_name: &str) -> PathBuf {
     let data_dir = crate::json_config::get_data_dir(app_handle);
     let state_dir = data_dir.join("state").join("plugins").join(PLUGIN_ID);
     let target = state_dir.join(file_name);
-    let legacy = data_dir.join(".snippets-code").join(file_name);
-
-    if !target.exists() && legacy.is_file() {
-        let migration = fs::read_to_string(&legacy)
-            .map_err(|error| error.to_string())
-            .and_then(|content| {
-                crate::json_config::write_text_atomic(&target, &content)
-                    .map_err(|error| error.to_string())
-            });
-        match migration {
-            Ok(()) => {
-                if let Err(error) = fs::remove_file(&legacy) {
-                    log::warn!(
-                        "[LocalAI] 清理旧状态文件失败 {}: {}",
-                        legacy.display(),
-                        error
-                    );
-                }
-            }
-            Err(error) => {
-                log::warn!(
-                    "[LocalAI] 迁移状态文件失败 {} -> {}: {}",
-                    legacy.display(),
-                    target.display(),
-                    error
-                );
-                return legacy;
-            }
-        }
-    }
     if let Err(error) = crate::json_config::recover_atomic_file(&target) {
         log::warn!("[LocalAI] 恢复状态文件失败 {}: {}", target.display(), error);
     }
