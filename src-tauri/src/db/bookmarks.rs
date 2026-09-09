@@ -1,7 +1,6 @@
 use crate::bookmarks::BookmarkInfo;
 use crate::db::entity::{
-    count_entities, count_scanner_entities, get_all_entities, insert_entities, replace_entities,
-    update_entity_icon,
+    count_entities, get_all_entities, insert_entities, replace_entities, update_entity_icon,
 };
 use crate::db::DbConnectionManager;
 use crate::plugins::local_launcher::invalidate_bookmarks_cache;
@@ -79,10 +78,6 @@ pub fn update_bookmark_icon_silent(bookmark_id: &str, icon: &str) -> Result<(), 
 // 统计书签数量
 pub fn count_bookmarks() -> Result<i64, rusqlite::Error> {
     count_entities::<BookmarkInfo>()
-}
-
-pub fn count_scanned_bookmarks() -> Result<i64, rusqlite::Error> {
-    count_scanner_entities::<BookmarkInfo>()
 }
 
 // ============= 书签管理函数 =============

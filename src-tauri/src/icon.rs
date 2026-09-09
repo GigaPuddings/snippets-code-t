@@ -4,9 +4,9 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::io::Cursor;
 use std::num::NonZeroUsize;
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, Instant, SystemTime};
 use tauri::{AppHandle, Emitter};
 use tauri_plugin_http::reqwest;
 use tokio::sync::Semaphore;
@@ -24,11 +24,12 @@ use windows::Win32::UI::Shell::{
 };
 
 use crate::apps::{
-    get_installed_apps, is_shell_apps_folder_path, resolve_shell_apps_folder_icon_source, AppInfo,
+    get_installed_apps, installed_apps_source_fingerprint, is_shell_apps_folder_path,
+    resolve_shell_apps_folder_icon_source, AppInfo,
 };
 use crate::bookmarks::{
-    get_browser_bookmarks, get_favicon_from_browser_cache, get_favicons_from_browser_cache,
-    BookmarkInfo,
+    browser_bookmarks_source_fingerprint, get_browser_bookmarks, get_favicon_from_browser_cache,
+    get_favicons_from_browser_cache, BookmarkInfo,
 };
 use crate::db;
 
@@ -45,9 +46,9 @@ pub struct CachedIcon {
 const MAX_CACHE_AGE: u64 = 604800; // 7 days in seconds
 const MAX_CACHE_SIZE: usize = 500; // 最多缓存500个图标，防止内存溢出
 const APP_INDEX_STORAGE_SCHEMA_VERSION: u64 = 1;
-const APP_INDEX_EXTRACTOR_VERSION: u64 = 4;
+const APP_INDEX_EXTRACTOR_VERSION: u64 = 6;
 const BOOKMARK_INDEX_STORAGE_SCHEMA_VERSION: u64 = 1;
-const BOOKMARK_INDEX_EXTRACTOR_VERSION: u64 = 1;
+const BOOKMARK_INDEX_EXTRACTOR_VERSION: u64 = 2;
 
 // 全局图标缓存 - 使用 LRU 缓存自动淘汰最少使用的图标
 static ICON_CACHE: Lazy<Arc<Mutex<LruCache<String, CachedIcon>>>> = Lazy::new(|| {
@@ -60,6 +61,28 @@ static ICON_CACHE: Lazy<Arc<Mutex<LruCache<String, CachedIcon>>>> = Lazy::new(||
 static ICON_SEMAPHORE: Lazy<Arc<Semaphore>> = Lazy::new(|| Arc::new(Semaphore::new(10))); // 并发10个任务，平衡性能和资源占用
 static ICON_CACHE_EPOCH: AtomicU64 = AtomicU64::new(0);
 static LOCAL_LAUNCHER_JOB_GENERATION: AtomicU64 = AtomicU64::new(0);
+static LOCAL_LAUNCHER_SOURCE_CHECK_RUNNING: AtomicBool = AtomicBool::new(false);
+static LAST_LOCAL_LAUNCHER_SOURCE_CHECK: Lazy<Mutex<Option<Instant>>> =
+    Lazy::new(|| Mutex::new(None));
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum LocalLauncherIndexMode {
+    Automatic,
+    Startup,
+    Force,
+}
+
+struct LocalLauncherJobState {
+    running: bool,
+    pending: Option<LocalLauncherIndexMode>,
+}
+
+static LOCAL_LAUNCHER_JOB_STATE: Lazy<Mutex<LocalLauncherJobState>> = Lazy::new(|| {
+    Mutex::new(LocalLauncherJobState {
+        running: false,
+        pending: None,
+    })
+});
 
 fn emit_local_launcher_index_updated(
     app_handle: &AppHandle,
@@ -896,14 +919,104 @@ pub async fn fetch_favicon_async(url: &str) -> Option<String> {
 
 // 获取应用和书签的图标
 pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
-    spawn_app_and_bookmark_index_job(app_handle.clone(), false);
+    schedule_app_and_bookmark_index_job(app_handle.clone(), LocalLauncherIndexMode::Startup);
 }
 
 pub fn rebuild_app_and_bookmark_index(app_handle: AppHandle) {
-    spawn_app_and_bookmark_index_job(app_handle, true);
+    schedule_app_and_bookmark_index_job(app_handle, LocalLauncherIndexMode::Force);
 }
 
-fn spawn_app_and_bookmark_index_job(app_handle: AppHandle, force_rebuild: bool) {
+/// Called when the quick-search window is about to open. The inexpensive source
+/// fingerprints are checked off the UI thread; the full scanners only run when
+/// an install, shortcut, browser profile or bookmark database actually changed.
+pub fn refresh_app_and_bookmark_index_if_changed(app_handle: AppHandle) {
+    if !crate::app_config::is_plugin_enabled(&app_handle, "local-launcher") {
+        return;
+    }
+
+    // The running pass already uses a fresh fingerprint. Comparing against the
+    // not-yet-committed database metadata would report the same change again
+    // and enqueue a redundant follow-up pass on repeated hotkey presses.
+    if LOCAL_LAUNCHER_JOB_STATE
+        .lock()
+        .map(|state| state.running)
+        .unwrap_or(true)
+    {
+        return;
+    }
+
+    {
+        let Ok(mut last_check) = LAST_LOCAL_LAUNCHER_SOURCE_CHECK.lock() else {
+            return;
+        };
+        if last_check
+            .as_ref()
+            .is_some_and(|last| last.elapsed() < Duration::from_secs(1))
+        {
+            return;
+        }
+        *last_check = Some(Instant::now());
+    }
+
+    if LOCAL_LAUNCHER_SOURCE_CHECK_RUNNING.swap(true, Ordering::AcqRel) {
+        return;
+    }
+
+    std::thread::spawn(move || {
+        let apps_fingerprint = installed_apps_source_fingerprint();
+        let bookmarks_fingerprint = browser_bookmarks_source_fingerprint();
+        let apps_changed = db::index_source_fingerprint_changed(
+            "apps",
+            APP_INDEX_STORAGE_SCHEMA_VERSION,
+            APP_INDEX_EXTRACTOR_VERSION,
+            &apps_fingerprint,
+        )
+        .unwrap_or(true);
+        let bookmarks_changed = db::index_source_fingerprint_changed(
+            "bookmarks",
+            BOOKMARK_INDEX_STORAGE_SCHEMA_VERSION,
+            BOOKMARK_INDEX_EXTRACTOR_VERSION,
+            &bookmarks_fingerprint,
+        )
+        .unwrap_or(true);
+        LOCAL_LAUNCHER_SOURCE_CHECK_RUNNING.store(false, Ordering::Release);
+
+        if apps_changed || bookmarks_changed {
+            log::info!(
+                "[LocalLauncher] 检测到来源变化: apps={}, bookmarks={}",
+                apps_changed,
+                bookmarks_changed
+            );
+            schedule_app_and_bookmark_index_job(app_handle, LocalLauncherIndexMode::Automatic);
+        }
+    });
+}
+
+fn schedule_app_and_bookmark_index_job(app_handle: AppHandle, mode: LocalLauncherIndexMode) {
+    let should_start = {
+        let Ok(mut state) = LOCAL_LAUNCHER_JOB_STATE.lock() else {
+            return;
+        };
+        if state.running {
+            state.pending = Some(state.pending.map_or(mode, |pending| pending.max(mode)));
+            if mode == LocalLauncherIndexMode::Force {
+                // A manual rebuild supersedes the current background pass.
+                LOCAL_LAUNCHER_JOB_GENERATION.fetch_add(1, Ordering::AcqRel);
+            }
+            false
+        } else {
+            state.running = true;
+            true
+        }
+    };
+
+    if should_start {
+        spawn_app_and_bookmark_index_job(app_handle, mode);
+    }
+}
+
+fn spawn_app_and_bookmark_index_job(app_handle: AppHandle, mode: LocalLauncherIndexMode) {
+    let force_rebuild = mode == LocalLauncherIndexMode::Force;
     let pending_reset_kind = db::peek_show_progress_kind(&app_handle);
     if force_rebuild
         || matches!(
@@ -924,21 +1037,40 @@ fn spawn_app_and_bookmark_index_job(app_handle: AppHandle, force_rebuild: bool) 
     std::thread::spawn(move || {
         let started = std::time::Instant::now();
         log::info!(
-            "[LocalLauncher] 本地应用与书签后台初始化开始: generation={}, force_rebuild={}",
+            "[LocalLauncher] 本地应用与书签后台初始化开始: generation={}, mode={:?}",
             generation,
-            force_rebuild
+            mode
         );
-        run_app_and_bookmark_initialization(&app_handle, generation, force_rebuild);
+        run_app_and_bookmark_initialization(&app_handle, generation, mode);
         log::info!(
-            "[LocalLauncher] 本地应用与书签后台初始化调度完成: generation={}, elapsed={}ms",
+            "[LocalLauncher] 本地应用与书签后台初始化调度完成: generation={}, mode={:?}, elapsed={}ms",
             generation,
+            mode,
             started.elapsed().as_millis()
         );
+
+        let next_mode = {
+            let Ok(mut state) = LOCAL_LAUNCHER_JOB_STATE.lock() else {
+                return;
+            };
+            if let Some(pending) = state.pending.take() {
+                Some(pending)
+            } else {
+                state.running = false;
+                None
+            }
+        };
+        if let Some(next_mode) = next_mode {
+            spawn_app_and_bookmark_index_job(app_handle, next_mode);
+        }
     });
 }
 
 pub fn cancel_app_and_bookmark_icons() {
     let generation = LOCAL_LAUNCHER_JOB_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
+    if let Ok(mut state) = LOCAL_LAUNCHER_JOB_STATE.lock() {
+        state.pending = None;
+    }
     log::info!(
         "[LocalLauncher] 取消本地索引与图标任务: generation={}",
         generation
@@ -959,8 +1091,9 @@ pub fn rebuild_missing_local_launcher_icons(app_handle: AppHandle) {
 fn run_app_and_bookmark_initialization(
     app_handle: &AppHandle,
     generation: u64,
-    force_rebuild: bool,
+    mode: LocalLauncherIndexMode,
 ) {
+    let force_rebuild = mode == LocalLauncherIndexMode::Force;
     if !local_launcher_job_active(app_handle, generation) {
         return;
     }
@@ -969,22 +1102,27 @@ fn run_app_and_bookmark_initialization(
         return;
     }
 
-    // 先加载图标缓存到内存，提升后续查询速度
-    load_icon_cache(app_handle);
+    if mode != LocalLauncherIndexMode::Automatic {
+        // 启动/手动重建时加载一次；自动增量检查不能反复重载图标缓存。
+        load_icon_cache(app_handle);
+    }
 
-    // 检查数据库中是否已有数据
-    let scanned_apps_count = db::count_scanned_apps().unwrap_or(0);
-    let scanned_bookmarks_count = db::count_scanned_bookmarks().unwrap_or(0);
-    let apps_index_stale = db::index_needs_refresh(
+    // A fingerprint mismatch detects changes made while this process was not
+    // running as well as changes made since the previous quick-search open.
+    let apps_fingerprint = installed_apps_source_fingerprint();
+    let bookmarks_fingerprint = browser_bookmarks_source_fingerprint();
+    let apps_index_stale = db::index_source_fingerprint_changed(
         "apps",
         APP_INDEX_STORAGE_SCHEMA_VERSION,
         APP_INDEX_EXTRACTOR_VERSION,
+        &apps_fingerprint,
     )
     .unwrap_or(true);
-    let bookmarks_index_stale = db::index_needs_refresh(
+    let bookmarks_index_stale = db::index_source_fingerprint_changed(
         "bookmarks",
         BOOKMARK_INDEX_STORAGE_SCHEMA_VERSION,
         BOOKMARK_INDEX_EXTRACTOR_VERSION,
+        &bookmarks_fingerprint,
     )
     .unwrap_or(true);
 
@@ -995,12 +1133,7 @@ fn run_app_and_bookmark_initialization(
             Some("all" | "apps" | "bookmarks" | "launcher")
         );
 
-    if scanned_apps_count > 0
-        && scanned_bookmarks_count > 0
-        && !apps_index_stale
-        && !bookmarks_index_stale
-        && !launcher_reset_pending
-    {
+    if !apps_index_stale && !bookmarks_index_stale && !launcher_reset_pending {
         load_missing_icons(app_handle.clone(), generation);
         return;
     }
@@ -1032,12 +1165,9 @@ fn run_app_and_bookmark_initialization(
     let mut bookmarks_to_load = Vec::new();
 
     let reset_kind = progress_reset_kind.as_deref();
-    let scan_apps = scanned_apps_count == 0
-        || apps_index_stale
-        || matches!(reset_kind, Some("all" | "apps" | "launcher"));
-    let scan_bookmarks = scanned_bookmarks_count == 0
-        || bookmarks_index_stale
-        || matches!(reset_kind, Some("all" | "bookmarks" | "launcher"));
+    let scan_apps = apps_index_stale || matches!(reset_kind, Some("all" | "apps" | "launcher"));
+    let scan_bookmarks =
+        bookmarks_index_stale || matches!(reset_kind, Some("all" | "bookmarks" | "launcher"));
     let scan_desktop_files = crate::app_config::is_plugin_enabled(app_handle, "desktop-files")
         && matches!(reset_kind, Some("all" | "desktopFiles"));
     let base_steps =
@@ -1053,42 +1183,64 @@ fn run_app_and_bookmark_initialization(
             base_steps.max(1),
             "",
         );
-        apps_to_load = get_installed_apps();
+        let app_scan = get_installed_apps();
+        apps_to_load = app_scan.apps;
         if !local_launcher_job_active(app_handle, generation) {
             return;
         }
         log::info!(
-            "[LocalLauncher] 本地应用文本扫描完成: count={}",
-            apps_to_load.len()
+            "[LocalLauncher] 本地应用文本扫描完成: count={}, complete={}",
+            apps_to_load.len(),
+            app_scan.complete
         );
         current_step += 1;
 
-        crate::window::emit_scan_progress_for(
-            "local-launcher",
-            "index",
-            "正在保存应用数据...",
-            current_step,
-            base_steps.max(1),
-            &format!("共 {} 个应用", apps_to_load.len()),
-        );
-        let replace_scanned_index = force_rebuild
-            || apps_index_stale
-            || matches!(reset_kind, Some("all" | "apps" | "launcher"));
-        let persist_result = if replace_scanned_index {
-            db::replace_apps(&apps_to_load)
-        } else {
-            db::insert_apps(&apps_to_load)
-        };
-        if let Err(e) = persist_result {
-            log::error!("插入应用到数据库失败: {}", e);
-        } else {
-            let _ = db::mark_index_success(
-                "apps",
-                APP_INDEX_STORAGE_SCHEMA_VERSION,
-                APP_INDEX_EXTRACTOR_VERSION,
+        if !app_scan.complete {
+            log::warn!(
+                "[LocalLauncher] 应用来源扫描不完整，合并已发现项目、保留旧索引并等待下次重试: {}",
+                app_scan.warning.as_deref().unwrap_or("未知来源错误")
             );
+            crate::window::emit_scan_progress_for(
+                "local-launcher",
+                "index",
+                "正在合并部分应用数据...",
+                current_step,
+                base_steps.max(1),
+                &format!("已发现 {} 个应用", apps_to_load.len()),
+            );
+            if let Err(e) = db::merge_apps(&apps_to_load) {
+                log::error!("合并部分应用数据失败: {}", e);
+            }
+            current_step += 1;
+        } else {
+            crate::window::emit_scan_progress_for(
+                "local-launcher",
+                "index",
+                "正在保存应用数据...",
+                current_step,
+                base_steps.max(1),
+                &format!("共 {} 个应用", apps_to_load.len()),
+            );
+            let replace_scanned_index = force_rebuild
+                || apps_index_stale
+                || matches!(reset_kind, Some("all" | "apps" | "launcher"));
+            let persist_result = if replace_scanned_index {
+                db::replace_apps(&apps_to_load)
+            } else {
+                db::insert_apps(&apps_to_load)
+            };
+            if let Err(e) = persist_result {
+                log::error!("插入应用到数据库失败: {}", e);
+            } else {
+                let _ = db::mark_index_success_with_fingerprint(
+                    "apps",
+                    APP_INDEX_STORAGE_SCHEMA_VERSION,
+                    APP_INDEX_EXTRACTOR_VERSION,
+                    Some(&apps_fingerprint),
+                );
+            }
+            current_step += 1;
         }
-        current_step += 1;
     }
 
     if scan_bookmarks {
@@ -1129,10 +1281,11 @@ fn run_app_and_bookmark_initialization(
         if let Err(e) = persist_result {
             log::error!("插入书签到数据库失败: {}", e);
         } else {
-            let _ = db::mark_index_success(
+            let _ = db::mark_index_success_with_fingerprint(
                 "bookmarks",
                 BOOKMARK_INDEX_STORAGE_SCHEMA_VERSION,
                 BOOKMARK_INDEX_EXTRACTOR_VERSION,
+                Some(&bookmarks_fingerprint),
             );
         }
         current_step += 1;
@@ -1216,7 +1369,7 @@ fn run_app_and_bookmark_initialization(
         load_missing_icons(app_handle.clone(), generation);
     } else {
         // setup完成后的正常启动：静默加载图标 + 系统通知
-        if total_loaded > 0 {
+        if total_loaded > 0 && mode != LocalLauncherIndexMode::Automatic {
             notify_local_launcher_index_complete(
                 app_handle,
                 indexed_apps_count,

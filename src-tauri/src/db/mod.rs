@@ -18,22 +18,23 @@ pub use connection::DbConnectionManager;
 // 重新导出初始化函数
 pub use init::init_db;
 pub use init::{
-    clear_plugin_storage, ensure_plugin_storage, index_needs_refresh, mark_index_success,
+    clear_plugin_storage, ensure_plugin_storage, index_source_fingerprint_changed,
+    mark_index_success, mark_index_success_with_fingerprint,
 };
 pub use reset::reset_rebuildable_indexes;
 
 // 重新导出应用相关函数
 pub use apps::{add_app, delete_app, get_apps, update_app};
 pub use apps::{
-    count_apps, count_scanned_apps, get_all_apps, insert_apps, replace_apps, update_app_icon,
+    count_apps, get_all_apps, insert_apps, merge_apps, replace_apps, update_app_icon,
     update_app_icon_silent,
 };
 
 // 重新导出书签相关函数
 pub use bookmarks::{add_bookmark, delete_bookmark, get_bookmarks, update_bookmark};
 pub use bookmarks::{
-    count_bookmarks, count_scanned_bookmarks, get_all_bookmarks, insert_bookmarks,
-    replace_bookmarks, update_bookmark_icon, update_bookmark_icon_silent,
+    count_bookmarks, get_all_bookmarks, insert_bookmarks, replace_bookmarks, update_bookmark_icon,
+    update_bookmark_icon_silent,
 };
 
 // 重新导出搜索引擎相关函数

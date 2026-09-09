@@ -3,6 +3,7 @@ use crate::icon;
 use glob::glob;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::ffi::OsStr;
 use std::fs;
@@ -11,7 +12,9 @@ use std::os::windows::ffi::OsStrExt;
 use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::time::UNIX_EPOCH;
 use uuid::Uuid;
+use walkdir::WalkDir;
 use windows::core::{BOOL, GUID, HSTRING, PCWSTR};
 use windows::Win32::Foundation::{HWND, LPARAM, PROPERTYKEY};
 use windows::Win32::System::Com::{CoInitialize, CoTaskMemFree};
@@ -35,6 +38,145 @@ pub struct AppInfo {
     pub summarize: String,
     #[serde(default)]
     pub usage_count: u32,
+}
+
+pub struct InstalledAppsScan {
+    pub apps: Vec<AppInfo>,
+    pub complete: bool,
+    pub warning: Option<String>,
+}
+
+fn add_registry_snapshot(tokens: &mut Vec<String>, hkey: winreg::HKEY, path: &str) {
+    let root = RegKey::predef(hkey);
+    let Ok(key) = root.open_subkey(path) else {
+        return;
+    };
+
+    for key_name in key.enum_keys().flatten() {
+        let mut token = format!("registry:{}\\{}", path, key_name);
+        if let Ok(app_key) = key.open_subkey(&key_name) {
+            for value_name in ["DisplayName", "DisplayIcon", "AppID", "PackageRootFolder"] {
+                if let Ok(value) = app_key.get_value::<String, _>(value_name) {
+                    token.push('|');
+                    token.push_str(value_name);
+                    token.push('=');
+                    token.push_str(&value);
+                }
+            }
+        }
+        tokens.push(token);
+    }
+}
+
+fn add_app_path_snapshot(tokens: &mut Vec<String>, root: &Path, max_depth: usize) {
+    if !root.is_dir() {
+        return;
+    }
+
+    for entry in WalkDir::new(root)
+        .follow_links(false)
+        .max_depth(max_depth)
+        .into_iter()
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_type().is_file())
+    {
+        let path = entry.path();
+        let extension = path
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .unwrap_or_default();
+        if !["lnk", "exe", "url", "appref-ms"]
+            .iter()
+            .any(|candidate| extension.eq_ignore_ascii_case(candidate))
+        {
+            continue;
+        }
+
+        let metadata = entry.metadata().ok();
+        let length = metadata.as_ref().map(|value| value.len()).unwrap_or(0);
+        let modified = metadata
+            .and_then(|value| value.modified().ok())
+            .and_then(|value| value.duration_since(UNIX_EPOCH).ok())
+            .map(|value| value.as_nanos())
+            .unwrap_or(0);
+        tokens.push(format!(
+            "file:{}|{}|{}",
+            path.to_string_lossy().to_ascii_lowercase(),
+            length,
+            modified
+        ));
+    }
+}
+
+fn fingerprint_tokens(mut tokens: Vec<String>) -> String {
+    tokens.sort_unstable();
+    tokens.dedup();
+
+    let mut hasher = Sha256::new();
+    for token in tokens {
+        hasher.update(token.as_bytes());
+        hasher.update([0]);
+    }
+    hex::encode(hasher.finalize())
+}
+
+/// Builds a cheap signature of the sources used by `get_installed_apps`.
+/// This avoids running PowerShell and manifest parsing every time the search
+/// window opens while still detecting normal MSI/EXE/UWP installs and new
+/// Start Menu or desktop shortcuts.
+pub fn installed_apps_source_fingerprint() -> String {
+    let mut tokens = Vec::new();
+    for (hkey, path) in [
+        (
+            HKEY_LOCAL_MACHINE,
+            r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+        ),
+        (
+            HKEY_LOCAL_MACHINE,
+            r"SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
+        ),
+        (
+            HKEY_CURRENT_USER,
+            r"Software\Microsoft\Windows\CurrentVersion\Uninstall",
+        ),
+        (
+            HKEY_CURRENT_USER,
+            r"Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
+        ),
+        (
+            HKEY_CURRENT_USER,
+            r"Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\Repository\Packages",
+        ),
+    ] {
+        add_registry_snapshot(&mut tokens, hkey, path);
+    }
+
+    let mut paths = Vec::new();
+    if let Ok(app_data) = std::env::var("APPDATA") {
+        paths.push((
+            PathBuf::from(app_data).join(r"Microsoft\Windows\Start Menu\Programs"),
+            8,
+        ));
+    }
+    if let Ok(program_data) = std::env::var("PROGRAMDATA") {
+        paths.push((
+            PathBuf::from(program_data).join(r"Microsoft\Windows\Start Menu\Programs"),
+            8,
+        ));
+    }
+    if let Some(desktop) = dirs::desktop_dir() {
+        paths.push((desktop, 1));
+    }
+    paths.push((PathBuf::from(r"C:\Users\Public\Desktop"), 1));
+    if let Some(local_data) = dirs::data_local_dir() {
+        paths.push((local_data.join(r"Microsoft\WindowsApps"), 1));
+    }
+
+    for (path, max_depth) in paths {
+        add_app_path_snapshot(&mut tokens, &path, max_depth);
+    }
+
+    fingerprint_tokens(tokens)
 }
 
 pub fn is_shell_apps_folder_path(app_path: &str) -> bool {
@@ -344,127 +486,6 @@ fn get_registry_apps(hkey: winreg::HKEY, path: &str) -> Vec<AppInfo> {
                                 });
                             }
                         }
-                    }
-                }
-            }
-        }
-    }
-
-    apps
-}
-
-// UWP应用的信息
-#[derive(Debug, Serialize, Deserialize, Clone)]
-struct UwpAppInfo {
-    display_name: String,
-    logo_path: String,
-    executable: String,
-}
-
-// 解析AppxManifest.xml文件提取UWP应用信息
-fn parse_appx_manifest(manifest_path: &Path) -> Option<UwpAppInfo> {
-    // 读取清单文件
-    let file = fs::File::open(manifest_path).ok()?;
-    let parser = EventReader::new(file);
-
-    let mut display_name = None;
-    let mut logo_path = None;
-    let mut executable = None;
-    let package_path = manifest_path.parent()?.to_path_buf();
-
-    // AppxManifest.xml 所在目录就是包根目录。
-    for event in parser {
-        match event {
-            Ok(XmlEvent::StartElement {
-                name, attributes, ..
-            }) => {
-                // 获取显示名称
-                if name.local_name == "Application" {
-                    for attr in &attributes {
-                        if attr.name.local_name == "Executable" {
-                            executable = Some(attr.value.clone());
-                        }
-                    }
-                } else if name.local_name == "DisplayName" {
-                    for attr in &attributes {
-                        if attr.name.local_name == "Name" {
-                            display_name = Some(attr.value.clone());
-                        }
-                    }
-                } else if name.local_name == "Logo" {
-                    for attr in &attributes {
-                        if attr.name.local_name == "Path" {
-                            logo_path = Some(attr.value.clone());
-                        }
-                    }
-                }
-            }
-            Ok(XmlEvent::Characters(content)) => {
-                // 如果之前找到了DisplayName标签但没有Name属性，则使用内容作为名称
-                if display_name.is_none() && !content.trim().is_empty() {
-                    display_name = Some(content);
-                }
-            }
-            Err(_) => break,
-            _ => {}
-        }
-    }
-
-    // 检查是否找到所有必要信息
-    if let (Some(name), Some(logo), Some(exe)) = (display_name, logo_path, executable) {
-        // 构建完整的图标路径
-        let full_logo_path = package_path.join(&logo);
-        let full_exe_path = package_path.join(&exe);
-
-        Some(UwpAppInfo {
-            display_name: name,
-            logo_path: full_logo_path.to_string_lossy().to_string(),
-            executable: full_exe_path.to_string_lossy().to_string(),
-        })
-    } else {
-        None
-    }
-}
-
-// 获取UWP应用
-fn get_uwp_apps() -> Vec<AppInfo> {
-    let mut apps = Vec::new();
-
-    // UWP应用通常安装在以下目录
-    let packages_paths = [
-        "C:\\Program Files\\WindowsApps",
-        "C:\\Program Files\\ModifiableWindowsApps",
-    ];
-
-    for &base_path in &packages_paths {
-        let base_dir = Path::new(base_path);
-
-        if !base_dir.exists() || !base_dir.is_dir() {
-            continue;
-        }
-
-        // 遍历所有应用包目录
-        if let Ok(entries) = fs::read_dir(base_dir) {
-            for entry in entries.filter_map(Result::ok) {
-                let package_dir = entry.path();
-
-                if !package_dir.is_dir() {
-                    continue;
-                }
-
-                // 查找AppxManifest.xml文件
-                let manifest_path = package_dir.join("AppxManifest.xml");
-
-                if manifest_path.exists() {
-                    if let Some(app_info) = parse_appx_manifest(&manifest_path) {
-                        apps.push(AppInfo {
-                            id: Uuid::new_v4().to_string(),
-                            title: app_info.display_name,
-                            content: app_info.executable,
-                            icon: None,
-                            summarize: "uwp".to_string(),
-                            usage_count: 0,
-                        });
                     }
                 }
             }
@@ -837,44 +858,9 @@ fn get_office_apps() -> Vec<AppInfo> {
         }
     }
 
-    // 方式3: 搜索常见安装位置
-    let common_office_paths = [
-        "C:\\Program Files\\Microsoft Office",
-        "C:\\Program Files (x86)\\Microsoft Office",
-        "C:\\Program Files\\Microsoft Office 15",
-        "C:\\Program Files\\Microsoft Office 16",
-        "C:\\Program Files (x86)\\Microsoft Office 15",
-        "C:\\Program Files (x86)\\Microsoft Office 16",
-        "C:\\Program Files\\Microsoft 365",
-        "C:\\Program Files (x86)\\Microsoft 365",
-        "C:\\Program Files\\WindowsApps\\Microsoft.Office.Desktop",
-    ];
-
-    for &base_path in &common_office_paths {
-        for (_, exe_name, display_name) in office_apps.iter() {
-            // 递归搜索基础路径下的所有可能位置
-            let search_pattern = format!("{}\\**\\{}", base_path, exe_name);
-            if let Ok(paths) = glob(&search_pattern) {
-                for entry in paths.filter_map(Result::ok) {
-                    let app_path = entry.to_string_lossy().to_string();
-
-                    // 检查是否已添加此路径
-                    if !apps.iter().any(|app| app.content == app_path) {
-                        apps.push(AppInfo {
-                            id: Uuid::new_v4().to_string(),
-                            title: display_name.to_string(),
-                            content: app_path,
-                            icon: None,
-                            summarize: "app".to_string(),
-                            usage_count: 0,
-                        });
-                    }
-                }
-            }
-        }
-    }
-
-    // 方式4: 对于Office 2019和Office 365，检查Click-to-Run安装
+    // 方式3: 对于Office 2019和Office 365，检查Click-to-Run安装。不要递归
+    // 遍历 Program Files/WindowsApps；注册表与这些确定路径已经覆盖正常安装，
+    // 深层 glob 在冷缓存或受保护目录上可能阻塞数秒。
     let c2r_paths = [
         "C:\\Program Files\\Microsoft Office\\root\\Office16",
         "C:\\Program Files (x86)\\Microsoft Office\\root\\Office16",
@@ -1050,7 +1036,7 @@ fn find_modern_system_apps() -> Vec<AppInfo> {
     apps
 }
 
-fn get_windows_store_apps_from_start_apps() -> Vec<AppInfo> {
+fn get_windows_store_apps_from_start_apps() -> Result<Vec<AppInfo>, String> {
     let result = try_with_timeout(
         || {
             let script = r#"$utf8 = [System.Text.UTF8Encoding]::new($false); [Console]::OutputEncoding = $utf8; $OutputEncoding = $utf8; Get-StartApps | ForEach-Object { if ($_.Name -and $_.AppID) { [Console]::Out.WriteLine(($_.Name -replace "`t", " ") + "`t" + $_.AppID) } }"#;
@@ -1072,7 +1058,7 @@ fn get_windows_store_apps_from_start_apps() -> Vec<AppInfo> {
             }
 
             let stdout = String::from_utf8_lossy(&output.stdout);
-            let apps = stdout
+            let apps: Vec<AppInfo> = stdout
                 .lines()
                 .filter_map(|line| {
                     let (name, app_id) = line.split_once('\t')?;
@@ -1123,12 +1109,14 @@ fn get_windows_store_apps_from_start_apps() -> Vec<AppInfo> {
 
             Ok(apps)
         },
-        std::time::Duration::from_secs(3),
+        std::time::Duration::from_secs(6),
     );
 
     match result {
-        Ok(Ok(apps)) => apps,
-        _ => Vec::new(),
+        Ok(Ok(apps)) if !apps.is_empty() => Ok(apps),
+        Ok(Ok(_)) => Err("Get-StartApps 返回空结果".to_string()),
+        Ok(Err(error)) => Err(format!("Get-StartApps 执行失败: {}", error)),
+        Err(()) => Err("Get-StartApps 在 6 秒内未完成".to_string()),
     }
 }
 
@@ -1231,10 +1219,14 @@ fn get_windows_store_app_aliases() -> Vec<AppInfo> {
 }
 
 // 获取 Windows 商店应用
-fn get_windows_store_apps() -> Vec<AppInfo> {
+fn get_windows_store_apps() -> (Vec<AppInfo>, Option<String>) {
     let mut apps = Vec::new();
+    let mut warning = None;
 
-    apps.extend(get_windows_store_apps_from_start_apps());
+    match get_windows_store_apps_from_start_apps() {
+        Ok(start_apps) => apps.extend(start_apps),
+        Err(error) => warning = Some(error),
+    }
     apps.extend(get_windows_store_app_aliases());
 
     // 访问 Windows 应用清单注册表位置
@@ -1293,7 +1285,7 @@ fn get_windows_store_apps() -> Vec<AppInfo> {
         }
     }
 
-    apps
+    (apps, warning)
 }
 
 // 查找 UWP 应用的可执行文件路径
@@ -1357,46 +1349,109 @@ fn extract_executable_from_manifest(manifest_content: &str) -> Option<String> {
 }
 
 // 获取已安装应用
-pub fn get_installed_apps() -> Vec<AppInfo> {
-    let paths = [
-        (
-            HKEY_LOCAL_MACHINE,
-            r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
-        ),
-        (
-            HKEY_LOCAL_MACHINE,
-            r"SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
-        ),
-        (
-            HKEY_CURRENT_USER,
-            r"Software\Microsoft\Windows\CurrentVersion\Uninstall",
-        ),
-        (
-            HKEY_CURRENT_USER,
-            r"Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
-        ),
-    ];
+pub fn get_installed_apps() -> InstalledAppsScan {
+    // `get_windows_store_apps` already covers packaged apps through
+    // Get-StartApps, execution aliases and the package registry. Avoid the old
+    // recursive WindowsApps manifest walk here: it duplicated those sources
+    // and could spend several seconds on protected package directories.
+    //
+    // The remaining scanners are independent and can include relatively slow
+    // shell or Office lookups. Run them concurrently so a changed shortcut
+    // does not wait for every source serially.
+    let (registry_result, shortcut_result, store_result, windows_result) =
+        std::thread::scope(|scope| {
+            let registry_thread = scope.spawn(|| {
+                let started = std::time::Instant::now();
+                let mut apps = Vec::new();
+                let paths = [
+                    (
+                        HKEY_LOCAL_MACHINE,
+                        r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+                    ),
+                    (
+                        HKEY_LOCAL_MACHINE,
+                        r"SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
+                    ),
+                    (
+                        HKEY_CURRENT_USER,
+                        r"Software\Microsoft\Windows\CurrentVersion\Uninstall",
+                    ),
+                    (
+                        HKEY_CURRENT_USER,
+                        r"Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
+                    ),
+                ];
+                for (hkey, path) in paths {
+                    apps.extend(get_registry_apps(hkey, path));
+                }
+                (apps, started.elapsed())
+            });
+            let shortcut_thread = scope.spawn(|| {
+                let started = std::time::Instant::now();
+                (get_desktop_shortcuts(), started.elapsed())
+            });
+            let store_thread = scope.spawn(|| {
+                let started = std::time::Instant::now();
+                (get_windows_store_apps(), started.elapsed())
+            });
+            let windows_thread = scope.spawn(|| {
+                let started = std::time::Instant::now();
+                (get_windows_apps(), started.elapsed())
+            });
 
-    let mut all_apps = Vec::new();
+            (
+                registry_thread.join(),
+                shortcut_thread.join(),
+                store_thread.join(),
+                windows_thread.join(),
+            )
+        });
 
-    for (hkey, path) in paths.iter() {
-        let apps = get_registry_apps(*hkey, path);
-        all_apps.extend(apps);
+    let mut warnings = Vec::new();
+    let (registry_apps, registry_elapsed) = registry_result.unwrap_or_else(|_| {
+        warnings.push("注册表应用扫描线程异常退出".to_string());
+        Default::default()
+    });
+    let (shortcut_apps, shortcut_elapsed) = shortcut_result.unwrap_or_else(|_| {
+        warnings.push("快捷方式扫描线程异常退出".to_string());
+        Default::default()
+    });
+    let ((store_apps, store_warning), store_elapsed) = store_result.unwrap_or_else(|_| {
+        warnings.push("Windows 商店应用扫描线程异常退出".to_string());
+        Default::default()
+    });
+    let (windows_apps, windows_elapsed) = windows_result.unwrap_or_else(|_| {
+        warnings.push("Windows 应用扫描线程异常退出".to_string());
+        Default::default()
+    });
+    if let Some(store_warning) = store_warning {
+        warnings.push(store_warning);
     }
+    let warning = (!warnings.is_empty()).then(|| warnings.join("; "));
+
+    log::info!(
+        "[LocalLauncher] 应用来源扫描完成: registry={}({}ms), shortcuts={}({}ms), store={}({}ms), windows={}({}ms), complete={}",
+        registry_apps.len(),
+        registry_elapsed.as_millis(),
+        shortcut_apps.len(),
+        shortcut_elapsed.as_millis(),
+        store_apps.len(),
+        store_elapsed.as_millis(),
+        windows_apps.len(),
+        windows_elapsed.as_millis(),
+        warning.is_none(),
+    );
+
+    let mut all_apps = Vec::with_capacity(
+        registry_apps.len() + shortcut_apps.len() + store_apps.len() + windows_apps.len(),
+    );
+    all_apps.extend(registry_apps);
 
     // User-created shortcuts carry the name the user expects to search for.
     // Put them before packaged-app discovery so an AppsFolder shortcut named
     // "Codex" wins over the package manifest's legacy "ChatGPT" display name.
-    let shortcut_apps = get_desktop_shortcuts();
     all_apps.extend(shortcut_apps);
-
-    let uwp_apps = get_uwp_apps();
-    all_apps.extend(uwp_apps);
-
-    let store_apps = get_windows_store_apps();
     all_apps.extend(store_apps);
-
-    let windows_apps = get_windows_apps();
     all_apps.extend(windows_apps);
 
     // 确保所有应用都有默认图标
@@ -1458,7 +1513,11 @@ pub fn get_installed_apps() -> Vec<AppInfo> {
         unique_apps.push(app);
     }
 
-    unique_apps
+    InstalledAppsScan {
+        apps: unique_apps,
+        complete: warning.is_none(),
+        warning,
+    }
 }
 
 // 在背景线程中加载应用程序图标 (无通知版本)
@@ -1864,9 +1923,21 @@ pub fn open_app_file_location_command(
 #[cfg(test)]
 mod tests {
     use super::{
-        extract_icon_metadata_for_app_id_from_manifest, normalize_shortcut_target,
-        package_name_matches_family,
+        extract_icon_metadata_for_app_id_from_manifest, fingerprint_tokens,
+        normalize_shortcut_target, package_name_matches_family,
     };
+
+    #[test]
+    fn source_fingerprint_is_order_independent_and_change_sensitive() {
+        assert_eq!(
+            fingerprint_tokens(vec!["b".to_string(), "a".to_string()]),
+            fingerprint_tokens(vec!["a".to_string(), "b".to_string()])
+        );
+        assert_ne!(
+            fingerprint_tokens(vec!["a".to_string()]),
+            fingerprint_tokens(vec!["changed".to_string()])
+        );
+    }
 
     #[test]
     fn normalizes_store_shortcut_app_id() {

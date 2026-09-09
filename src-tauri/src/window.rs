@@ -891,6 +891,11 @@ pub fn hotkey_search(context: Option<String>) {
         .unwrap_or(false);
 
     if !was_visible {
+        // Check cheap source fingerprints in the background. Search can render
+        // the existing index immediately; an actual change emits
+        // `local-launcher-index-updated` and the frontend reruns the query.
+        crate::icon::refresh_app_and_bookmark_index_if_changed(app_handle.clone());
+
         // 必须在创建/显示快速搜索窗口之前记录，否则生产包里窗口构建可能先抢走焦点。
         record_last_active_hwnd(existing_search_hwnd);
     }
