@@ -30,7 +30,17 @@ pub fn record_current_paths(app_handle: &AppHandle) {
             report.workspace_dir.as_deref().unwrap_or("<none>"),
             report.plugin_dir
         ),
-        Err(error) => log::warn!("[Uninstall] 卸载路径刷新失败: {}", error),
+        Err(error) => log_uninstall_registration_error("卸载路径刷新失败", &error),
+    }
+}
+
+fn log_uninstall_registration_error(context: &str, error: &str) {
+    // `cargo tauri dev` 不会生成 NSIS uninstall.exe，这是开发环境的预期状态。
+    // 发布构建缺少卸载器仍然保持 WARN，以便发现安装包问题。
+    if cfg!(debug_assertions) && error.starts_with("当前目录不存在 uninstall.exe") {
+        log::debug!("[Uninstall] {}: {}", context, error);
+    } else {
+        log::warn!("[Uninstall] {}: {}", context, error);
     }
 }
 
@@ -112,7 +122,7 @@ fn record_path(value_name: &str, path: &Path) {
     if let Err(error) =
         managed_nsis_installation().and_then(|_| write_recorded_path(value_name, path))
     {
-        log::warn!("[Uninstall] 跳过卸载路径登记: {} ({})", value_name, error);
+        log_uninstall_registration_error(&format!("跳过卸载路径登记: {}", value_name), &error);
     }
 }
 
