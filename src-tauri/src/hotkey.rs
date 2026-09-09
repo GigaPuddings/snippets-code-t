@@ -255,6 +255,8 @@ pub fn register_shortcut_by_frontend(
         register_plugin_hotkey(&app_handle, name, shortcut)?;
     }
 
+    crate::sync_data::materialize_local_config_change_best_effort(&app_handle, "快捷键设置");
+
     Ok(())
 }
 

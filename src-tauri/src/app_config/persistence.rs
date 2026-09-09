@@ -141,6 +141,11 @@ impl AppConfigManager {
 
     /// 保存配置到文件
     pub fn save(&self) -> Result<(), String> {
+        let existing_content = fs::read_to_string(&self.config_path).ok();
+        if !Self::needs_save(existing_content.as_deref(), &self.config) {
+            return Ok(());
+        }
+
         let content = serde_json::to_string_pretty(&self.config)
             .map_err(|e| format!("序列化配置失败: {}", e))?;
 
@@ -225,10 +230,6 @@ impl AppConfigManager {
             .entry(plugin_id)
             .and_modify(|state| state.enabled = enabled)
             .or_insert(PluginRuntimeState { enabled });
-    }
-
-    pub fn remove_plugin_state(&mut self, plugin_id: &str) {
-        self.config.plugins.remove(plugin_id);
     }
 
     pub fn clear_plugin_owned_config(&mut self, plugin_id: &str) {
@@ -335,5 +336,17 @@ mod tests {
             AppConfigManager::load_from_str(&serialized).expect("config should deserialize");
 
         assert!(restored.quick_search.preview_visible);
+    }
+
+    #[test]
+    fn unchanged_config_does_not_need_save() {
+        let config = AppConfig::default();
+        let existing = serde_json::to_string_pretty(&config).expect("config should serialize");
+
+        assert!(!AppConfigManager::needs_save(Some(&existing), &config));
+
+        let mut changed = config.clone();
+        changed.theme = "dark".to_string();
+        assert!(AppConfigManager::needs_save(Some(&existing), &changed));
     }
 }

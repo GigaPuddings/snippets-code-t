@@ -5,6 +5,16 @@ use log::info;
 use std::fs;
 use std::path::Path;
 
+fn workspace_content_matches(existing: &str, workspace: &WorkspaceConfig) -> bool {
+    match (
+        serde_json::from_str::<serde_json::Value>(existing),
+        serde_json::to_value(workspace),
+    ) {
+        (Ok(existing), Ok(current)) => existing == current,
+        _ => false,
+    }
+}
+
 // 读取 workspace.json
 pub fn read_workspace(config_dir: &Path) -> Result<WorkspaceConfig, String> {
     let workspace_path = config_dir.join("workspace.json");
@@ -28,6 +38,12 @@ pub fn write_workspace(config_dir: &Path, workspace: &WorkspaceConfig) -> Result
 
     let json = serde_json::to_string_pretty(workspace)
         .map_err(|e| format!("序列化 workspace.json 失败: {}", e))?;
+
+    if fs::read_to_string(&workspace_path)
+        .is_ok_and(|existing| workspace_content_matches(&existing, workspace))
+    {
+        return Ok(());
+    }
 
     crate::json_config::write_text_atomic(&workspace_path, &json)
         .map_err(|e| format!("写入 workspace.json 失败: {}", e))?;
@@ -106,4 +122,18 @@ pub fn update_category_metadata(
     metadata: super::metadata::CategoryMetadata,
 ) {
     cache.categories.insert(category_name.to_string(), metadata);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn workspace_semantic_match_ignores_json_formatting() {
+        let workspace = WorkspaceConfig::default();
+        let compact = serde_json::to_string(&workspace).expect("workspace should serialize");
+
+        assert!(workspace_content_matches(&compact, &workspace));
+        assert!(!workspace_content_matches("{}", &workspace));
+    }
 }

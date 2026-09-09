@@ -180,7 +180,7 @@ v1 设备本地实际保存：
   "contentSchemaVersion": 1,
   "preferenceSchemaVersion": 1,
   "vaultId": "uuid",
-  "minimumAppVersion": "2.1.43",
+  "minimumAppVersion": "2.1.61",
   "managedRoots": ["assets"],
   "features": ["content", "preferences", "hotkeys", "vault-settings"],
   "preferences": { "schemaVersion": 1, "values": {}, "tombstones": {} },

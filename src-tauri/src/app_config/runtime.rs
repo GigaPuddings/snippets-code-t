@@ -367,6 +367,7 @@ pub fn set_plugin_enabled(
             }
         }
         apply_plugin_runtime_change(&app_handle, &plugin_id, effective_enabled);
+        crate::sync_data::materialize_local_config_change_best_effort(&app_handle, "插件启用状态");
         return Ok(());
     }
 
@@ -386,6 +387,7 @@ pub fn set_plugin_enabled(
         }
     }
     apply_plugin_runtime_change(&app_handle, &plugin_id, effective_enabled);
+    crate::sync_data::materialize_local_config_change_best_effort(&app_handle, "插件启用状态");
     Ok(())
 }
 

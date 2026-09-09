@@ -35,6 +35,8 @@ pub fn update_app_config(app_handle: AppHandle, config: AppConfig) -> Result<(),
             .map_err(|e| format!("获取配置锁失败: {}", e))?;
         manager.update_config(config);
         manager.save()?;
+        drop(manager);
+        crate::sync_data::materialize_local_config_change_best_effort(&app_handle, "应用设置");
         info!("✅ [AppConfig] 应用配置已更新");
         Ok(())
     } else {
@@ -105,6 +107,8 @@ pub fn update_editor_settings(
             .map_err(|e| format!("获取配置锁失败: {}", e))?;
         manager.update_editor_settings(settings);
         manager.save()?;
+        drop(manager);
+        crate::sync_data::materialize_local_config_change_best_effort(&app_handle, "编辑器设置");
         info!("✅ [AppConfig] 编辑器显示设置已更新");
         Ok(())
     } else {
@@ -154,6 +158,8 @@ pub fn update_git_settings_command(
             .map_err(|e| format!("获取配置锁失败: {}", e))?;
         manager.update_git_settings(settings);
         manager.save()?;
+        drop(manager);
+        crate::sync_data::materialize_local_config_change_best_effort(&app_handle, "Git 同步设置");
         info!("✅ [AppConfig] Git 设置已更新");
         Ok(())
     } else {
@@ -170,6 +176,8 @@ pub fn update_theme_config(app_handle: AppHandle, theme: String) -> Result<(), S
             .map_err(|e| format!("获取配置锁失败: {}", e))?;
         manager.update_theme(theme);
         manager.save()?;
+        drop(manager);
+        crate::sync_data::materialize_local_config_change_best_effort(&app_handle, "主题设置");
         Ok(())
     } else {
         Err("AppConfigManager 未初始化".to_string())
@@ -185,6 +193,8 @@ pub fn update_language_config(app_handle: AppHandle, language: String) -> Result
             .map_err(|e| format!("获取配置锁失败: {}", e))?;
         manager.update_language(language);
         manager.save()?;
+        drop(manager);
+        crate::sync_data::materialize_local_config_change_best_effort(&app_handle, "语言设置");
         Ok(())
     } else {
         Err("AppConfigManager 未初始化".to_string())
@@ -230,6 +240,8 @@ pub fn set_setup_index_preferences(
         let mut manager = AppConfigManager::new(&data_dir)?;
         update_config(&mut manager)?;
     }
+
+    crate::sync_data::materialize_local_config_change_best_effort(&app_handle, "初始化插件偏好");
 
     if let Some(reset_kind) = match (local_launcher, desktop_files) {
         // 本地启动器负责前台重建反馈；桌面文件按自身空缓存静默恢复，

@@ -25,5 +25,7 @@ pub fn get_auto_hide_on_blur() -> bool {
 #[tauri::command]
 pub fn set_auto_hide_on_blur(value: bool) -> Result<(), String> {
     let app = APP.get().ok_or("应用未初始化")?;
-    json_config::set_app_config_value(app, "auto_hide_on_blur", value)
+    json_config::set_app_config_value(app, "auto_hide_on_blur", value)?;
+    crate::sync_data::materialize_local_config_change_best_effort(app, "失焦隐藏设置");
+    Ok(())
 }

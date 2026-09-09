@@ -333,7 +333,9 @@ pub fn reset_software(app_handle: tauri::AppHandle, reset_type: String) -> Resul
 // 设置自动检查更新（使用 app.json 存储）
 #[tauri::command]
 pub fn set_auto_update_check(app_handle: tauri::AppHandle, enabled: bool) -> Result<(), String> {
-    json_config::set_app_config_value(&app_handle, "auto_update_check", enabled)
+    json_config::set_app_config_value(&app_handle, "auto_update_check", enabled)?;
+    crate::sync_data::materialize_local_config_change_best_effort(&app_handle, "自动更新设置");
+    Ok(())
 }
 
 // 获取自动检查更新设置（从 app.json 读取）
@@ -355,6 +357,7 @@ pub fn set_language(app_handle: tauri::AppHandle, language: String) -> Result<()
     json_config::set_app_config_value(&app_handle, "language", language)?;
     // 更新托盘菜单语言
     crate::tray::update_tray_language(&app_handle);
+    crate::sync_data::materialize_local_config_change_best_effort(&app_handle, "语言设置");
     Ok(())
 }
 
@@ -375,7 +378,9 @@ pub fn get_language_internal(app_handle: &tauri::AppHandle) -> String {
 // 设置默认翻译引擎
 pub fn set_translation_engine(app_handle: tauri::AppHandle, engine: String) -> Result<(), String> {
     info!("🔄 设置翻译引擎: {} (保存到 app.json)", engine);
-    json_config::set_app_config_value(&app_handle, "translation_engine", engine)
+    json_config::set_app_config_value(&app_handle, "translation_engine", engine)?;
+    crate::sync_data::materialize_local_config_change_best_effort(&app_handle, "翻译引擎设置");
+    Ok(())
 }
 
 // 获取默认翻译引擎
@@ -393,7 +398,9 @@ pub fn set_ocr_language(app_handle: tauri::AppHandle, language: String) -> Resul
     };
 
     info!("设置 OCR 语言: {} (保存到 app.json)", language);
-    json_config::set_app_config_value(&app_handle, "ocr_language", language)
+    json_config::set_app_config_value(&app_handle, "ocr_language", language)?;
+    crate::sync_data::materialize_local_config_change_best_effort(&app_handle, "OCR 语言设置");
+    Ok(())
 }
 
 // 获取默认 OCR 语言

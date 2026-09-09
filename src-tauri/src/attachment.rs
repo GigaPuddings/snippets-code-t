@@ -645,7 +645,9 @@ pub async fn update_attachment_config(
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
     let settings = AttachmentSettings::from(config);
-    save_attachment_config_internal(&app_handle, settings)
+    save_attachment_config_internal(&app_handle, settings)?;
+    crate::sync_data::materialize_local_config_change_best_effort(&app_handle, "附件设置");
+    Ok(())
 }
 
 /// 清理孤立附件（没有对应笔记的附件文件夹）

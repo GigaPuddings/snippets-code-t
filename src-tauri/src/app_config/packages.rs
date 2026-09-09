@@ -111,6 +111,16 @@ pub(super) fn plugin_package_manifest_id(plugin_package: &LocalPluginPackage) ->
         .unwrap_or_default()
 }
 
+/// 返回当前设备已安装且清单有效的插件 ID，供可移植配置生成期望插件列表。
+pub fn installed_plugin_ids(app_handle: &AppHandle) -> Result<Vec<String>, String> {
+    Ok(installed_plugin_packages_internal(app_handle)?
+        .iter()
+        .map(plugin_package_manifest_id)
+        .filter(|plugin_id| !plugin_id.is_empty())
+        .map(str::to_string)
+        .collect())
+}
+
 fn compare_plugin_package_install_time(
     left: &LocalPluginPackage,
     right: &LocalPluginPackage,

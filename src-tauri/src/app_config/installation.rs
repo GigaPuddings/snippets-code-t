@@ -276,6 +276,13 @@ pub fn install_local_plugin_package(
         let _ = fs::remove_dir_all(temp_dir);
     }
 
+    if result.is_ok() {
+        crate::sync_data::materialize_local_config_change_best_effort(
+            &app_handle,
+            "已安装插件列表",
+        );
+    }
+
     result
 }
 
@@ -406,11 +413,11 @@ pub fn uninstall_local_plugin_package(
         let mut manager = config_state
             .write()
             .map_err(|e| format!("获取配置锁失败: {}", e))?;
-        manager.remove_plugin_state(&plugin_id);
+        manager.set_plugin_enabled(plugin_id.clone(), false);
         manager.save()?;
     } else if let Ok(Some(workspace_root)) = crate::json_config::get_workspace_root(&app_handle) {
         let mut manager = AppConfigManager::new(&workspace_root)?;
-        manager.remove_plugin_state(&plugin_id);
+        manager.set_plugin_enabled(plugin_id.clone(), false);
         manager.save()?;
     }
 
@@ -431,5 +438,6 @@ pub fn uninstall_local_plugin_package(
         if delete_data { "deleted" } else { "preserved" }
     );
     refresh_plugin_shell_integration(&app_handle, &plugin_id, false);
+    crate::sync_data::materialize_local_config_change_best_effort(&app_handle, "已安装插件列表");
     data_cleanup_result
 }

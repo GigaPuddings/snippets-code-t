@@ -32,6 +32,10 @@ pub fn get_git_status_command(app_handle: AppHandle) -> Result<GitStatus, String
         return Ok(empty_git_status());
     };
 
+    // Git 状态必须基于最新的可移植配置投影。否则仅修改 app.json 中的
+    // 快捷键或偏好设置时，工作区没有文件变化，页面会错误显示“已同步”。
+    crate::sync_data::materialize_local_config_change(&app_handle)?;
+
     // 尝试从缓存获取
     if let Some(cached) = get_cached_git_status() {
         debug!(

@@ -160,12 +160,13 @@
 <script setup lang="ts">
 import { SunOne, Moon, Computer } from '@icon-park/vue-next';
 import { useI18n } from 'vue-i18n';
-import { useConfigurationStore } from '@/store';
+import { useConfigurationStore, useThemeStore } from '@/store';
 import { broadcastThemeChanged } from '@/utils/theme-sync';
 import { invoke } from '@tauri-apps/api/core';
 import { emit } from '@tauri-apps/api/event';
 import { CustomButton, CustomSwitch, ConfirmDialog } from '@/components/UI';
 import { setLocale, type LocaleType } from '@/i18n';
+import { updateThemeConfig } from '@/api/appConfig';
 import modal from '@/utils/modal';
 
 defineOptions({
@@ -190,6 +191,15 @@ const dictLanguage = [
 ];
 
 const changeTheme = async (value: 'light' | 'dark' | 'auto'): Promise<void> => {
+  const previousTheme = useThemeStore().theme;
+  try {
+    await updateThemeConfig(value);
+  } catch (error) {
+    store.theme = previousTheme;
+    modal.msg(`${t('settings.settingFailed')}: ${error}`, 'error');
+    return;
+  }
+
   store.updateTheme(value);
 
   // 立即写入持久化存储，避免关闭设置窗口后主题状态回退

@@ -1,13 +1,13 @@
 use crate::app_config::{AppConfig, AppConfigManager};
 use crate::markdown::{AttachmentSettings, WorkspaceManager};
 use chrono::{DateTime, SecondsFormat, Utc};
-use log::{info, warn};
+use log::{debug, info, warn};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::SystemTime;
 use tauri::{AppHandle, Emitter, Manager};
 use uuid::Uuid;
@@ -15,7 +15,9 @@ use uuid::Uuid;
 pub const SYNC_FORMAT_VERSION: u32 = 2;
 pub const CONTENT_SCHEMA_VERSION: u32 = 1;
 pub const PREFERENCE_SCHEMA_VERSION: u32 = 1;
-const MINIMUM_SYNC_APP_VERSION: &str = "2.1.43";
+// 动态插件快捷键与 systemTheme 可移植字段从 2.1.61 起才会完整导入；
+// 旧版本应停止恢复，避免只恢复内容却把未应用的设置报告为成功。
+const MINIMUM_SYNC_APP_VERSION: &str = "2.1.61";
 
 /// 工作区内唯一允许进入 Git 的应用配置文件。
 ///
@@ -24,6 +26,10 @@ const MINIMUM_SYNC_APP_VERSION: &str = "2.1.43";
 const SYNC_FILE: &str = ".snippets-code/sync.json";
 
 const PROTOCOL_FILES: &[&str] = &[SYNC_FILE];
+
+// 多个设置命令可能并发刷新同一个 sync.json。串行化整个读-改-写周期，
+// 避免较早的配置快照在稍后完成写入时覆盖较新的字段时钟。
+static SYNC_BUNDLE_IO_LOCK: Mutex<()> = Mutex::new(());
 
 const PREFERENCE_KEYS: &[&str] = &[
     "appearance.theme",
@@ -35,6 +41,17 @@ const PREFERENCE_KEYS: &[&str] = &[
     "translation.engine",
     "ocr.engine",
     "ocr.language",
+    "systemTheme.themeMode",
+    "systemTheme.scheduleType",
+    "systemTheme.customLightTime",
+    "systemTheme.customDarkTime",
+];
+
+const SYSTEM_THEME_PREFERENCE_KEYS: &[&str] = &[
+    "systemTheme.themeMode",
+    "systemTheme.scheduleType",
+    "systemTheme.customLightTime",
+    "systemTheme.customDarkTime",
 ];
 
 const HOTKEY_KEYS: &[&str] = &[
@@ -254,7 +271,37 @@ fn update_sync_map(
     file
 }
 
+fn parse_dark_mode_config(
+    config: &AppConfig,
+) -> Option<crate::plugins::system_theme::DarkModeConfig> {
+    config
+        .dark_mode_config
+        .as_deref()
+        .and_then(|value| serde_json::from_str(value).ok())
+}
+
+fn theme_mode_value(mode: &crate::plugins::system_theme::ThemeMode) -> &'static str {
+    use crate::plugins::system_theme::ThemeMode;
+
+    match mode {
+        ThemeMode::System => "system",
+        ThemeMode::Light => "light",
+        ThemeMode::Dark => "dark",
+        ThemeMode::Schedule => "schedule",
+    }
+}
+
+fn schedule_type_value(schedule_type: &crate::plugins::system_theme::ScheduleType) -> &'static str {
+    use crate::plugins::system_theme::ScheduleType;
+
+    match schedule_type {
+        ScheduleType::SunBased => "sunBased",
+        ScheduleType::Custom => "custom",
+    }
+}
+
 fn project_preferences(config: &AppConfig) -> BTreeMap<String, Value> {
+    let dark_mode = parse_dark_mode_config(config).unwrap_or_default();
     BTreeMap::from([
         (
             "appearance.theme".to_string(),
@@ -304,6 +351,30 @@ fn project_preferences(config: &AppConfig) -> BTreeMap<String, Value> {
                 .map(Value::String)
                 .unwrap_or(Value::Null),
         ),
+        (
+            "systemTheme.themeMode".to_string(),
+            Value::String(theme_mode_value(&dark_mode.theme_mode).to_string()),
+        ),
+        (
+            "systemTheme.scheduleType".to_string(),
+            Value::String(schedule_type_value(&dark_mode.schedule_type).to_string()),
+        ),
+        (
+            "systemTheme.customLightTime".to_string(),
+            dark_mode
+                .custom_light_time
+                .clone()
+                .map(Value::String)
+                .unwrap_or(Value::Null),
+        ),
+        (
+            "systemTheme.customDarkTime".to_string(),
+            dark_mode
+                .custom_dark_time
+                .clone()
+                .map(Value::String)
+                .unwrap_or(Value::Null),
+        ),
     ])
 }
 
@@ -311,35 +382,52 @@ fn hotkey_value(value: &Option<String>) -> Value {
     value.clone().map(Value::String).unwrap_or(Value::Null)
 }
 
-fn project_hotkeys(config: &AppConfig) -> BTreeMap<String, Value> {
-    BTreeMap::from([
-        ("search".to_string(), hotkey_value(&config.search_hotkey)),
-        ("config".to_string(), hotkey_value(&config.config_hotkey)),
-        (
-            "translate".to_string(),
-            hotkey_value(&config.translate_hotkey),
-        ),
-        (
-            "selection_translate".to_string(),
-            hotkey_value(&config.selection_translate_hotkey),
-        ),
-        (
-            "screenshot".to_string(),
-            hotkey_value(&config.screenshot_hotkey),
-        ),
-        (
-            "screen_recorder".to_string(),
-            hotkey_value(&config.screen_recorder_hotkey),
-        ),
-        (
-            "dark_mode".to_string(),
-            hotkey_value(&config.dark_mode_hotkey),
-        ),
-        (
-            "wallpaper_switcher".to_string(),
-            hotkey_value(&config.wallpaper_switcher_hotkey),
-        ),
-    ])
+fn is_valid_hotkey_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 64
+        && name
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
+}
+
+fn configured_hotkey_names(app_handle: &AppHandle) -> Vec<String> {
+    let mut names = HOTKEY_KEYS
+        .iter()
+        .map(|name| (*name).to_string())
+        .collect::<BTreeSet<_>>();
+    names.extend(
+        crate::app_config::installed_plugin_capability_actions(app_handle, "hotkeys", false)
+            .into_iter()
+            .map(|action| action.item_id)
+            .filter(|name| is_valid_hotkey_name(name)),
+    );
+    names.into_iter().collect()
+}
+
+fn hotkey_config_value(config: &AppConfig, name: &str) -> Value {
+    match name {
+        "search" => hotkey_value(&config.search_hotkey),
+        "config" => hotkey_value(&config.config_hotkey),
+        "translate" => hotkey_value(&config.translate_hotkey),
+        "selection_translate" => hotkey_value(&config.selection_translate_hotkey),
+        "screenshot" => hotkey_value(&config.screenshot_hotkey),
+        "screen_recorder" => hotkey_value(&config.screen_recorder_hotkey),
+        "dark_mode" => hotkey_value(&config.dark_mode_hotkey),
+        "wallpaper_switcher" => hotkey_value(&config.wallpaper_switcher_hotkey),
+        _ => config
+            .extra
+            .get(&format!("{}_hotkey", name))
+            .filter(|value| value.is_string() || value.is_null())
+            .cloned()
+            .unwrap_or(Value::Null),
+    }
+}
+
+fn project_hotkeys(config: &AppConfig, names: &[String]) -> BTreeMap<String, Value> {
+    names
+        .iter()
+        .map(|name| (name.clone(), hotkey_config_value(config, name)))
+        .collect()
 }
 
 fn project_vault_settings(settings: &AttachmentSettings) -> BTreeMap<String, Value> {
@@ -367,13 +455,62 @@ fn project_vault_settings(settings: &AttachmentSettings) -> BTreeMap<String, Val
     ])
 }
 
-fn project_desired_plugins(config: &AppConfig) -> BTreeMap<String, Value> {
-    config
-        .plugins
-        .iter()
-        .filter(|(plugin_id, _)| plugin_id.as_str() != "git-sync")
-        .map(|(plugin_id, state)| (plugin_id.clone(), Value::Bool(state.enabled)))
-        .collect()
+fn is_valid_plugin_id(plugin_id: &str) -> bool {
+    !plugin_id.is_empty()
+        && plugin_id != "."
+        && plugin_id != ".."
+        && plugin_id.len() <= 96
+        && plugin_id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
+}
+
+fn desired_plugin_values(
+    config: &AppConfig,
+    installed_plugin_ids: impl IntoIterator<Item = String>,
+    inherited: Option<&SyncMapFile>,
+) -> BTreeMap<String, Value> {
+    let mut values = inherited
+        .into_iter()
+        .flat_map(|file| file.values.iter())
+        .filter(|(plugin_id, field)| {
+            plugin_id.as_str() != "git-sync"
+                && is_valid_plugin_id(plugin_id)
+                && field.value.is_boolean()
+        })
+        .map(|(plugin_id, field)| (plugin_id.clone(), field.value.clone()))
+        .collect::<BTreeMap<_, _>>();
+
+    for plugin_id in installed_plugin_ids {
+        if plugin_id != "git-sync" && is_valid_plugin_id(&plugin_id) {
+            let enabled = config
+                .plugins
+                .get(&plugin_id)
+                .map(|state| state.enabled)
+                .unwrap_or(true);
+            values.insert(plugin_id, Value::Bool(enabled));
+        }
+    }
+
+    for (plugin_id, state) in &config.plugins {
+        if plugin_id != "git-sync" && is_valid_plugin_id(plugin_id) {
+            values.insert(plugin_id.clone(), Value::Bool(state.enabled));
+        }
+    }
+
+    values
+}
+
+fn project_desired_plugins(
+    app_handle: &AppHandle,
+    config: &AppConfig,
+    inherited: Option<&SyncMapFile>,
+) -> Result<BTreeMap<String, Value>, String> {
+    Ok(desired_plugin_values(
+        config,
+        crate::app_config::installed_plugin_ids(app_handle)?,
+        inherited,
+    ))
 }
 
 fn attachment_settings(
@@ -488,6 +625,9 @@ pub fn export_sync_bundle(
     app_handle: &AppHandle,
     workspace_root: &Path,
 ) -> Result<SyncExportReport, String> {
+    let _sync_guard = SYNC_BUNDLE_IO_LOCK
+        .lock()
+        .map_err(|e| format!("获取同步配置写锁失败: {}", e))?;
     let device_id = ensure_device_id(app_handle)?;
     let config = app_config_snapshot(app_handle)?;
     let attachment = attachment_settings(app_handle, workspace_root)?;
@@ -512,12 +652,13 @@ pub fn export_sync_bundle(
         &project_preferences(&config),
         &device_id,
     );
+    let hotkey_names = configured_hotkey_names(app_handle);
     let hotkeys = update_sync_map(
         existing
             .as_ref()
             .map(|bundle| bundle.hotkeys.clone())
             .unwrap_or_default(),
-        &project_hotkeys(&config),
+        &project_hotkeys(&config, &hotkey_names),
         &device_id,
     );
     let vault_settings = update_sync_map(
@@ -533,7 +674,11 @@ pub fn export_sync_bundle(
             .as_ref()
             .map(|bundle| bundle.desired_plugins.clone())
             .unwrap_or_default(),
-        &project_desired_plugins(&config),
+        &project_desired_plugins(
+            app_handle,
+            &config,
+            existing.as_ref().map(|bundle| &bundle.desired_plugins),
+        )?,
         &device_id,
     );
 
@@ -568,7 +713,7 @@ pub fn export_sync_bundle(
         &vault_settings,
     )?;
 
-    info!("✅ [SyncData] 已导出可移植配置，vault={}", vault_id);
+    debug!("[SyncData] 可移植配置投影已校验，vault={}", vault_id);
     Ok(SyncExportReport {
         vault_id,
         files_written: PROTOCOL_FILES
@@ -577,6 +722,44 @@ pub fn export_sync_bundle(
             .collect(),
         managed_attachment_roots: managed_roots,
     })
+}
+
+/// 在本地可同步配置发生变化后，立即刷新工作区中的可移植配置投影。
+///
+/// 这里只生成 `sync.json` 并通知 Git 状态刷新，不执行 commit 或 push。
+/// Git 同步未启用或工作区未配置时，本地配置仍可正常保存。
+pub fn materialize_local_config_change(app_handle: &AppHandle) -> Result<bool, String> {
+    if !crate::app_config::is_plugin_enabled(app_handle, "git-sync") {
+        return Ok(false);
+    }
+
+    let config = app_config_snapshot(app_handle)?;
+    if !config.git.enabled {
+        return Ok(false);
+    }
+
+    let Some(workspace_root) = crate::json_config::get_workspace_root(app_handle)? else {
+        return Ok(false);
+    };
+
+    let sync_path = path_for(&workspace_root, SYNC_FILE);
+    let previous = fs::read(&sync_path).ok();
+    export_sync_bundle(app_handle, &workspace_root)?;
+    let current = fs::read(&sync_path)
+        .map_err(|e| format!("读取刷新后的同步配置失败 {}: {}", sync_path.display(), e))?;
+    let changed = previous.as_deref() != Some(current.as_slice());
+    if changed {
+        crate::git_sync::clear_git_status_cache();
+        let _ = app_handle.emit("git-workspace-changed", ());
+    }
+    Ok(changed)
+}
+
+/// 设置本身已经成功保存时，Git 投影失败只记录告警，不回滚本地设置。
+pub fn materialize_local_config_change_best_effort(app_handle: &AppHandle, source: &str) {
+    if let Err(error) = materialize_local_config_change(app_handle) {
+        warn!("刷新 {} 的 Git 同步数据失败: {}", source, error);
+    }
 }
 
 fn parse_version(value: &str) -> (u64, u64, u64) {
@@ -683,54 +866,123 @@ fn bounded_optional_string(value: &Value, key: &str) -> Result<Option<String>, S
     Ok((!text.is_empty()).then_some(text))
 }
 
+fn parse_theme_mode(value: &Value) -> Result<crate::plugins::system_theme::ThemeMode, String> {
+    use crate::plugins::system_theme::ThemeMode;
+
+    if value.is_null() {
+        return Ok(ThemeMode::System);
+    }
+    match value.as_str() {
+        Some("system") => Ok(ThemeMode::System),
+        Some("light") => Ok(ThemeMode::Light),
+        Some("dark") => Ok(ThemeMode::Dark),
+        Some("schedule") => Ok(ThemeMode::Schedule),
+        _ => Err("主题模式只允许 system、light、dark 或 schedule".to_string()),
+    }
+}
+
+fn parse_schedule_type(
+    value: &Value,
+) -> Result<crate::plugins::system_theme::ScheduleType, String> {
+    use crate::plugins::system_theme::ScheduleType;
+
+    if value.is_null() {
+        return Ok(ScheduleType::SunBased);
+    }
+    match value.as_str() {
+        Some("sunBased") => Ok(ScheduleType::SunBased),
+        Some("custom") => Ok(ScheduleType::Custom),
+        _ => Err("定时类型只允许 sunBased 或 custom".to_string()),
+    }
+}
+
+fn parse_optional_clock_time(value: &Value, key: &str) -> Result<Option<String>, String> {
+    let Some(value) = bounded_optional_string(value, key)? else {
+        return Ok(None);
+    };
+    let Some((hour, minute)) = value.split_once(':') else {
+        return Err("时间必须使用 HH:MM 格式".to_string());
+    };
+    if value.len() != 5
+        || hour.len() != 2
+        || minute.len() != 2
+        || !hour.bytes().all(|byte| byte.is_ascii_digit())
+        || !minute.bytes().all(|byte| byte.is_ascii_digit())
+        || hour.parse::<u8>().map_or(true, |hour| hour > 23)
+        || minute.parse::<u8>().map_or(true, |minute| minute > 59)
+    {
+        return Err("时间必须是有效的 HH:MM 值".to_string());
+    }
+    Ok(Some(value))
+}
+
 fn apply_preferences(
     config: &mut AppConfig,
     values: &BTreeMap<String, Value>,
     report: &mut SyncImportReport,
 ) {
     let previous = project_preferences(config);
+    let mut dark_mode = parse_dark_mode_config(config).unwrap_or_default();
+    let mut dark_mode_touched = false;
     for key in PREFERENCE_KEYS {
         let Some(value) = values.get(*key) else {
             continue;
         };
-        let result =
-            match *key {
-                "appearance.theme" => value
-                    .as_str()
-                    .filter(|theme| matches!(*theme, "light" | "dark" | "auto"))
-                    .map(|theme| config.theme = theme.to_string())
-                    .ok_or_else(|| "主题只允许 light、dark 或 auto".to_string()),
-                "general.language" => value
-                    .as_str()
-                    .filter(|language| matches!(*language, "zh-CN" | "en-US"))
-                    .map(|language| config.language = language.to_string())
-                    .ok_or_else(|| "语言只允许 zh-CN 或 en-US".to_string()),
-                "general.autoUpdateCheck" => value
-                    .as_bool()
-                    .map(|enabled| config.auto_update_check = enabled)
-                    .ok_or_else(|| "必须是布尔值".to_string()),
-                "general.autoHideOnBlur" => value
-                    .as_bool()
-                    .map(|enabled| config.auto_hide_on_blur = enabled)
-                    .ok_or_else(|| "必须是布尔值".to_string()),
-                "editor.lineNumbers" => value
-                    .as_bool()
-                    .map(|enabled| config.editor.line_numbers = enabled)
-                    .ok_or_else(|| "必须是布尔值".to_string()),
-                "editor.lineHeight" => value
-                    .as_f64()
-                    .filter(|height| height.is_finite() && (1.2..=2.0).contains(height))
-                    .map(|height| config.editor.line_height = height)
-                    .ok_or_else(|| "行高必须在 1.2 到 2.0 之间".to_string()),
-                "translation.engine" => bounded_optional_string(value, key)
-                    .map(|engine| config.translation_engine = engine),
-                "ocr.engine" => {
-                    bounded_optional_string(value, key).map(|engine| config.ocr_engine = engine)
-                }
-                "ocr.language" => bounded_optional_string(value, key)
-                    .map(|language| config.ocr_language = language),
-                _ => Ok(()),
-            };
+        let result = match *key {
+            "appearance.theme" => value
+                .as_str()
+                .filter(|theme| matches!(*theme, "light" | "dark" | "auto"))
+                .map(|theme| config.theme = theme.to_string())
+                .ok_or_else(|| "主题只允许 light、dark 或 auto".to_string()),
+            "general.language" => value
+                .as_str()
+                .filter(|language| matches!(*language, "zh-CN" | "en-US"))
+                .map(|language| config.language = language.to_string())
+                .ok_or_else(|| "语言只允许 zh-CN 或 en-US".to_string()),
+            "general.autoUpdateCheck" => value
+                .as_bool()
+                .map(|enabled| config.auto_update_check = enabled)
+                .ok_or_else(|| "必须是布尔值".to_string()),
+            "general.autoHideOnBlur" => value
+                .as_bool()
+                .map(|enabled| config.auto_hide_on_blur = enabled)
+                .ok_or_else(|| "必须是布尔值".to_string()),
+            "editor.lineNumbers" => value
+                .as_bool()
+                .map(|enabled| config.editor.line_numbers = enabled)
+                .ok_or_else(|| "必须是布尔值".to_string()),
+            "editor.lineHeight" => value
+                .as_f64()
+                .filter(|height| height.is_finite() && (1.2..=2.0).contains(height))
+                .map(|height| config.editor.line_height = height)
+                .ok_or_else(|| "行高必须在 1.2 到 2.0 之间".to_string()),
+            "translation.engine" => {
+                bounded_optional_string(value, key).map(|engine| config.translation_engine = engine)
+            }
+            "ocr.engine" => {
+                bounded_optional_string(value, key).map(|engine| config.ocr_engine = engine)
+            }
+            "ocr.language" => {
+                bounded_optional_string(value, key).map(|language| config.ocr_language = language)
+            }
+            "systemTheme.themeMode" => parse_theme_mode(value).map(|mode| {
+                dark_mode.theme_mode = mode;
+                dark_mode_touched = true;
+            }),
+            "systemTheme.scheduleType" => parse_schedule_type(value).map(|schedule_type| {
+                dark_mode.schedule_type = schedule_type;
+                dark_mode_touched = true;
+            }),
+            "systemTheme.customLightTime" => parse_optional_clock_time(value, key).map(|time| {
+                dark_mode.custom_light_time = time;
+                dark_mode_touched = true;
+            }),
+            "systemTheme.customDarkTime" => parse_optional_clock_time(value, key).map(|time| {
+                dark_mode.custom_dark_time = time;
+                dark_mode_touched = true;
+            }),
+            _ => Ok(()),
+        };
 
         match result {
             Ok(()) if previous.get(*key) != Some(value) => {
@@ -740,6 +992,12 @@ fn apply_preferences(
             Err(error) => report
                 .warnings
                 .push(format!("已跳过无效配置 '{}': {}", key, error)),
+        }
+    }
+
+    if dark_mode_touched {
+        if let Ok(serialized) = serde_json::to_string(&dark_mode) {
+            config.dark_mode_config = Some(serialized);
         }
     }
 }
@@ -754,19 +1012,27 @@ fn set_hotkey(config: &mut AppConfig, key: &str, value: Option<String>) {
         "screen_recorder" => config.screen_recorder_hotkey = value,
         "dark_mode" => config.dark_mode_hotkey = value,
         "wallpaper_switcher" => config.wallpaper_switcher_hotkey = value,
-        _ => {}
+        _ => {
+            let config_key = format!("{}_hotkey", key);
+            if let Some(value) = value {
+                config.extra.insert(config_key, Value::String(value));
+            } else {
+                config.extra.remove(&config_key);
+            }
+        }
     }
 }
 
 fn apply_hotkeys(
     config: &mut AppConfig,
     values: &BTreeMap<String, Value>,
+    hotkey_names: &[String],
     report: &mut SyncImportReport,
 ) {
-    let previous = project_hotkeys(config);
+    let previous = project_hotkeys(config, hotkey_names);
     let mut occupied = BTreeMap::<String, String>::new();
-    for key in HOTKEY_KEYS {
-        let Some(value) = values.get(*key) else {
+    for key in hotkey_names {
+        let Some(value) = values.get(key) else {
             continue;
         };
         let shortcut = match bounded_optional_string(value, key) {
@@ -794,12 +1060,12 @@ fn apply_hotkeys(
                 ));
                 continue;
             }
-            occupied.insert(normalized, (*key).to_string());
+            occupied.insert(normalized, key.clone());
         }
 
         set_hotkey(config, key, shortcut);
-        if previous.get(*key) != Some(value) {
-            report.applied_hotkeys.push((*key).to_string());
+        if previous.get(key) != Some(value) {
+            report.applied_hotkeys.push(key.clone());
         }
     }
 }
@@ -890,6 +1156,9 @@ pub fn import_sync_bundle(
     app_handle: &AppHandle,
     workspace_root: &Path,
 ) -> Result<SyncImportReport, String> {
+    let _sync_guard = SYNC_BUNDLE_IO_LOCK
+        .lock()
+        .map_err(|e| format!("获取同步配置写锁失败: {}", e))?;
     let Some(mut bundle) = read_sync_bundle(workspace_root)? else {
         return Ok(SyncImportReport::default());
     };
@@ -920,7 +1189,20 @@ pub fn import_sync_bundle(
     };
 
     let local_preferences = project_preferences(&config);
-    let local_hotkeys = project_hotkeys(&config);
+    let mut hotkey_names = configured_hotkey_names(app_handle)
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    hotkey_names.extend(
+        bundle
+            .hotkeys
+            .values
+            .keys()
+            .filter(|name| is_valid_hotkey_name(name))
+            .cloned(),
+    );
+    let hotkey_names = hotkey_names.into_iter().collect::<Vec<_>>();
+    let hotkey_name_refs = hotkey_names.iter().map(String::as_str).collect::<Vec<_>>();
+    let local_hotkeys = project_hotkeys(&config, &hotkey_names);
     let mut local_vault_settings = attachment_settings(app_handle, workspace_root)?;
     let local_vault_values = project_vault_settings(&local_vault_settings);
 
@@ -941,7 +1223,7 @@ pub fn import_sync_bundle(
         &mut hotkeys,
         read_base_map(app_handle, &bundle.vault_id, "hotkeys.json")?.as_ref(),
         &local_hotkeys,
-        HOTKEY_KEYS,
+        &hotkey_name_refs,
         local_modified_at,
         &device_id,
         &mut report.warnings,
@@ -957,17 +1239,39 @@ pub fn import_sync_bundle(
     );
 
     apply_preferences(&mut config, &preference_values, &mut report);
-    apply_hotkeys(&mut config, &hotkey_values, &mut report);
+    apply_hotkeys(&mut config, &hotkey_values, &hotkey_names, &mut report);
     apply_vault_settings(&mut local_vault_settings, &vault_values, &mut report);
 
-    {
+    let app_config_changed =
+        !report.applied_preferences.is_empty() || !report.applied_hotkeys.is_empty();
+    let vault_settings_changed = !report.applied_vault_settings.is_empty();
+
+    if app_config_changed {
         let mut manager = config_state
             .write()
             .map_err(|e| format!("获取应用配置写锁失败: {}", e))?;
         manager.update_config(config.clone());
         manager.save()?;
     }
-    save_workspace_attachment_settings(app_handle, workspace_root, local_vault_settings)?;
+    if vault_settings_changed {
+        save_workspace_attachment_settings(app_handle, workspace_root, local_vault_settings)?;
+    }
+
+    if report
+        .applied_preferences
+        .iter()
+        .any(|key| SYSTEM_THEME_PREFERENCE_KEYS.contains(&key.as_str()))
+        && crate::app_config::is_plugin_enabled(app_handle, "system-theme")
+    {
+        let imported = crate::plugins::system_theme::load_config(app_handle);
+        if let Err(error) =
+            crate::plugins::system_theme::apply_config_runtime(app_handle, &imported)
+        {
+            report
+                .warnings
+                .push(format!("应用自动深色模式设置失败: {}", error));
+        }
+    }
 
     bundle.sync_format_version = SYNC_FORMAT_VERSION;
     bundle.content_schema_version = CONTENT_SCHEMA_VERSION;
@@ -1012,17 +1316,26 @@ pub fn import_sync_bundle(
             ));
     }
 
-    let _ = app_handle.emit(
-        "language-changed",
-        serde_json::json!({ "language": config.language }),
-    );
-    let _ = app_handle.emit("portable-config-imported", report.clone());
+    if report
+        .applied_preferences
+        .iter()
+        .any(|key| key == "general.language")
+    {
+        let _ = app_handle.emit(
+            "language-changed",
+            serde_json::json!({ "language": config.language }),
+        );
+    }
+    if app_config_changed || vault_settings_changed {
+        let _ = app_handle.emit("portable-config-imported", report.clone());
+    }
 
-    info!(
-        "✅ [SyncData] 已导入可移植配置，vault={}，偏好={}，快捷键={}",
+    debug!(
+        "[SyncData] 可移植配置导入检查完成，vault={}，偏好={}，快捷键={}，工作区设置={}",
         bundle.vault_id,
         report.applied_preferences.len(),
-        report.applied_hotkeys.len()
+        report.applied_hotkeys.len(),
+        report.applied_vault_settings.len()
     );
     Ok(report)
 }
@@ -1595,6 +1908,10 @@ pub fn resolve_sync_protocol_conflicts(
         return Ok(false);
     }
 
+    let _sync_guard = SYNC_BUNDLE_IO_LOCK
+        .lock()
+        .map_err(|e| format!("获取同步配置写锁失败: {}", e))?;
+
     let mut resolved_paths = Vec::new();
 
     for path in conflict_files {
@@ -1641,4 +1958,166 @@ pub fn resolve_sync_protocol_conflicts(
         resolved_paths.len()
     );
     Ok(true)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dynamic_plugin_hotkey_round_trips_through_projection() {
+        let mut config = AppConfig::default();
+        let names = vec!["local_ai_chat".to_string(), "search".to_string()];
+        let values = BTreeMap::from([(
+            "local_ai_chat".to_string(),
+            Value::String("Alt+W".to_string()),
+        )]);
+        let mut report = SyncImportReport::default();
+
+        apply_hotkeys(&mut config, &values, &names, &mut report);
+        let projected = project_hotkeys(&config, &names);
+
+        assert_eq!(
+            projected.get("local_ai_chat"),
+            Some(&Value::String("Alt+W".to_string()))
+        );
+        assert_eq!(report.applied_hotkeys, vec!["local_ai_chat"]);
+
+        set_hotkey(&mut config, "local_ai_chat", None);
+        assert!(!config.extra.contains_key("local_ai_chat_hotkey"));
+    }
+
+    #[test]
+    fn dynamic_hotkey_names_are_restricted_to_safe_config_keys() {
+        assert!(is_valid_hotkey_name("local_ai_chat"));
+        assert!(is_valid_hotkey_name("plugin-action2"));
+        assert!(!is_valid_hotkey_name(""));
+        assert!(!is_valid_hotkey_name("../token"));
+        assert!(!is_valid_hotkey_name("hotkey with spaces"));
+    }
+
+    #[test]
+    fn system_theme_projection_preserves_only_portable_rules() {
+        use crate::plugins::system_theme::{DarkModeConfig, ScheduleType, ThemeMode};
+
+        let dark_mode = DarkModeConfig {
+            theme_mode: ThemeMode::Schedule,
+            schedule_type: ScheduleType::Custom,
+            custom_light_time: Some("07:30".to_string()),
+            custom_dark_time: Some("21:15".to_string()),
+            manual_latitude: Some(31.2304),
+            manual_longitude: Some(121.4737),
+            location_name: Some("Shanghai".to_string()),
+            ..Default::default()
+        };
+
+        let config = AppConfig {
+            dark_mode_config: Some(serde_json::to_string(&dark_mode).unwrap()),
+            ..Default::default()
+        };
+        let projected = project_preferences(&config);
+
+        assert_eq!(
+            projected.get("systemTheme.themeMode"),
+            Some(&Value::String("schedule".to_string()))
+        );
+        assert_eq!(
+            projected.get("systemTheme.scheduleType"),
+            Some(&Value::String("custom".to_string()))
+        );
+        assert_eq!(
+            projected.get("systemTheme.customLightTime"),
+            Some(&Value::String("07:30".to_string()))
+        );
+        assert!(projected.keys().all(|key| !key.contains("latitude")));
+        assert!(projected.keys().all(|key| !key.contains("location")));
+    }
+
+    #[test]
+    fn importing_system_theme_rules_preserves_device_location() {
+        use crate::plugins::system_theme::{DarkModeConfig, ScheduleType, ThemeMode};
+
+        let local_dark_mode = DarkModeConfig {
+            manual_latitude: Some(31.2304),
+            manual_longitude: Some(121.4737),
+            manual_location_name: Some("本机位置".to_string()),
+            ..Default::default()
+        };
+        let mut config = AppConfig {
+            dark_mode_config: Some(serde_json::to_string(&local_dark_mode).unwrap()),
+            ..Default::default()
+        };
+        let values = BTreeMap::from([
+            (
+                "systemTheme.themeMode".to_string(),
+                Value::String("schedule".to_string()),
+            ),
+            (
+                "systemTheme.scheduleType".to_string(),
+                Value::String("custom".to_string()),
+            ),
+            (
+                "systemTheme.customLightTime".to_string(),
+                Value::String("08:00".to_string()),
+            ),
+            (
+                "systemTheme.customDarkTime".to_string(),
+                Value::String("20:30".to_string()),
+            ),
+        ]);
+        let mut report = SyncImportReport::default();
+
+        apply_preferences(&mut config, &values, &mut report);
+        let imported = parse_dark_mode_config(&config).unwrap();
+
+        assert_eq!(imported.theme_mode, ThemeMode::Schedule);
+        assert_eq!(imported.schedule_type, ScheduleType::Custom);
+        assert_eq!(imported.custom_light_time.as_deref(), Some("08:00"));
+        assert_eq!(imported.custom_dark_time.as_deref(), Some("20:30"));
+        assert_eq!(imported.manual_latitude, Some(31.2304));
+        assert_eq!(imported.manual_longitude, Some(121.4737));
+        assert_eq!(imported.manual_location_name.as_deref(), Some("本机位置"));
+    }
+
+    #[test]
+    fn desired_plugins_include_installed_defaults_and_explicit_disabled_states() {
+        let mut config = AppConfig::default();
+        config.plugins.insert(
+            "todo".to_string(),
+            crate::app_config::PluginRuntimeState { enabled: false },
+        );
+        let mut inherited = SyncMapFile::default();
+        inherited.values.insert(
+            "remote-only".to_string(),
+            SyncField {
+                value: Value::Bool(true),
+                clock: SyncClock {
+                    updated_at: "2026-01-01T00:00:00.000Z".to_string(),
+                    modified_by: "remote".to_string(),
+                },
+            },
+        );
+
+        let projected = desired_plugin_values(
+            &config,
+            vec![
+                "local-ai".to_string(),
+                "todo".to_string(),
+                "git-sync".to_string(),
+            ],
+            Some(&inherited),
+        );
+
+        assert_eq!(projected.get("local-ai"), Some(&Value::Bool(true)));
+        assert_eq!(projected.get("todo"), Some(&Value::Bool(false)));
+        assert_eq!(projected.get("remote-only"), Some(&Value::Bool(true)));
+        assert!(!projected.contains_key("git-sync"));
+    }
+
+    #[test]
+    fn system_theme_times_reject_invalid_clock_values() {
+        assert!(parse_optional_clock_time(&Value::String("23:59".to_string()), "time").is_ok());
+        assert!(parse_optional_clock_time(&Value::String("24:00".to_string()), "time").is_err());
+        assert!(parse_optional_clock_time(&Value::String("8:00".to_string()), "time").is_err());
+    }
 }

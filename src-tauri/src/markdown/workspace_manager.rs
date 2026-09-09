@@ -39,7 +39,6 @@ impl WorkspaceManager {
 
     // 保存配置到文件
     pub fn save(&self) -> Result<(), String> {
-        info!("💾 [WorkspaceManager] 保存 workspace.json");
         write_workspace(&self.config_dir, &self.config)
     }
 

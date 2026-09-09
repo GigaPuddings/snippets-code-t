@@ -11,12 +11,26 @@ use super::{clear_git_status_cache, ensure_gitignore, get_system_git_config};
 pub(crate) fn import_portable_sync_config(app_handle: &tauri::AppHandle, workspace_root: &Path) {
     match crate::sync_data::import_sync_bundle(app_handle, workspace_root) {
         Ok(report) if report.found_sync_bundle => {
-            info!(
-                "✅ [Git] 已应用同步配置: 偏好 {}, 快捷键 {}, 工作区设置 {}",
-                report.applied_preferences.len(),
-                report.applied_hotkeys.len(),
-                report.applied_vault_settings.len()
-            );
+            let applied_count = report.applied_preferences.len()
+                + report.applied_hotkeys.len()
+                + report.applied_vault_settings.len();
+            if applied_count > 0 {
+                info!(
+                    "✅ [Git] 已应用同步配置: 偏好 {}, 快捷键 {}, 工作区设置 {}",
+                    report.applied_preferences.len(),
+                    report.applied_hotkeys.len(),
+                    report.applied_vault_settings.len()
+                );
+            } else {
+                debug!("ℹ️ [Git] 同步配置已校验，无需更新");
+            }
+            if !report.warnings.is_empty() {
+                warn!(
+                    "⚠️ [Git] 同步配置导入包含 {} 条警告: {}",
+                    report.warnings.len(),
+                    report.warnings.join("; ")
+                );
+            }
         }
         Ok(_) => {
             debug!("ℹ️ [Git] 工作区没有 sync.json，跳过可移植配置导入");

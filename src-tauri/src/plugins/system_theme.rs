@@ -906,25 +906,30 @@ pub async fn save_dark_mode_config_command(
 ) -> Result<(), String> {
     crate::app_config::require_plugin_enabled(&app_handle, "system-theme")?;
     save_config(&app_handle, &config)?;
+    crate::sync_data::materialize_local_config_change_best_effort(&app_handle, "自动深色模式设置");
 
+    apply_config_runtime(&app_handle, &config)
+}
+
+pub fn apply_config_runtime(app_handle: &AppHandle, config: &DarkModeConfig) -> Result<(), String> {
     match config.theme_mode {
         ThemeMode::System => {
             stop_scheduler();
-            crate::tray::update_tray_theme_status(&app_handle);
+            crate::tray::update_tray_theme_status(app_handle);
         }
         ThemeMode::Light => {
             stop_scheduler();
             let _ = set_windows_dark_mode(false);
-            crate::tray::update_tray_theme_status(&app_handle);
+            crate::tray::update_tray_theme_status(app_handle);
         }
         ThemeMode::Dark => {
             stop_scheduler();
             let _ = set_windows_dark_mode(true);
-            crate::tray::update_tray_theme_status(&app_handle);
+            crate::tray::update_tray_theme_status(app_handle);
         }
         ThemeMode::Schedule => {
             stop_scheduler();
-            start_scheduler(app_handle)?;
+            start_scheduler(app_handle.clone())?;
         }
     }
 
