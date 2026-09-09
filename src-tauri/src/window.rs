@@ -1129,7 +1129,33 @@ fn ensure_config_cleanup_listener(window: &WebviewWindow) {
     }
 }
 
-// 启动阶段：先显示 loading，静默加载 config，待 config_ready 再切换
+// 把预加载窗口放到所有显示器可视区域右侧。在 Windows 上，刚 show 就 hide 的
+// WebView2 可能在首帧前被后台节流，从而一直无法发出 config_ready。
+fn position_window_outside_visible_desktop(window: &WebviewWindow) -> Result<(), String> {
+    let monitors = window
+        .available_monitors()
+        .map_err(|error| format!("读取显示器布局失败: {}", error))?;
+    let right_edge = monitors
+        .iter()
+        .map(|monitor| i64::from(monitor.position().x) + i64::from(monitor.size().width))
+        .max()
+        .ok_or_else(|| "未找到可用显示器".to_string())?;
+    let top_edge = monitors
+        .iter()
+        .map(|monitor| i64::from(monitor.position().y))
+        .min()
+        .unwrap_or(0);
+    let x = right_edge
+        .saturating_add(64)
+        .clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32;
+    let y = top_edge.clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32;
+
+    window
+        .set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }))
+        .map_err(|error| format!("设置预加载窗口位置失败: {}", error))
+}
+
+// 启动阶段：先显示 loading，在屏幕外预加载 config，待 config_ready 再切换
 pub async fn open_config_with_loading_transition() {
     WindowManager::close_search_window_if_visible();
     {
@@ -1197,6 +1223,7 @@ pub async fn open_config_with_loading_transition() {
             elapsed_ms
         );
         if let Some(window) = app_for_ready.get_webview_window("config") {
+            let _ = window.center();
             let _ = WindowManager::restore_and_focus(&window);
         }
         close_and_destroy_loading_window();
@@ -1222,8 +1249,39 @@ pub async fn open_config_with_loading_transition() {
     };
     info!("[StartupTransition] config created and preloading under loading");
     ensure_config_cleanup_listener(&window);
+    let transition_active = match STARTUP_TRANSITION_STARTED_AT.lock() {
+        Ok(started) => started.is_some(),
+        Err(error) => {
+            error!(
+                "open_config_with_loading_transition: 读取启动过渡状态失败: {}",
+                error
+            );
+            false
+        }
+    };
+    let mut preload_offscreen = transition_active;
+    if preload_offscreen {
+        if let Err(error) = position_window_outside_visible_desktop(&window) {
+            warn!(
+                "[StartupTransition] config offscreen preload unavailable: {}",
+                error
+            );
+            preload_offscreen = false;
+        } else {
+            // ready 可能在 build 返回后立即到达。若移动期间已经切换完成，
+            // 再次居中，防止把已呈现的配置窗口留在屏幕外。
+            let still_active = STARTUP_TRANSITION_STARTED_AT
+                .lock()
+                .map(|started| started.is_some())
+                .unwrap_or(false);
+            if !still_active {
+                let _ = window.center();
+                preload_offscreen = false;
+            }
+        }
+    }
 
-    // 显示重试：某些平台首次 show 可能失败，导致前端不挂载
+    // 显示重试：保持 WebView 可见但置于屏幕外，避免首帧前后台节流。
     let window_for_retry = window.clone();
     tauri::async_runtime::spawn(async move {
         let mut shown = false;
@@ -1240,8 +1298,17 @@ pub async fn open_config_with_loading_transition() {
                     "[StartupTransition] config show success on attempt {}",
                     attempt
                 );
-                // 触发挂载后立即隐藏，避免与 loading 同时可见
-                let _ = window_for_retry.hide();
+                if preload_offscreen {
+                    // show 会获取焦点；把焦点还给屏幕中的 loading 窗口。
+                    if let Some(loading) =
+                        APP.get().and_then(|app| app.get_webview_window("loading"))
+                    {
+                        let _ = loading.set_focus();
+                    }
+                } else {
+                    // 无法移到屏幕外时保留原有隐藏策略，避免覆盖 loading。
+                    let _ = window_for_retry.hide();
+                }
                 break;
             }
             tokio::time::sleep(tokio::time::Duration::from_millis(120)).await;
@@ -1280,13 +1347,12 @@ pub async fn open_config_with_loading_transition() {
                     elapsed_ms,
                     config_visible
                 );
-                if !config_visible {
-                    info!(
-                        "[StartupTransition] timeout fallback -> show config (elapsed={}ms)",
-                        elapsed_ms
-                    );
-                    let _ = WindowManager::restore_and_focus(&config_window);
-                }
+                info!(
+                    "[StartupTransition] timeout fallback -> show config (elapsed={}ms)",
+                    elapsed_ms
+                );
+                let _ = config_window.center();
+                let _ = WindowManager::restore_and_focus(&config_window);
             } else {
                 warn!(
                     "[StartupTransition] config_ready timeout (elapsed={}ms, config_exists=false)",
@@ -1476,6 +1542,13 @@ fn cancel_startup_transition_for_user_action(reason: &str) {
         .lock()
         .map(|mut started| started.take().is_some())
         .unwrap_or(false);
+    if was_active {
+        if let Some(config_window) = APP.get().and_then(|app| app.get_webview_window("config")) {
+            // 恢复正常位置后再交给用户操作决定显示方式。
+            let _ = config_window.center();
+            let _ = config_window.hide();
+        }
+    }
     clear_startup_config_ready_listener();
     close_and_destroy_loading_window();
     if was_active {
