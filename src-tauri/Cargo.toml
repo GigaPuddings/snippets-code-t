@@ -1,6 +1,6 @@
 [package]
 name = "snippets-code"
-version = "2.1.61"
+version = "2.2.0"
 description = "程序员效率助手，包含翻译、搜索、代码片段管理等功能"
 authors = ["GigaPuddings"]
 edition = "2021"
@@ -19,7 +19,7 @@ tauri = { version = "2.11.3", features = [ "protocol-asset", "tray-icon"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.150"
 tauri-plugin-opener = "2.5.4"
-tauri-plugin-notification = "2.3.3"
+tauri-plugin-notification = "2.4.0"
 tauri-plugin-log = "2.8.0"
 tauri-plugin-os = "2.3.2"
 tauri-plugin-dialog = "2.7.1"
@@ -44,7 +44,7 @@ once_cell = "1.21.4"
 tokio = { version = "1.52.3", features = ["rt", "time"] }
 futures = "0.3.32"
 image = "0.25.10"
-lru = "0.18.0"
+lru = "0.18.4"
 png = "0.18.1"
 fuzzy-matcher = "0.3.7"
 pinyin = "0.11.0"
