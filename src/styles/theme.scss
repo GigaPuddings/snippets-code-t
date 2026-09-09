@@ -17,6 +17,37 @@
   --categories-border-color: #d9e2ef;
   --categories-border-color-rgb: 217, 226, 239;
 
+  // ==================== Workbench ====================
+  --wb-bg: #f7faff;
+  --wb-card-bg: rgb(255 255 255 / 78%);
+  --wb-card-bg-strong: rgb(255 255 255 / 92%);
+  --wb-card-border: rgb(214 224 238 / 78%);
+  --wb-card-border-hover: rgb(95 116 243 / 35%);
+  --wb-text: #172033;
+  --wb-muted: #748197;
+  --wb-muted-soft: #93a0b3;
+  --wb-primary: var(--el-color-primary);
+  --wb-success: #19bf67;
+  --wb-warning: #ff9f1c;
+  --wb-hover: rgb(95 116 243 / 4%);
+  --wb-shadow: 0 3px 14px rgb(36 78 140 / 3%);
+  --wb-footer-border: rgb(214 224 238 / 66%);
+  --wb-footer-bg: rgb(255 255 255 / 30%);
+  --wb-alert-text: #b42318;
+  --wb-alert-bg: rgb(254 243 242 / 96%);
+  --wb-alert-border: #fecdca;
+  --wb-recent-icon-bg: rgb(95 116 243 / 5%);
+  --wb-recent-icon-hover-bg: rgb(95 116 243 / 9%);
+  --wb-tag-bg: rgb(116 129 151 / 8%);
+  --wb-metric-content: #397bf6;
+  --wb-metric-content-bg: rgb(57 123 246 / 9%);
+  --wb-metric-plugins: #19b968;
+  --wb-metric-plugins-bg: rgb(25 185 104 / 9%);
+  --wb-metric-search: #8055ef;
+  --wb-metric-search-bg: rgb(128 85 239 / 9%);
+  --wb-metric-ai: #f28b16;
+  --wb-metric-ai-bg: rgb(242 139 22 / 10%);
+
   // ==================== 主色调 ====================
   --el-color-primary: #5f74f3 !important;
   --el-color-primary-light-3: #7d91f6;
@@ -215,6 +246,20 @@ html.dark {
   --categories-text-color-active: #fff;
   --categories-border-color: #363636;
   --categories-border-color-rgb: 54, 54, 54;
+
+  // ==================== Workbench 深色主题变量 ====================
+  --wb-bg: #24262b;
+  --wb-card-bg: rgb(31 34 40 / 84%);
+  --wb-card-bg-strong: rgb(35 38 45 / 94%);
+  --wb-card-border: rgb(93 105 124 / 40%);
+  --wb-card-border-hover: rgb(123 136 253 / 52%);
+  --wb-text: #f1f5fb;
+  --wb-muted: #aab4c4;
+  --wb-muted-soft: #818c9e;
+  --wb-hover: rgb(123 136 253 / 9%);
+  --wb-shadow: 0 3px 14px rgb(0 0 0 / 10%);
+  --wb-footer-border: rgb(93 105 124 / 34%);
+  --wb-footer-bg: rgb(20 22 26 / 18%);
 
   // ==================== 搜索窗口深色主题变量 ====================
   --search-bg-color: #202020;

@@ -1,32 +1,52 @@
 <template>
-  <section class="workbench-capabilities">
-    <header class="workbench-capabilities__heading">
-      <div>
+  <section
+    class="flex min-h-0 w-full min-w-0 self-start flex-col overflow-hidden rounded-xl border border-workbench-card-border bg-workbench-card shadow-workbench"
+  >
+    <header
+      class="flex min-h-12 flex-none items-center justify-between gap-3 border-b border-workbench-card-border px-[14px] [@media(max-height:800px)]:min-h-10 [@media(max-height:800px)]:px-[11px]"
+    >
+      <div class="flex min-w-0 items-center gap-[9px] text-workbench-primary">
         <ChartHistogram theme="outline" size="20" />
-        <h2>{{ t('workbenchHome.systemStatus') }}</h2>
+        <h2
+          class="m-0 text-[17px] font-[650] leading-[1.3] text-workbench-text [@media(max-height:800px)]:text-[15px]"
+        >
+          {{ t('workbenchHome.systemStatus') }}
+        </h2>
       </div>
-      <button type="button" @click="emit('manage')">
+      <button
+        type="button"
+        class="flex items-center gap-[3px] border-0 bg-transparent px-0 py-1 text-xs text-workbench-primary transition-opacity duration-[160ms] hover:opacity-[0.72] focus-visible:opacity-[0.72] focus-visible:outline-none"
+        @click="emit('manage')"
+      >
         {{ t('workbenchHome.manage') }}
         <ArrowRight theme="outline" size="14" />
       </button>
     </header>
 
-    <div class="workbench-capabilities__list">
+    <div class="flex min-h-0 flex-none flex-col">
       <button
         v-for="layer in layers"
         :key="layer.id"
         type="button"
+        class="grid h-[52px] min-h-[52px] min-w-0 flex-none grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-2.5 border-0 border-b border-workbench-card-border bg-transparent px-[14px] py-[7px] text-left text-workbench-text transition-colors duration-[160ms] last:border-b-0 hover:bg-workbench-hover focus-visible:bg-workbench-hover focus-visible:outline-none [@media(max-height:800px)]:h-[42px] [@media(max-height:800px)]:min-h-[42px] [@media(max-height:800px)]:grid-cols-[24px_minmax(0,1fr)_auto] [@media(max-height:800px)]:gap-2 [@media(max-height:800px)]:px-[11px] [@media(max-height:800px)]:py-[5px]"
         @click="layer.actions[0] && emit('navigateAction', layer.actions[0])"
       >
         <component
           :is="layer.icon"
-          class="workbench-capabilities__icon"
+          class="text-workbench-muted"
           theme="outline"
           size="20"
         />
-        <span class="workbench-capabilities__name">{{ layer.label }}</span>
-        <span class="workbench-capabilities__status">
-          <i :class="`workbench-capabilities__dot--${layer.status}`"></i>
+        <span class="truncate text-[13px] leading-[1.35]">
+          {{ layer.label }}
+        </span>
+        <span
+          class="flex items-center gap-[7px] whitespace-nowrap text-[11px] leading-[1.3] text-workbench-muted"
+        >
+          <i
+            class="size-2 flex-none rounded-full"
+            :class="statusDotClasses[layer.status]"
+          ></i>
           {{ t(`workbenchHome.status.${layer.status}`) }}
         </span>
       </button>
@@ -37,7 +57,11 @@
 <script setup lang="ts">
 import { ArrowRight, ChartHistogram } from '@icon-park/vue-next';
 import { useI18n } from 'vue-i18n';
-import type { WorkbenchAction, WorkbenchLayer } from '@/workbench/viewModel';
+import type {
+  WorkbenchAction,
+  WorkbenchLayer,
+  WorkbenchStatus
+} from '@/workbench/viewModel';
 
 defineProps<{
   layers: WorkbenchLayer[];
@@ -49,158 +73,10 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+
+const statusDotClasses: Record<WorkbenchStatus, string> = {
+  ready: 'bg-workbench-success',
+  attention: 'bg-workbench-warning',
+  inactive: 'bg-workbench-muted-soft'
+};
 </script>
-
-<style scoped lang="scss">
-.workbench-capabilities {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-  background: var(--wb-card-bg);
-  border: 1px solid var(--wb-card-border);
-  border-radius: 12px;
-  box-shadow: var(--wb-shadow);
-}
-
-.workbench-capabilities__heading {
-  display: flex;
-  flex: none;
-  gap: 12px;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 48px;
-  padding: 0 14px;
-  border-bottom: 1px solid var(--wb-card-border);
-
-  div,
-  button {
-    display: flex;
-    align-items: center;
-  }
-
-  div {
-    gap: 9px;
-    min-width: 0;
-    color: var(--wb-primary);
-  }
-
-  h2 {
-    margin: 0;
-    font-size: 17px;
-    font-weight: 650;
-    line-height: 1.3;
-    color: var(--wb-text);
-  }
-
-  button {
-    gap: 3px;
-    padding: 4px 0;
-    font-size: 12px;
-    color: var(--wb-primary);
-    background: transparent;
-    border: 0;
-    transition: opacity 160ms ease;
-
-    &:hover,
-    &:focus-visible {
-      outline: none;
-      opacity: 0.72;
-    }
-  }
-}
-
-.workbench-capabilities__list {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-height: 0;
-
-  > button {
-    display: grid;
-    flex: 1;
-    grid-template-columns: 28px minmax(0, 1fr) auto;
-    gap: 10px;
-    align-items: center;
-    min-width: 0;
-    min-height: 47px;
-    padding: 7px 14px;
-    color: var(--wb-text);
-    text-align: left;
-    background: transparent;
-    border: 0;
-    border-bottom: 1px solid var(--wb-card-border);
-    transition: background-color 160ms ease;
-
-    &:last-child {
-      border-bottom: 0;
-    }
-
-    &:hover,
-    &:focus-visible {
-      background: var(--wb-hover);
-      outline: none;
-    }
-  }
-}
-
-.workbench-capabilities__icon {
-  color: var(--wb-muted);
-}
-
-.workbench-capabilities__name {
-  overflow: hidden;
-  font-size: 13px;
-  line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.workbench-capabilities__status {
-  display: flex;
-  gap: 7px;
-  align-items: center;
-  font-size: 11px;
-  line-height: 1.3;
-  color: var(--wb-muted);
-  white-space: nowrap;
-
-  i {
-    flex: none;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-  }
-}
-
-.workbench-capabilities__dot--ready {
-  background: var(--wb-success);
-}
-
-.workbench-capabilities__dot--attention {
-  background: var(--wb-warning);
-}
-
-.workbench-capabilities__dot--inactive {
-  background: var(--wb-muted-soft);
-}
-
-@media (height <= 800px) {
-  .workbench-capabilities__heading {
-    min-height: 40px;
-    padding-inline: 11px;
-
-    h2 {
-      font-size: 15px;
-    }
-  }
-
-  .workbench-capabilities__list > button {
-    grid-template-columns: 24px minmax(0, 1fr) auto;
-    gap: 8px;
-    min-height: 43px;
-    padding: 5px 11px;
-  }
-}
-</style>

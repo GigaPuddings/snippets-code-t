@@ -181,6 +181,36 @@ export default {
           DEFAULT: 'var(--el-color-primary)',
           light: 'var(--el-color-primary-light-3)',
           dark: 'var(--el-color-primary-dark-2)'
+        },
+        workbench: {
+          bg: 'var(--wb-bg)',
+          card: 'var(--wb-card-bg)',
+          'card-strong': 'var(--wb-card-bg-strong)',
+          'card-border': 'var(--wb-card-border)',
+          'card-border-hover': 'var(--wb-card-border-hover)',
+          text: 'var(--wb-text)',
+          muted: 'var(--wb-muted)',
+          'muted-soft': 'var(--wb-muted-soft)',
+          primary: 'var(--wb-primary)',
+          success: 'var(--wb-success)',
+          warning: 'var(--wb-warning)',
+          hover: 'var(--wb-hover)',
+          'footer-border': 'var(--wb-footer-border)',
+          'footer-bg': 'var(--wb-footer-bg)',
+          'alert-text': 'var(--wb-alert-text)',
+          'alert-bg': 'var(--wb-alert-bg)',
+          'alert-border': 'var(--wb-alert-border)',
+          'recent-icon': 'var(--wb-recent-icon-bg)',
+          'recent-icon-hover': 'var(--wb-recent-icon-hover-bg)',
+          tag: 'var(--wb-tag-bg)',
+          'metric-content': 'var(--wb-metric-content)',
+          'metric-content-bg': 'var(--wb-metric-content-bg)',
+          'metric-plugins': 'var(--wb-metric-plugins)',
+          'metric-plugins-bg': 'var(--wb-metric-plugins-bg)',
+          'metric-search': 'var(--wb-metric-search)',
+          'metric-search-bg': 'var(--wb-metric-search-bg)',
+          'metric-ai': 'var(--wb-metric-ai)',
+          'metric-ai-bg': 'var(--wb-metric-ai-bg)'
         }
       },
       boxShadow: {
@@ -197,7 +227,8 @@ export default {
         'dm-ring': '0 0 0 1px var(--dm-accent)',
         'dm-focus': '0 0 0 2px var(--dm-accent-ring)',
         // 录屏窗口
-        'recorder-overlay': 'var(--recorder-overlay-shadow)'
+        'recorder-overlay': 'var(--recorder-overlay-shadow)',
+        workbench: 'var(--wb-shadow)'
       }
     }
   },

@@ -1,13 +1,17 @@
 <template>
-  <header class="workbench-hero">
-    <div class="workbench-hero__copy">
-      <div class="workbench-hero__eyebrow-row">
-        <p class="workbench-hero__eyebrow">
+  <header
+    class="group/hero grid h-full min-w-0 grid-cols-[minmax(300px,1fr)_minmax(300px,390px)_minmax(132px,172px)] items-center gap-3 [@media(max-width:1120px)]:grid-cols-[minmax(290px,1fr)_300px_132px] [@media(max-width:900px)]:grid-cols-[minmax(280px,1fr)_280px]"
+  >
+    <div class="min-w-0">
+      <div class="flex min-w-0 items-center gap-2">
+        <p
+          class="m-0 text-sm font-medium leading-[1.35] text-workbench-primary [@media(max-height:800px)]:text-xs"
+        >
           {{ t('workbenchHome.eyebrow') }}
         </p>
         <button
           type="button"
-          class="workbench-hero__refresh"
+          class="inline-flex size-[26px] items-center justify-center rounded-md border-0 bg-transparent p-0 text-workbench-muted opacity-0 transition-[color,opacity,background-color] duration-[160ms] hover:bg-workbench-hover hover:text-workbench-primary hover:opacity-100 focus-visible:bg-workbench-hover focus-visible:text-workbench-primary focus-visible:opacity-100 focus-visible:outline-none group-hover/hero:opacity-[0.72]"
           :title="t('workbenchHome.refresh')"
           :aria-label="t('workbenchHome.refresh')"
           @click="emit('refresh')"
@@ -15,32 +19,51 @@
           <Refresh
             theme="outline"
             size="15"
-            :class="{ 'workbench-hero__refresh-icon--loading': loading }"
+            :class="{ 'animate-spin [animation-duration:800ms]': loading }"
           />
         </button>
       </div>
-      <h1>{{ t('workbenchHome.title') }}</h1>
+      <h1
+        class="mb-0 mt-[3px] truncate text-[32px] font-[680] leading-[1.16] text-workbench-text [@media(max-height:800px)]:mt-px [@media(max-height:800px)]:text-[28px]"
+      >
+        {{ t('workbenchHome.title') }}
+      </h1>
       <button
         type="button"
-        class="workbench-hero__workspace"
+        class="mt-[7px] flex min-w-0 max-w-[min(100%,540px)] items-center gap-[3px] border-0 bg-transparent p-0 text-left text-[13px] leading-[1.35] text-workbench-muted transition-colors duration-[160ms] hover:text-workbench-primary focus-visible:text-workbench-primary focus-visible:outline-none [@media(max-height:800px)]:mt-[3px] [@media(max-height:800px)]:text-xs"
         :title="workspaceRoot"
         @click="emit('openWorkspace')"
       >
-        <span>
+        <span class="truncate">
           {{ workspaceRoot || t('workbenchHome.workspaceNotSet') }}
         </span>
         <RightSmall theme="outline" size="15" />
       </button>
     </div>
 
-    <div class="workbench-hero__visual" aria-hidden="true">
-      <img :src="heroImage" alt="" />
+    <div
+      class="pointer-events-none relative self-stretch overflow-visible"
+      aria-hidden="true"
+    >
+      <img
+        :src="heroImage"
+        alt=""
+        class="absolute right-[10px] top-1/2 h-[142px] w-[430px] max-w-none -translate-y-1/2 object-cover object-right opacity-[0.88] [filter:contrast(1.04)] [mask-image:radial-gradient(ellipse_68%_72%_at_62%_50%,#000_34%,rgb(0_0_0/84%)_52%,transparent_100%)] [mix-blend-mode:multiply] dark:opacity-[0.54] dark:[filter:invert(1)_hue-rotate(180deg)_brightness(1.65)_saturate(1.2)] dark:[mask-image:radial-gradient(ellipse_55%_62%_at_68%_50%,#000_25%,rgb(0_0_0/82%)_38%,transparent_72%)] dark:[mix-blend-mode:screen] [@media(max-height:800px)]:!w-[340px] [@media(max-height:800px)]:h-[104px] [@media(max-width:1120px)]:right-0 [@media(max-width:1120px)]:w-[370px]"
+      />
     </div>
 
-    <div class="workbench-hero__message">
-      <strong>{{ t('workbenchHome.heroTagline') }}</strong>
-      <span>{{ t('workbenchHome.heroSubtitle') }}</span>
-      <i></i>
+    <div
+      class="flex min-w-0 flex-col items-start text-workbench-muted [@media(max-width:900px)]:hidden"
+    >
+      <strong class="text-[13px] font-[550] leading-normal">
+        {{ t('workbenchHome.heroTagline') }}
+      </strong>
+      <span class="mt-px text-xs leading-[1.45]">
+        {{ t('workbenchHome.heroSubtitle') }}
+      </span>
+      <i
+        class="mt-[7px] h-0.5 w-[34px] rounded-sm bg-workbench-primary [@media(max-height:800px)]:mt-1"
+      ></i>
     </div>
   </header>
 </template>
@@ -62,229 +85,3 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 </script>
-
-<style scoped lang="scss">
-.workbench-hero {
-  display: grid;
-  grid-template-columns: minmax(300px, 1fr) minmax(300px, 390px) minmax(
-      132px,
-      172px
-    );
-  gap: 12px;
-  align-items: center;
-  min-width: 0;
-  height: 100%;
-}
-
-.workbench-hero__copy {
-  min-width: 0;
-
-  h1 {
-    margin: 3px 0 0;
-    overflow: hidden;
-    font-size: 32px;
-    font-weight: 680;
-    line-height: 1.16;
-    color: var(--wb-text);
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-}
-
-.workbench-hero__eyebrow-row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  min-width: 0;
-}
-
-.workbench-hero__eyebrow {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 1.35;
-  color: var(--wb-primary);
-}
-
-.workbench-hero__refresh {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  color: var(--wb-muted);
-  background: transparent;
-  border: 0;
-  border-radius: 6px;
-  opacity: 0;
-  transition:
-    color 160ms ease,
-    opacity 160ms ease,
-    background-color 160ms ease;
-
-  &:hover,
-  &:focus-visible {
-    color: var(--wb-primary);
-    background: var(--wb-hover);
-    outline: none;
-    opacity: 1;
-  }
-}
-
-.workbench-hero:hover .workbench-hero__refresh {
-  opacity: 0.72;
-}
-
-.workbench-hero__refresh-icon--loading {
-  animation: workbench-refresh 0.8s linear infinite;
-}
-
-.workbench-hero__workspace {
-  display: flex;
-  gap: 3px;
-  align-items: center;
-  min-width: 0;
-  max-width: min(100%, 540px);
-  padding: 0;
-  margin-top: 7px;
-  font-size: 13px;
-  line-height: 1.35;
-  color: var(--wb-muted);
-  text-align: left;
-  background: transparent;
-  border: 0;
-  transition: color 160ms ease;
-
-  span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  &:hover,
-  &:focus-visible {
-    color: var(--wb-primary);
-    outline: none;
-  }
-}
-
-.workbench-hero__visual {
-  position: relative;
-  align-self: stretch;
-  overflow: hidden;
-  pointer-events: none;
-
-  img {
-    position: absolute;
-    top: 50%;
-    right: -12px;
-    width: 430px;
-    max-width: none;
-    height: 142px;
-    object-fit: cover;
-    object-position: right center;
-    mix-blend-mode: multiply;
-    opacity: 0.82;
-    mask-image: radial-gradient(
-      ellipse 68% 72% at 62% 50%,
-      #000 34%,
-      rgb(0 0 0 / 84%) 52%,
-      transparent 100%
-    );
-    transform: translateY(-50%);
-  }
-}
-
-:global(.dark .workbench-hero__visual img) {
-  filter: invert(1) hue-rotate(180deg) brightness(1.65) saturate(1.2);
-  mix-blend-mode: screen;
-  opacity: 0.54;
-  mask-image: radial-gradient(
-    ellipse 55% 62% at 68% 50%,
-    #000 25%,
-    rgb(0 0 0 / 82%) 38%,
-    transparent 72%
-  );
-}
-
-.workbench-hero__message {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  min-width: 0;
-  color: var(--wb-muted);
-
-  strong {
-    font-size: 13px;
-    font-weight: 550;
-    line-height: 1.5;
-  }
-
-  span {
-    margin-top: 1px;
-    font-size: 12px;
-    line-height: 1.45;
-  }
-
-  i {
-    width: 34px;
-    height: 2px;
-    margin-top: 7px;
-    background: var(--wb-primary);
-    border-radius: 2px;
-  }
-}
-
-@keyframes workbench-refresh {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (width <= 1120px) {
-  .workbench-hero {
-    grid-template-columns: minmax(290px, 1fr) 300px 132px;
-  }
-
-  .workbench-hero__visual img {
-    right: -22px;
-    width: 370px;
-  }
-}
-
-@media (width <= 900px) {
-  .workbench-hero {
-    grid-template-columns: minmax(280px, 1fr) 280px;
-  }
-
-  .workbench-hero__message {
-    display: none;
-  }
-}
-
-@media (height <= 800px) {
-  .workbench-hero__copy h1 {
-    margin-top: 1px;
-    font-size: 28px;
-  }
-
-  .workbench-hero__eyebrow {
-    font-size: 12px;
-  }
-
-  .workbench-hero__workspace {
-    margin-top: 3px;
-    font-size: 12px;
-  }
-
-  .workbench-hero__visual img {
-    width: 340px;
-    height: 104px;
-  }
-
-  .workbench-hero__message i {
-    margin-top: 4px;
-  }
-}
-</style>

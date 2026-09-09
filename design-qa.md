@@ -52,6 +52,125 @@ final result: passed
 
 ---
 
+## Developer Workbench Alignment Follow-up
+
+**Comparison Target**
+
+- Source visual truth: `C:\Users\zero\AppData\Local\Temp\codex-clipboard-8156362f-d2c6-4251-954e-6c2d81cc91f0.png` (`1586 x 992`, 96 DPI).
+- Reported implementation evidence: `C:\Users\zero\AppData\Local\Temp\codex-clipboard-ef81ecef-7d56-4b38-8986-9bd064d7ed3e.png` (`1770 x 1044`, 96 DPI).
+- Revised real-window capture: `C:\Users\zero\.codex\visualizations\2026\09\07\01a07b61-a0e6-7f40-a7ed-bae8f5939e09\workbench-alignment-fix-1180x696.png` (`1180 x 696`, 144 DPI).
+- Exact-state before/after comparison: `C:\Users\zero\.codex\visualizations\2026\09\07\01a07b61-a0e6-7f40-a7ed-bae8f5939e09\workbench-alignment-fix-before-after.png`.
+- Reference/revised comparison: `C:\Users\zero\.codex\visualizations\2026\09\07\01a07b61-a0e6-7f40-a7ed-bae8f5939e09\workbench-alignment-fix-reference-after.png`.
+- Viewport and normalization: the reported screenshot is the `1180 x 696` default Tauri window captured at 1.5x density. The revised capture was resampled to `1770 x 1044` for exact-state comparison. The differently proportioned design reference was compared separately at equal displayed width without stretching.
+- State: light theme, configured workspace, six recent items, four quick actions, four capability rows, and AI awaiting configuration.
+
+**Findings**
+
+- [Resolved P2] The Quick Actions heading used a `30px` compact title track while Recent Content used `42px`, placing the right heading visibly higher. Both title tracks now resolve to `42px` in the default window and `52px` above the compact breakpoint.
+- [Resolved P2] The Hero visual container clipped its taller raster at the Hero grid boundary. The container now allows the existing radial mask to fade the illustration naturally into the spacer instead of producing a hard horizontal cut.
+- No actionable P0, P1, or P2 mismatch remains for the two reported regions.
+
+**Required Fidelity Surfaces**
+
+- Fonts and typography: font family, weights, sizes, line heights, labels, and copy are unchanged; only the title track geometry changed.
+- Spacing and layout rhythm: Recent Content and Quick Actions now share the same title-row height at both responsive states, so their icons and heading text align horizontally.
+- Colors and visual tokens: no color, border, shadow, or theme token changed in this follow-up.
+- Image quality and asset fidelity: the existing `workbench-code-hero.webp` remains unchanged. Removing container clipping preserves the real raster, its transparency, and its radial mask without introducing a replacement asset or CSS drawing.
+- Copy and content: all workspace data, counts, labels, dates, statuses, and action targets are unchanged.
+
+**Focused Region Evidence**
+
+- Heading strip: the exact-state before/after composite shows the right heading moving onto the same horizontal center line as the Recent Content heading.
+- Hero illustration: the revised capture shows a soft lower fade with no straight crop edge above the metrics row, matching the reference treatment.
+- Full-view evidence confirms that the two geometry changes do not cause overlap, a new scrollbar, missing content, or a change to the shared title bar.
+
+**Comparison History**
+
+- Baseline findings: title tracks differed by `12px` in the default compact window, and `overflow: hidden` cut the Hero illustration at its grid-row boundary.
+- Fixes made: synchronized the title track heights and removed clipping from the Hero visual wrapper.
+- Post-fix evidence: the `1180 x 696` Tauri capture and both composite comparisons show aligned headings and a continuous Hero fade with all page regions intact.
+
+**Implementation Checklist**
+
+- [x] Recent Content and Quick Actions headings align at compact and standard heights.
+- [x] Hero raster is not clipped by its local wrapper.
+- [x] Existing image asset, page structure, data, routes, and TitleBar remain unchanged.
+- [x] Scoped ESLint, Stylelint, and Vue TypeScript checks pass.
+- [x] No repository-local temporary visual artifacts were introduced.
+
+**Follow-up Polish**
+
+- None required for this scope.
+
+final result: passed
+
+---
+
+## Developer Workbench Final Polish
+
+**Comparison Target**
+
+- Source visual truth: `C:\Users\zero\AppData\Local\Temp\codex-clipboard-b1cbe29b-ea12-4b4b-892f-6978bbd1c743.png`.
+- Rendered implementation: `C:\Users\zero\.codex\visualizations\2026\09\07\01a07b61-a0e6-7f40-a7ed-bae8f5939e09\workbench-1536x960.png`.
+- Exact compact-window evidence: `C:\Users\zero\.codex\visualizations\2026\09\07\01a07b61-a0e6-7f40-a7ed-bae8f5939e09\workbench-1366x768.png`.
+- Default-window evidence: `C:\Users\zero\.codex\visualizations\2026\09\07\01a07b61-a0e6-7f40-a7ed-bae8f5939e09\workbench-default-1180x696.png`.
+- Full-view comparison: `C:\Users\zero\.codex\visualizations\2026\09\07\01a07b61-a0e6-7f40-a7ed-bae8f5939e09\workbench-source-vs-implementation.png`.
+- Viewports: `1180 x 696`, `1366 x 768`, `1440 x 900`, and `1536 x 960` Tauri windows.
+- Pixel normalization: source is `1586 x 992` at 96 DPI; implementation is `1536 x 960` at 144 DPI. For proportional full-view comparison, the implementation was resampled to the source bitmap dimensions in the side-by-side artifact. Exact CSS values were checked from the page-scoped styles and exact Tauri window captures.
+- State: light theme, configured workspace, six recent items, twelve enabled plugins, five search sources, and AI awaiting configuration.
+- Scope: Developer Workbench body only. The shared title bar and its public styling were intentionally excluded from change review.
+
+**Findings**
+
+- No actionable P0, P1, or P2 mismatch remains for the requested Final Polish scope.
+- The Hero artwork keeps its existing real raster asset and left-to-right light direction. Its foreground is clearer without increasing the saturation of the pale rear glass layers.
+- The explicit Recent and Capability height caps create intentional free canvas below the content on taller windows instead of stretching rows beyond the requested desktop density.
+
+**Required Fidelity Surfaces**
+
+- Fonts and typography: existing font family and copy are unchanged; the requested title, section, metric, recent-item, secondary, and footer hierarchy remains intact.
+- Spacing and layout rhythm: Hero-to-Metrics is `26px` normally and `20px` in compact height; Metrics-to-Main is `20px` normally and `18px` in compact height. Recent rows resolve to about `72px` at `1366 x 768` and about `74px` at `1440 x 900`.
+- Colors and visual tokens: card elevation is page-scoped at `0 3px 14px rgb(36 78 140 / 3%)`; the dark counterpart is also reduced. Footer divider opacity uses a Workbench-only token.
+- Image quality and asset fidelity: `workbench-code-hero.webp` remains the source asset; no CSS drawing, placeholder, inline SVG, or replacement illustration was introduced.
+- Copy and content: all business data, labels, status values, workspace path, and action targets are unchanged.
+
+**Focused Region Evidence**
+
+- Hero: the illustration moved left by `22px` at the primary breakpoint and keeps the existing soft radial mask and left-to-right rays.
+- Metrics: four columns remain intact at every validated width; the default chevron opacity is `0.72` and the card shadow is reduced.
+- Recent Content: six items, tags, dates, and overflow menus remain fully visible. Title-to-tag gap is `1px`.
+- Quick Actions: the `2 x 2` structure, equal card heights, icon alignment, text baselines, and chevron alignment are unchanged and remained visually aligned.
+- Capability Status: all four buttons are exactly `52px` high, with the existing 8px dots and status colors preserved.
+- Footer: height remains `32px`, font remains `11px`, the top divider is weaker, and the right message is reduced to `0.9` opacity.
+- Focused crops were not required because all requested surfaces are legible in the exact-size full-window captures.
+
+**Comparison History**
+
+- Baseline findings: the Hero artwork sat too far right, its foreground was slightly weak, section gaps were uniform instead of intentionally paced, card elevation and metric chevrons were too prominent, flexible rows expanded with window height, and the footer treatment was stronger than requested.
+- Fixes made: added explicit page-only grid spacer tracks, moved and clarified the Hero raster, reduced page-local elevation, weakened chevrons, capped the Recent card for 72-74px rows at the priority sizes, fixed Capability buttons at 52px, and softened the footer divider/background/message.
+- Post-fix evidence: exact Tauri captures at all four requested/default sizes show no page scrollbar, overlap, clipping, or missing row. The window was restored to its original `1180 x 696` size and position after validation.
+
+**Implementation Checklist**
+
+- [x] Shared TitleBar has zero changes.
+- [x] Page structure and business behavior are unchanged.
+- [x] Hero artwork moved left and remains soft and low-saturation.
+- [x] Metrics stay in four columns with lighter elevation and chevrons.
+- [x] Six Recent rows remain complete and denser.
+- [x] Quick Actions remain an unchanged `2 x 2` grid.
+- [x] Capability rows are `52px` and keep existing status semantics.
+- [x] Footer is `32px` and visually quieter.
+- [x] `1366 x 768`, `1440 x 900`, and `1536 x 960` were checked in the real Tauri window.
+- [x] No page-level overflow or global CSS pollution was introduced.
+
+**Follow-up Polish**
+
+- None required for this scope.
+
+final result: passed
+
+---
+
 ## Developer Workbench Home
 
 **Comparison Target**

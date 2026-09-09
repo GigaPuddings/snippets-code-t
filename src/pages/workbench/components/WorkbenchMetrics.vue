@@ -1,14 +1,22 @@
 <template>
-  <section class="workbench-metrics" :aria-label="t('workbenchHome.metrics')">
+  <section
+    class="grid h-full min-w-0 grid-cols-4 gap-3 [@media(max-width:1180px)]:gap-[9px]"
+    :aria-label="t('workbenchHome.metrics')"
+  >
     <button
       v-for="metric in metrics"
       :key="metric.id"
       type="button"
-      class="workbench-metric"
-      :class="`workbench-metric--${metric.id}`"
+      class="group grid h-full min-w-0 grid-cols-[58px_minmax(0,1fr)_18px] items-center gap-3 rounded-xl border border-workbench-card-border bg-workbench-card px-[14px] py-3 text-left text-workbench-text shadow-workbench transition-[transform,background-color,border-color] duration-[160ms] hover:-translate-y-px hover:border-workbench-card-border-hover hover:bg-workbench-card-strong focus-visible:-translate-y-px focus-visible:border-workbench-card-border-hover focus-visible:bg-workbench-card-strong focus-visible:outline-none [@media(max-height:800px)]:!grid-cols-[44px_minmax(0,1fr)_12px] [@media(max-height:800px)]:!gap-2 [@media(max-height:800px)]:!px-2.5 [@media(max-height:800px)]:py-2 [@media(max-width:1180px)]:grid-cols-[48px_minmax(0,1fr)_14px] [@media(max-width:1180px)]:gap-[9px] [@media(max-width:1180px)]:px-2 [@media(max-width:900px)]:grid-cols-[minmax(0,1fr)_12px]"
       @click="emit('select', metric.id)"
     >
-      <span class="workbench-metric__icon" aria-hidden="true">
+      <span
+        class="flex size-[58px] items-center justify-center rounded-xl [@media(max-height:800px)]:!size-11 [@media(max-height:800px)]:rounded-[10px] [@media(max-width:1180px)]:size-12 [@media(max-width:900px)]:hidden"
+        :class="
+          metricVisuals[metric.id]?.iconClass || metricVisuals.content.iconClass
+        "
+        aria-hidden="true"
+      >
         <component
           :is="metricVisuals[metric.id]?.icon || FileText"
           theme="outline"
@@ -16,14 +24,32 @@
           :stroke-width="3"
         />
       </span>
-      <span class="workbench-metric__copy">
-        <span class="workbench-metric__label">{{ metric.label }}</span>
-        <span class="workbench-metric__value-row">
-          <strong>{{ metric.value }}</strong>
-          <small>{{ metric.meta }}</small>
+      <span class="flex min-w-0 flex-col justify-center">
+        <span
+          class="truncate text-[13px] leading-[1.35] text-workbench-muted [@media(max-height:800px)]:text-xs"
+        >
+          {{ metric.label }}
+        </span>
+        <span
+          class="mt-[3px] flex min-w-0 items-baseline gap-[9px] [@media(max-height:800px)]:mt-px [@media(max-width:1180px)]:gap-1.5"
+        >
+          <strong
+            class="flex-none text-[29px] font-bold leading-[1.05] [font-variant-numeric:tabular-nums] [@media(max-height:800px)]:!text-2xl [@media(max-width:1180px)]:text-[26px]"
+          >
+            {{ metric.value }}
+          </strong>
+          <small
+            class="truncate text-xs leading-[1.3] text-workbench-muted [@media(max-height:800px)]:text-[11px]"
+          >
+            {{ metric.meta }}
+          </small>
         </span>
       </span>
-      <RightSmall class="workbench-metric__chevron" theme="outline" size="18" />
+      <RightSmall
+        class="text-workbench-muted-soft opacity-[0.72] transition-colors duration-[160ms] group-hover:text-workbench-primary group-hover:opacity-[0.88] group-focus-visible:text-workbench-primary group-focus-visible:opacity-[0.88]"
+        theme="outline"
+        size="18"
+      />
     </button>
   </section>
 </template>
@@ -44,190 +70,22 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 
-const metricVisuals: Record<string, { icon: Component }> = {
-  content: { icon: FileText },
-  plugins: { icon: Cube },
-  search: { icon: Search },
-  ai: { icon: Brain }
+const metricVisuals: Record<string, { icon: Component; iconClass: string }> = {
+  content: {
+    icon: FileText,
+    iconClass: 'bg-workbench-metric-content-bg text-workbench-metric-content'
+  },
+  plugins: {
+    icon: Cube,
+    iconClass: 'bg-workbench-metric-plugins-bg text-workbench-metric-plugins'
+  },
+  search: {
+    icon: Search,
+    iconClass: 'bg-workbench-metric-search-bg text-workbench-metric-search'
+  },
+  ai: {
+    icon: Brain,
+    iconClass: 'bg-workbench-metric-ai-bg text-workbench-metric-ai'
+  }
 };
 </script>
-
-<style scoped lang="scss">
-.workbench-metrics {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-  min-width: 0;
-  height: 100%;
-}
-
-.workbench-metric {
-  display: grid;
-  grid-template-columns: 58px minmax(0, 1fr) 18px;
-  gap: 12px;
-  align-items: center;
-  min-width: 0;
-  height: 100%;
-  padding: 12px 14px;
-  color: var(--wb-text);
-  text-align: left;
-  background: var(--wb-card-bg);
-  border: 1px solid var(--wb-card-border);
-  border-radius: 12px;
-  box-shadow: var(--wb-shadow);
-  transition:
-    transform 160ms ease,
-    background-color 160ms ease,
-    border-color 160ms ease;
-
-  &:hover,
-  &:focus-visible {
-    background: var(--wb-card-bg-strong);
-    border-color: var(--wb-card-border-hover);
-    outline: none;
-    transform: translateY(-1px);
-  }
-}
-
-.workbench-metric__icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 58px;
-  height: 58px;
-  color: #397bf6;
-  background: rgb(57 123 246 / 9%);
-  border-radius: 12px;
-}
-
-.workbench-metric--plugins .workbench-metric__icon {
-  color: #19b968;
-  background: rgb(25 185 104 / 9%);
-}
-
-.workbench-metric--search .workbench-metric__icon {
-  color: #8055ef;
-  background: rgb(128 85 239 / 9%);
-}
-
-.workbench-metric--ai .workbench-metric__icon {
-  color: #f28b16;
-  background: rgb(242 139 22 / 10%);
-}
-
-.workbench-metric__copy {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  min-width: 0;
-}
-
-.workbench-metric__label {
-  overflow: hidden;
-  font-size: 13px;
-  line-height: 1.35;
-  color: var(--wb-muted);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.workbench-metric__value-row {
-  display: flex;
-  gap: 9px;
-  align-items: baseline;
-  min-width: 0;
-  margin-top: 3px;
-
-  strong {
-    flex: none;
-    font-size: 29px;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-    line-height: 1.05;
-  }
-
-  small {
-    overflow: hidden;
-    font-size: 12px;
-    line-height: 1.3;
-    color: var(--wb-muted);
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-}
-
-.workbench-metric__chevron {
-  color: var(--wb-muted-soft);
-  transition: color 160ms ease;
-}
-
-.workbench-metric:hover .workbench-metric__chevron,
-.workbench-metric:focus-visible .workbench-metric__chevron {
-  color: var(--wb-primary);
-}
-
-@media (width <= 1180px) {
-  .workbench-metrics {
-    gap: 9px;
-  }
-
-  .workbench-metric {
-    grid-template-columns: 48px minmax(0, 1fr) 14px;
-    gap: 9px;
-    padding-inline: 10px;
-  }
-
-  .workbench-metric__icon {
-    width: 48px;
-    height: 48px;
-  }
-
-  .workbench-metric__value-row {
-    gap: 6px;
-
-    strong {
-      font-size: 26px;
-    }
-  }
-}
-
-@media (width <= 900px) {
-  .workbench-metric {
-    grid-template-columns: minmax(0, 1fr) 12px;
-  }
-
-  .workbench-metric__icon {
-    display: none;
-  }
-}
-
-@media (height <= 800px) {
-  .workbench-metric {
-    grid-template-columns: 44px minmax(0, 1fr) 12px;
-    gap: 8px;
-    padding: 8px 10px;
-  }
-
-  .workbench-metric__icon {
-    width: 44px;
-    height: 44px;
-    border-radius: 10px;
-  }
-
-  .workbench-metric__label {
-    font-size: 12px;
-  }
-
-  .workbench-metric__value-row {
-    margin-top: 1px;
-
-    strong {
-      font-size: 24px;
-    }
-
-    small {
-      font-size: 11px;
-    }
-  }
-}
-</style>

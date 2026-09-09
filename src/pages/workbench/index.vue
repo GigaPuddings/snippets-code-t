@@ -1,20 +1,36 @@
 <template>
-  <main class="workbench-page" :aria-busy="loading">
-    <p v-if="loadError" class="workbench-alert" role="alert">
+  <main
+    class="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-workbench-bg text-workbench-text [@media(max-height:620px)]:overflow-y-auto"
+    :aria-busy="loading"
+  >
+    <p
+      v-if="loadError"
+      class="absolute left-1/2 top-3 z-20 max-w-[min(720px,calc(100%_-_48px))] -translate-x-1/2 rounded-lg border border-workbench-alert-border bg-workbench-alert-bg px-3 py-2 text-xs text-workbench-alert-text shadow-workbench"
+      role="alert"
+    >
       {{ loadError }}
     </p>
 
-    <div class="workbench-shell">
+    <div
+      class="mx-auto grid min-h-0 w-full max-w-[1600px] flex-1 grid-rows-[134px_10px_100px_20px_minmax(0,1fr)] px-[clamp(24px,3vw,48px)] pb-4 pt-[18px] [@media(max-height:620px)]:min-h-[592px] [@media(max-height:620px)]:flex-none [@media(max-height:800px)]:!grid-rows-[108px_6px_76px_14px_minmax(0,1fr)] [@media(max-height:800px)]:!pt-3 [@media(max-height:800px)]:pb-2.5 [@media(max-height:830px)]:grid-rows-[130px_14px_76px_14px_minmax(0,1fr)] [@media(max-height:830px)]:pt-4 [@media(max-width:1080px)]:px-[22px]"
+    >
       <WorkbenchHero
+        class="row-start-1 row-end-2"
         :workspace-root="workspaceRoot"
         :loading="loading"
         @open-workspace="navigate(workspaceAction)"
         @refresh="refresh"
       />
 
-      <WorkbenchMetrics :metrics="metrics" @select="openMetric" />
+      <WorkbenchMetrics
+        class="row-start-3 row-end-4"
+        :metrics="metrics"
+        @select="openMetric"
+      />
 
-      <div class="workbench-main">
+      <div
+        class="row-start-5 row-end-6 grid min-h-0 min-w-0 grid-cols-[minmax(0,1.7fr)_minmax(340px,0.95fr)] gap-[18px] [@media(max-width:1080px)]:grid-cols-[minmax(0,1.55fr)_minmax(310px,0.85fr)] [@media(max-width:1080px)]:gap-[14px]"
+      >
         <RecentContent
           :items="recentItems"
           :workspace-root="workspaceRoot"
@@ -28,7 +44,9 @@
           @view-all="navigate('/config/category/contentList')"
         />
 
-        <aside class="workbench-sidebar">
+        <aside
+          class="grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] gap-3 [@media(max-height:800px)]:gap-2.5"
+        >
           <QuickActions :actions="quickActions" @navigate="navigate" />
           <CapabilityStatus
             :layers="layers"
@@ -106,125 +124,3 @@ const openMetric = (metricId: string): void => {
   if (path) navigate(path);
 };
 </script>
-
-<style scoped lang="scss">
-.workbench-page {
-  --wb-bg: #f7faff;
-  --wb-card-bg: rgb(255 255 255 / 78%);
-  --wb-card-bg-strong: rgb(255 255 255 / 92%);
-  --wb-card-border: rgb(214 224 238 / 78%);
-  --wb-card-border-hover: rgb(95 116 243 / 35%);
-  --wb-text: #172033;
-  --wb-muted: #748197;
-  --wb-muted-soft: #93a0b3;
-  --wb-primary: var(--el-color-primary);
-  --wb-success: #19bf67;
-  --wb-warning: #ff9f1c;
-  --wb-hover: rgb(95 116 243 / 4%);
-  --wb-shadow: 0 4px 18px rgb(36 78 140 / 4%);
-
-  position: relative;
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  width: 100%;
-  min-width: 0;
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
-  color: var(--wb-text);
-  background: var(--wb-bg);
-}
-
-:global(.dark .workbench-page) {
-  --wb-bg: #24262b;
-  --wb-card-bg: rgb(31 34 40 / 84%);
-  --wb-card-bg-strong: rgb(35 38 45 / 94%);
-  --wb-card-border: rgb(93 105 124 / 40%);
-  --wb-card-border-hover: rgb(123 136 253 / 52%);
-  --wb-text: #f1f5fb;
-  --wb-muted: #aab4c4;
-  --wb-muted-soft: #818c9e;
-  --wb-hover: rgb(123 136 253 / 9%);
-  --wb-shadow: 0 4px 18px rgb(0 0 0 / 12%);
-}
-
-.workbench-shell {
-  display: grid;
-  flex: 1;
-  grid-template-rows: 112px 100px minmax(0, 1fr);
-  gap: 18px;
-  width: 100%;
-  max-width: 1600px;
-  min-height: 0;
-  padding: 18px clamp(24px, 3vw, 48px) 16px;
-  margin: 0 auto;
-}
-
-.workbench-main {
-  display: grid;
-  grid-template-columns: minmax(0, 1.7fr) minmax(340px, 0.95fr);
-  gap: 18px;
-  min-width: 0;
-  min-height: 0;
-}
-
-.workbench-sidebar {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 12px;
-  min-width: 0;
-  min-height: 0;
-}
-
-.workbench-alert {
-  position: absolute;
-  top: 12px;
-  left: 50%;
-  z-index: 20;
-  max-width: min(720px, calc(100% - 48px));
-  padding: 8px 12px;
-  font-size: 12px;
-  color: #b42318;
-  background: rgb(254 243 242 / 96%);
-  border: 1px solid #fecdca;
-  border-radius: 8px;
-  box-shadow: var(--wb-shadow);
-  transform: translateX(-50%);
-}
-
-@media (width <= 1080px) {
-  .workbench-shell {
-    padding-inline: 22px;
-  }
-
-  .workbench-main {
-    grid-template-columns: minmax(0, 1.55fr) minmax(310px, 0.85fr);
-    gap: 14px;
-  }
-}
-
-@media (height <= 800px) {
-  .workbench-shell {
-    grid-template-rows: 76px 82px minmax(0, 1fr);
-    gap: 12px;
-    padding-top: 12px;
-    padding-bottom: 10px;
-  }
-
-  .workbench-sidebar {
-    gap: 10px;
-  }
-}
-
-@media (height <= 620px) {
-  .workbench-page {
-    overflow-y: auto;
-  }
-
-  .workbench-shell {
-    flex: none;
-    min-height: 578px;
-  }
-}
-</style>

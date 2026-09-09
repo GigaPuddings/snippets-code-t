@@ -1,20 +1,43 @@
 <template>
-  <section class="workbench-recent">
-    <header class="workbench-recent__header">
-      <div>
+  <section
+    class="flex max-h-[498px] min-h-0 w-full min-w-0 self-start flex-col overflow-hidden rounded-xl border border-workbench-card-border bg-workbench-card shadow-workbench"
+  >
+    <header
+      class="flex min-h-12 flex-none items-center justify-between gap-4 border-b border-workbench-card-border px-[18px] [@media(max-height:800px)]:min-h-[42px] [@media(max-height:800px)]:px-[14px]"
+    >
+      <div class="flex min-w-0 items-center gap-2.5 text-workbench-primary">
         <FileText theme="outline" size="20" />
-        <h2>{{ t('workbenchHome.recent') }}</h2>
+        <h2
+          class="m-0 text-[17px] font-[650] leading-[1.3] text-workbench-text [@media(max-height:800px)]:text-[15px]"
+        >
+          {{ t('workbenchHome.recent') }}
+        </h2>
       </div>
-      <button type="button" @click="emit('viewAll')">
+      <button
+        type="button"
+        class="flex flex-none items-center gap-1 border-0 bg-transparent px-0 py-1 text-xs text-workbench-primary transition-opacity duration-[160ms] hover:opacity-[0.72] focus-visible:opacity-[0.72] focus-visible:outline-none"
+        @click="emit('viewAll')"
+      >
         {{ t('workbenchHome.viewAll') }}
         <ArrowRight theme="outline" size="15" />
       </button>
     </header>
 
-    <ul v-if="items.length" class="workbench-recent__list">
-      <li v-for="item in items" :key="item.id">
-        <button type="button" @click="emit('open', item.path)">
-          <span class="workbench-recent__icon" aria-hidden="true">
+    <ul v-if="items.length" class="m-0 flex min-h-0 list-none flex-col p-0">
+      <li
+        v-for="item in items"
+        :key="item.id"
+        class="flex min-h-0 flex-[0_0_71px] border-b border-workbench-card-border last:border-b-0 [@media(max-height:800px)]:flex-[0_0_58px]"
+      >
+        <button
+          type="button"
+          class="group grid w-full min-w-0 grid-cols-[40px_minmax(0,1fr)_auto_24px] items-center gap-3 border-0 bg-transparent px-[14px] py-[7px] text-left text-workbench-text transition-colors duration-[160ms] hover:bg-workbench-hover focus-visible:bg-workbench-hover focus-visible:outline-none [@media(max-height:800px)]:grid-cols-[34px_minmax(0,1fr)_auto_18px] [@media(max-height:800px)]:gap-[9px] [@media(max-height:800px)]:px-[11px] [@media(max-height:800px)]:py-1"
+          @click="emit('open', item.path)"
+        >
+          <span
+            class="flex size-[38px] items-center justify-center rounded-[9px] bg-workbench-recent-icon text-workbench-muted transition-[color,background-color] duration-[160ms] group-hover:bg-workbench-recent-icon-hover group-hover:text-workbench-primary group-focus-visible:bg-workbench-recent-icon-hover group-focus-visible:text-workbench-primary [@media(max-height:800px)]:size-8 [@media(max-height:800px)]:rounded-[7px]"
+            aria-hidden="true"
+          >
             <FileCodeOne
               v-if="item.type === 'code'"
               theme="outline"
@@ -22,30 +45,46 @@
             />
             <FileText v-else theme="outline" size="18" />
           </span>
-          <span class="workbench-recent__copy">
-            <strong>{{ item.title }}</strong>
-            <small>
+          <span class="flex min-w-0 flex-col items-start gap-px">
+            <strong
+              class="w-full truncate text-sm font-[560] leading-[1.3] [@media(max-height:800px)]:text-[13px]"
+            >
+              {{ item.title }}
+            </strong>
+            <small
+              class="block max-w-full truncate rounded bg-workbench-tag px-1.5 py-px text-[11px] leading-[1.35] text-workbench-muted [@media(max-height:800px)]:py-0 [@media(max-height:800px)]:text-[10px]"
+            >
               {{ item.categoryName || t('nav.uncategorized') }}
             </small>
           </span>
-          <time :datetime="item.modified">
+          <time
+            class="whitespace-nowrap text-xs leading-[1.3] text-workbench-muted [@media(max-height:800px)]:text-[11px]"
+            :datetime="item.modified"
+          >
             {{ formatModified(item.modified) }}
           </time>
-          <More class="workbench-recent__more" theme="outline" size="16" />
+          <More class="text-workbench-muted-soft" theme="outline" size="16" />
         </button>
       </li>
     </ul>
 
-    <div v-else class="workbench-recent__empty">
+    <div
+      v-else
+      class="flex min-h-0 flex-1 flex-col items-center justify-center text-center text-workbench-muted"
+    >
       <FolderOpen theme="outline" size="25" />
-      <strong>
+      <strong class="mt-[9px] text-sm font-[550] text-workbench-text">
         {{
           workspaceRoot
             ? t('workbenchHome.noRecent')
             : t('workbenchHome.workspaceNotSet')
         }}
       </strong>
-      <button type="button" @click="emit('openEmpty')">
+      <button
+        type="button"
+        class="mt-3 rounded-[7px] border border-workbench-card-border bg-transparent px-3 py-1.5 text-xs text-workbench-primary hover:border-workbench-card-border-hover focus-visible:border-workbench-card-border-hover focus-visible:outline-none"
+        @click="emit('openEmpty')"
+      >
         {{ emptyActionLabel }}
       </button>
     </div>
@@ -86,250 +125,3 @@ const formatModified = (value: string): string => {
   }).format(date);
 };
 </script>
-
-<style scoped lang="scss">
-.workbench-recent {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-  background: var(--wb-card-bg);
-  border: 1px solid var(--wb-card-border);
-  border-radius: 12px;
-  box-shadow: var(--wb-shadow);
-}
-
-.workbench-recent__header {
-  display: flex;
-  flex: none;
-  gap: 16px;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 52px;
-  padding: 0 18px;
-  border-bottom: 1px solid var(--wb-card-border);
-
-  div,
-  button {
-    display: flex;
-    align-items: center;
-  }
-
-  div {
-    gap: 10px;
-    min-width: 0;
-    color: var(--wb-primary);
-  }
-
-  h2 {
-    margin: 0;
-    font-size: 17px;
-    font-weight: 650;
-    line-height: 1.3;
-    color: var(--wb-text);
-  }
-
-  button {
-    flex: none;
-    gap: 4px;
-    padding: 4px 0;
-    font-size: 12px;
-    color: var(--wb-primary);
-    background: transparent;
-    border: 0;
-    transition: opacity 160ms ease;
-
-    &:hover,
-    &:focus-visible {
-      outline: none;
-      opacity: 0.72;
-    }
-  }
-}
-
-.workbench-recent__list {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-height: 0;
-  padding: 0;
-  margin: 0;
-  list-style: none;
-
-  li {
-    display: flex;
-    flex: 1;
-    min-height: 54px;
-    border-bottom: 1px solid var(--wb-card-border);
-
-    &:last-child {
-      border-bottom: 0;
-    }
-  }
-
-  button {
-    display: grid;
-    grid-template-columns: 40px minmax(0, 1fr) auto 24px;
-    gap: 12px;
-    align-items: center;
-    width: 100%;
-    min-width: 0;
-    padding: 7px 14px;
-    color: var(--wb-text);
-    text-align: left;
-    background: transparent;
-    border: 0;
-    transition: background-color 160ms ease;
-
-    &:hover,
-    &:focus-visible {
-      background: var(--wb-hover);
-      outline: none;
-    }
-  }
-}
-
-.workbench-recent__icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 38px;
-  height: 38px;
-  color: var(--wb-muted);
-  background: rgb(95 116 243 / 5%);
-  border-radius: 9px;
-  transition:
-    color 160ms ease,
-    background-color 160ms ease;
-}
-
-.workbench-recent__list button:hover .workbench-recent__icon,
-.workbench-recent__list button:focus-visible .workbench-recent__icon {
-  color: var(--wb-primary);
-  background: rgb(95 116 243 / 9%);
-}
-
-.workbench-recent__copy {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  align-items: flex-start;
-  min-width: 0;
-
-  strong {
-    width: 100%;
-    overflow: hidden;
-    font-size: 14px;
-    font-weight: 560;
-    line-height: 1.3;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  small {
-    display: block;
-    max-width: 100%;
-    padding: 1px 6px;
-    overflow: hidden;
-    font-size: 11px;
-    line-height: 1.35;
-    color: var(--wb-muted);
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    background: rgb(116 129 151 / 8%);
-    border-radius: 4px;
-  }
-}
-
-.workbench-recent__list time {
-  font-size: 12px;
-  line-height: 1.3;
-  color: var(--wb-muted);
-  white-space: nowrap;
-}
-
-.workbench-recent__more {
-  color: var(--wb-muted-soft);
-}
-
-.workbench-recent__empty {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 0;
-  color: var(--wb-muted);
-  text-align: center;
-
-  strong {
-    margin-top: 9px;
-    font-size: 14px;
-    font-weight: 550;
-    color: var(--wb-text);
-  }
-
-  button {
-    padding: 6px 12px;
-    margin-top: 12px;
-    font-size: 12px;
-    color: var(--wb-primary);
-    background: transparent;
-    border: 1px solid var(--wb-card-border);
-    border-radius: 7px;
-
-    &:hover,
-    &:focus-visible {
-      border-color: var(--wb-card-border-hover);
-      outline: none;
-    }
-  }
-}
-
-@media (height <= 800px) {
-  .workbench-recent__header {
-    min-height: 42px;
-    padding-inline: 14px;
-
-    h2 {
-      font-size: 15px;
-    }
-  }
-
-  .workbench-recent__list {
-    li {
-      min-height: 46px;
-    }
-
-    button {
-      grid-template-columns: 34px minmax(0, 1fr) auto 18px;
-      gap: 9px;
-      padding: 4px 11px;
-    }
-  }
-
-  .workbench-recent__icon {
-    width: 32px;
-    height: 32px;
-    border-radius: 7px;
-  }
-
-  .workbench-recent__copy {
-    gap: 1px;
-
-    strong {
-      font-size: 13px;
-    }
-
-    small {
-      padding-block: 0;
-      font-size: 10px;
-    }
-  }
-
-  .workbench-recent__list time {
-    font-size: 11px;
-  }
-}
-</style>
