@@ -190,6 +190,7 @@ function hasMeaningfulCodeContent(code: string): boolean {
 
 function escapeMarkdownTableCell(value: string): string {
   return value
+    .replace(/\\\r?\n/g, '<br>')
     .replace(/\\/g, '\\\\')
     .replace(/\|/g, '\\|')
     .replace(/\r?\n/g, '<br>');
@@ -225,9 +226,75 @@ function fixPunctuationBeforeStrong(markdown: string): string {
     .replace(/([\p{P}])__(?=[^\s\p{P}])/gu, '$1\u200B__');
 }
 
+function isMarkdownBlockSyntax(value: string): boolean {
+  return /^(?:#{1,6}(?:[ \t]+|$)|>|(?:[-+*]|\d+[.)])(?:[ \t]+|$)|`{3,}|~{3,}|(?:-{3,}|\*{3,}|_{3,})[ \t]*$|<[/!A-Za-z]|\|)/.test(
+    value
+  );
+}
+
+/**
+ * 行首四空格在 CommonMark 中表示缩进代码块，但富文本编辑器允许用户把普通
+ * 空格当作可见缩进。源码仍保留真实空格；只在交给 marked 前临时转成实体。
+ * 围栏代码块和以标准 Markdown 块标记开头的结构保持原语义。
+ */
+function protectIndentedParagraphBlocks(markdown: string): string {
+  const lines = markdown.replace(/\r\n?/g, '\n').split('\n');
+  let protectCurrentBlock = false;
+  let atBlockStart = true;
+  let fenceCharacter = '';
+  let fenceLength = 0;
+
+  return lines
+    .map((line) => {
+      if (fenceCharacter) {
+        const closingFence = new RegExp(
+          `^ {0,3}${fenceCharacter}{${fenceLength},}[ \\t]*$`
+        );
+        if (closingFence.test(line)) {
+          fenceCharacter = '';
+          fenceLength = 0;
+          protectCurrentBlock = false;
+          atBlockStart = true;
+        }
+        return line;
+      }
+
+      const openingFence = line.match(/^ {0,3}(`{3,}|~{3,})/);
+      if (openingFence) {
+        fenceCharacter = openingFence[1][0];
+        fenceLength = openingFence[1].length;
+        protectCurrentBlock = false;
+        atBlockStart = false;
+        return line;
+      }
+
+      if (!line.trim()) {
+        protectCurrentBlock = false;
+        atBlockStart = true;
+        return line;
+      }
+
+      if (atBlockStart) {
+        const indentation = line.match(/^ +/)?.[0] || '';
+        const content = line.slice(indentation.length);
+        protectCurrentBlock =
+          indentation.length > 0 &&
+          !(indentation.length <= 3 && isMarkdownBlockSyntax(content));
+        atBlockStart = false;
+      }
+
+      if (!protectCurrentBlock) return line;
+
+      return line.replace(/^ +/, (spaces) => '&#32;'.repeat(spaces.length));
+    })
+    .join('\n');
+}
+
 function normalizeMarkdownBeforeParse(markdown: string): string {
   return fixPunctuationBeforeStrong(
-    normalizeLooseInlineMarkdown(expandSourceEmptyParagraphs(markdown))
+    normalizeLooseInlineMarkdown(
+      protectIndentedParagraphBlocks(expandSourceEmptyParagraphs(markdown))
+    )
   );
 }
 
@@ -1184,7 +1251,14 @@ export function jsonToMarkdown(json: any): string {
       // 移除内容末尾的所有换行符，避免多余空行
       const trimmedContent = content.replace(/\n+$/, '');
       const fence = getCodeFence(trimmedContent);
-      return fence + language + '\n' + trimmedContent + '\n' + fence + '\n\n';
+      return (
+        fence +
+        language +
+        '\n' +
+        (trimmedContent ? trimmedContent + '\n' : '') +
+        fence +
+        '\n\n'
+      );
     }
 
     // 处理引用
@@ -1208,7 +1282,9 @@ export function jsonToMarkdown(json: any): string {
 
     // 处理硬换行
     if (type === 'hardBreak') {
-      return '\n';
+      // 裸换行在 CommonMark 中只是 soft break，换用显式反斜杠换行，
+      // 避免模式往返或外部解析器关闭 breaks 时把多行内容折叠成一行。
+      return '\\' + '\n';
     }
 
     // 处理表格
@@ -1319,7 +1395,10 @@ export function jsonToMarkdown(json: any): string {
   const processTopLevelNode = (node: any): string => {
     if (
       node.type === 'paragraph' &&
-      (!node.content || node.content.length === 0)
+      (!node.content ||
+        node.content.every(
+          (child: any) => child.type === 'text' && !child.text?.trim()
+        ))
     ) {
       return EMPTY_PARAGRAPH_MARKDOWN + '\n\n';
     }

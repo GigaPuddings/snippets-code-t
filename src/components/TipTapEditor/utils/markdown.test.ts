@@ -105,6 +105,125 @@ describe('jsonToMarkdown', () => {
     expect(markdownToHtml(markdown)).toContain('<p>左侧  右侧</p>');
   });
 
+  it('keeps four leading spaces in a normal paragraph without turning it into code', () => {
+    const markdown = jsonToMarkdown({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: '    普通文本' }]
+        }
+      ]
+    });
+
+    expect(markdown).toBe('    普通文本\n');
+    expect(markdown).not.toContain('&#32;');
+    expect(markdownToHtml(markdown)).toContain(
+      '<p>&#32;&#32;&#32;&#32;普通文本</p>'
+    );
+    expect(markdownToHtml(markdown)).not.toContain('<pre>');
+  });
+
+  it('keeps consecutive indented paragraphs separate from a following heading', () => {
+    const markdown = jsonToMarkdown({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: '    第一行' }]
+        },
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: '    第二行' }]
+        },
+        {
+          type: 'heading',
+          attrs: { level: 3 },
+          content: [{ type: 'text', text: '标题二' }]
+        }
+      ]
+    });
+    const html = markdownToHtml(markdown);
+
+    expect(markdown).toBe(
+      ['    第一行', '', '    第二行', '', '### 标题二', ''].join('\n')
+    );
+    expect(html).toContain('<p>&#32;&#32;&#32;&#32;第一行</p>');
+    expect(html).toContain('<p>&#32;&#32;&#32;&#32;第二行</p>');
+    expect(html).toContain('<h3 id="标题二">标题二</h3>');
+  });
+
+  it('keeps three space-indented paragraphs separate after a trailing Enter', () => {
+    const markdown = jsonToMarkdown({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: '    第一段' }]
+        },
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: '    第二段' }]
+        },
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: '    第三段' }]
+        },
+        { type: 'paragraph' }
+      ]
+    });
+    const html = markdownToHtml(markdown);
+
+    expect(markdown).toBe(
+      ['    第一段', '', '    第二段', '', '    第三段', ''].join('\n')
+    );
+    expect(html.match(/<p>/g)).toHaveLength(3);
+    expect(html).toContain('<p>&#32;&#32;&#32;&#32;第一段</p>');
+    expect(html).toContain('<p>&#32;&#32;&#32;&#32;第二段</p>');
+    expect(html).toContain('<p>&#32;&#32;&#32;&#32;第三段</p>');
+  });
+
+  it('keeps lines without punctuation separate after a rich-text hard break', () => {
+    const markdown = jsonToMarkdown({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: '  第一行' },
+            { type: 'hardBreak' },
+            { type: 'text', text: '  第二行' },
+            { type: 'hardBreak' },
+            { type: 'text', text: '###标题二' }
+          ]
+        }
+      ]
+    });
+    const html = markdownToHtml(markdown);
+
+    expect(markdown).toBe(
+      ['  第一行\\', '  第二行\\', '###标题二', ''].join('\n')
+    );
+    expect(html).toContain(
+      '<p>&#32;&#32;第一行<br>&#32;&#32;第二行<br>###标题二</p>'
+    );
+    expect(html).not.toContain('<h3>');
+  });
+
+  it('does not retain invisible spaces in an otherwise empty paragraph', () => {
+    const markdown = jsonToMarkdown({
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: '上文' }] },
+        { type: 'paragraph', content: [{ type: 'text', text: '   ' }] },
+        { type: 'paragraph', content: [{ type: 'text', text: '下文' }] }
+      ]
+    });
+
+    expect(markdown).toBe('上文\n\n\n下文\n');
+    expect(markdown).not.toContain('   ');
+  });
+
   it('round-trips an intentional empty paragraph between text paragraphs', () => {
     const markdown = jsonToMarkdown({
       type: 'doc',
@@ -222,6 +341,15 @@ describe('jsonToMarkdown', () => {
     });
 
     expect(markdown).toBe('```ts\nconst value = 1;\n```\n');
+  });
+
+  it('does not add a blank code line to an empty code block', () => {
+    const markdown = jsonToMarkdown({
+      type: 'doc',
+      content: [{ type: 'codeBlock', attrs: { language: null } }]
+    });
+
+    expect(markdown).toBe('```\n```\n');
   });
 
   it('uses a longer code fence when code contains backticks', () => {
@@ -456,6 +584,19 @@ describe('markdownToHtml', () => {
 
     expect(html).toContain('第一行<br>第二行');
     expect(html).toContain('</p>\n<p>第三段</p>');
+  });
+
+  it('protects plain-text indentation without changing Markdown block syntax', () => {
+    const indentedText = markdownToHtml('    普通缩进文本');
+    const heading = markdownToHtml('  ### 标题');
+    const list = markdownToHtml('  - 列表项');
+    const fencedCode = markdownToHtml('```text\n    code\n```');
+
+    expect(indentedText).toContain('<p>&#32;&#32;&#32;&#32;普通缩进文本</p>');
+    expect(indentedText).not.toContain('<pre>');
+    expect(heading).toContain('<h3 id="标题">标题</h3>');
+    expect(list).toContain('<li>列表项</li>');
+    expect(fencedCode).toContain('<pre><code class="language-text">    code');
   });
 
   it('removes unsafe raw HTML and event handlers', () => {
