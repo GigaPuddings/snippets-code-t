@@ -8,7 +8,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::sync::{Arc, Mutex, RwLock};
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 use tauri::{AppHandle, Emitter, Manager};
 use uuid::Uuid;
 
@@ -1383,24 +1383,60 @@ fn run_git_add(workspace_root: &Path, force: bool, pathspecs: &[String]) -> Resu
     if pathspecs.is_empty() {
         return Ok(());
     }
-    let mut command = crate::git_common::git_command();
-    command.arg("add").arg("-A");
-    if force {
-        command.arg("-f");
+
+    const INDEX_LOCK_RETRY_DELAYS: [Duration; 4] = [
+        Duration::from_millis(100),
+        Duration::from_millis(250),
+        Duration::from_millis(500),
+        Duration::from_secs(1),
+    ];
+
+    for attempt in 0..=INDEX_LOCK_RETRY_DELAYS.len() {
+        let mut command = crate::git_common::git_command();
+        command.arg("add").arg("-A");
+        if force {
+            command.arg("-f");
+        }
+        command.arg("--");
+        command.args(pathspecs);
+        let output = command
+            .current_dir(workspace_root)
+            .output()
+            .map_err(|e| format!("暂存同步文件失败: {}", e))?;
+        if output.status.success() {
+            return Ok(());
+        }
+
+        let stderr = crate::git_common::get_git_stderr(&output);
+        if !is_git_index_lock_conflict(&stderr) {
+            return Err(format!("暂存同步文件失败: {}", stderr));
+        }
+
+        let Some(delay) = INDEX_LOCK_RETRY_DELAYS.get(attempt) else {
+            return Err(format!(
+                "暂存同步文件失败: Git 索引仍被其他操作占用（已自动重试 {} 次）。请等待其他 Git 操作结束后重试；若确认没有 Git 进程正在运行，请删除工作区中的 .git/index.lock。原始错误: {}",
+                INDEX_LOCK_RETRY_DELAYS.len(),
+                stderr
+            ));
+        };
+
+        warn!(
+            "⚠️ [SyncData] Git 索引被占用，{} ms 后重试暂存 ({}/{})",
+            delay.as_millis(),
+            attempt + 1,
+            INDEX_LOCK_RETRY_DELAYS.len()
+        );
+        std::thread::sleep(*delay);
     }
-    command.arg("--");
-    command.args(pathspecs);
-    let output = command
-        .current_dir(workspace_root)
-        .output()
-        .map_err(|e| format!("暂存同步文件失败: {}", e))?;
-    if !output.status.success() {
-        return Err(format!(
-            "暂存同步文件失败: {}",
-            crate::git_common::get_git_stderr(&output)
-        ));
-    }
-    Ok(())
+
+    unreachable!("Git add 重试循环必须返回")
+}
+
+fn is_git_index_lock_conflict(stderr: &str) -> bool {
+    let normalized = stderr.to_ascii_lowercase();
+    normalized.contains("index.lock")
+        && (normalized.contains("file exists")
+            || normalized.contains("another git process seems to be running"))
 }
 
 fn path_exists_or_tracked(workspace_root: &Path, relative: &str) -> bool {
@@ -2119,5 +2155,64 @@ mod tests {
         assert!(parse_optional_clock_time(&Value::String("23:59".to_string()), "time").is_ok());
         assert!(parse_optional_clock_time(&Value::String("24:00".to_string()), "time").is_err());
         assert!(parse_optional_clock_time(&Value::String("8:00".to_string()), "time").is_err());
+    }
+
+    #[test]
+    fn detects_only_git_index_lock_conflicts() {
+        assert!(is_git_index_lock_conflict(
+            "fatal: Unable to create 'D:/notes/.git/index.lock': File exists."
+        ));
+        assert!(is_git_index_lock_conflict(
+            "Another git process seems to be running in this repository; index.lock remains."
+        ));
+        assert!(!is_git_index_lock_conflict(
+            "fatal: unable to access remote repository"
+        ));
+        assert!(!is_git_index_lock_conflict(
+            "fatal: Unable to create '.git/index.lock': Permission denied"
+        ));
+    }
+
+    #[test]
+    fn git_add_recovers_after_transient_index_lock_is_released() {
+        struct TempRepository(PathBuf);
+
+        impl Drop for TempRepository {
+            fn drop(&mut self) {
+                let _ = fs::remove_dir_all(&self.0);
+            }
+        }
+
+        let repository = TempRepository(
+            std::env::temp_dir().join(format!("snippets-code-index-lock-test-{}", Uuid::new_v4())),
+        );
+        fs::create_dir_all(&repository.0).unwrap();
+
+        let init = crate::git_common::git_command()
+            .args(["init", "-q"])
+            .current_dir(&repository.0)
+            .output()
+            .unwrap();
+        assert!(init.status.success());
+
+        fs::write(repository.0.join("note.md"), "temporary note").unwrap();
+        let index_lock = repository.0.join(".git/index.lock");
+        fs::write(&index_lock, []).unwrap();
+
+        let release_lock = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(175));
+            fs::remove_file(index_lock).unwrap();
+        });
+
+        run_git_add(&repository.0, false, &["note.md".to_string()]).unwrap();
+        release_lock.join().unwrap();
+
+        let staged = crate::git_common::git_command()
+            .args(["diff", "--cached", "--name-only"])
+            .current_dir(&repository.0)
+            .output()
+            .unwrap();
+        assert!(staged.status.success());
+        assert_eq!(crate::git_common::get_git_stdout(&staged), "note.md");
     }
 }
