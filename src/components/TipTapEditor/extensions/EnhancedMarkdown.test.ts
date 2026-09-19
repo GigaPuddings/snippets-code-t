@@ -1,11 +1,13 @@
 import { Schema } from '@tiptap/pm/model';
 import { EditorState, TextSelection, type Transaction } from '@tiptap/pm/state';
-import { describe, expect, it } from 'vitest';
+import type { EditorView } from '@tiptap/pm/view';
+import { describe, expect, it, vi } from 'vitest';
 import {
   boldStarInputRegex,
   boldUnderscoreInputRegex,
   convertCompletedInlineMarkdown,
   createProtectedCodeBlockInputRule,
+  handleInlineCodeInput,
   italicStarInputRegex,
   italicUnderscoreInputRegex
 } from './EnhancedMarkdown';
@@ -20,7 +22,8 @@ const schema = new Schema({
   },
   marks: {
     bold: { inclusive: false },
-    italic: { inclusive: false }
+    italic: { inclusive: false },
+    code: { inclusive: false }
   }
 });
 
@@ -112,6 +115,57 @@ describe('createProtectedCodeBlockInputRule', () => {
     expect(transaction.doc.child(0).type.name).toBe('codeBlock');
     expect(transaction.doc.child(0).textContent).toBe('previous');
     expect(transaction.doc.child(1).type.name).toBe('codeBlock');
+  });
+
+  it('does not wrap existing text after a fence typed at the start of a paragraph', () => {
+    const doc = schema.node('doc', null, [
+      schema.node('paragraph', null, schema.text('上文')),
+      schema.node('paragraph', null, schema.text('```下文'))
+    ]);
+    const fenceFrom = doc.child(0).nodeSize + 1;
+
+    const { result, transaction } = runCodeBlockRule(doc, {
+      from: fenceFrom,
+      to: fenceFrom + 3
+    });
+
+    expect(result).toBeNull();
+    expect(transaction.doc.eq(doc)).toBe(true);
+  });
+});
+
+describe('handleInlineCodeInput', () => {
+  it('does not use an opening backtick from a previous paragraph', () => {
+    const doc = schema.node('doc', null, [
+      schema.node('paragraph', null, schema.text('上文`未结束')),
+      schema.node('paragraph', null, schema.text('下文'))
+    ]);
+    const from = doc.child(0).nodeSize + 1 + '下文'.length;
+    const state = EditorState.create({ schema, doc });
+    const dispatch = vi.fn();
+    const view = { state, dispatch } as unknown as EditorView;
+
+    expect(handleInlineCodeInput(view, from, from, '`')).toBe(false);
+    expect(dispatch).not.toHaveBeenCalled();
+    expect(state.doc.eq(doc)).toBe(true);
+  });
+
+  it('converts a completed inline code span without carrying its mark forward', () => {
+    const doc = schema.node('doc', null, [
+      schema.node('paragraph', null, schema.text('前缀 `代码'))
+    ]);
+    const from = 1 + '前缀 `代码'.length;
+    const state = EditorState.create({ schema, doc });
+    const dispatch = vi.fn();
+    const view = { state, dispatch } as unknown as EditorView;
+
+    expect(handleInlineCodeInput(view, from, from, '`')).toBe(true);
+    const transaction = dispatch.mock.calls[0][0] as Transaction;
+    expect(transaction.doc.textContent).toBe('前缀 代码');
+    expect(transaction.doc.firstChild?.lastChild?.marks[0]?.type.name).toBe(
+      'code'
+    );
+    expect(transaction.storedMarks).toEqual([]);
   });
 });
 

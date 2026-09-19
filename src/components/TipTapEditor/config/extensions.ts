@@ -1,4 +1,3 @@
-import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
 import { Table } from '@tiptap/extension-table';
 import TableRow from '@tiptap/extension-table-row';
@@ -16,7 +15,7 @@ import { MarkdownLinkHandler } from '../extensions/MarkdownLinkHandler';
 import { CustomEnterBehavior } from '../extensions/CustomEnterBehavior';
 import { LocalImage } from '../extensions/LocalImage';
 import { SearchHighlight } from '../extensions/SearchHighlight';
-import type { AnyExtension } from '@tiptap/core';
+import { MarkdownStarterKit } from './MarkdownStarterKit';
 
 const parseTableAlignment = (
   value: unknown
@@ -25,22 +24,6 @@ const parseTableAlignment = (
     ? value
     : null;
 };
-
-const MarkdownStarterKit = StarterKit.extend({
-  addExtensions() {
-    const parent = (this as unknown as { parent?: () => AnyExtension[] })
-      .parent;
-    return (parent?.() ?? []).map((extension: AnyExtension) => {
-      if (extension.name === 'bold' || extension.name === 'italic') {
-        return extension.extend({
-          inclusive: false,
-          exitable: true
-        });
-      }
-      return extension;
-    });
-  }
-});
 
 const AlignedTableCell = TableCell.extend({
   addAttributes() {

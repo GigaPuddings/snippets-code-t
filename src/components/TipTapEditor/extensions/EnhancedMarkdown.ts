@@ -18,6 +18,7 @@ import {
   type EditorState,
   type Transaction
 } from '@tiptap/pm/state';
+import type { EditorView } from '@tiptap/pm/view';
 
 // 调试日志开关
 const DEBUG = false;
@@ -109,6 +110,15 @@ export function createProtectedCodeBlockInputRule(type: NodeType): InputRule {
     find: /^```([a-zA-Z0-9+-]*)\s$/,
     handler: ({ state, range, match }): void | null => {
       const $start = state.doc.resolve(range.from);
+      // 输入规则只匹配光标前的文本。若光标后仍有正文，setBlockType 会把
+      // 整个段落（包括后面的正文）转换为代码块。
+      if (
+        $start.parent.type.name !== 'paragraph' ||
+        range.from !== $start.start() ||
+        range.to !== $start.end()
+      ) {
+        return null;
+      }
       let hasNonTextInlineNode = false;
 
       $start.parent.forEach((node) => {
@@ -138,6 +148,40 @@ export function createProtectedCodeBlockInputRule(type: NodeType): InputRule {
       return;
     }
   });
+}
+
+/** 只在当前文本块内闭合行内代码，绝不跨段落回找反引号。 */
+export function handleInlineCodeInput(
+  view: EditorView,
+  from: number,
+  to: number,
+  text: string
+): boolean {
+  if (text !== '`') return false;
+
+  const { state } = view;
+  const $from = state.doc.resolve(from);
+  if (!$from.parent.isTextblock || $from.parent.type.spec.code) return false;
+
+  const start = Math.max($from.start(), from - 100);
+  const textBefore = state.doc.textBetween(start, from, '\n', '\n');
+  const lastBacktickIndex = textBefore.lastIndexOf('`');
+  if (lastBacktickIndex < 0) return false;
+
+  const backtickPos = start + lastBacktickIndex;
+  const codeText = state.doc.textBetween(backtickPos + 1, from, '\n', '\n');
+  if (!codeText.trim() || codeText.includes('\n')) return false;
+
+  const codeMark = state.schema.marks.code;
+  if (!codeMark) return false;
+
+  const tr = state.tr;
+  tr.delete(backtickPos, to);
+  tr.insertText(codeText, backtickPos);
+  tr.addMark(backtickPos, backtickPos + codeText.length, codeMark.create());
+  tr.setStoredMarks([]);
+  view.dispatch(tr);
+  return true;
 }
 
 export const EnhancedMarkdown = Extension.create({
@@ -351,51 +395,7 @@ export const EnhancedMarkdown = Extension.create({
       new Plugin({
         key: new PluginKey('inlineCodeHandler'),
         props: {
-          handleTextInput: (view, from, to, text) => {
-            if (text !== '`') {
-              return false;
-            }
-
-            const { state } = view;
-            const { doc, tr } = state;
-            const textBefore = doc.textBetween(
-              Math.max(0, from - 100),
-              from,
-              '\n',
-              '\n'
-            );
-            const lastBacktickIndex = textBefore.lastIndexOf('`');
-            log('行内代码处理: 检测到反引号输入', {
-              textBefore,
-              lastBacktickIndex
-            });
-
-            if (lastBacktickIndex !== -1) {
-              const backtickPos =
-                from - (textBefore.length - lastBacktickIndex);
-              const codeText = doc.textBetween(
-                backtickPos + 1,
-                from,
-                '\n',
-                '\n'
-              );
-
-              if (codeText && !codeText.includes('\n') && codeText.trim()) {
-                tr.delete(backtickPos, to);
-                tr.insertText(codeText, backtickPos);
-                tr.addMark(
-                  backtickPos,
-                  backtickPos + codeText.length,
-                  state.schema.marks.code.create()
-                );
-                view.dispatch(tr);
-                log('行内代码处理: 成功转换为行内代码', { codeText });
-                return true;
-              }
-            }
-
-            return false;
-          }
+          handleTextInput: handleInlineCodeInput
         }
       })
 
