@@ -18,6 +18,8 @@ mod ocr;
 mod plugins;
 mod search;
 mod sync_data;
+#[cfg(target_os = "windows")]
+mod system_power;
 mod tray;
 mod uninstall;
 mod update;
@@ -147,6 +149,11 @@ pub fn run() {
         .setup(|app| {
             // 在应用启动时初始化 APP
             let _ = APP.set(app.handle().clone());
+
+            // Tauri 在 Windows 桌面端不提供待机/恢复事件。独立消息窗口用于
+            // 暂停待机阶段的托盘调用，并在恢复后刷新托盘状态。
+            #[cfg(target_os = "windows")]
+            system_power::start_monitor();
 
             // 应用级配置存放在 data_dir/.snippets-code，不能依赖 Markdown 工作区存在。
             // 插件安装/启用状态、设置页等都需要在未设置工作区时正常工作。

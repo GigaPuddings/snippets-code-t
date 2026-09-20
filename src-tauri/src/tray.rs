@@ -34,6 +34,10 @@ use tauri_plugin_opener::OpenerExt;
 static WALLPAPER_TRAY_SWITCHING: AtomicBool = AtomicBool::new(false);
 static AI_RESPONDING: AtomicBool = AtomicBool::new(false);
 static APP_EXITING: AtomicBool = AtomicBool::new(false);
+// 后台索引和插件下载线程不能同步等待 Windows 主消息泵更新通知区域。
+// 待机时 Explorer 可能暂时不响应；同步等待会把工作线程卡在某一进度，
+// 同时放大为快捷键、托盘右键和退出事件全部无响应。
+static TRAY_STATUS_REFRESH_QUEUED: AtomicBool = AtomicBool::new(false);
 // Windows Explorer 对通知区域图标的增删是异步的。启动阶段可能同时收到
 // “最小托盘升级”和“数据库初始化完成”两次完整菜单请求，必须串行更新同一个图标，
 // 否则两个相同 ID 的 remove/build 会留下没有事件处理器的幽灵图标。
@@ -942,7 +946,12 @@ pub fn update_tray_theme_status(app_handle: &AppHandle) {
     }
 }
 
-pub fn update_plugin_install_status(app_handle: &AppHandle) {
+fn refresh_plugin_install_status_now(app_handle: &AppHandle) {
+    #[cfg(target_os = "windows")]
+    if crate::system_power::is_system_suspended() {
+        return;
+    }
+
     let Some(tray) = app_handle.tray_by_id("tray") else {
         return;
     };
@@ -990,6 +999,43 @@ pub fn update_plugin_install_status(app_handle: &AppHandle) {
             log::warn!("[TrayMenu] 更新插件安装菜单失败: {}", error);
         }
     }
+}
+
+pub fn update_plugin_install_status(app_handle: &AppHandle) {
+    if APP_EXITING.load(Ordering::Acquire) {
+        return;
+    }
+
+    #[cfg(target_os = "windows")]
+    if crate::system_power::is_system_suspended() {
+        return;
+    }
+
+    if TRAY_STATUS_REFRESH_QUEUED.swap(true, Ordering::AcqRel) {
+        return;
+    }
+
+    let app_handle = app_handle.clone();
+    let scheduling_handle = app_handle.clone();
+    if let Err(error) = scheduling_handle.run_on_main_thread(move || {
+        // 先释放门禁；刷新期间产生的新状态会再排入一次更新，且读取到的是
+        // 执行时的最新状态，不会把索引线程阻塞在旧的 0/N 进度上。
+        TRAY_STATUS_REFRESH_QUEUED.store(false, Ordering::Release);
+        refresh_plugin_install_status_now(&app_handle);
+    }) {
+        TRAY_STATUS_REFRESH_QUEUED.store(false, Ordering::Release);
+        log::warn!("[TrayMenu] 调度后台状态刷新失败: {}", error);
+    }
+}
+
+pub fn refresh_after_system_resume(app_handle: &AppHandle) {
+    if APP_EXITING.load(Ordering::Acquire) {
+        return;
+    }
+
+    TRAY_STATUS_REFRESH_QUEUED.store(false, Ordering::Release);
+    // 该函数由恢复回调在主线程调用；一次刷新同时恢复提示和完整菜单。
+    refresh_plugin_install_status_now(app_handle);
 }
 
 fn tray_icon_for_state(app_handle: &AppHandle) -> Image<'static> {

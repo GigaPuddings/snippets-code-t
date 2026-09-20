@@ -10,14 +10,17 @@ use std::fs;
 use std::mem::size_of;
 use std::os::windows::ffi::OsStrExt;
 use std::os::windows::process::CommandExt;
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::time::UNIX_EPOCH;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
+use std::time::{Duration, Instant, UNIX_EPOCH};
 use uuid::Uuid;
 use walkdir::WalkDir;
 use windows::core::{BOOL, GUID, HSTRING, PCWSTR};
 use windows::Win32::Foundation::{HWND, LPARAM, PROPERTYKEY};
-use windows::Win32::System::Com::{CoInitialize, CoTaskMemFree};
+use windows::Win32::System::Com::{CoInitialize, CoTaskMemFree, CoUninitialize};
 use windows::Win32::System::ProcessStatus::{K32EnumProcesses, K32GetModuleFileNameExA};
 use windows::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ};
 use windows::Win32::UI::Shell::{IShellItem2, SHCreateItemFromParsingName, ShellExecuteW};
@@ -44,6 +47,140 @@ pub struct InstalledAppsScan {
     pub apps: Vec<AppInfo>,
     pub complete: bool,
     pub warning: Option<String>,
+}
+
+const INSTALLED_APP_SCAN_TIMEOUT: Duration = Duration::from_secs(10);
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+enum AppScanSource {
+    Registry,
+    Shortcuts,
+    Store,
+    Windows,
+}
+
+impl AppScanSource {
+    const ALL: [Self; 4] = [Self::Registry, Self::Shortcuts, Self::Store, Self::Windows];
+
+    fn index(self) -> usize {
+        match self {
+            Self::Registry => 0,
+            Self::Shortcuts => 1,
+            Self::Store => 2,
+            Self::Windows => 3,
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::Registry => "注册表应用",
+            Self::Shortcuts => "桌面快捷方式",
+            Self::Store => "Windows 商店应用",
+            Self::Windows => "Windows 内置应用",
+        }
+    }
+}
+
+static APP_SOURCE_SCANS_RUNNING: [AtomicBool; 4] = [
+    AtomicBool::new(false),
+    AtomicBool::new(false),
+    AtomicBool::new(false),
+    AtomicBool::new(false),
+];
+
+struct AppSourceScanResult {
+    source: AppScanSource,
+    apps: Vec<AppInfo>,
+    warning: Option<String>,
+    elapsed: Duration,
+}
+
+struct AppSourceScanGuard(&'static AtomicBool);
+
+impl Drop for AppSourceScanGuard {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::Release);
+    }
+}
+
+fn spawn_app_source_scan<F>(
+    sender: Sender<AppSourceScanResult>,
+    source: AppScanSource,
+    scan: F,
+) -> bool
+where
+    F: FnOnce() -> (Vec<AppInfo>, Option<String>) + Send + 'static,
+{
+    let running = &APP_SOURCE_SCANS_RUNNING[source.index()];
+    if running
+        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .is_err()
+    {
+        return false;
+    }
+
+    let thread_name = format!("app-scan-{}", source.index());
+    match std::thread::Builder::new()
+        .name(thread_name)
+        .spawn(move || {
+            let _guard = AppSourceScanGuard(running);
+            let started = Instant::now();
+            let (apps, warning) = match catch_unwind(AssertUnwindSafe(scan)) {
+                Ok(result) => result,
+                Err(_) => (
+                    Vec::new(),
+                    Some(format!("{}扫描线程异常退出", source.label())),
+                ),
+            };
+            let _ = sender.send(AppSourceScanResult {
+                source,
+                apps,
+                warning,
+                elapsed: started.elapsed(),
+            });
+        }) {
+        Ok(_) => true,
+        Err(error) => {
+            running.store(false, Ordering::Release);
+            log::warn!(
+                "[LocalLauncher] 无法启动{}扫描线程: {}",
+                source.label(),
+                error
+            );
+            false
+        }
+    }
+}
+
+fn receive_app_source_results(
+    receiver: Receiver<AppSourceScanResult>,
+    expected: &[AppScanSource],
+    timeout: Duration,
+) -> (Vec<AppSourceScanResult>, Vec<AppScanSource>) {
+    let deadline = Instant::now() + timeout;
+    let mut results = Vec::with_capacity(expected.len());
+    let mut completed = HashSet::with_capacity(expected.len());
+
+    while completed.len() < expected.len() {
+        let Some(remaining) = deadline.checked_duration_since(Instant::now()) else {
+            break;
+        };
+        match receiver.recv_timeout(remaining) {
+            Ok(result) => {
+                if completed.insert(result.source) {
+                    results.push(result);
+                }
+            }
+            Err(RecvTimeoutError::Timeout | RecvTimeoutError::Disconnected) => break,
+        }
+    }
+
+    let missing = expected
+        .iter()
+        .copied()
+        .filter(|source| !completed.contains(source))
+        .collect();
+    (results, missing)
 }
 
 fn add_registry_snapshot(tokens: &mut Vec<String>, hkey: winreg::HKEY, path: &str) {
@@ -597,11 +734,24 @@ fn normalize_shortcut_target(target: String) -> Option<String> {
     Some(target)
 }
 
+struct ComInitializationGuard(bool);
+
+impl Drop for ComInitializationGuard {
+    fn drop(&mut self) {
+        if self.0 {
+            unsafe { CoUninitialize() };
+        }
+    }
+}
+
 fn resolve_shortcut_target_property(shortcut_path: &Path) -> Option<String> {
     let parsing_path = HSTRING::from(shortcut_path.to_string_lossy().as_ref());
 
     unsafe {
-        let _ = CoInitialize(None);
+        // Balance every successful COM initialization. This scanner can resolve
+        // many shortcuts on one worker thread and previously leaked one COM
+        // initialization count per shortcut until that thread exited.
+        let _com_guard = ComInitializationGuard(CoInitialize(None).is_ok());
         let item: IShellItem2 = SHCreateItemFromParsingName(&parsing_path, None).ok()?;
         let value = item.GetString(&PKEY_LINK_TARGET_PARSING_PATH).ok()?;
         let target = value.to_string().ok();
@@ -1356,89 +1506,112 @@ pub fn get_installed_apps() -> InstalledAppsScan {
     // and could spend several seconds on protected package directories.
     //
     // The remaining scanners are independent and can include relatively slow
-    // shell or Office lookups. Run them concurrently so a changed shortcut
-    // does not wait for every source serially.
-    let (registry_result, shortcut_result, store_result, windows_result) =
-        std::thread::scope(|scope| {
-            let registry_thread = scope.spawn(|| {
-                let started = std::time::Instant::now();
-                let mut apps = Vec::new();
-                let paths = [
-                    (
-                        HKEY_LOCAL_MACHINE,
-                        r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
-                    ),
-                    (
-                        HKEY_LOCAL_MACHINE,
-                        r"SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
-                    ),
-                    (
-                        HKEY_CURRENT_USER,
-                        r"Software\Microsoft\Windows\CurrentVersion\Uninstall",
-                    ),
-                    (
-                        HKEY_CURRENT_USER,
-                        r"Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
-                    ),
-                ];
-                for (hkey, path) in paths {
-                    apps.extend(get_registry_apps(hkey, path));
-                }
-                (apps, started.elapsed())
-            });
-            let shortcut_thread = scope.spawn(|| {
-                let started = std::time::Instant::now();
-                (get_desktop_shortcuts(), started.elapsed())
-            });
-            let store_thread = scope.spawn(|| {
-                let started = std::time::Instant::now();
-                (get_windows_store_apps(), started.elapsed())
-            });
-            let windows_thread = scope.spawn(|| {
-                let started = std::time::Instant::now();
-                (get_windows_apps(), started.elapsed())
-            });
-
-            (
-                registry_thread.join(),
-                shortcut_thread.join(),
-                store_thread.join(),
-                windows_thread.join(),
-            )
-        });
-
+    // Shell/COM or Office lookups. A scoped thread join used to wait forever if
+    // Explorer stopped answering shortcut resolution after standby. Collect
+    // partial results behind one deadline instead, and keep an in-flight gate
+    // per source so a stuck OS call cannot accumulate more worker threads.
+    let (sender, receiver) = mpsc::channel();
+    let mut expected = Vec::with_capacity(AppScanSource::ALL.len());
     let mut warnings = Vec::new();
-    let (registry_apps, registry_elapsed) = registry_result.unwrap_or_else(|_| {
-        warnings.push("注册表应用扫描线程异常退出".to_string());
-        Default::default()
-    });
-    let (shortcut_apps, shortcut_elapsed) = shortcut_result.unwrap_or_else(|_| {
-        warnings.push("快捷方式扫描线程异常退出".to_string());
-        Default::default()
-    });
-    let ((store_apps, store_warning), store_elapsed) = store_result.unwrap_or_else(|_| {
-        warnings.push("Windows 商店应用扫描线程异常退出".to_string());
-        Default::default()
-    });
-    let (windows_apps, windows_elapsed) = windows_result.unwrap_or_else(|_| {
-        warnings.push("Windows 应用扫描线程异常退出".to_string());
-        Default::default()
-    });
-    if let Some(store_warning) = store_warning {
-        warnings.push(store_warning);
+
+    if spawn_app_source_scan(sender.clone(), AppScanSource::Registry, || {
+        let mut apps = Vec::new();
+        let paths = [
+            (
+                HKEY_LOCAL_MACHINE,
+                r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+            ),
+            (
+                HKEY_LOCAL_MACHINE,
+                r"SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
+            ),
+            (
+                HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Uninstall",
+            ),
+            (
+                HKEY_CURRENT_USER,
+                r"Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
+            ),
+        ];
+        for (hkey, path) in paths {
+            apps.extend(get_registry_apps(hkey, path));
+        }
+        (apps, None)
+    }) {
+        expected.push(AppScanSource::Registry);
+    } else {
+        warnings.push("上一次注册表应用扫描仍未返回，本轮跳过".to_string());
+    }
+
+    if spawn_app_source_scan(sender.clone(), AppScanSource::Shortcuts, || {
+        (get_desktop_shortcuts(), None)
+    }) {
+        expected.push(AppScanSource::Shortcuts);
+    } else {
+        warnings.push("上一次桌面快捷方式扫描仍未返回，本轮跳过".to_string());
+    }
+
+    if spawn_app_source_scan(sender.clone(), AppScanSource::Store, get_windows_store_apps) {
+        expected.push(AppScanSource::Store);
+    } else {
+        warnings.push("上一次 Windows 商店应用扫描仍未返回，本轮跳过".to_string());
+    }
+
+    if spawn_app_source_scan(sender.clone(), AppScanSource::Windows, || {
+        (get_windows_apps(), None)
+    }) {
+        expected.push(AppScanSource::Windows);
+    } else {
+        warnings.push("上一次 Windows 内置应用扫描仍未返回，本轮跳过".to_string());
+    }
+    drop(sender);
+
+    let (source_results, missing_sources) =
+        receive_app_source_results(receiver, &expected, INSTALLED_APP_SCAN_TIMEOUT);
+    for source in missing_sources {
+        warnings.push(format!(
+            "{}扫描超过 {} 秒，本轮保留旧索引",
+            source.label(),
+            INSTALLED_APP_SCAN_TIMEOUT.as_secs()
+        ));
+    }
+
+    let mut registry_apps = Vec::new();
+    let mut shortcut_apps = Vec::new();
+    let mut store_apps = Vec::new();
+    let mut windows_apps = Vec::new();
+    let mut source_elapsed: [Option<Duration>; 4] = [None; 4];
+    for result in source_results {
+        source_elapsed[result.source.index()] = Some(result.elapsed);
+        if let Some(warning) = result.warning {
+            warnings.push(warning);
+        }
+        match result.source {
+            AppScanSource::Registry => registry_apps = result.apps,
+            AppScanSource::Shortcuts => shortcut_apps = result.apps,
+            AppScanSource::Store => store_apps = result.apps,
+            AppScanSource::Windows => windows_apps = result.apps,
+        }
     }
     let warning = (!warnings.is_empty()).then(|| warnings.join("; "));
 
+    let elapsed_label = |source: AppScanSource| {
+        source_elapsed[source.index()]
+            .map(|elapsed| format!("{}ms", elapsed.as_millis()))
+            .unwrap_or_else(|| "timeout".to_string())
+    };
+
     log::info!(
-        "[LocalLauncher] 应用来源扫描完成: registry={}({}ms), shortcuts={}({}ms), store={}({}ms), windows={}({}ms), complete={}",
+        "[LocalLauncher] 应用来源扫描完成: registry={}({}), shortcuts={}({}), store={}({}), windows={}({}), complete={}",
         registry_apps.len(),
-        registry_elapsed.as_millis(),
+        elapsed_label(AppScanSource::Registry),
         shortcut_apps.len(),
-        shortcut_elapsed.as_millis(),
+        elapsed_label(AppScanSource::Shortcuts),
         store_apps.len(),
-        store_elapsed.as_millis(),
+        elapsed_label(AppScanSource::Store),
         windows_apps.len(),
-        windows_elapsed.as_millis(),
+        elapsed_label(AppScanSource::Windows),
         warning.is_none(),
     );
 
@@ -1924,8 +2097,11 @@ pub fn open_app_file_location_command(
 mod tests {
     use super::{
         extract_icon_metadata_for_app_id_from_manifest, fingerprint_tokens,
-        normalize_shortcut_target, package_name_matches_family,
+        normalize_shortcut_target, package_name_matches_family, receive_app_source_results,
+        AppScanSource, AppSourceScanResult,
     };
+    use std::sync::mpsc;
+    use std::time::Duration;
 
     #[test]
     fn source_fingerprint_is_order_independent_and_change_sensitive() {
@@ -1937,6 +2113,28 @@ mod tests {
             fingerprint_tokens(vec!["a".to_string()]),
             fingerprint_tokens(vec!["changed".to_string()])
         );
+    }
+
+    #[test]
+    fn app_source_collection_returns_partial_results_at_deadline() {
+        let (sender, receiver) = mpsc::channel();
+        sender
+            .send(AppSourceScanResult {
+                source: AppScanSource::Registry,
+                apps: Vec::new(),
+                warning: None,
+                elapsed: Duration::from_millis(1),
+            })
+            .expect("send source result");
+
+        let (results, missing) = receive_app_source_results(
+            receiver,
+            &[AppScanSource::Registry, AppScanSource::Shortcuts],
+            Duration::from_millis(5),
+        );
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(missing, vec![AppScanSource::Shortcuts]);
     }
 
     #[test]
