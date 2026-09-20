@@ -60,6 +60,32 @@ describe('SelectionCandidateStabilizer', () => {
   });
 });
 
+describe('SelectionCandidateStabilizer hierarchy changes', () => {
+  it('keeps the visible child when delayed detection returns its parent', () => {
+    const stabilizer = new SelectionCandidateStabilizer();
+    const child = { x: 80, y: 60, width: 120, height: 36 };
+    const parent = { x: 40, y: 30, width: 420, height: 180 };
+    stabilizer.preview(child);
+
+    expect(stabilizer.finalize(parent)).toEqual({
+      rect: child,
+      changed: false
+    });
+  });
+
+  it('allows delayed detection to refine a coarse candidate to a child', () => {
+    const stabilizer = new SelectionCandidateStabilizer();
+    const parent = { x: 40, y: 30, width: 420, height: 180 };
+    const child = { x: 80, y: 60, width: 120, height: 36 };
+    stabilizer.preview(parent);
+
+    expect(stabilizer.finalize(child)).toEqual({
+      rect: child,
+      changed: true
+    });
+  });
+});
+
 describe('areSelectionRectsEquivalent', () => {
   it('keeps materially different nested elements distinct', () => {
     expect(

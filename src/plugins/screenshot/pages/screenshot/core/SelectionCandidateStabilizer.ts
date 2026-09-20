@@ -71,6 +71,24 @@ export class SelectionCandidateStabilizer {
   }
 
   finalize(rect: Rect | null): StabilizedCandidateUpdate {
+    if (
+      rect &&
+      this.currentRect &&
+      !areSelectionRectsEquivalent(this.currentRect, rect) &&
+      this.containsRect(rect, this.currentRect)
+    ) {
+      // The delayed UI Automation pass can only expose a parent container for
+      // some applications. Do not replace the smaller visual candidate that
+      // was already shown under the same stationary pointer with that parent.
+      // Equivalent boundary corrections and smaller child candidates still
+      // flow through `commit` below.
+      this.isFinalized = true;
+      return {
+        rect: this.cloneRect(this.currentRect),
+        changed: false
+      };
+    }
+
     const update = this.commit(rect);
     this.isFinalized = rect !== null;
     return update;
@@ -92,5 +110,17 @@ export class SelectionCandidateStabilizer {
 
   private cloneRect(rect: Rect | null): Rect | null {
     return rect ? { ...rect } : null;
+  }
+
+  private containsRect(container: Rect, candidate: Rect): boolean {
+    const tolerance = 2;
+    return (
+      container.x <= candidate.x + tolerance &&
+      container.y <= candidate.y + tolerance &&
+      container.x + container.width >=
+        candidate.x + candidate.width - tolerance &&
+      container.y + container.height >=
+        candidate.y + candidate.height - tolerance
+    );
   }
 }
