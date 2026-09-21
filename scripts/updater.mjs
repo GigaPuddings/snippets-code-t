@@ -3,6 +3,7 @@ import { Octokit } from '@octokit/rest';
 import fs from 'fs';
 import path from 'path';
 import { execFileSync } from 'child_process';
+import { getReleaseForTag } from './github-release.mjs';
 
 const require = createRequire(import.meta.url);
 const tauriConfig = require('../src-tauri/tauri.conf.json');
@@ -14,6 +15,7 @@ const octokit = new Octokit({ auth: token });
 // GitHub 仓库信息
 const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/');
 const tag = process.env.GITHUB_REF_NAME;
+const releaseId = process.env.GITHUB_RELEASE_ID;
 
 function getReleaseNotes() {
   try {
@@ -48,11 +50,12 @@ function getReleaseNotes() {
 
 async function main() {
   try {
-    // 获取最新的 release
-    const { data: release } = await octokit.repos.getReleaseByTag({
+    const release = await getReleaseForTag({
+      octokit,
       owner,
       repo,
-      tag
+      tag,
+      releaseId
     });
 
     // 获取完整的 release 信息
