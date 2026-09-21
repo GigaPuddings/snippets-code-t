@@ -377,7 +377,7 @@
     },
     {
       "id": "search-engines",
-      "version": "2.0.16",
+      "version": "2.0.17",
       "name": {
         "i18nKey": "plugins.searchEngines.name",
         "fallback": "Search Engines"
@@ -387,8 +387,7 @@
         "fallback": "Custom search engines, keyword search, and default web search entries."
       },
       "category": "search",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-t/archive/refs/heads/main.zip",
-      "packageSubdir": "plugin-registry/packages/search-engines",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-search-engines/archive/refs/tags/2.0.17.zip",
       "builtinPluginId": "search-engines",
       "status": "included",
       "sizeBytes": 374300,
@@ -397,10 +396,11 @@
         "web",
         "keyword"
       ],
-      "minAppVersion": "2.1.61",
-      "compatibleAppVersion": ">=2.1.61",
+      "minAppVersion": "2.2.1",
+      "compatibleAppVersion": ">=2.2.1",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-search-engines",
-      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-search-engines/releases/tag/2.0.16"
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-search-engines/releases/tag/2.0.17",
+      "sha256": "34efce331535f85c5bbfd3ea4a0384a776bf93265adaa73e6bdba4caae11f2ac"
     },
     {
       "id": "quick-tools",
