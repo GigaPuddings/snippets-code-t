@@ -47,7 +47,9 @@
         <span>{{ $t('screenRecorder.savePath') }}</span>
         <div class="path-row">
           <el-input :model-value="settings.savePath" readonly />
-          <el-button @click="choosePath">{{ $t('common.browse') }}</el-button>
+          <CustomButton @click="choosePath">
+            {{ $t('common.browse') }}
+          </CustomButton>
         </div>
       </label>
     </div>

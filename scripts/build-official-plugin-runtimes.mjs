@@ -2,7 +2,7 @@ import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { build } from 'vite';
+import { build, transformWithEsbuild } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import AutoImport from 'unplugin-auto-import/vite';
 import Components from 'unplugin-vue-components/vite';
@@ -107,6 +107,23 @@ async function buildRuntime(pluginId, entryPath) {
       }
     }
   });
+
+  // Vite intentionally keeps whitespace in ES library output. Official plugin
+  // runtimes are shipped as release assets, so compact the single entry after
+  // Rollup has finished without changing its external module boundary.
+  const frontendPath = join(distDir, 'frontend.js');
+  const frontendSource = await readFile(frontendPath, 'utf8');
+  const minifiedFrontend = await transformWithEsbuild(
+    frontendSource,
+    frontendPath,
+    {
+      format: 'esm',
+      target: 'es2020',
+      minify: true,
+      sourcemap: false
+    }
+  );
+  await writeFile(frontendPath, minifiedFrontend.code, 'utf8');
 
   const files = await listFiles(distDir);
   const styles = files

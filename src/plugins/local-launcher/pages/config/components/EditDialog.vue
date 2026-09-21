@@ -51,9 +51,9 @@
           clearable
         >
           <template v-if="type === 'app'" #append>
-            <el-button @click="handleSelectFile">
+            <CustomButton @click="handleSelectFile">
               {{ $t('common.browse') }}
-            </el-button>
+            </CustomButton>
           </template>
         </el-input>
       </el-form-item>
@@ -68,7 +68,7 @@
             <div v-if="formData.icon" class="icon-preview has-icon">
               <img :src="formData.icon" :alt="$t('editDialog.icon')" />
               <div class="icon-overlay">
-                <el-button
+                <CustomButton
                   link
                   type="danger"
                   size="small"
@@ -76,7 +76,7 @@
                   @click="formData.icon = null"
                 >
                   <Delete theme="outline" size="14" :strokeWidth="3" />
-                </el-button>
+                </CustomButton>
               </div>
             </div>
             <div v-else class="icon-placeholder">
@@ -93,28 +93,28 @@
             </div>
           </div>
           <div class="icon-actions">
-            <el-button
+            <CustomButton
               v-if="type === 'app' && formData.content"
               @click="handleExtractAppIcon"
               :loading="fetchingIcon"
               class="extract-btn"
             >
               {{ $t('editDialog.extractIcon') }}
-            </el-button>
+            </CustomButton>
             <el-dropdown
               v-if="type === 'bookmark' && formData.content"
               trigger="click"
               @command="handleFetchIconWithSource"
               :disabled="fetchingIcon"
             >
-              <el-button
+              <CustomButton
                 size="small"
                 :loading="fetchingIcon"
                 class="extract-btn"
               >
                 {{ $t('editDialog.fetchIcon') }}
                 <Down theme="outline" size="14" :strokeWidth="3" class="ml-1" />
-              </el-button>
+              </CustomButton>
               <template #dropdown>
                 <el-dropdown-menu>
                   <el-dropdown-item command="auto">
@@ -164,7 +164,7 @@
     <template #footer>
       <div class="dialog-footer">
         <div class="footer-left">
-          <el-button
+          <CustomButton
             type="danger"
             plain
             v-if="isEdit"
@@ -173,13 +173,13 @@
           >
             <Delete theme="outline" size="14" :strokeWidth="3" />
             {{ $t('common.delete') }}
-          </el-button>
+          </CustomButton>
         </div>
         <div class="footer-right">
-          <el-button @click="handleClose" class="cancel-btn">
+          <CustomButton @click="handleClose" class="cancel-btn">
             {{ $t('common.cancel') }}
-          </el-button>
-          <el-button
+          </CustomButton>
+          <CustomButton
             type="primary"
             @click="handleSubmit"
             :loading="submitting"
@@ -192,7 +192,7 @@
               :strokeWidth="3"
             />
             {{ isEdit ? $t('common.save') : $t('common.add') }}
-          </el-button>
+          </CustomButton>
         </div>
       </div>
     </template>
@@ -205,7 +205,7 @@ import { open as openFileDialog } from '@tauri-apps/plugin-dialog';
 import type { FormInstance, FormRules } from 'element-plus';
 import { Application, Browser, Delete, Check, Down } from '@icon-park/vue-next';
 import { useI18n } from 'vue-i18n';
-import { CommonDialog } from '@/components/UI';
+import { CommonDialog, CustomButton } from '@/components/UI';
 import modal from '@/utils/modal';
 
 const { t } = useI18n();
@@ -540,10 +540,6 @@ defineExpose({ open });
         .extract-btn {
           @apply flex items-center gap-1;
 
-          :deep(.el-button__text) {
-            @apply flex items-center gap-1;
-          }
-
           &:hover {
             @apply shadow-sm;
           }
@@ -580,10 +576,6 @@ defineExpose({ open });
       &:hover {
         @apply bg-red-50 dark:bg-red-900/20 border-red-400 dark:border-red-600;
       }
-
-      :deep(.el-button__text) {
-        @apply flex items-center gap-1;
-      }
     }
   }
 
@@ -596,10 +588,6 @@ defineExpose({ open });
 
     .submit-btn {
       @apply min-w-[100px] flex items-center gap-1;
-
-      :deep(.el-button__text) {
-        @apply flex items-center gap-1;
-      }
 
       &:not(:disabled):hover {
         @apply shadow-md;

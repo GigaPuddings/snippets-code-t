@@ -7,9 +7,9 @@
         </div>
         <h2 class="title">{{ $t('update.title') }}</h2>
       </div>
-      <button
+      <CustomButton
+        unstyled
         class="close-button"
-        type="button"
         aria-label="Close"
         @click="handleCancel"
       >
@@ -27,7 +27,7 @@
           <path d="M18 6 6 18" />
           <path d="m6 6 12 12" />
         </svg>
-      </button>
+      </CustomButton>
     </div>
 
     <div class="update-content">
@@ -219,20 +219,20 @@
           update.downloadComplete && !update.downloading && !update.installing
         "
       >
-        <el-button
+        <CustomButton
           @click="handleInstallLater"
           class="action-button cancel-button"
         >
           {{ $t('update.installLater') }}
-        </el-button>
-        <el-button
+        </CustomButton>
+        <CustomButton
           @click="handleInstallOnNextRestart"
           class="action-button deferred-button"
           :disabled="update.installScheduledOnRestart"
         >
           {{ $t('update.installOnNextRestart') }}
-        </el-button>
-        <el-button
+        </CustomButton>
+        <CustomButton
           type="primary"
           @click="handleInstallNow"
           class="action-button update-button"
@@ -255,13 +255,13 @@
           {{
             update.error ? $t('update.retryInstall') : $t('update.installNow')
           }}
-        </el-button>
+        </CustomButton>
       </template>
       <template v-else-if="!update.downloading && !update.installing">
-        <el-button @click="handleCancel" class="action-button cancel-button">
+        <CustomButton @click="handleCancel" class="action-button cancel-button">
           {{ update.error ? $t('update.close') : $t('update.updateLater') }}
-        </el-button>
-        <el-button
+        </CustomButton>
+        <CustomButton
           type="primary"
           @click="handleDownload"
           class="action-button update-button"
@@ -287,7 +287,7 @@
               ? $t('update.retryDownload')
               : $t('update.downloadUpdate')
           }}
-        </el-button>
+        </CustomButton>
       </template>
     </div>
   </div>
@@ -304,6 +304,7 @@ import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
 import { logger } from '@/utils/logger';
+import { CustomButton } from '@/components/UI';
 
 interface UpdateInfo {
   version: string;
@@ -962,9 +963,7 @@ function handleCancel(): void {
       }
 
       &.update-button {
-        :deep(span) {
-          @apply flex items-center gap-2;
-        }
+        @apply gap-2;
       }
 
       &.deferred-button {

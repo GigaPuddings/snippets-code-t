@@ -77,6 +77,26 @@ async function main() {
       throw new Error('Setup file not found in release assets');
     }
 
+    const expectedTag = `v${tauriConfig.version}`;
+    if (tag !== expectedTag || release.tag_name !== expectedTag) {
+      throw new Error(
+        `Release tag mismatch: expected ${expectedTag}, workflow=${tag}, release=${release.tag_name}`
+      );
+    }
+
+    if (release.prerelease) {
+      throw new Error(
+        `Release ${expectedTag} cannot be a prerelease when latest.json is published`
+      );
+    }
+
+    const localSetupSize = fs.statSync(setupFile).size;
+    if (setupAsset.size !== localSetupSize) {
+      throw new Error(
+        `Uploaded setup size mismatch: local=${localSetupSize}, release=${setupAsset.size}`
+      );
+    }
+
     // 读取签名文件
     const signature = fs.readFileSync(sigFile, 'utf8');
 
@@ -133,18 +153,11 @@ async function main() {
       });
     }
 
-    // 设置为预发布
-    await octokit.repos.updateRelease({
-      owner,
-      repo,
-      release_id: release.id,
-      prerelease: true,
-      draft: true // 设置为草稿状态，需要手动发布
-    });
-
-    console.log('✨ 成功上传 latest.json 并设置为预发布草稿状态');
+    console.log(`✨ 成功上传 ${expectedTag} 的 latest.json`);
     console.log(
-      '已自动生成发布说明，请前往 GitHub Releases 页面检查并手动发布'
+      release.draft
+        ? 'latest.json 已附加到草稿 Release，等待工作流完成后正式发布'
+        : 'latest.json 已附加到正式 Release'
     );
   } catch (error) {
     console.error('❌ 错误:', error);

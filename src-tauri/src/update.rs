@@ -269,6 +269,8 @@ pub async fn download_update_installer(app: AppHandle) -> Result<(), String> {
     let cache_dir = update_cache_dir(&app)?;
     let file_name = cached_installer_file_name(&update);
     let installer_path = cache_dir.join(&file_name);
+    #[cfg(windows)]
+    validate_windows_installer_payload(&installer_path, &bytes)?;
     write_bytes_atomic(&installer_path, &bytes)
         .map_err(|e| format!("写入更新安装包缓存失败: {}", e))?;
 
@@ -563,6 +565,13 @@ fn read_cached_installer_file(
         return Ok(None);
     }
 
+    #[cfg(windows)]
+    if let Err(error) = validate_windows_installer_payload(&installer_path, &bytes) {
+        log::warn!("[Updater] 更新缓存格式校验失败，将清理缓存: {}", error);
+        clear_cached_update_installer(app);
+        return Ok(None);
+    }
+
     Ok(Some(CachedInstaller {
         path: installer_path,
         bytes,
@@ -788,52 +797,110 @@ fn launch_cached_windows_installer_and_exit(
     app: &AppHandle,
     installer_path: &Path,
 ) -> Result<(), String> {
-    launch_windows_installer_after_exit(installer_path)?;
-    if let Err(error) = set_update_install_started(app) {
-        log::warn!("[Updater] 写入更新重启标记失败: {}", error);
+    set_update_install_started(app)?;
+    if let Err(error) = launch_windows_installer(installer_path) {
+        let _ = json_config::set_app_config_value(app, "update_restart_pending", false);
+        return Err(error);
     }
     crate::tray::prepare_app_for_process_exit(app, "update_install");
     std::process::exit(0);
 }
 
 #[cfg(windows)]
-fn launch_windows_installer_after_exit(installer_path: &Path) -> Result<(), String> {
-    use std::os::windows::process::CommandExt;
+fn launch_windows_installer(installer_path: &Path) -> Result<(), String> {
+    use std::{ffi::OsStr, os::windows::ffi::OsStrExt};
+    use windows::core::PCWSTR;
+    use windows::Win32::UI::Shell::ShellExecuteW;
+    use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 
-    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    fn wide_null(value: &OsStr) -> Vec<u16> {
+        value.encode_wide().chain(std::iter::once(0)).collect()
+    }
 
-    let pid = std::process::id();
-    let installer = powershell_single_quoted(&installer_path.to_string_lossy());
-    let script = format!(
-        "$ErrorActionPreference='Stop'; \
-         try {{ Wait-Process -Id {pid} -Timeout 45 -ErrorAction SilentlyContinue }} catch {{ }}; \
-         Start-Sleep -Milliseconds 1800; \
-         Start-Process -FilePath {installer} -ArgumentList @('/P','/R','/UPDATE')"
-    );
+    let operation = wide_null(OsStr::new("open"));
+    let file = wide_null(installer_path.as_os_str());
+    let parameters = wide_null(OsStr::new("/P /R /UPDATE"));
+    let directory = installer_path
+        .parent()
+        .filter(|path| path.exists())
+        .map(|path| wide_null(path.as_os_str()));
 
-    std::process::Command::new("powershell.exe")
-        .arg("-NoProfile")
-        .arg("-ExecutionPolicy")
-        .arg("Bypass")
-        .arg("-EncodedCommand")
-        .arg(powershell_encoded_command(&script))
-        .creation_flags(CREATE_NO_WINDOW)
-        .spawn()
-        .map_err(|e| format!("启动安装器辅助进程失败: {}", e))?;
+    let result = unsafe {
+        ShellExecuteW(
+            None,
+            PCWSTR(operation.as_ptr()),
+            PCWSTR(file.as_ptr()),
+            PCWSTR(parameters.as_ptr()),
+            directory
+                .as_ref()
+                .map(|value| PCWSTR(value.as_ptr()))
+                .unwrap_or(PCWSTR::null()),
+            SW_SHOWNORMAL,
+        )
+    };
+
+    let code = result.0 as isize;
+    if code <= 32 {
+        return Err(format!("启动更新安装器失败: ShellExecuteW 错误 {}", code));
+    }
 
     Ok(())
 }
 
 #[cfg(windows)]
-fn powershell_single_quoted(value: &str) -> String {
-    format!("'{}'", value.replace('\'', "''"))
+fn validate_windows_installer_payload(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    let extension = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+
+    let valid = match extension.as_str() {
+        "exe" => bytes.starts_with(b"MZ"),
+        "msi" => bytes.starts_with(&[0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]),
+        "zip" => {
+            bytes.starts_with(b"PK\x03\x04")
+                || bytes.starts_with(b"PK\x05\x06")
+                || bytes.starts_with(b"PK\x07\x08")
+        }
+        _ => false,
+    };
+
+    if valid {
+        Ok(())
+    } else {
+        Err(format!(
+            "下载内容不是有效的 Windows 安装包: {}",
+            path.display()
+        ))
+    }
 }
 
-#[cfg(windows)]
-fn powershell_encoded_command(script: &str) -> String {
-    let bytes: Vec<u8> = script
-        .encode_utf16()
-        .flat_map(|unit| unit.to_le_bytes())
-        .collect();
-    general_purpose::STANDARD.encode(bytes)
+#[cfg(all(test, windows))]
+mod tests {
+    use super::validate_windows_installer_payload;
+    use std::path::Path;
+
+    #[test]
+    fn accepts_expected_windows_installer_headers() {
+        assert!(validate_windows_installer_payload(Path::new("update.exe"), b"MZpayload").is_ok());
+        assert!(validate_windows_installer_payload(
+            Path::new("update.msi"),
+            &[0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]
+        )
+        .is_ok());
+        assert!(
+            validate_windows_installer_payload(Path::new("update.zip"), b"PK\x03\x04payload")
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn rejects_html_or_an_unsupported_installer_type() {
+        assert!(
+            validate_windows_installer_payload(Path::new("update.exe"), b"<!doctype html>")
+                .is_err()
+        );
+        assert!(validate_windows_installer_payload(Path::new("update.bin"), b"MZpayload").is_err());
+    }
 }

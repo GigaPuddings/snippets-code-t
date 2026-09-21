@@ -99,6 +99,12 @@ jobs:
           echo "EOF" >> $env:GITHUB_OUTPUT
         shell: pwsh
 
+      - name: Build Tauri (without upload)
+        run: pnpm tauri build
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_PRIVATE_KEY_PASSWORD }}
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         env:
@@ -106,15 +112,9 @@ jobs:
         with:
           name: 'snippets-code ${{ github.ref_name }}'
           body: ${{ steps.release_notes.outputs.RELEASE_BODY }}
-          draft: false
+          draft: true
           prerelease: false
           files: ''
-
-      - name: Build Tauri (without upload)
-        run: pnpm tauri build
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_PRIVATE_KEY_PASSWORD }}
 
       - name: Upload assets to release
         env:
@@ -129,3 +129,8 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_REF_NAME: ${{ github.ref_name }}
         run: node scripts/updater.mjs
+
+      - name: Publish Release
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: gh release edit "${{ github.ref_name }}" --draft=false --prerelease=false --latest

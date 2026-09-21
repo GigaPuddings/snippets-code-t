@@ -6,21 +6,22 @@
       {{ $t('screenRecorder.debugLog') }}: {{ result.debugLogPath }}
     </p>
     <div class="actions">
-      <el-button type="primary" @click="$emit('open')">
+      <CustomButton type="primary" @click="$emit('open')">
         {{ $t('screenRecorder.openFile') }}
-      </el-button>
-      <el-button @click="$emit('reveal')">
+      </CustomButton>
+      <CustomButton @click="$emit('reveal')">
         {{ $t('screenRecorder.openFolder') }}
-      </el-button>
-      <el-button @click="$emit('recordAgain')">
+      </CustomButton>
+      <CustomButton @click="$emit('recordAgain')">
         {{ $t('screenRecorder.recordAgain') }}
-      </el-button>
+      </CustomButton>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { CustomButton } from '@/components/UI';
 import type { RecordingExportResult } from '../core/types';
 
 const props = defineProps<{

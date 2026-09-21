@@ -19,7 +19,8 @@
   box-shadow: none !important;
 }
 
-.transparent-input .el-button:hover {
+.transparent-input .el-button:hover,
+.transparent-input .custom-button:hover {
   color: #fff !important;
   background-color: var(--el-color-primary) !important;
 }

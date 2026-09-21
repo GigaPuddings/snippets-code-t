@@ -162,9 +162,9 @@
     <div v-if="state.editorError" class="editor-error">
       <span class="error-icon">⚠</span>
       <span>{{ state.editorError }}</span>
-      <el-button size="small" @click="retryLoadEditor">
+      <CustomButton size="small" @click="retryLoadEditor">
         {{ t('category.retry') }}
-      </el-button>
+      </CustomButton>
     </div>
 
     <div v-else class="editor-stage" :aria-busy="showEditorLoading">
@@ -279,7 +279,7 @@ import { useI18n } from 'vue-i18n';
 import modal from '@/utils/modal';
 import TagInput from '@/components/TagInput/index.vue';
 import { useRouter } from 'vue-router';
-import { ConfirmDialog } from '@/components/UI';
+import { ConfirmDialog, CustomButton } from '@/components/UI';
 import { findBacklinks, getBacklinkStats } from '@/utils/wikilink-updater';
 import BacklinkUpdateDialog from '@/components/UI/BacklinkUpdateDialog.vue';
 import AiAssistDialog from '@/components/AiAssistDialog/index.vue';
@@ -2423,7 +2423,7 @@ onMounted(async () => {
     @apply text-base text-center px-4;
   }
 
-  .el-button {
+  .custom-button {
     @apply mt-2;
   }
 }

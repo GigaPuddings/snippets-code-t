@@ -27,18 +27,18 @@
               placement="top"
               effect="light"
             >
-              <el-button :icon="Redo" @click="resetEngines">
+              <CustomButton :icon="Redo" @click="resetEngines">
                 {{ $t('common.reset') }}
-              </el-button>
+              </CustomButton>
             </el-tooltip>
             <el-tooltip
               :content="$t('retrieve.addNew')"
               placement="top"
               effect="light"
             >
-              <el-button type="primary" :icon="Add" @click="handleAdd">
+              <CustomButton type="primary" :icon="Add" @click="handleAdd">
                 {{ $t('common.add') }}
-              </el-button>
+              </CustomButton>
             </el-tooltip>
           </div>
         </header>
@@ -143,7 +143,7 @@
                       placement="top"
                       effect="light"
                     >
-                      <el-button
+                      <CustomButton
                         class="delete-button"
                         type="danger"
                         text
@@ -203,7 +203,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { emit, listen } from '@tauri-apps/api/event';
 import { useI18n } from 'vue-i18n';
 import modal from '@/utils/modal';
-import { ConfirmDialog } from '@/components/UI';
+import { ConfirmDialog, CustomButton } from '@/components/UI';
 
 const { t } = useI18n();
 const searchEngines = ref<SearchEngineConfig[]>([]);
@@ -654,7 +654,7 @@ const handleIconError = async (engine: SearchEngineConfig) => {
         .delete-button {
           @apply px-2;
 
-          :deep(.el-icon) {
+          :deep(.custom-button__icon) {
             @apply text-lg;
           }
         }

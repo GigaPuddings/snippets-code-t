@@ -1,14 +1,24 @@
 <template>
   <button
     :class="[
-      'custom-button',
-      `custom-button--${props.type || 'default'}`,
-      props.size ? `custom-button--${props.size}` : 'custom-button--medium',
-      { 'custom-button--loading': props.loading },
-      { 'custom-button--circle': props.circle },
-      { 'custom-button--plain': props.plain }
+      props.unstyled
+        ? 'custom-button--unstyled'
+        : [
+            'custom-button',
+            `custom-button--${props.type || 'default'}`,
+            props.size && props.size !== 'default'
+              ? `custom-button--${props.size}`
+              : 'custom-button--medium',
+            { 'custom-button--loading': props.loading },
+            { 'custom-button--circle': props.circle },
+            { 'custom-button--plain': props.plain },
+            { 'custom-button--textual': props.text || props.link },
+            { 'custom-button--link': props.link }
+          ]
     ]"
+    :type="props.nativeType"
     :disabled="loading || disabled"
+    :aria-busy="loading || undefined"
     @click="$emit('click', $event)"
   >
     <div v-if="loading" class="custom-button__loading">
@@ -23,11 +33,23 @@
         />
       </svg>
     </div>
+    <slot v-if="!loading" name="icon">
+      <component
+        :is="props.icon"
+        v-if="props.icon"
+        class="custom-button__icon"
+        aria-hidden="true"
+      />
+    </slot>
     <slot></slot>
   </button>
 </template>
 
 <script setup lang="ts">
+import type { Component, PropType } from 'vue';
+
+type NativeButtonType = 'button' | 'submit' | 'reset';
+
 defineOptions({
   name: 'CustomButton'
 });
@@ -44,7 +66,8 @@ const props = defineProps({
   size: {
     type: String,
     default: '',
-    validator: (value: string) => ['', 'small', 'large'].includes(value)
+    validator: (value: string) =>
+      ['', 'default', 'small', 'large'].includes(value)
   },
   circle: {
     type: Boolean,
@@ -61,6 +84,27 @@ const props = defineProps({
   plain: {
     type: Boolean,
     default: false
+  },
+  text: {
+    type: Boolean,
+    default: false
+  },
+  link: {
+    type: Boolean,
+    default: false
+  },
+  unstyled: {
+    type: Boolean,
+    default: false
+  },
+  icon: {
+    type: [Object, Function] as PropType<Component>,
+    default: undefined
+  },
+  nativeType: {
+    type: String as PropType<NativeButtonType>,
+    default: 'button',
+    validator: (value: string) => ['button', 'submit', 'reset'].includes(value)
   }
 });
 
@@ -73,7 +117,7 @@ defineEmits(['click']);
 }
 
 .custom-button {
-  @apply inline-flex items-center justify-center rounded-md shadow-sm transition-all duration-200 font-medium outline-none relative overflow-hidden;
+  @apply inline-flex items-center justify-center gap-1.5 rounded-md shadow-sm transition-all duration-200 font-medium outline-none relative overflow-hidden;
 
   &:not(:disabled):active {
     transform: scale(0.98);
@@ -123,6 +167,35 @@ defineEmits(['click']);
     }
   }
 
+  &--textual {
+    @apply bg-transparent border-transparent shadow-none px-2;
+
+    &.custom-button--default,
+    &.custom-button--text {
+      @apply text-panel-text-secondary hover:text-panel hover:bg-content dark:hover:bg-panel-hover-bg;
+    }
+
+    &.custom-button--primary {
+      @apply text-primary hover:text-primary bg-transparent hover:bg-content dark:hover:bg-panel-hover-bg;
+    }
+
+    &.custom-button--success {
+      @apply text-green-600 hover:text-green-700 bg-transparent hover:bg-green-50 dark:hover:bg-green-900/20;
+    }
+
+    &.custom-button--warning {
+      @apply text-orange-600 hover:text-orange-700 bg-transparent hover:bg-orange-50 dark:hover:bg-orange-900/20;
+    }
+
+    &.custom-button--danger {
+      @apply text-red-500 hover:text-red-600 bg-transparent hover:bg-red-50 dark:hover:bg-red-900/20;
+    }
+  }
+
+  &--link {
+    @apply hover:bg-transparent dark:hover:bg-transparent;
+  }
+
   &--medium {
     @apply text-sm px-4 h-8;
 
@@ -157,6 +230,12 @@ defineEmits(['click']);
 
   &__loading {
     @apply absolute left-0 top-0 w-full h-full flex items-center justify-center bg-inherit;
+  }
+
+  &__icon {
+    flex: 0 0 auto;
+    width: 1em;
+    height: 1em;
   }
 
   &__spinner {

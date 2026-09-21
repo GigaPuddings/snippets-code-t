@@ -82,12 +82,12 @@
 
     <template #footer>
       <div class="panel-footer">
-        <el-button size="small" @click="handleReset">
+        <CustomButton size="small" @click="handleReset">
           {{ $t('search.resetFilter') }}
-        </el-button>
-        <el-button type="primary" size="small" @click="handleApply">
+        </CustomButton>
+        <CustomButton type="primary" size="small" @click="handleApply">
           {{ $t('search.applyFilter') }}
-        </el-button>
+        </CustomButton>
       </div>
     </template>
   </CommonDialog>
@@ -95,7 +95,7 @@
 
 <script setup lang="ts">
 import { Check, SortAmountDown, Time, Edit } from '@icon-park/vue-next';
-import { CommonDialog } from '@/components/UI';
+import { CommonDialog, CustomButton } from '@/components/UI';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
@@ -425,7 +425,7 @@ function handleReset(): void {
 .panel-footer {
   @apply flex justify-end gap-2;
 
-  :deep(.el-button) {
+  :deep(.custom-button) {
     height: 30px;
     padding: 0 13px;
     font-size: 12px;

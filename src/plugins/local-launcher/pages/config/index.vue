@@ -42,7 +42,7 @@
             :content="isEditMode ? $t('local.done') : $t('local.edit')"
             placement="bottom"
           >
-            <el-button
+            <CustomButton
               :type="isEditMode ? 'primary' : 'default'"
               :icon="isEditMode ? Check : Edit"
               size="default"
@@ -55,7 +55,7 @@
             :content="$t('local.add')"
             placement="bottom"
           >
-            <el-button
+            <CustomButton
               type="primary"
               :icon="Plus"
               size="default"
@@ -151,14 +151,14 @@
               })
         "
       >
-        <el-button v-if="!searchQuery" type="primary" @click="handleAdd">
+        <CustomButton v-if="!searchQuery" type="primary" @click="handleAdd">
           {{
             $t('local.addItem', {
               type:
                 activeTab === 'app' ? $t('local.apps') : $t('local.bookmarks')
             })
           }}
-        </el-button>
+        </CustomButton>
       </el-empty>
 
       <RecycleScroller
@@ -227,7 +227,7 @@
               </div>
             </div>
             <div class="item-actions">
-              <el-button
+              <CustomButton
                 v-if="!isEditMode"
                 type="primary"
                 text
@@ -235,8 +235,8 @@
                 @click.stop="handleEdit(item)"
               >
                 {{ $t('local.edit') }}
-              </el-button>
-              <el-button
+              </CustomButton>
+              <CustomButton
                 v-if="isEditMode"
                 type="danger"
                 text
@@ -244,7 +244,7 @@
                 @click.stop="handleDelete(item)"
               >
                 {{ $t('local.delete') }}
-              </el-button>
+              </CustomButton>
             </div>
           </div>
         </div>
@@ -297,7 +297,7 @@ import {
 import { RecycleScroller } from 'vue-virtual-scroller';
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css';
 import EditDialog from './components/EditDialog.vue';
-import { ConfirmDialog } from '@/components/UI';
+import { ConfirmDialog, CustomButton } from '@/components/UI';
 import { getPrimarySearchHistoryKey } from '@/search/ranking';
 import {
   refreshRecycleScroller,

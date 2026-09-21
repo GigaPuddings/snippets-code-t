@@ -138,7 +138,7 @@ onMounted(async () => {
   @apply text-panel-text-secondary;
 }
 
-:deep(.el-button) {
+:deep(.custom-button) {
   @apply transition-all duration-200 hover:shadow-md hover:translate-y-[-1px];
 }
 
