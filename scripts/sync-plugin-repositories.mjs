@@ -137,7 +137,7 @@ function codeloadArchiveUrl(packageUrl) {
   return `https://codeload.github.com/${owner}/${repo}/zip/refs/${refKind}/${ref}`;
 }
 
-async function remotePackageSha256(packageUrl) {
+async function remotePackageMetadata(packageUrl) {
   const downloadUrl = codeloadArchiveUrl(packageUrl);
   const response = await fetch(downloadUrl, {
     headers: {
@@ -152,11 +152,16 @@ async function remotePackageSha256(packageUrl) {
   }
 
   const hasher = createHash('sha256');
+  let sizeBytes = 0;
   for await (const chunk of response.body) {
     hasher.update(chunk);
+    sizeBytes += chunk.byteLength;
   }
 
-  return hasher.digest('hex');
+  return {
+    sha256: hasher.digest('hex'),
+    sizeBytes
+  };
 }
 
 async function directoryExists(path) {
@@ -306,14 +311,22 @@ async function updateMarketplace(selectedPlugins, pluginVersions, options) {
     item.repository = `https://github.com/${OWNER}/${plugin.repo}`;
     item.releaseUrl = releaseUrl(plugin.repo, version);
     item.packageUrl = packageUrlFor(plugin, version, options);
+    let hasRemotePackageMetadata = false;
     if (options.pinMarketplaceTags || plugin.releaseAssetName) {
-      console.log(`[Plugins] 计算 ${plugin.id} 包 SHA-256`);
-      item.sha256 = await remotePackageSha256(item.packageUrl);
+      console.log(`[Plugins] 计算 ${plugin.id} 包 SHA-256 和下载大小`);
+      const packageMetadata = await remotePackageMetadata(item.packageUrl);
+      item.sha256 = packageMetadata.sha256;
+      item.sizeBytes = packageMetadata.sizeBytes;
+      hasRemotePackageMetadata = true;
     } else {
       delete item.sha256;
     }
     delete item.packageSubdir;
-    if (plugin.resourceSourceDir && options[plugin.includeFlag]) {
+    if (
+      !hasRemotePackageMetadata &&
+      plugin.resourceSourceDir &&
+      options[plugin.includeFlag]
+    ) {
       const resourceDir = resolve(ROOT, plugin.resourceSourceDir);
       if (await directoryExists(resourceDir)) {
         item.sizeBytes = await directorySize(resourceDir);
