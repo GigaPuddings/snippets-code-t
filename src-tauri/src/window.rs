@@ -322,6 +322,8 @@ pub struct UiElementInfo {
     height: i32,
     name: String,
     control_type: i32,
+    #[serde(default)]
+    ancestors: Vec<UiElementInfo>,
 }
 
 // 窗口拖拽状态跟踪
@@ -3503,6 +3505,12 @@ pub fn get_ui_element_at_point(
         CUIAutomation, IUIAutomation, IUIAutomationElement, IUIAutomationTreeWalker,
     };
 
+    type UiElementCandidate = (
+        IUIAutomationElement,
+        RECT,
+        Vec<(IUIAutomationElement, RECT)>,
+    );
+
     if window_handle == 0 {
         return Ok(None);
     }
@@ -3522,7 +3530,7 @@ pub fn get_ui_element_at_point(
         y: i32,
         depth: usize,
         visited: &mut usize,
-    ) -> Option<(IUIAutomationElement, RECT)> {
+    ) -> Option<UiElementCandidate> {
         if depth >= 24 || *visited >= 512 {
             return None;
         }
@@ -3535,9 +3543,20 @@ pub fn get_ui_element_at_point(
             *visited += 1;
             if let Some(rect) = element_rect(&element) {
                 if point_in_rect(x, y, &rect) {
-                    let candidate =
-                        deepest_element_at_point(walker, &element, x, y, depth + 1, visited)
-                            .unwrap_or_else(|| (element.clone(), rect));
+                    let candidate = match deepest_element_at_point(
+                        walker,
+                        &element,
+                        x,
+                        y,
+                        depth + 1,
+                        visited,
+                    ) {
+                        Some((descendant, descendant_rect, mut ancestors)) => {
+                            ancestors.push((element.clone(), rect));
+                            (descendant, descendant_rect, ancestors)
+                        }
+                        None => (element.clone(), rect, Vec::new()),
+                    };
                     let candidate_rect = candidate.1;
                     let area = i64::from(candidate_rect.right - candidate_rect.left)
                         * i64::from(candidate_rect.bottom - candidate_rect.top);
@@ -3581,7 +3600,8 @@ pub fn get_ui_element_at_point(
             .ControlViewWalker()
             .map_err(|error| format!("创建控件树遍历器失败: {}", error))?;
         let mut visited = 0;
-        let Some((element, rect)) = deepest_element_at_point(&walker, &root, x, y, 0, &mut visited)
+        let Some((element, rect, ancestor_elements)) =
+            deepest_element_at_point(&walker, &root, x, y, 0, &mut visited)
         else {
             return Ok(None);
         };
@@ -3597,23 +3617,40 @@ pub fn get_ui_element_at_point(
             return Ok(None);
         }
 
-        let name = element
-            .CurrentName()
-            .map(|value| value.to_string())
-            .unwrap_or_default();
-        let control_type = element
-            .CurrentControlType()
-            .map(|value| value.0)
-            .unwrap_or_default();
+        unsafe fn to_element_info(element: &IUIAutomationElement, rect: RECT) -> UiElementInfo {
+            UiElementInfo {
+                x: rect.left,
+                y: rect.top,
+                width: rect.right - rect.left,
+                height: rect.bottom - rect.top,
+                name: element
+                    .CurrentName()
+                    .map(|value| value.to_string())
+                    .unwrap_or_default(),
+                control_type: element
+                    .CurrentControlType()
+                    .map(|value| value.0)
+                    .unwrap_or_default(),
+                ancestors: Vec::new(),
+            }
+        }
 
-        Ok(Some(UiElementInfo {
-            x: rect.left,
-            y: rect.top,
-            width,
-            height,
-            name,
-            control_type,
-        }))
+        let ancestors = ancestor_elements
+            .into_iter()
+            .filter(|(_, ancestor_rect)| {
+                let ancestor_width = ancestor_rect.right - ancestor_rect.left;
+                let ancestor_height = ancestor_rect.bottom - ancestor_rect.top;
+                ancestor_width >= 8
+                    && ancestor_height >= 8
+                    && !(ancestor_width >= root_width.saturating_sub(4)
+                        && ancestor_height >= root_height.saturating_sub(4))
+            })
+            .map(|(ancestor, ancestor_rect)| to_element_info(&ancestor, ancestor_rect))
+            .collect();
+
+        let mut info = to_element_info(&element, rect);
+        info.ancestors = ancestors;
+        Ok(Some(info))
     })();
 
     if initialized_here {

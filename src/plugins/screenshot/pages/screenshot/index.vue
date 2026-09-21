@@ -547,6 +547,11 @@ const handleKeydown = (event: KeyboardEvent) => {
       closeWindow();
       return;
     }
+    if (screenshotManager?.handleKeyDown(event)) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
     // 屏蔽其他所有键盘事件，但不关闭窗口
     event.preventDefault();
     event.stopPropagation();

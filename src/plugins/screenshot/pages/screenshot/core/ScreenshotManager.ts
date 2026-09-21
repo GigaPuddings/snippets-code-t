@@ -83,6 +83,7 @@ interface UiElementInfo {
   height: number;
   name: string;
   control_type: number;
+  ancestors?: UiElementInfo[];
 }
 
 // 截图管理器 - 统一管理截图功能
@@ -148,6 +149,9 @@ export class ScreenshotManager {
   private snappedElement: SelectionCandidate | null = null;
   private readonly elementCandidateStabilizer =
     new SelectionCandidateStabilizer();
+  private elementHierarchyPointerAnchor: Point | null = null;
+  private elementHierarchySelectionLocked = false;
+  private readonly elementHierarchyReleaseThreshold = 8;
   private showSnapPreview = false;
   private captureMonitor = { x: 0, y: 0, scale: 1 };
   private lastPointerPosition: Point | null = null;
@@ -950,34 +954,22 @@ export class ScreenshotManager {
         return;
       }
 
-      const rect = {
-        x: Math.round((element.x - this.captureMonitor.x) / scale),
-        y: Math.round((element.y - this.captureMonitor.y) / scale),
-        width: Math.round(element.width / scale),
-        height: Math.round(element.height / scale)
-      };
-      const isInsideWindow =
-        rect.x >= targetWindow.x - 2 &&
-        rect.y >= targetWindow.y - 2 &&
-        rect.x + rect.width <= targetWindow.x + targetWindow.width + 2 &&
-        rect.y + rect.height <= targetWindow.y + targetWindow.height + 2;
-      const containsPointer =
-        mousePos.x >= rect.x &&
-        mousePos.x <= rect.x + rect.width &&
-        mousePos.y >= rect.y &&
-        mousePos.y <= rect.y + rect.height;
-
-      if (
-        rect.width < 8 ||
-        rect.height < 8 ||
-        !isInsideWindow ||
-        !containsPointer
-      ) {
+      const hierarchy = this.buildElementHierarchy(
+        element,
+        mousePos,
+        targetWindow,
+        scale
+      );
+      if (hierarchy.length === 0) {
         this.finalizeVisualElementCandidate(mousePos, targetWindow, sequence);
         return;
-      } else {
-        this.updateElementCandidate(rect, true);
       }
+
+      this.elementHierarchySelectionLocked = false;
+      this.elementHierarchyPointerAnchor = null;
+      this.applyStabilizedElementUpdate(
+        this.elementCandidateStabilizer.setHierarchy(hierarchy)
+      );
     } catch {
       this.finalizeVisualElementCandidate(mousePos, targetWindow, sequence);
     }
@@ -997,6 +989,7 @@ export class ScreenshotManager {
 
     const rect =
       this.visualElementDetector?.detect(mousePos, targetWindow) || null;
+    this.elementCandidateStabilizer.clearHierarchy();
     this.updateElementCandidate(rect, false);
   }
 
@@ -1014,6 +1007,9 @@ export class ScreenshotManager {
 
     const rect =
       this.visualElementDetector?.detect(mousePos, targetWindow) || null;
+    this.elementCandidateStabilizer.clearHierarchy();
+    this.elementHierarchySelectionLocked = false;
+    this.elementHierarchyPointerAnchor = null;
     this.updateElementCandidate(rect, true);
   }
 
@@ -1021,10 +1017,109 @@ export class ScreenshotManager {
     const update = finalized
       ? this.elementCandidateStabilizer.finalize(rect)
       : this.elementCandidateStabilizer.preview(rect);
+    this.applyStabilizedElementUpdate(update);
+  }
+
+  private applyStabilizedElementUpdate(
+    update: ReturnType<SelectionCandidateStabilizer['preview']>
+  ): void {
     this.snappedElement = update.rect
       ? { rect: update.rect, kind: 'element' }
       : null;
     if (update.changed) this.draw();
+  }
+
+  private buildElementHierarchy(
+    element: UiElementInfo,
+    mousePos: Point,
+    targetWindow: WindowInfo,
+    scale: number
+  ): Rect[] {
+    const hierarchy: Rect[] = [];
+    const previewRect = this.snappedElement?.rect;
+    if (
+      previewRect &&
+      this.isSelectableElementRect(previewRect, mousePos, targetWindow)
+    ) {
+      hierarchy.push({ ...previewRect });
+    }
+
+    for (const candidate of [element, ...(element.ancestors || [])]) {
+      const rect = this.toCanvasElementRect(candidate, scale);
+      if (this.isSelectableElementRect(rect, mousePos, targetWindow)) {
+        hierarchy.push(rect);
+      }
+    }
+
+    hierarchy.push({
+      x: targetWindow.x,
+      y: targetWindow.y,
+      width: targetWindow.width,
+      height: targetWindow.height
+    });
+    return hierarchy;
+  }
+
+  private toCanvasElementRect(element: UiElementInfo, scale: number): Rect {
+    return {
+      x: Math.round((element.x - this.captureMonitor.x) / scale),
+      y: Math.round((element.y - this.captureMonitor.y) / scale),
+      width: Math.round(element.width / scale),
+      height: Math.round(element.height / scale)
+    };
+  }
+
+  private isSelectableElementRect(
+    rect: Rect,
+    mousePos: Point,
+    targetWindow: WindowInfo
+  ): boolean {
+    const isInsideWindow =
+      rect.x >= targetWindow.x - 2 &&
+      rect.y >= targetWindow.y - 2 &&
+      rect.x + rect.width <= targetWindow.x + targetWindow.width + 2 &&
+      rect.y + rect.height <= targetWindow.y + targetWindow.height + 2;
+    const containsPointer =
+      mousePos.x >= rect.x &&
+      mousePos.x <= rect.x + rect.width &&
+      mousePos.y >= rect.y &&
+      mousePos.y <= rect.y + rect.height;
+    return (
+      rect.width >= 8 && rect.height >= 8 && isInsideWindow && containsPointer
+    );
+  }
+
+  private cycleElementHierarchy(direction: number): boolean {
+    if (this.currentTool !== ToolType.Select || this.selectionRect)
+      return false;
+    const update = this.elementCandidateStabilizer.cycleHierarchy(direction);
+    if (!update) return false;
+
+    // Invalidate any delayed detection that started before the user chose a
+    // hierarchy level, otherwise its response could jump back to the child.
+    this.cancelSmartDetection();
+    this.elementHierarchySelectionLocked = true;
+    this.elementHierarchyPointerAnchor = this.lastPointerPosition
+      ? { ...this.lastPointerPosition }
+      : null;
+    this.applyStabilizedElementUpdate(update);
+    return true;
+  }
+
+  private shouldHoldElementHierarchy(mousePos: Point): boolean {
+    if (!this.elementHierarchySelectionLocked) return false;
+    if (
+      this.elementHierarchyPointerAnchor &&
+      distance(this.elementHierarchyPointerAnchor, mousePos) <=
+        this.elementHierarchyReleaseThreshold
+    ) {
+      return true;
+    }
+
+    this.elementHierarchySelectionLocked = false;
+    this.elementHierarchyPointerAnchor = null;
+    this.elementCandidateStabilizer.clearHierarchy();
+    return false;
   }
 
   private cancelSmartDetection(): void {
@@ -1044,6 +1139,7 @@ export class ScreenshotManager {
   private mouseDownHandler = this.handleMouseDown.bind(this);
   private mouseMoveHandler = this.handleMouseMove.bind(this);
   private mouseUpHandler = this.handleMouseUp.bind(this);
+  private wheelHandler = this.handleWheel.bind(this);
   private doubleClickHandler = this.handleDoubleClick.bind(this);
   private keyDownHandler = this.handleKeyDownInternal.bind(this);
   private keyUpHandler = this.handleKeyUp.bind(this);
@@ -1053,6 +1149,9 @@ export class ScreenshotManager {
     this.canvas.addEventListener('mousedown', this.mouseDownHandler);
     this.canvas.addEventListener('mousemove', this.mouseMoveHandler);
     this.canvas.addEventListener('mouseup', this.mouseUpHandler);
+    this.canvas.addEventListener('wheel', this.wheelHandler, {
+      passive: false
+    });
     this.canvas.addEventListener('dblclick', this.doubleClickHandler);
 
     // 绑定键盘事件
@@ -1244,20 +1343,29 @@ export class ScreenshotManager {
       if (this.currentTool === ToolType.Select && !this.selectionRect) {
         this.updateElementSelectionIntent(mousePos);
         const nearbyWindow = this.detectNearbyWindow(mousePos);
+        let holdHierarchySelection = false;
 
         if (nearbyWindow !== this.snappedWindow) {
           this.cancelSmartDetection();
           this.snappedWindow = nearbyWindow;
           this.snappedElement = null;
           this.elementCandidateStabilizer.reset();
+          this.elementHierarchySelectionLocked = false;
+          this.elementHierarchyPointerAnchor = null;
           this.showSnapPreview = true;
           this.draw();
+        } else {
+          holdHierarchySelection = this.shouldHoldElementHierarchy(mousePos);
         }
         if (!this.showSnapPreview) {
           this.showSnapPreview = true;
           this.draw();
         }
-        if (nearbyWindow && this.elementSelectionActivated) {
+        if (
+          nearbyWindow &&
+          this.elementSelectionActivated &&
+          !holdHierarchySelection
+        ) {
           this.scheduleUiElementDetection(mousePos, nearbyWindow);
         }
       }
@@ -1292,6 +1400,14 @@ export class ScreenshotManager {
     }
   }
 
+  private handleWheel(event: WheelEvent): void {
+    if (event.deltaY === 0) return;
+    if (this.cycleElementHierarchy(event.deltaY > 0 ? 1 : -1)) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }
+
   // 鼠标抬起处理
   private handleMouseUp(_event: MouseEvent): void {
     const drawingState = this.eventHandler.getDrawingState();
@@ -1311,6 +1427,8 @@ export class ScreenshotManager {
       this.snappedWindow = null;
       this.snappedElement = null;
       this.elementCandidateStabilizer.reset();
+      this.elementHierarchySelectionLocked = false;
+      this.elementHierarchyPointerAnchor = null;
       this.showSnapPreview = false;
       this.cancelSmartDetection();
 
@@ -2798,6 +2916,39 @@ export class ScreenshotManager {
 
     ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
 
+    const hierarchyPosition =
+      this.elementCandidateStabilizer.getHierarchyPosition();
+    if (hierarchyPosition) {
+      const label = `${hierarchyPosition.index + 1}/${hierarchyPosition.total}  滚轮 / Tab 切换层级`;
+      ctx.setLineDash([]);
+      ctx.font = '12px "Microsoft YaHei", sans-serif';
+      ctx.textBaseline = 'middle';
+      const horizontalPadding = 7;
+      const labelHeight = 24;
+      const labelWidth =
+        Math.ceil(ctx.measureText(label).width) + horizontalPadding * 2;
+      const dpr = window.devicePixelRatio || 1;
+      const canvasWidth = this.canvas.width / dpr;
+      const canvasHeight = this.canvas.height / dpr;
+      const labelX = Math.max(
+        6,
+        Math.min(rect.x, canvasWidth - labelWidth - 6)
+      );
+      const preferredY = rect.y - labelHeight - 6;
+      const labelY = Math.max(
+        6,
+        Math.min(
+          preferredY >= 6 ? preferredY : rect.y + 6,
+          canvasHeight - labelHeight - 6
+        )
+      );
+
+      ctx.fillStyle = 'rgba(20, 24, 31, 0.82)';
+      ctx.fillRect(labelX, labelY, labelWidth, labelHeight);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(label, labelX + horizontalPadding, labelY + labelHeight / 2);
+    }
+
     ctx.restore();
   }
 
@@ -2832,6 +2983,8 @@ export class ScreenshotManager {
     this.snappedWindow = null;
     this.snappedElement = null;
     this.elementCandidateStabilizer.reset();
+    this.elementHierarchySelectionLocked = false;
+    this.elementHierarchyPointerAnchor = null;
     this.elementSelectionPointerOrigin = null;
     this.elementSelectionActivated = false;
     this.showSnapPreview = false;
@@ -4681,6 +4834,14 @@ export class ScreenshotManager {
 
   // 处理键盘事件
   handleKeyDown(event: KeyboardEvent): boolean {
+    if (
+      event.key === 'Tab' &&
+      this.currentTool === ToolType.Select &&
+      !this.selectionRect
+    ) {
+      return this.cycleElementHierarchy(event.shiftKey ? -1 : 1);
+    }
+
     if (!this.colorPickerState.isActive) return false;
 
     switch (event.key.toLowerCase()) {
@@ -4767,6 +4928,8 @@ export class ScreenshotManager {
     this.snappedWindow = null;
     this.snappedElement = null;
     this.elementCandidateStabilizer.reset();
+    this.elementHierarchySelectionLocked = false;
+    this.elementHierarchyPointerAnchor = null;
 
     // 清理窗口信息
     this.allWindows = [];
@@ -4794,6 +4957,7 @@ export class ScreenshotManager {
     this.canvas.removeEventListener('mousedown', this.mouseDownHandler);
     this.canvas.removeEventListener('mousemove', this.mouseMoveHandler);
     this.canvas.removeEventListener('mouseup', this.mouseUpHandler);
+    this.canvas.removeEventListener('wheel', this.wheelHandler);
     this.canvas.removeEventListener('dblclick', this.doubleClickHandler);
 
     // 清理键盘事件监听器

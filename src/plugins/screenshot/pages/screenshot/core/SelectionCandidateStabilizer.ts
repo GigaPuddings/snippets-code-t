@@ -5,6 +5,11 @@ export interface StabilizedCandidateUpdate {
   changed: boolean;
 }
 
+export interface SelectionHierarchyPosition {
+  index: number;
+  total: number;
+}
+
 export function areSelectionRectsEquivalent(
   left: Rect | null,
   right: Rect | null
@@ -38,6 +43,8 @@ export function areSelectionRectsEquivalent(
 export class SelectionCandidateStabilizer {
   private currentRect: Rect | null = null;
   private isFinalized = false;
+  private hierarchy: Rect[] = [];
+  private hierarchyIndex = 0;
 
   preview(rect: Rect | null): StabilizedCandidateUpdate {
     if (!rect) {
@@ -94,9 +101,53 @@ export class SelectionCandidateStabilizer {
     return update;
   }
 
+  setHierarchy(rects: Rect[]): StabilizedCandidateUpdate {
+    const hierarchy = this.normalizeHierarchy(rects);
+    this.hierarchy = hierarchy;
+    this.hierarchyIndex = 0;
+    this.isFinalized = hierarchy.length > 0;
+    return this.commit(hierarchy[0] || null);
+  }
+
+  cycleHierarchy(direction: number): StabilizedCandidateUpdate | null {
+    if (this.hierarchy.length < 2 || direction === 0) return null;
+
+    const nextIndex = Math.max(
+      0,
+      Math.min(
+        this.hierarchy.length - 1,
+        this.hierarchyIndex + Math.sign(direction)
+      )
+    );
+    if (nextIndex === this.hierarchyIndex) {
+      return {
+        rect: this.cloneRect(this.currentRect),
+        changed: false
+      };
+    }
+
+    this.hierarchyIndex = nextIndex;
+    this.isFinalized = true;
+    return this.commit(this.hierarchy[this.hierarchyIndex]);
+  }
+
+  getHierarchyPosition(): SelectionHierarchyPosition | null {
+    if (this.hierarchy.length < 2) return null;
+    return {
+      index: this.hierarchyIndex,
+      total: this.hierarchy.length
+    };
+  }
+
+  clearHierarchy(): void {
+    this.hierarchy = [];
+    this.hierarchyIndex = 0;
+  }
+
   reset(): void {
     this.currentRect = null;
     this.isFinalized = false;
+    this.clearHierarchy();
   }
 
   private commit(rect: Rect | null): StabilizedCandidateUpdate {
@@ -110,6 +161,29 @@ export class SelectionCandidateStabilizer {
 
   private cloneRect(rect: Rect | null): Rect | null {
     return rect ? { ...rect } : null;
+  }
+
+  private normalizeHierarchy(rects: Rect[]): Rect[] {
+    const candidates = rects
+      .filter((rect) => rect.width > 0 && rect.height > 0)
+      .sort(
+        (left, right) => left.width * left.height - right.width * right.height
+      )
+      .filter(
+        (rect, index, sorted) =>
+          !sorted
+            .slice(0, index)
+            .some((candidate) => areSelectionRectsEquivalent(candidate, rect))
+      );
+
+    const hierarchy: Rect[] = [];
+    for (const candidate of candidates) {
+      const child = hierarchy[hierarchy.length - 1];
+      if (!child || this.containsRect(candidate, child)) {
+        hierarchy.push({ ...candidate });
+      }
+    }
+    return hierarchy;
   }
 
   private containsRect(container: Rect, candidate: Rect): boolean {

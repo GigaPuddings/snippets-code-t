@@ -86,6 +86,51 @@ describe('SelectionCandidateStabilizer hierarchy changes', () => {
   });
 });
 
+describe('SelectionCandidateStabilizer hierarchy navigation', () => {
+  it('orders nested candidates from child to parent and cycles both ways', () => {
+    const stabilizer = new SelectionCandidateStabilizer();
+    const child = { x: 80, y: 60, width: 120, height: 36 };
+    const parent = { x: 40, y: 30, width: 420, height: 180 };
+    const window = { x: 0, y: 0, width: 900, height: 600 };
+
+    expect(stabilizer.setHierarchy([parent, window, child])).toEqual({
+      rect: child,
+      changed: true
+    });
+    expect(stabilizer.getHierarchyPosition()).toEqual({ index: 0, total: 3 });
+    expect(stabilizer.cycleHierarchy(1)).toEqual({
+      rect: parent,
+      changed: true
+    });
+    expect(stabilizer.cycleHierarchy(1)).toEqual({
+      rect: window,
+      changed: true
+    });
+    expect(stabilizer.cycleHierarchy(-1)).toEqual({
+      rect: parent,
+      changed: true
+    });
+  });
+
+  it('deduplicates equivalent bounds and excludes overlapping non-parents', () => {
+    const stabilizer = new SelectionCandidateStabilizer();
+    const child = { x: 80, y: 60, width: 120, height: 36 };
+    const equivalentChild = { x: 81, y: 59, width: 121, height: 38 };
+    const overlappingSibling = { x: 160, y: 50, width: 180, height: 80 };
+    const parent = { x: 40, y: 30, width: 420, height: 180 };
+
+    stabilizer.setHierarchy([
+      parent,
+      overlappingSibling,
+      equivalentChild,
+      child
+    ]);
+
+    expect(stabilizer.getHierarchyPosition()).toEqual({ index: 0, total: 2 });
+    expect(stabilizer.cycleHierarchy(1)?.rect).toEqual(parent);
+  });
+});
+
 describe('areSelectionRectsEquivalent', () => {
   it('keeps materially different nested elements distinct', () => {
     expect(

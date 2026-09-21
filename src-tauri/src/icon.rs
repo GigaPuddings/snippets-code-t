@@ -48,7 +48,7 @@ const MAX_CACHE_SIZE: usize = 500; // 最多缓存500个图标，防止内存溢
 const APP_INDEX_STORAGE_SCHEMA_VERSION: u64 = 1;
 const APP_INDEX_EXTRACTOR_VERSION: u64 = 6;
 const BOOKMARK_INDEX_STORAGE_SCHEMA_VERSION: u64 = 1;
-const BOOKMARK_INDEX_EXTRACTOR_VERSION: u64 = 2;
+const BOOKMARK_INDEX_EXTRACTOR_VERSION: u64 = 3;
 
 // 全局图标缓存 - 使用 LRU 缓存自动淘汰最少使用的图标
 static ICON_CACHE: Lazy<Arc<Mutex<LruCache<String, CachedIcon>>>> = Lazy::new(|| {
@@ -1368,8 +1368,9 @@ fn run_app_and_bookmark_initialization(
         );
         load_missing_icons(app_handle.clone(), generation);
     } else {
-        // setup完成后的正常启动：静默加载图标 + 系统通知
-        if total_loaded > 0 && mode != LocalLauncherIndexMode::Automatic {
+        // 启动和自动增量刷新属于后台维护，不打扰用户；仅显式强制重建
+        // 在没有前台进度窗口时发送完成通知。
+        if total_loaded > 0 && mode == LocalLauncherIndexMode::Force {
             notify_local_launcher_index_complete(
                 app_handle,
                 indexed_apps_count,

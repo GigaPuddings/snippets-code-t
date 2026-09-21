@@ -1,6 +1,7 @@
 use crate::db;
 use crate::icon;
 use base64::{engine::general_purpose::STANDARD, Engine};
+use once_cell::sync::Lazy;
 use rusqlite::{
     backup::{Backup, StepResult},
     Connection, OpenFlags,
@@ -10,7 +11,7 @@ use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::Once;
+use std::sync::{Mutex, Once};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
@@ -441,45 +442,57 @@ fn get_chromium_profile_bookmark_paths(base_path: &Path) -> Vec<PathBuf> {
     paths
 }
 
-fn extract_firefox_bookmarks(db_path: &Path) -> Vec<BookmarkInfo> {
+fn read_firefox_bookmarks(connection: &Connection) -> Option<Vec<BookmarkInfo>> {
     let mut bookmarks = Vec::new();
-    if let Some(snapshot) = BrowserDbSnapshot::open(db_path, "snippets-places") {
-        let conn = snapshot.connection();
-        let query = "
-            SELECT b.id, b.title, p.url
-            FROM moz_bookmarks b
-            JOIN moz_places p ON b.fk = p.id
-            WHERE b.type = 1 AND p.url NOT LIKE 'place:%'
-        ";
+    let query = "
+        SELECT b.id, b.title, p.url
+        FROM moz_bookmarks b
+        JOIN moz_places p ON b.fk = p.id
+        WHERE b.type = 1 AND p.url NOT LIKE 'place:%'
+    ";
+    let mut stmt = connection.prepare(query).ok()?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, Option<String>>(1)?,
+                row.get::<_, String>(2)?,
+            ))
+        })
+        .ok()?;
 
-        if let Ok(mut stmt) = conn.prepare(query) {
-            if let Ok(rows) = stmt.query_map([], |row| {
-                Ok((
-                    row.get::<_, i64>(0)?,
-                    row.get::<_, Option<String>>(1)?,
-                    row.get::<_, String>(2)?,
-                ))
-            }) {
-                for (_id, title_opt, url) in rows.flatten() {
-                    let mut title = title_opt.unwrap_or_default();
-                    if title.is_empty() {
-                        if let Some(domain_name) = get_domain_name(&url) {
-                            title = domain_name;
-                        }
-                    }
+    for (_id, title_opt, url) in rows.flatten() {
+        let mut title = title_opt.unwrap_or_default();
+        if title.is_empty() {
+            if let Some(domain_name) = get_domain_name(&url) {
+                title = domain_name;
+            }
+        }
 
-                    bookmarks.push(BookmarkInfo {
-                        // Firefox row IDs are only unique within one profile.
-                        // URL-based IDs remain stable and cannot collide when
-                        // multiple profiles are indexed together.
-                        id: bookmark_scanner_id(&url),
-                        title,
-                        content: url,
-                        icon: None,
-                        summarize: "bookmark".to_string(),
-                        usage_count: 0,
-                    });
-                }
+        bookmarks.push(BookmarkInfo {
+            // Firefox row IDs are only unique within one profile. URL-based
+            // IDs remain stable across profiles and process restarts.
+            id: bookmark_scanner_id(&url),
+            title,
+            content: url,
+            icon: None,
+            summarize: "bookmark".to_string(),
+            usage_count: 0,
+        });
+    }
+    Some(bookmarks)
+}
+
+fn extract_firefox_bookmarks(db_path: &Path) -> Vec<BookmarkInfo> {
+    let bookmarks = if let Some(snapshot) = BrowserDbSnapshot::open(db_path, "snippets-places") {
+        match read_firefox_bookmarks(snapshot.connection()) {
+            Some(bookmarks) => bookmarks,
+            None => {
+                log::warn!(
+                    "[LocalLauncher] 无法查询 Firefox 书签数据库快照: {}",
+                    db_path.display()
+                );
+                Vec::new()
             }
         }
     } else {
@@ -487,7 +500,8 @@ fn extract_firefox_bookmarks(db_path: &Path) -> Vec<BookmarkInfo> {
             "[LocalLauncher] 无法读取 Firefox 书签数据库快照: {}",
             db_path.display()
         );
-    }
+        Vec::new()
+    };
 
     log::info!(
         "[LocalLauncher] Firefox 书签文本扫描完成: path={}, count={}",
@@ -667,7 +681,22 @@ fn get_all_browser_bookmark_paths() -> Vec<PathBuf> {
     paths
 }
 
-fn add_path_fingerprint(hasher: &mut Sha256, path: &Path) {
+static BOOKMARK_SOURCE_FINGERPRINT_CACHE: Lazy<Mutex<Option<(String, String)>>> =
+    Lazy::new(|| Mutex::new(None));
+
+fn fingerprint_tokens(mut tokens: Vec<String>) -> String {
+    tokens.sort_unstable();
+    tokens.dedup();
+
+    let mut hasher = Sha256::new();
+    for token in tokens {
+        hasher.update(token.as_bytes());
+        hasher.update([0]);
+    }
+    hex::encode(hasher.finalize())
+}
+
+fn add_path_state_token(tokens: &mut Vec<String>, path: &Path) {
     let Ok(metadata) = fs::metadata(path) else {
         return;
     };
@@ -677,28 +706,137 @@ fn add_path_fingerprint(hasher: &mut Sha256, path: &Path) {
         .and_then(|value| value.duration_since(UNIX_EPOCH).ok())
         .map(|value| value.as_nanos())
         .unwrap_or(0);
-    hasher.update(path.to_string_lossy().to_ascii_lowercase().as_bytes());
-    hasher.update([0]);
-    hasher.update(metadata.len().to_le_bytes());
-    hasher.update(modified.to_le_bytes());
+    tokens.push(format!(
+        "{}|{}|{}",
+        path.to_string_lossy().to_ascii_lowercase(),
+        metadata.len(),
+        modified
+    ));
 }
 
-/// Fingerprints only bookmark source files. Firefox's WAL sidecar is included
-/// because a newly saved bookmark can live there before `places.sqlite` is
-/// checkpointed by the browser.
-pub fn browser_bookmarks_source_fingerprint() -> String {
-    let mut paths = get_all_browser_bookmark_paths();
-    for database in get_firefox_bookmarks_files() {
-        paths.push(PathBuf::from(format!("{}-wal", database.to_string_lossy())));
+fn bookmark_source_state_fingerprint(
+    chromium_paths: &[PathBuf],
+    firefox_paths: &[PathBuf],
+) -> String {
+    let mut tokens = Vec::new();
+    for path in chromium_paths.iter().chain(firefox_paths) {
+        add_path_state_token(&mut tokens, path);
     }
-    paths.sort_unstable();
-    paths.dedup();
+    for database in firefox_paths {
+        add_path_state_token(
+            &mut tokens,
+            &PathBuf::from(format!("{}-wal", database.to_string_lossy())),
+        );
+    }
+    fingerprint_tokens(tokens)
+}
 
-    let mut hasher = Sha256::new();
-    for path in paths {
-        add_path_fingerprint(&mut hasher, &path);
+fn append_bookmark_fingerprint_tokens(
+    tokens: &mut Vec<String>,
+    source_kind: &str,
+    source_path: &Path,
+    bookmarks: Vec<BookmarkInfo>,
+) {
+    let source_path = source_path.to_string_lossy().to_ascii_lowercase();
+    tokens.push(format!("source\0{}\0{}", source_kind, source_path));
+    tokens.extend(bookmarks.into_iter().map(|bookmark| {
+        format!(
+            "bookmark\0{}\0{}\0{}\0{}",
+            source_kind, source_path, bookmark.title, bookmark.content
+        )
+    }));
+}
+
+fn chromium_bookmark_fingerprint_tokens(path: &Path) -> Option<Vec<String>> {
+    let content = fs::read_to_string(path).ok()?;
+    let json = serde_json::from_str::<serde_json::Value>(&content).ok()?;
+    let roots = json.get("roots")?;
+    let mut bookmarks = Vec::new();
+    for root_name in ["bookmark_bar", "other", "synced"] {
+        if let Some(root) = roots.get(root_name) {
+            bookmarks.extend(extract_bookmarks(root));
+        }
     }
-    hex::encode(hasher.finalize())
+
+    let mut tokens = Vec::new();
+    append_bookmark_fingerprint_tokens(&mut tokens, "chromium", path, bookmarks);
+    Some(tokens)
+}
+
+fn firefox_bookmark_fingerprint_tokens(path: &Path) -> Option<Vec<String>> {
+    let bookmarks = open_readonly_browser_db(path)
+        .and_then(|connection| read_firefox_bookmarks(&connection))
+        .or_else(|| {
+            BrowserDbSnapshot::open(path, "snippets-places-fingerprint")
+                .and_then(|snapshot| read_firefox_bookmarks(snapshot.connection()))
+        })?;
+
+    let mut tokens = Vec::new();
+    append_bookmark_fingerprint_tokens(&mut tokens, "firefox", path, bookmarks);
+    Some(tokens)
+}
+
+fn semantic_bookmark_fingerprint(chromium_paths: &[PathBuf], firefox_paths: &[PathBuf]) -> String {
+    let mut tokens = Vec::new();
+    for path in chromium_paths {
+        match chromium_bookmark_fingerprint_tokens(path) {
+            Some(source_tokens) => tokens.extend(source_tokens),
+            None => {
+                log::warn!(
+                    "[LocalLauncher] 无法读取 Chromium 书签指纹: {}",
+                    path.display()
+                );
+                tokens.push(format!(
+                    "unreadable\0chromium\0{}",
+                    path.to_string_lossy().to_ascii_lowercase()
+                ));
+            }
+        }
+    }
+    for path in firefox_paths {
+        match firefox_bookmark_fingerprint_tokens(path) {
+            Some(source_tokens) => tokens.extend(source_tokens),
+            None => {
+                log::warn!(
+                    "[LocalLauncher] 无法读取 Firefox 书签指纹: {}",
+                    path.display()
+                );
+                tokens.push(format!(
+                    "unreadable\0firefox\0{}",
+                    path.to_string_lossy().to_ascii_lowercase()
+                ));
+            }
+        }
+    }
+    fingerprint_tokens(tokens)
+}
+
+/// Fingerprints the bookmark records that enter the search index rather than
+/// browser database/file mtimes. Chromium can rewrite bookkeeping fields and
+/// Firefox updates `places.sqlite` for browsing history, neither of which is a
+/// bookmark change. File state remains an in-process cache key so repeated
+/// quick-search opens do not reparse unchanged sources.
+pub fn browser_bookmarks_source_fingerprint() -> String {
+    let chromium_paths = get_all_browser_bookmark_paths()
+        .into_iter()
+        .filter(|path| path.file_name().is_some_and(|name| name == "Bookmarks"))
+        .collect::<Vec<_>>();
+    let firefox_paths = get_firefox_bookmarks_files();
+    let source_state = bookmark_source_state_fingerprint(&chromium_paths, &firefox_paths);
+
+    if let Ok(cache) = BOOKMARK_SOURCE_FINGERPRINT_CACHE.lock() {
+        if let Some((cached_state, cached_fingerprint)) = cache.as_ref() {
+            if cached_state == &source_state {
+                return cached_fingerprint.clone();
+            }
+        }
+    }
+
+    let fingerprint = semantic_bookmark_fingerprint(&chromium_paths, &firefox_paths);
+    if let Ok(mut cache) = BOOKMARK_SOURCE_FINGERPRINT_CACHE.lock() {
+        *cache = Some((source_state, fingerprint.clone()));
+    }
+    fingerprint
 }
 
 // 获取浏览器书签
@@ -986,5 +1124,142 @@ mod tests {
             bookmark_scanner_id("https://example.com/path/"),
             bookmark_scanner_id("https://example.com/path")
         );
+    }
+
+    #[test]
+    fn chromium_fingerprint_ignores_non_indexed_metadata() {
+        let root = TempProfileRoot::new();
+        let path = root.0.join("Bookmarks");
+        let first = serde_json::json!({
+            "checksum": "first-checksum",
+            "roots": {
+                "bookmark_bar": {
+                    "type": "folder",
+                    "children": [{
+                        "type": "url",
+                        "name": "OpenAI",
+                        "url": "https://openai.com/",
+                        "date_last_used": "1"
+                    }]
+                },
+                "other": { "type": "folder", "children": [] },
+                "synced": { "type": "folder", "children": [] }
+            },
+            "sync_metadata": "first-metadata",
+            "version": 1
+        });
+        fs::write(&path, first.to_string()).expect("write first bookmark state");
+        let first_fingerprint = fingerprint_tokens(
+            chromium_bookmark_fingerprint_tokens(&path).expect("fingerprint first state"),
+        );
+
+        let second = serde_json::json!({
+            "checksum": "rewritten-checksum",
+            "roots": {
+                "bookmark_bar": {
+                    "type": "folder",
+                    "children": [{
+                        "type": "url",
+                        "name": "OpenAI",
+                        "url": "https://openai.com/",
+                        "date_last_used": "999"
+                    }]
+                },
+                "other": { "type": "folder", "children": [] },
+                "synced": { "type": "folder", "children": [] }
+            },
+            "sync_metadata": "rewritten-metadata",
+            "version": 1
+        });
+        fs::write(&path, second.to_string()).expect("write rewritten bookmark state");
+        let second_fingerprint = fingerprint_tokens(
+            chromium_bookmark_fingerprint_tokens(&path).expect("fingerprint rewritten state"),
+        );
+
+        assert_eq!(first_fingerprint, second_fingerprint);
+    }
+
+    #[test]
+    fn chromium_fingerprint_changes_with_searchable_bookmark_content() {
+        let root = TempProfileRoot::new();
+        let path = root.0.join("Bookmarks");
+        let bookmark_document = |title: &str| {
+            serde_json::json!({
+                "roots": {
+                    "bookmark_bar": {
+                        "type": "folder",
+                        "children": [{
+                            "type": "url",
+                            "name": title,
+                            "url": "https://openai.com/"
+                        }]
+                    }
+                }
+            })
+        };
+
+        fs::write(&path, bookmark_document("OpenAI").to_string()).expect("write original bookmark");
+        let original = fingerprint_tokens(
+            chromium_bookmark_fingerprint_tokens(&path).expect("fingerprint original bookmark"),
+        );
+        fs::write(&path, bookmark_document("OpenAI Docs").to_string())
+            .expect("write changed bookmark");
+        let changed = fingerprint_tokens(
+            chromium_bookmark_fingerprint_tokens(&path).expect("fingerprint changed bookmark"),
+        );
+
+        assert_ne!(original, changed);
+    }
+
+    #[test]
+    fn firefox_fingerprint_ignores_history_only_changes() {
+        let root = TempProfileRoot::new();
+        let path = root.0.join("places.sqlite");
+        let connection = Connection::open(&path).expect("create Firefox database");
+        connection
+            .execute_batch(
+                "CREATE TABLE moz_places (id INTEGER PRIMARY KEY, url TEXT NOT NULL);
+                 CREATE TABLE moz_bookmarks (
+                     id INTEGER PRIMARY KEY,
+                     type INTEGER NOT NULL,
+                     fk INTEGER,
+                     title TEXT
+                 );
+                 CREATE TABLE moz_historyvisits (
+                     id INTEGER PRIMARY KEY,
+                     place_id INTEGER NOT NULL
+                 );
+                 INSERT INTO moz_places(id, url) VALUES (1, 'https://openai.com/');
+                 INSERT INTO moz_bookmarks(id, type, fk, title)
+                 VALUES (1, 1, 1, 'OpenAI');",
+            )
+            .expect("seed Firefox database");
+
+        let original = fingerprint_tokens(
+            firefox_bookmark_fingerprint_tokens(&path).expect("fingerprint Firefox bookmark"),
+        );
+        connection
+            .execute(
+                "INSERT INTO moz_historyvisits(id, place_id) VALUES (1, 1)",
+                [],
+            )
+            .expect("write unrelated history");
+        let history_changed = fingerprint_tokens(
+            firefox_bookmark_fingerprint_tokens(&path)
+                .expect("fingerprint after Firefox history change"),
+        );
+        assert_eq!(original, history_changed);
+
+        connection
+            .execute(
+                "UPDATE moz_bookmarks SET title = 'OpenAI Docs' WHERE id = 1",
+                [],
+            )
+            .expect("change Firefox bookmark title");
+        let bookmark_changed = fingerprint_tokens(
+            firefox_bookmark_fingerprint_tokens(&path)
+                .expect("fingerprint after Firefox bookmark change"),
+        );
+        assert_ne!(original, bookmark_changed);
     }
 }
