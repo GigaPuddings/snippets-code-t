@@ -3,7 +3,10 @@ import { Octokit } from '@octokit/rest';
 import fs from 'fs';
 import path from 'path';
 import { execFileSync } from 'child_process';
-import { getReleaseForTag } from './github-release.mjs';
+import {
+  getReleaseAssetDownloadUrl,
+  getReleaseForTag
+} from './github-release.mjs';
 
 const require = createRequire(import.meta.url);
 const tauriConfig = require('../src-tauri/tauri.conf.json');
@@ -112,7 +115,14 @@ async function main() {
       pub_date: fullRelease.published_at || new Date().toISOString(),
       platforms: {
         'windows-x86_64': {
-          url: setupAsset.browser_download_url,
+          // Draft release assets use an unstable `untagged-*` URL. Build the
+          // public tagged URL now so latest.json remains valid after publish.
+          url: getReleaseAssetDownloadUrl({
+            owner,
+            repo,
+            tag: expectedTag,
+            assetName: setupFileName
+          }),
           signature: signature.trim()
         }
       }

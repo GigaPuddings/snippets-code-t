@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getReleaseForTag } from './github-release.mjs';
+import {
+  getReleaseAssetDownloadUrl,
+  getReleaseForTag
+} from './github-release.mjs';
 
 function createOctokit(overrides = {}) {
   return {
@@ -65,5 +68,20 @@ describe('getReleaseForTag', () => {
         releaseId: '42'
       })
     ).rejects.toThrow('expected v2.2.2, got v2.2.1');
+  });
+});
+
+describe('getReleaseAssetDownloadUrl', () => {
+  it('builds the stable tagged URL even while the release is still a draft', () => {
+    expect(
+      getReleaseAssetDownloadUrl({
+        owner: 'GigaPuddings',
+        repo: 'snippets-code-t',
+        tag: 'v2.2.2',
+        assetName: 'snippets-code_2.2.2_x64-setup.exe'
+      })
+    ).toBe(
+      'https://github.com/GigaPuddings/snippets-code-t/releases/download/v2.2.2/snippets-code_2.2.2_x64-setup.exe'
+    );
   });
 });

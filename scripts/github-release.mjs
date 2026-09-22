@@ -17,6 +17,13 @@ function assertReleaseTag(release, tag) {
   return release;
 }
 
+export function getReleaseAssetDownloadUrl({ owner, repo, tag, assetName }) {
+  const path = [owner, repo, 'releases', 'download', tag, assetName]
+    .map((segment) => encodeURIComponent(segment))
+    .join('/');
+  return `https://github.com/${path}`;
+}
+
 export async function getReleaseForTag({
   octokit,
   owner,
