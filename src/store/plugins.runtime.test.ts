@@ -7,6 +7,7 @@ import type {
 
 const mocks = vi.hoisted(() => ({
   clearRuntimePluginRegistrations: vi.fn(),
+  ensureLocalPluginFrontendEntry: vi.fn(),
   ensureLocalPluginFrontendEntries: vi.fn(),
   getInstalledPluginManifests: vi.fn(),
   getPluginInstallTasks: vi.fn(),
@@ -34,6 +35,7 @@ vi.mock('@/api/localAi', () => ({
 
 vi.mock('@/plugins/runtime', () => ({
   clearRuntimePluginRegistrations: mocks.clearRuntimePluginRegistrations,
+  ensureLocalPluginFrontendEntry: mocks.ensureLocalPluginFrontendEntry,
   ensureLocalPluginFrontendEntries: mocks.ensureLocalPluginFrontendEntries
 }));
 
@@ -155,6 +157,22 @@ describe('plugin runtime reconciliation', () => {
       'git-sync',
       { preserveStyles: true }
     );
+  });
+
+  it('loads only the requested plugin runtime for a cold window route', async () => {
+    const store = usePluginStore();
+    const plugin = createPlugin('2.0.24', '2026-07-27T08:00:00Z');
+    store.installedPlugins = [plugin];
+    store.enabled['git-sync'] = true;
+
+    await store.loadEnabledPluginEntry('git-sync');
+
+    expect(mocks.ensureLocalPluginFrontendEntry).toHaveBeenCalledWith(
+      plugin,
+      expect.any(Function)
+    );
+    expect(mocks.ensureLocalPluginFrontendEntries).not.toHaveBeenCalled();
+    expect(store.runtimeRevision).toBe(1);
   });
 
   it('keeps concurrent package progress isolated by package URL', () => {

@@ -25,6 +25,7 @@ import { getLocalAiRuntimeStatus } from '@/api/localAi';
 import { loadPluginRegistry } from '@/plugins/loader';
 import {
   clearRuntimePluginRegistrations,
+  ensureLocalPluginFrontendEntry,
   ensureLocalPluginFrontendEntries
 } from '@/plugins/runtime';
 import type { RegisteredPlugin } from '@/plugins/protocol';
@@ -564,10 +565,35 @@ export const usePluginStore = defineStore('plugins', {
         return;
       }
 
-      pluginRuntimeEntriesPromise = (async () => {
+      pluginRuntimeEntriesPromise = (async (): Promise<void> => {
         await ensureLocalPluginFrontendEntries(
           this.installedPlugins,
-          (pluginId) => this.isEnabled(pluginId)
+          (pluginId): boolean => this.isEnabled(pluginId)
+        );
+        this.runtimeRevision += 1;
+      })();
+
+      try {
+        await pluginRuntimeEntriesPromise;
+      } finally {
+        pluginRuntimeEntriesPromise = null;
+      }
+    },
+
+    async loadEnabledPluginEntry(pluginId: string): Promise<void> {
+      if (pluginRuntimeEntriesPromise) {
+        await pluginRuntimeEntriesPromise;
+        return;
+      }
+
+      const plugin = this.installedPlugins.find(
+        (candidate) => String(candidate.id) === pluginId
+      );
+      if (!plugin || !this.isEnabled(pluginId)) return;
+
+      pluginRuntimeEntriesPromise = (async (): Promise<void> => {
+        await ensureLocalPluginFrontendEntry(plugin, (id): boolean =>
+          this.isEnabled(id)
         );
         this.runtimeRevision += 1;
       })();

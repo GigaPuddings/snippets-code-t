@@ -1030,36 +1030,43 @@ const pluginNeedsFrontendEntry = (plugin: RegisteredPlugin): boolean => {
   });
 };
 
+export const ensureLocalPluginFrontendEntry = async (
+  plugin: RegisteredPlugin,
+  isEnabled: (pluginId: string) => boolean
+): Promise<void> => {
+  if (plugin.source !== 'local') return;
+  if (!isEnabled(String(plugin.id))) return;
+  if (loadedFrontendEntries.has(String(plugin.id))) return;
+
+  if (plugin.manifest.entry?.frontend) {
+    try {
+      await ensurePluginStyles(plugin);
+      const pluginModule = await loadPluginFrontendModule(
+        plugin,
+        plugin.manifest.entry.frontend
+      );
+      await activateFrontendModule(plugin, pluginModule);
+      loadedFrontendEntries.add(String(plugin.id));
+    } catch (error) {
+      clearRuntimePluginRegistrations(String(plugin.id));
+      removePluginStyles(String(plugin.id));
+      logger.warn(`[PluginRuntime] 加载本地插件失败: ${plugin.id}`, error);
+    }
+    return;
+  }
+
+  loadedFrontendEntries.add(String(plugin.id));
+  if (pluginNeedsFrontendEntry(plugin)) {
+    logger.warn(`[PluginRuntime] 本地插件缺少前端入口: ${plugin.id}`);
+  }
+};
+
 export const ensureLocalPluginFrontendEntries = async (
   plugins: RegisteredPlugin[],
   isEnabled: (pluginId: string) => boolean
 ): Promise<void> => {
   for (const plugin of plugins) {
-    if (plugin.source !== 'local') continue;
-    if (!isEnabled(String(plugin.id))) continue;
-    if (loadedFrontendEntries.has(String(plugin.id))) continue;
-
-    if (plugin.manifest.entry?.frontend) {
-      try {
-        await ensurePluginStyles(plugin);
-        const pluginModule = await loadPluginFrontendModule(
-          plugin,
-          plugin.manifest.entry.frontend
-        );
-        await activateFrontendModule(plugin, pluginModule);
-        loadedFrontendEntries.add(String(plugin.id));
-      } catch (error) {
-        clearRuntimePluginRegistrations(String(plugin.id));
-        removePluginStyles(String(plugin.id));
-        logger.warn(`[PluginRuntime] 加载本地插件失败: ${plugin.id}`, error);
-      }
-      continue;
-    }
-
-    loadedFrontendEntries.add(String(plugin.id));
-    if (pluginNeedsFrontendEntry(plugin)) {
-      logger.warn(`[PluginRuntime] 本地插件缺少前端入口: ${plugin.id}`);
-    }
+    await ensureLocalPluginFrontendEntry(plugin, isEnabled);
   }
 };
 

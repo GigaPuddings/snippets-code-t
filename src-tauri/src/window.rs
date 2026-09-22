@@ -376,7 +376,10 @@ pub struct MonitorInfo {
 static SCREENSHOT_OPEN_LOCK: LazyLock<tokio::sync::Mutex<()>> =
     LazyLock::new(|| tokio::sync::Mutex::new(()));
 static SCREENSHOT_GENERATION: AtomicU64 = AtomicU64::new(0);
-const SCREENSHOT_READY_TIMEOUT_SECS: u64 = 5;
+// A cold production WebView still needs to initialize the plugin store and
+// parse the screenshot runtime. Keep the timeout bounded, but do not destroy
+// a healthy window during startup or immediately after an application update.
+const SCREENSHOT_READY_TIMEOUT_SECS: u64 = 12;
 
 // ==================== 窗口管理器框架 ====================
 

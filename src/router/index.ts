@@ -2,6 +2,7 @@ import { createWebHashHistory, createRouter, RouteRecordRaw } from 'vue-router';
 import { usePluginStore } from '@/store';
 import {
   configPluginRoutes,
+  getRuntimeRoutePluginCandidates,
   layoutPluginRoutes,
   windowPluginRoutes
 } from '@/plugins/routes';
@@ -129,23 +130,38 @@ const router = createRouter({
   routes
 });
 
+const isUnresolvedRuntimeRoute = (route: {
+  name?: unknown;
+  matched: Array<{ path: string }>;
+}): boolean =>
+  route.name === undefined &&
+  route.matched.some((record) => record.path === '/:pathMatch(.*)*');
+
 router.beforeEach(async (to) => {
   const pluginStore = usePluginStore();
   await pluginStore.initialize();
 
   let addedRuntimeRoutes = installRuntimePluginRoutes(router);
-  if (
-    addedRuntimeRoutes > 0 &&
-    to.name === undefined &&
-    to.matched.some((record) => record.path === '/:pathMatch(.*)*')
-  ) {
+  if (addedRuntimeRoutes > 0 && isUnresolvedRuntimeRoute(to)) {
     return to.fullPath;
   }
 
-  if (
-    to.name === undefined &&
-    to.matched.some((record) => record.path === '/:pathMatch(.*)*')
-  ) {
+  if (isUnresolvedRuntimeRoute(to)) {
+    // A native shortcut opens a fresh WebView. Load the plugin that owns the
+    // requested route first instead of blocking the window on every enabled
+    // plugin runtime (several megabytes in a production installation).
+    const candidates = getRuntimeRoutePluginCandidates(
+      to.path,
+      pluginStore.plugins.filter((plugin) => pluginStore.isEnabled(plugin.id))
+    );
+    for (const plugin of candidates) {
+      await pluginStore.loadEnabledPluginEntry(String(plugin.id));
+      installRuntimePluginRoutes(router);
+      if (!isUnresolvedRuntimeRoute(router.resolve(to.fullPath))) {
+        return to.fullPath;
+      }
+    }
+
     await pluginStore.loadEnabledPluginEntries();
     addedRuntimeRoutes = installRuntimePluginRoutes(router);
     if (addedRuntimeRoutes > 0) {
