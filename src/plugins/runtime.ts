@@ -498,7 +498,7 @@ const ensureSharedModuleUrl = (specifier: string): string | null => {
   return moduleUrl;
 };
 
-const rewritePluginModuleSource = (
+export const rewritePluginModuleSource = (
   plugin: RegisteredPlugin,
   entryRelativePath: string,
   source: string
@@ -514,7 +514,7 @@ const rewritePluginModuleSource = (
 
   return source
     .replace(
-      /((?:import|export)\s+(?:[^'"]*?\s+from\s*)?)(['"])([^'"]+)\2/g,
+      /(\b(?:import|export)\s*(?:[^'";]*?\s*from\s*)?)(['"])([^'"]+)\2/g,
       (_match, prefix: string, quote: string, specifier: string) =>
         `${prefix}${quote}${rewriteSpecifier(specifier)}${quote}`
     )
@@ -1050,7 +1050,11 @@ export const ensureLocalPluginFrontendEntry = async (
     } catch (error) {
       clearRuntimePluginRegistrations(String(plugin.id));
       removePluginStyles(String(plugin.id));
-      logger.warn(`[PluginRuntime] 加载本地插件失败: ${plugin.id}`, error);
+      // Runtime entry failures make route-only windows (screenshot, recorder,
+      // etc.) silently fall through to the 404 route. Always forward this as
+      // an error so production logs contain the cause before the native ready
+      // timeout destroys the hidden window.
+      logger.error(`[PluginRuntime] 加载本地插件失败: ${plugin.id}`, error);
     }
     return;
   }
