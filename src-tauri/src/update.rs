@@ -20,6 +20,8 @@ use uuid::Uuid;
 const UPDATE_CACHE_DIR: &str = "updates";
 const UPDATE_CACHE_METADATA_FILE: &str = "installer.json";
 const UPDATE_CACHE_FILE_PREFIX: &str = "snippets-code-update-";
+const UPDATE_DOWNLOAD_MAX_ATTEMPTS: u32 = 3;
+const UPDATE_DOWNLOAD_RETRY_BASE_DELAY_MS: u64 = 800;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct UpdateInfo {
@@ -39,6 +41,8 @@ struct ProgressData {
     chunk_length: Option<u64>,
     content_length: Option<u64>,
     total_downloaded: u64,
+    attempt: u32,
+    max_attempts: u32,
 }
 
 #[derive(Debug, Serialize)]
@@ -229,42 +233,80 @@ pub async fn download_update_installer(app: AppHandle) -> Result<(), String> {
     if let Some(cached) = read_cached_update_installer(&app, &update)? {
         let event_app = event_app_handle(&app);
         let content_length = Some(cached.bytes.len() as u64);
-        emit_download_progress(&event_app, "Started", None, content_length, 0);
+        emit_download_progress(&event_app, "Started", None, content_length, 0, 1);
         emit_download_progress(
             &event_app,
             "Finished",
             None,
             content_length,
             cached.bytes.len() as u64,
+            1,
         );
         emit_download_finished(&event_app);
         return Ok(());
     }
 
     let event_app = event_app_handle(&app);
-    let mut started = false;
-    let mut total_downloaded: u64 = 0;
-    let bytes = update
-        .download(
-            |chunk_length, content_length| {
-                if !started {
-                    started = true;
-                    emit_download_progress(&event_app, "Started", None, content_length, 0);
-                }
+    let mut download_attempt = 1_u32;
+    let bytes = loop {
+        let mut total_downloaded = 0_u64;
+        emit_download_progress(&event_app, "Started", None, None, 0, download_attempt);
 
-                total_downloaded += chunk_length as u64;
+        let result = update
+            .download(
+                |chunk_length, content_length| {
+                    total_downloaded += chunk_length as u64;
+                    emit_download_progress(
+                        &event_app,
+                        "Progress",
+                        Some(chunk_length as u64),
+                        content_length,
+                        total_downloaded,
+                        download_attempt,
+                    );
+                },
+                || {},
+            )
+            .await;
+
+        match result {
+            Ok(bytes) => {
+                log::info!(
+                    "[Updater] 安装包下载完成: attempt={}/{}, bytes={}",
+                    download_attempt,
+                    UPDATE_DOWNLOAD_MAX_ATTEMPTS,
+                    bytes.len()
+                );
+                break bytes;
+            }
+            Err(error) if download_attempt < UPDATE_DOWNLOAD_MAX_ATTEMPTS => {
+                let next_attempt = download_attempt + 1;
+                log::warn!(
+                    "[Updater] 安装包下载中断，将自动重试: attempt={}/{}, downloaded={}, error={}",
+                    download_attempt,
+                    UPDATE_DOWNLOAD_MAX_ATTEMPTS,
+                    total_downloaded,
+                    error
+                );
                 emit_download_progress(
                     &event_app,
-                    "Progress",
-                    Some(chunk_length as u64),
-                    content_length,
+                    "Retrying",
+                    None,
+                    None,
                     total_downloaded,
+                    next_attempt,
                 );
-            },
-            || {},
-        )
-        .await
-        .map_err(|e| format!("下载安装包失败: {}", e))?;
+                tokio::time::sleep(update_download_retry_delay(download_attempt)).await;
+                download_attempt = next_attempt;
+            }
+            Err(error) => {
+                return Err(format!(
+                    "下载安装包失败（已自动尝试 {} 次）: {}",
+                    UPDATE_DOWNLOAD_MAX_ATTEMPTS, error
+                ));
+            }
+        }
+    };
 
     let cache_dir = update_cache_dir(&app)?;
     let file_name = cached_installer_file_name(&update);
@@ -294,6 +336,7 @@ pub async fn download_update_installer(app: AppHandle) -> Result<(), String> {
         None,
         content_length,
         bytes.len() as u64,
+        download_attempt,
     );
     emit_download_finished(&event_app);
 
@@ -423,6 +466,7 @@ fn emit_download_progress(
     chunk_length: Option<u64>,
     content_length: Option<u64>,
     total_downloaded: u64,
+    attempt: u32,
 ) {
     let progress = DownloadProgress {
         event: event.to_string(),
@@ -430,12 +474,20 @@ fn emit_download_progress(
             chunk_length,
             content_length,
             total_downloaded,
+            attempt,
+            max_attempts: UPDATE_DOWNLOAD_MAX_ATTEMPTS,
         },
     };
 
     if let Err(e) = app.emit("download-progress", &progress) {
         log::warn!("发送下载进度事件失败: {}", e);
     }
+}
+
+fn update_download_retry_delay(failed_attempt: u32) -> std::time::Duration {
+    std::time::Duration::from_millis(
+        UPDATE_DOWNLOAD_RETRY_BASE_DELAY_MS.saturating_mul(u64::from(failed_attempt)),
+    )
 }
 
 fn emit_download_finished(app: &AppHandle) {
@@ -878,8 +930,15 @@ fn validate_windows_installer_payload(path: &Path, bytes: &[u8]) -> Result<(), S
 
 #[cfg(all(test, windows))]
 mod tests {
-    use super::validate_windows_installer_payload;
+    use super::{update_download_retry_delay, validate_windows_installer_payload};
     use std::path::Path;
+    use std::time::Duration;
+
+    #[test]
+    fn schedules_update_download_retries_with_bounded_backoff() {
+        assert_eq!(update_download_retry_delay(1), Duration::from_millis(800));
+        assert_eq!(update_download_retry_delay(2), Duration::from_millis(1_600));
+    }
 
     #[test]
     fn accepts_expected_windows_installer_headers() {

@@ -171,7 +171,7 @@
               <span class="percentage">{{ update.progress }}%</span>
             </div>
           </div>
-          <div v-else class="error-message">
+          <div v-else-if="update.error" class="error-message">
             <div class="error-title">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -317,7 +317,11 @@ interface UpdateInstallerCacheStatus {
   installOnRestart: boolean;
 }
 
-type DownloadProgressEventName = 'Started' | 'Progress' | 'Finished';
+type DownloadProgressEventName =
+  | 'Started'
+  | 'Progress'
+  | 'Retrying'
+  | 'Finished';
 
 interface DownloadProgressPayload {
   event: DownloadProgressEventName;
@@ -325,6 +329,8 @@ interface DownloadProgressPayload {
     chunk_length?: number | null;
     content_length?: number | null;
     total_downloaded: number;
+    attempt: number;
+    max_attempts: number;
   };
 }
 
@@ -405,39 +411,50 @@ const loadCachedInstallerStatus = async (): Promise<void> => {
   }
 };
 
+const applyDownloadProgress = (payload: DownloadProgressPayload): void => {
+  const { event: eventType, data } = payload;
+  switch (eventType) {
+    case 'Started':
+      update.progress = 0;
+      update.contentLength = data.content_length || 0;
+      update.statusText =
+        update.contentLength > 0
+          ? `${t('update.startDownload')} (${formatBytes(update.contentLength)})`
+          : t('update.startDownload');
+      break;
+    case 'Progress':
+      if (data.content_length && data.content_length > 0) {
+        update.progress = Math.min(
+          Math.round((data.total_downloaded / data.content_length) * 100),
+          100
+        );
+        update.statusText = `${t('update.downloading')}: ${formatBytes(data.total_downloaded)} / ${formatBytes(data.content_length)}`;
+      } else {
+        update.statusText = `${t('update.downloading')}: ${formatBytes(data.total_downloaded)}`;
+      }
+      break;
+    case 'Retrying':
+      update.progress = 0;
+      update.contentLength = 0;
+      update.statusText = t('update.retryingDownload', {
+        attempt: data.attempt,
+        max: data.max_attempts
+      });
+      break;
+    case 'Finished':
+      update.progress = 100;
+      update.downloadComplete = true;
+      update.downloading = false;
+      update.installScheduledOnRestart = false;
+      update.statusText = t('update.downloadComplete');
+      break;
+  }
+};
+
 const setupDownloadListeners = async (): Promise<void> => {
   const unListenProgress = await listen<DownloadProgressPayload>(
     'download-progress',
-    (event) => {
-      const { event: eventType, data } = event.payload;
-
-      switch (eventType) {
-        case 'Started':
-          update.contentLength = data.content_length || 0;
-          update.statusText =
-            update.contentLength > 0
-              ? `${t('update.startDownload')} (${formatBytes(update.contentLength)})`
-              : t('update.startDownload');
-          break;
-        case 'Progress':
-          if (data.content_length && data.content_length > 0) {
-            const progress = Math.min(
-              Math.round((data.total_downloaded / data.content_length) * 100),
-              100
-            );
-            update.progress = progress;
-            update.statusText = `${t('update.downloading')}: ${formatBytes(data.total_downloaded)} / ${formatBytes(data.content_length)}`;
-          }
-          break;
-        case 'Finished':
-          update.progress = 100;
-          update.downloadComplete = true;
-          update.downloading = false;
-          update.installScheduledOnRestart = false;
-          update.statusText = t('update.downloadComplete');
-          break;
-      }
-    }
+    (event) => applyDownloadProgress(event.payload)
   );
 
   const unListenFinished = await listen('download-finished', () => {

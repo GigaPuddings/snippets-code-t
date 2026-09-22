@@ -1529,6 +1529,7 @@ export default {
     installSuccess: '安装程序已启动，请按提示完成更新。',
     installFailed: '安装失败',
     downloadFailed: '下载失败',
+    retryingDownload: '下载中断，正在自动重试（{attempt}/{max}）...',
     preparing: '准备下载...',
     downloadUpdate: '下载安装包',
     updateLater: '稍后更新',

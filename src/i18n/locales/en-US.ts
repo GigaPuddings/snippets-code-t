@@ -1580,6 +1580,8 @@ export default {
       'Installer launched. Follow the prompts to finish updating.',
     installFailed: 'Installation failed',
     downloadFailed: 'Download failed',
+    retryingDownload:
+      'Download interrupted. Retrying automatically ({attempt}/{max})...',
     preparing: 'Preparing download...',
     downloadUpdate: 'Download Installer',
     updateLater: 'Update Later',
