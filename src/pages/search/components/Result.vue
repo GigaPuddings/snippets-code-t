@@ -195,7 +195,8 @@ async function handlePrimaryAction(item: ContentType) {
 
 defineExpose({
   switchTab: (tab: SummarizeType) => switchTab(tab),
-  enterListMode: () => resultListRef.value?.enterListMode(),
+  enterListMode: (selectLast = false) =>
+    resultListRef.value?.enterListMode(selectLast),
   enterTabMode: () => resultListRef.value?.enterTabMode(),
   backToSearchMode: () => resultListRef.value?.backToSearchMode()
 });
@@ -205,7 +206,7 @@ defineExpose({
 .result-layout {
   @apply flex flex-col min-h-0;
 
-  height: 404px;
+  height: 392px;
   transition:
     height 0.18s ease,
     min-height 0.18s ease,

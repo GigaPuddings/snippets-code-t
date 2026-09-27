@@ -20,6 +20,7 @@
       :key="activeTab"
       :items="filteredResults"
       :item-size="itemSize"
+      :style="{ maxHeight: `${itemSize * visibleResultRows}px` }"
       :buffer="itemSize"
       :emit-update="true"
       key-field="__rowKey"
@@ -145,8 +146,8 @@ interface ResultScrollerRef extends RecycleScrollerInstance {
 
 const scrollerRef = ref<ResultScrollerRef | null>(null);
 const visibleShortcutStart = ref(0);
-const visibleShortcutEnd = ref(6);
-const fallbackVisibleShortcutCount = 6;
+const visibleResultRows = 6;
+const visibleShortcutEnd = ref(visibleResultRows);
 const itemVerticalMargin = 2;
 const itemSize = computed(() => props.itemSize ?? 52);
 const {
@@ -239,10 +240,7 @@ function syncShortcutWindowFromScroll(): void {
   const resultCount = filteredResults.value.length;
   if (!scroller) {
     visibleShortcutStart.value = 0;
-    visibleShortcutEnd.value = Math.min(
-      resultCount,
-      fallbackVisibleShortcutCount
-    );
+    visibleShortcutEnd.value = Math.min(resultCount, visibleResultRows);
     return;
   }
 
@@ -275,7 +273,7 @@ async function resetShortcutViewport(): Promise<void> {
   visibleShortcutStart.value = 0;
   visibleShortcutEnd.value = Math.min(
     filteredResults.value.length,
-    fallbackVisibleShortcutCount
+    visibleResultRows
   );
 
   await nextTick();
@@ -367,10 +365,17 @@ const getImageIconClass = (item: ContentType) => {
   };
 };
 
-const enterListMode = () => {
+const enterListMode = (selectLast = false) => {
   ensureValidTab();
   if (filteredResults.value.length > 0 || props.results.length > 0) {
     setMode('LIST');
+    if (selectLast && filteredResults.value.length > 0) {
+      const lastIndex = filteredResults.value.length - 1;
+      const lastItem = filteredResults.value[lastIndex];
+      syncSelectedItem(lastItem);
+      emit('selectionChange', lastItem);
+      ensureItemVisible(lastIndex);
+    }
   }
 };
 
@@ -398,9 +403,6 @@ defineExpose({
 
 <style lang="scss" scoped>
 .result-list {
-  // --result-row-height: 52px;
-  // --result-visible-rows: 6;
-
   @apply bg-search rounded-bl-lg relative h-full min-h-0 flex flex-col overflow-hidden;
 
   padding: 8px 8px 8px 10px;
@@ -484,8 +486,6 @@ defineExpose({
 
   .result {
     @apply min-h-0 flex-1 overflow-y-auto;
-
-    max-height: 100%;
 
     :deep(.vue-recycle-scroller__item-wrapper) {
       @apply w-full;

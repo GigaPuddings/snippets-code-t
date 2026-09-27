@@ -13,7 +13,7 @@ export interface SearchKeyboardOptions {
   searchInputRef: Ref<HTMLInputElement | null>;
   /** 结果组件引用 */
   resultRef: Ref<{
-    enterListMode: () => void;
+    enterListMode: (selectLast?: boolean) => void;
     enterTabMode: () => void;
   } | null>;
   /** 是否处于搜索模式 */
@@ -39,7 +39,8 @@ export interface SearchKeyboardReturn {
  *
  * 提供搜索页面的键盘导航功能，包括：
  * - Enter: 执行搜索或进入列表模式
- * - ArrowDown: 进入列表模式
+ * - ArrowDown: 进入列表模式并选中第一项
+ * - ArrowUp: 进入列表模式并选中最后一项
  * - ArrowLeft/Right: 在边界时切换到分类标签
  * - Tab: 切换到分类标签模式
  * - Shift+Tab: 进入列表模式
@@ -93,6 +94,7 @@ export function useSearchKeyboard(
           } else {
             // 如果有搜索结果，进入列表模式
             e.preventDefault();
+            e.stopPropagation();
             input.blur(); // 让输入框失焦
             resultRef.value?.enterListMode();
           }
@@ -103,8 +105,18 @@ export function useSearchKeyboard(
         // 下键进入列表模式
         if (canSwitchToList.value) {
           e.preventDefault();
+          e.stopPropagation();
           input.blur(); // 让输入框失焦
           resultRef.value?.enterListMode();
+        }
+        break;
+
+      case 'ArrowUp':
+        if (canSwitchToList.value) {
+          e.preventDefault();
+          e.stopPropagation();
+          input.blur();
+          resultRef.value?.enterListMode(true);
         }
         break;
 
@@ -140,6 +152,7 @@ export function useSearchKeyboard(
     ) {
       // 即使没有结果也允许进入分类标签模式（用于切换分类）
       e.preventDefault();
+      e.stopPropagation();
       input.blur(); // 让输入框失焦
       resultRef.value?.enterTabMode();
     }
@@ -155,6 +168,7 @@ export function useSearchKeyboard(
     input: HTMLInputElement
   ): void {
     e.preventDefault();
+    e.stopPropagation();
     // Shift+Tab：如果有结果直接进入列表模式
     if (e.shiftKey && canSwitchToList.value) {
       input.blur(); // 让输入框失焦

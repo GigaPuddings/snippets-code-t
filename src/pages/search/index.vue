@@ -188,12 +188,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <main
-    ref="searchRef"
-    data-tauri-drag-region
-    class="main"
-    @mouseenter="focusSearchWindow"
-  >
+  <main ref="searchRef" data-tauri-drag-region class="main">
     <section class="search-command-surface">
       <section class="search transparent-input">
         <el-input

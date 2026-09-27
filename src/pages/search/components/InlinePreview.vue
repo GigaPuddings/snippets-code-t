@@ -831,64 +831,67 @@ async function recordUsageHistory() {
 async function closeAndRun(action: () => Promise<void> | void) {
   if (!props.item) return;
   await recordUsageHistory();
+  // Closing main emits reset-search-state, so callers must capture their target first.
   await closeWindowByLabel('main');
   await action();
 }
 
 async function openApp() {
-  if (!canOpenApp.value || !appLaunchPath.value) return;
-  await closeAndRun(() =>
-    invoke('open_app_command', { appPath: appLaunchPath.value })
-  );
+  const appPath = appLaunchPath.value;
+  if (!appPath) return;
+  await closeAndRun(() => invoke('open_app_command', { appPath }));
 }
 
 async function openAppAsAdmin() {
-  if (!canOpenAppAsAdmin.value || !appLaunchPath.value) return;
-  await closeAndRun(() =>
-    invoke('open_app_as_admin_command', { appPath: appLaunchPath.value })
-  );
+  const appPath = appLaunchPath.value;
+  if (!appPath) return;
+  await closeAndRun(() => invoke('open_app_as_admin_command', { appPath }));
 }
 
 async function revealAppFolder() {
   const targetPath = appLaunchPath.value || displayPath.value;
-  if (!canRevealAppFolder.value || !targetPath) return;
+  if (!targetPath) return;
   await closeAndRun(() =>
     invoke('open_app_file_location_command', { appPath: targetPath })
   );
 }
 
 async function openBookmark() {
-  if (!canOpenBookmark.value || !displayBookmarkUrl.value) return;
-  await closeAndRun(() =>
-    invoke('open_url', { url: displayBookmarkUrl.value })
-  );
+  const url = displayBookmarkUrl.value;
+  if (!url) return;
+  await closeAndRun(() => invoke('open_url', { url }));
 }
 
 async function openFile() {
-  if (!canOpenFile.value || !displayPath.value) return;
-  await closeAndRun(() => openFileWithDefaultApp(displayPath.value));
+  const path = displayPath.value;
+  if (!path) return;
+  await closeAndRun(() => openFileWithDefaultApp(path));
 }
 
 async function revealFile() {
-  if (!canRevealFile.value || !displayPath.value) return;
-  await closeAndRun(() => revealFileInFolder(displayPath.value));
+  const path = displayPath.value;
+  if (!path) return;
+  await closeAndRun(() => revealFileInFolder(path));
 }
 
 async function openFileWithOtherWaysAction() {
-  if (!canOpenFileWithOtherWays.value || !displayPath.value) return;
-  await closeAndRun(() => openFileWithOtherWays(displayPath.value));
+  const path = displayPath.value;
+  if (!path) return;
+  await closeAndRun(() => openFileWithOtherWays(path));
 }
 
 async function copySnippet() {
   if (!canCopyCodeSnippet.value || !props.item) return;
+  const content = normalizedContent.value;
   await recordUsageHistory();
-  await navigator.clipboard.writeText(normalizedContent.value);
+  await navigator.clipboard.writeText(content);
 }
 
 async function copyBookmarkUrl() {
-  if (!canCopyBookmarkUrl.value || !displayBookmarkUrl.value) return;
+  const url = displayBookmarkUrl.value;
+  if (!url) return;
   await recordUsageHistory();
-  await navigator.clipboard.writeText(displayBookmarkUrl.value);
+  await navigator.clipboard.writeText(url);
 }
 
 async function searchBookmark() {
@@ -902,12 +905,13 @@ async function searchBookmark() {
 
 async function openInConfig() {
   if (!canOpenInConfig.value || !props.item) return;
+  const item = props.item;
 
   try {
     await recordUsageHistory();
     await openSearchResultInConfig({
-      item: props.item,
-      preview: props.item.type !== 'note',
+      item,
+      preview: item.type !== 'note',
       closeSearchWindow: () => closeWindowByLabel('main')
     });
   } catch (err) {
