@@ -264,7 +264,7 @@ const handleCommand = (command: 'reading' | 'preview' | 'source') => {
   }
 
   .backlink-count {
-    @apply text-center min-w-[18px] px-1.5 py-0.5 text-xs font-medium rounded-full;
+    @apply text-center px-1 text-xs font-medium rounded-full;
 
     color: var(--categories-text-color-active);
     background-color: var(--categories-bg-active);
