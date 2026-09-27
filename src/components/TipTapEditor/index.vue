@@ -1366,13 +1366,6 @@ defineExpose({
   padding-bottom: 0;
   background-color: var(--editor-bg);
   transition: background-color 0.3s ease;
-
-  :deep(.ProseMirror) {
-    @apply w-full min-w-0 max-w-full;
-
-    height: auto;
-    min-height: 100%;
-  }
 }
 
 .dark-theme {
@@ -1414,7 +1407,7 @@ defineExpose({
   @apply box-border h-auto min-h-full max-w-full whitespace-pre-wrap overflow-y-visible min-w-0 outline-none;
 
   width: min(100%, 1080px);
-  padding: 22px clamp(20px, 3.5vw, 44px) 76px;
+  padding: 22px 22px 0;
   margin: 0 auto;
   font-size: 15px;
   line-height: var(--editor-line-height);
@@ -1472,17 +1465,17 @@ defineExpose({
         color 0.3s ease;
     }
 
-    /* 代码块内的 code 不应用内联样式 */
+    // 代码块内的 code 不应用内联样式
     pre code {
       @apply bg-transparent text-inherit p-0 rounded-none;
     }
 
-    /* 代码块样式已移至 CodeBlockComponent.vue */
+    // 代码块样式已移至 CodeBlockComponent.vue
     pre {
       @apply mb-3;
     }
 
-    /* 暗色编辑区：代码块关键词高亮 */
+    // 暗色编辑区：代码块关键词高亮
     pre code .hljs-keyword,
     .code-block-wrapper .hljs-keyword {
       font-weight: 600 !important;
@@ -1783,7 +1776,7 @@ defineExpose({
       color 0.3s ease;
   }
 
-  /* 代码块内的 code 不应用内联样式 */
+  // 代码块内的 code 不应用内联样式
   pre code {
     @apply bg-transparent text-inherit p-0 rounded-none;
   }
@@ -1792,12 +1785,12 @@ defineExpose({
     display: none;
   }
 
-  /* 代码块样式已移至 CodeBlockComponent.vue */
+  // 代码块样式已移至 CodeBlockComponent.vue
   pre {
     @apply mb-3;
   }
 
-  /* 亮色编辑区：代码块关键词高亮 */
+  // 亮色编辑区：代码块关键词高亮
   pre code .hljs-keyword,
   .code-block-wrapper .hljs-keyword {
     font-weight: 600 !important;

@@ -357,7 +357,7 @@ const copyCode = async () => {
 }
 
 .code-block-pre {
-  @apply m-0 box-border w-full min-w-0 max-w-full overflow-x-auto;
+  @apply box-border w-full min-w-0 max-w-full overflow-x-auto;
 
   padding: 12px 14px;
   margin: 0 !important;
