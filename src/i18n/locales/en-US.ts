@@ -1164,6 +1164,105 @@ export default {
     copyFailed: 'Failed to copy'
   },
 
+  aiAssist: {
+    title: 'AI assistance',
+    description:
+      'Use local AI to work on this {type}. Review the result before applying it.',
+    type: { code: 'code snippet', note: 'note' },
+    questionPlaceholder:
+      'Ask a question. AI will search your knowledge base for relevant snippets…',
+    references: 'Sources:',
+    actionsLabel: 'AI assistance actions',
+    resultTitle: 'Generated result',
+    generating: 'Generating…',
+    askEmpty: 'Enter a question, then select Knowledge base Q&A.',
+    defaultEmpty:
+      'Choose an action to begin. AI will only read the current content.',
+    copyResult: 'Copy result',
+    continue: 'Continue generating',
+    regenerate: 'Regenerate',
+    searching: 'Searching…',
+    ask: 'Ask',
+    selectionRewrite: 'Rewrite selection with AI',
+    actions: {
+      summarize: {
+        label: 'Summarize',
+        description: 'Extract key points and conclusions'
+      },
+      rewrite: { label: 'Rewrite', description: 'Preserve Markdown structure' },
+      title: {
+        label: 'Generate title',
+        description: 'Suggest a clear, concise title'
+      },
+      tags: { label: 'Extract tags', description: 'Suggest searchable tags' },
+      search: {
+        label: 'Search queries',
+        description: 'Generate ready-to-use queries'
+      },
+      ask: {
+        label: 'Knowledge base Q&A',
+        description: 'Answer using existing snippets'
+      },
+      explainCode: {
+        label: 'Explain code',
+        description: 'Explain logic, inputs, and risks'
+      }
+    },
+    apply: {
+      title: 'Apply title',
+      tags: 'Apply tags',
+      search: 'Copy queries',
+      ask: 'Copy answer',
+      selection: 'Replace selection',
+      content: 'Replace current content'
+    },
+    errors: {
+      askRequired: 'Enter a question first.',
+      emptyContent:
+        'The current content is empty. Add some content before using AI assistance.',
+      truncatedContent:
+        'The content is long. Only its beginning and end were sent to fit the local model context.',
+      repeatedResponse:
+        'The model repeated its previous response, so nothing was appended. Select Regenerate to try again.',
+      requestFailed:
+        'Local AI request failed: {message}. Make sure the Local AI plugin is enabled and a model is configured.',
+      noTags: 'No usable tags were found. Try generating again.'
+    },
+    prompt: {
+      omittedMiddle: 'Middle omitted because the content is too long',
+      summarize:
+        'Summarize the content in concise Markdown. Preserve key facts, action items, and conclusions. Do not invent information. Do not add a title, summary label, or introduction; start with the first point or paragraph.',
+      rewrite:
+        'Rewrite the content for clarity and natural phrasing. Preserve the original Markdown heading levels, lists, links, code blocks, and meaning. Output only the complete rewritten content, without an extra title or introduction.',
+      title:
+        'Generate an accurate, concise title from the content. Output only the title, without quotes, numbering, or explanation.',
+      tags: 'Extract 3 to 8 distinctive search tags. Output only comma-separated tags, without # symbols, explanations, or duplicates.',
+      explainCode:
+        'Explain what this code does, its key flow, inputs and outputs, edge cases, and potential risks. Use concise Markdown sections. Do not invent behavior absent from the code.',
+      search:
+        'Generate 3 queries ready for full-text or web search, one per line. Use specific keywords covering the topic, technical terms, and likely issues. Do not add explanations.',
+      ragContext:
+        'The following snippets were retrieved from the knowledge base. Use them to answer the question. If they do not contain relevant information, say so.',
+      ragSnippet: '### {title} ({category})\n{content}',
+      ragWithContext:
+        'You are the Snippets Code knowledge base assistant. Answer in the same language as the user content.',
+      ragWithoutContext:
+        'You are the Snippets Code knowledge base assistant. Answer in the same language as the user content. If the knowledge base has no relevant information, answer from general knowledge and clearly state that the answer is not from the knowledge base.',
+      ragTruncated:
+        '(Note: Some search results were truncated due to length limits.)',
+      metadata: 'Title: {title}\nExisting tags: {tags}',
+      system:
+        'You are the Snippets Code local writing and coding assistant. Answer in the same language as the user content and follow the requested output format.',
+      continue:
+        'The previous response stopped at its final character below. Output only the new text that follows it. Do not begin with an acknowledgment, title, or introduction, and never repeat existing sentences.\n\n--- End of previous response ---\n{context}\n--- Context end ---',
+      source:
+        'Title: {title}\nExisting tags: {tags}\nContent type: {type}\n\n--- Content begins ---\n{content}\n--- Content ends ---',
+      untitled: 'Untitled',
+      uncategorized: 'Uncategorized',
+      none: 'None'
+    }
+  },
+
   // Advanced Search
   search: {
     filterByDate: 'Filter by Date',

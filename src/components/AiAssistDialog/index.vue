@@ -11,14 +11,14 @@
     <template #header>
       <div class="dialog-title">
         <span class="dialog-title__mark">✦</span>
-        <span>AI 辅助</span>
+        <span>{{ t('aiAssist.title') }}</span>
       </div>
     </template>
 
     <p class="dialog-description">
-      使用本地 AI 处理当前{{
-        fragmentType === 'code' ? '代码片段' : '笔记'
-      }}。结果生成后需由你确认才会写入。
+      {{
+        t('aiAssist.description', { type: t(`aiAssist.type.${fragmentType}`) })
+      }}
     </p>
 
     <!-- 知识库问答输入区 -->
@@ -31,20 +31,24 @@
         maxlength="280"
         show-word-limit
         resize="none"
-        placeholder="输入问题，AI 将从你的知识库中检索相关片段并回答…"
+        :placeholder="t('aiAssist.questionPlaceholder')"
         :disabled="isGenerating || isRagSearching"
         @keydown.shift.enter.prevent="handleSubmitAsk"
         @keydown.ctrl.enter.prevent="handleSubmitAsk"
       />
       <div v-if="ragSources.length > 0" class="rag-sources">
-        <span class="rag-sources__label">引用来源：</span>
+        <span class="rag-sources__label">{{ t('aiAssist.references') }}</span>
         <span v-for="(src, i) in ragSources" :key="i" class="rag-sources__tag">
           {{ src.title }}
         </span>
       </div>
     </div>
 
-    <div class="action-grid" role="group" aria-label="AI 辅助操作">
+    <div
+      class="action-grid"
+      role="group"
+      :aria-label="t('aiAssist.actionsLabel')"
+    >
       <CustomButton
         v-for="action in actions"
         :key="action.id"
@@ -67,15 +71,17 @@
 
     <section class="result-section" aria-live="polite">
       <div class="result-heading">
-        <span>{{ activeActionLabel || '生成结果' }}</span>
-        <span v-if="isGenerating" class="generating">正在生成…</span>
+        <span>{{ activeActionLabel || t('aiAssist.resultTitle') }}</span>
+        <span v-if="isGenerating" class="generating">
+          {{ t('aiAssist.generating') }}
+        </span>
       </div>
       <div class="result-box" :class="{ empty: !result && !isGenerating }">
         <span v-if="!result && !isGenerating">
           {{
             activeAction === 'ask'
-              ? '输入问题后点击“知识库问答”开始。'
-              : '选择一个操作开始。AI 只会读取当前内容。'
+              ? t('aiAssist.askEmpty')
+              : t('aiAssist.defaultEmpty')
           }}
         </span>
         <div v-else class="markdown-body">
@@ -101,20 +107,20 @@
           :disabled="isGenerating || !result.trim()"
           @click="copyResult"
         >
-          复制结果
+          {{ t('aiAssist.copyResult') }}
         </CustomButton>
         <CustomButton
           v-if="canContinue"
           :disabled="isGenerating"
           @click="continueGeneration"
         >
-          继续生成
+          {{ t('aiAssist.continue') }}
         </CustomButton>
         <CustomButton
           :disabled="!activeAction || isGenerating"
           @click="regenerate"
         >
-          重新回答
+          {{ t('aiAssist.regenerate') }}
         </CustomButton>
         <CustomButton
           v-if="activeAction === 'ask'"
@@ -122,7 +128,7 @@
           type="primary"
           @click="runAction('ask')"
         >
-          {{ isRagSearching ? '检索中…' : '提问' }}
+          {{ isRagSearching ? t('aiAssist.searching') : t('aiAssist.ask') }}
         </CustomButton>
         <CustomButton
           v-else
@@ -139,6 +145,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import modal from '@/utils/modal';
 import { CustomButton } from '@/components/UI';
 import {
@@ -189,6 +196,8 @@ const emit = defineEmits<{
   'apply-selection': [value: string];
 }>();
 
+const { t } = useI18n();
+
 const activeAction = ref<AssistAction | null>(null);
 const result = ref('');
 const isGenerating = ref(false);
@@ -213,38 +222,38 @@ const actions = computed(() => {
     {
       id: 'summarize' as const,
       icon: '≡',
-      label: '总结内容',
-      description: '提炼重点和结论'
+      label: t('aiAssist.actions.summarize.label'),
+      description: t('aiAssist.actions.summarize.description')
     },
     {
       id: 'rewrite' as const,
       icon: '✎',
-      label: '改写润色',
-      description: '保留 Markdown 结构'
+      label: t('aiAssist.actions.rewrite.label'),
+      description: t('aiAssist.actions.rewrite.description')
     },
     {
       id: 'title' as const,
       icon: 'T',
-      label: '生成标题',
-      description: '给出准确简洁的标题'
+      label: t('aiAssist.actions.title.label'),
+      description: t('aiAssist.actions.title.description')
     },
     {
       id: 'tags' as const,
       icon: '#',
-      label: '提取标签',
-      description: '推荐便于检索的标签'
+      label: t('aiAssist.actions.tags.label'),
+      description: t('aiAssist.actions.tags.description')
     },
     {
       id: 'search' as const,
       icon: '⌕',
-      label: '搜索辅助',
-      description: '生成可直接检索的关键词'
+      label: t('aiAssist.actions.search.label'),
+      description: t('aiAssist.actions.search.description')
     },
     {
       id: 'ask' as const,
       icon: '✦',
-      label: '知识库问答',
-      description: '基于已有片段回答问题'
+      label: t('aiAssist.actions.ask.label'),
+      description: t('aiAssist.actions.ask.description')
     }
   ];
   if (props.selectionMode) return [shared[1]];
@@ -254,8 +263,8 @@ const actions = computed(() => {
         {
           id: 'explain-code' as const,
           icon: '</>',
-          label: '解释代码',
-          description: '说明逻辑、输入和风险'
+          label: t('aiAssist.actions.explainCode.label'),
+          description: t('aiAssist.actions.explainCode.description')
         },
         shared[4],
         shared[5]
@@ -277,11 +286,13 @@ const canContinue = computed(
     ['length', 'max_tokens'].includes(finishReason.value)
 );
 const applyLabel = computed(() => {
-  if (activeAction.value === 'title') return '应用标题';
-  if (activeAction.value === 'tags') return '应用标签';
-  if (activeAction.value === 'search') return '复制关键词';
-  if (activeAction.value === 'ask') return '复制回答';
-  return props.selectionMode ? '替换选区' : '替换当前内容';
+  if (activeAction.value === 'title') return t('aiAssist.apply.title');
+  if (activeAction.value === 'tags') return t('aiAssist.apply.tags');
+  if (activeAction.value === 'search') return t('aiAssist.apply.search');
+  if (activeAction.value === 'ask') return t('aiAssist.apply.ask');
+  return props.selectionMode
+    ? t('aiAssist.apply.selection')
+    : t('aiAssist.apply.content');
 });
 
 const renderMarkdownPreview = (markdown: string) => {
@@ -416,7 +427,7 @@ const truncateForContext = (
   const headSize = Math.floor(maxChars * 0.6);
   const tailSize = Math.floor(maxChars * 0.4);
   return {
-    content: `${content.slice(0, headSize)}\n\n[……内容过长，已省略中间部分……]\n\n${content.slice(-tailSize)}`,
+    content: `${content.slice(0, headSize)}\n\n[${t('aiAssist.prompt.omittedMiddle')}]\n\n${content.slice(-tailSize)}`,
     truncated: true
   };
 };
@@ -440,17 +451,17 @@ const stripRepeatedContinuation = (
 const getInstruction = (action: AssistAction): string => {
   switch (action) {
     case 'summarize':
-      return '总结内容，使用简洁 Markdown，保留关键事实、待办和结论。不要编造未出现的信息。不要添加标题、摘要标签或开场白，直接从第一个要点或段落开始。';
+      return t('aiAssist.prompt.summarize');
     case 'rewrite':
-      return '润色并改写内容，使表达更清晰自然。必须保留原有 Markdown 的标题层级、列表、链接、代码块与含义；只输出改写后的完整内容，不要添加“润色结果”等额外标题或开场白。';
+      return t('aiAssist.prompt.rewrite');
     case 'title':
-      return '根据内容生成一个准确、简洁的标题。只输出标题文字，不要引号、序号或解释。';
+      return t('aiAssist.prompt.title');
     case 'tags':
-      return '提取 3 到 8 个有区分度的检索标签。只输出以英文逗号分隔的标签，不要 #、说明或重复项。';
+      return t('aiAssist.prompt.tags');
     case 'explain-code':
-      return '解释这段代码的作用、关键流程、输入输出、边界情况与潜在风险。用简洁 Markdown 分段，不要编造代码中没有的行为。';
+      return t('aiAssist.prompt.explainCode');
     case 'search':
-      return '基于内容生成 3 条可直接用于全文检索或网页检索的查询，每条一行。关键词要具体，覆盖主题、技术名词和可能的问题。不要添加解释。';
+      return t('aiAssist.prompt.search');
     case 'ask':
       return ''; // ask 模式使用独立的 RAG 提示构建逻辑
   }
@@ -469,13 +480,13 @@ const runAction = async (
 ) => {
   // ask 模式不依赖当前片段内容，但需要用户输入问题
   if (action === 'ask' && !options.continue && !ragQuestion.value.trim()) {
-    errorMessage.value = '请先输入问题';
+    errorMessage.value = t('aiAssist.errors.askRequired');
     return;
   }
   // 非 ask 模式需要当前片段内容
   const source = props.content.trim();
   if (action !== 'ask' && !source) {
-    errorMessage.value = '当前内容为空，先写一点内容再使用 AI 辅助。';
+    errorMessage.value = t('aiAssist.errors.emptyContent');
     return;
   }
 
@@ -516,8 +527,8 @@ const runAction = async (
       if (requestEpoch !== generationEpoch) return;
 
       const systemPrompt = ragResult.context
-        ? `你是 Snippets Code 的知识库问答助手。回答使用与用户内容一致的语言。\n\n${ragResult.context}${ragResult.truncated ? '\n\n（注：部分检索结果因长度限制已被截断）' : ''}`
-        : '你是 Snippets Code 的知识库问答助手。回答使用与用户内容一致的语言。如果知识库中没有相关信息，请基于你的通用知识回答，并说明该回答未来自知识库。';
+        ? `${t('aiAssist.prompt.ragWithContext')}\n\n${ragResult.context}${ragResult.truncated ? `\n\n${t('aiAssist.prompt.ragTruncated')}` : ''}`
+        : t('aiAssist.prompt.ragWithoutContext');
 
       // 更新引用来源 UI
       ragSources.value = ragResult.sources;
@@ -535,7 +546,7 @@ const runAction = async (
           )
         : '';
       const promptOverhead = estimateTokens(
-        `${instruction}\n标题：${props.title}\n已有标签：${props.tags.join(', ')}\n${continuationContext}`
+        `${instruction}\n${t('aiAssist.prompt.metadata', { title: props.title, tags: props.tags.join(', ') })}\n${continuationContext}`
       );
       const sourceBudget = Math.max(
         384,
@@ -543,20 +554,23 @@ const runAction = async (
       );
       const boundedSource = truncateForContext(source, sourceBudget);
       if (boundedSource.truncated) {
-        errorMessage.value =
-          '内容较长，已保留开头和结尾后发送，以避免本地模型上下文溢出。';
+        errorMessage.value = t('aiAssist.errors.truncatedContent');
       }
       messages = [
         {
           role: 'system' as const,
-          content:
-            '你是 Snippets Code 的本地写作与代码助手。回答使用与用户内容一致的语言；遵循用户请求的输出格式。'
+          content: t('aiAssist.prompt.system')
         },
         {
           role: 'user' as const,
           content: options.continue
-            ? `${instruction}\n\n上一段回复在下方最后一个字符处停止。只输出紧接在其后的新内容；不要使用"好的"、标题、前言，也绝不能重述已有句子。\n\n--- 回复末尾上下文 ---\n${continuationContext}\n--- 上下文结束 ---`
-            : `${instruction}\n\n标题：${props.title || '未命名'}\n已有标签：${props.tags.join(', ') || '无'}\n内容类型：${props.fragmentType === 'code' ? '代码片段' : 'Markdown 笔记'}\n\n--- 内容开始 ---\n${boundedSource.content}\n--- 内容结束 ---`
+            ? `${instruction}\n\n${t('aiAssist.prompt.continue', { context: continuationContext })}`
+            : `${instruction}\n\n${t('aiAssist.prompt.source', {
+                title: props.title || t('aiAssist.prompt.untitled'),
+                tags: props.tags.join(', ') || t('aiAssist.prompt.none'),
+                type: t(`aiAssist.type.${props.fragmentType}`),
+                content: boundedSource.content
+              })}`
         }
       ];
     }
@@ -606,8 +620,7 @@ const runAction = async (
           completed
         );
         if (!uniqueContinuation) {
-          errorMessage.value =
-            '模型重复了已有回复，未追加重复内容；可点击“重新回答”重新生成。';
+          errorMessage.value = t('aiAssist.errors.repeatedResponse');
           result.value = previousResult;
         } else {
           result.value = `${previousResult}\n${uniqueContinuation}`;
@@ -619,7 +632,9 @@ const runAction = async (
     schedulePreviewSync(true);
   } catch (error) {
     if (requestEpoch !== generationEpoch) return;
-    errorMessage.value = `本地 AI 请求失败：${error instanceof Error ? error.message : String(error)}。请确认“本地 AI”插件已启用且模型已配置。`;
+    errorMessage.value = t('aiAssist.errors.requestFailed', {
+      message: error instanceof Error ? error.message : String(error)
+    });
   } finally {
     if (requestEpoch === generationEpoch) {
       currentRequestId.value = null;
@@ -641,7 +656,7 @@ const continueGeneration = async () => {
 const copyResult = async () => {
   if (!result.value.trim()) return;
   await navigator.clipboard.writeText(result.value.trim());
-  modal.success('已复制到剪贴板');
+  modal.success(t('content.copySuccess'));
 };
 
 const applyResult = async () => {
@@ -660,7 +675,7 @@ const applyResult = async () => {
       )
     ).slice(0, 8);
     if (!tags.length) {
-      errorMessage.value = '没有识别到可用标签，请重新生成。';
+      errorMessage.value = t('aiAssist.errors.noTags');
       return;
     }
     emit('apply-tags', tags);
@@ -710,9 +725,9 @@ const applyResult = async () => {
   align-items: center;
   justify-content: flex-start !important;
   width: 100%;
-  height: 56px !important;
-  min-height: 56px;
-  padding: 6px 9px;
+  height: auto !important;
+  min-height: 64px;
+  padding: 8px 9px;
   line-height: normal !important;
   color: inherit;
   text-align: left;
@@ -970,6 +985,7 @@ const applyResult = async () => {
 
 .dialog-footer {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-end;
 }
@@ -999,12 +1015,18 @@ const applyResult = async () => {
   flex: 1;
   flex-direction: column;
   min-height: 0;
-  overflow-y: hidden;
+  overflow-y: auto;
 }
 
 :global(.ai-assist-dialog .el-dialog__footer) {
   flex-shrink: 0;
   padding-top: 12px;
   border-top: 1px solid var(--el-border-color-lighter);
+}
+
+@media (width <= 640px) {
+  .action-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 </style>

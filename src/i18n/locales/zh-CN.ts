@@ -1124,6 +1124,85 @@ export default {
     copyFailed: '复制失败'
   },
 
+  aiAssist: {
+    title: 'AI 辅助',
+    description: '使用本地 AI 处理当前{type}。结果生成后需由你确认才会写入。',
+    type: { code: '代码片段', note: '笔记' },
+    questionPlaceholder: '输入问题，AI 将从你的知识库中检索相关片段并回答…',
+    references: '引用来源：',
+    actionsLabel: 'AI 辅助操作',
+    resultTitle: '生成结果',
+    generating: '正在生成…',
+    askEmpty: '输入问题后点击“知识库问答”开始。',
+    defaultEmpty: '选择一个操作开始。AI 只会读取当前内容。',
+    copyResult: '复制结果',
+    continue: '继续生成',
+    regenerate: '重新回答',
+    searching: '检索中…',
+    ask: '提问',
+    selectionRewrite: 'AI 润色选区',
+    actions: {
+      summarize: { label: '总结内容', description: '提炼重点和结论' },
+      rewrite: { label: '改写润色', description: '保留 Markdown 结构' },
+      title: { label: '生成标题', description: '给出准确简洁的标题' },
+      tags: { label: '提取标签', description: '推荐便于检索的标签' },
+      search: { label: '搜索辅助', description: '生成可直接检索的关键词' },
+      ask: { label: '知识库问答', description: '基于已有片段回答问题' },
+      explainCode: { label: '解释代码', description: '说明逻辑、输入和风险' }
+    },
+    apply: {
+      title: '应用标题',
+      tags: '应用标签',
+      search: '复制关键词',
+      ask: '复制回答',
+      selection: '替换选区',
+      content: '替换当前内容'
+    },
+    errors: {
+      askRequired: '请先输入问题',
+      emptyContent: '当前内容为空，先写一点内容再使用 AI 辅助。',
+      truncatedContent:
+        '内容较长，已保留开头和结尾后发送，以避免本地模型上下文溢出。',
+      repeatedResponse:
+        '模型重复了已有回复，未追加重复内容；可点击“重新回答”重新生成。',
+      requestFailed:
+        '本地 AI 请求失败：{message}。请确认“本地 AI”插件已启用且模型已配置。',
+      noTags: '没有识别到可用标签，请重新生成。'
+    },
+    prompt: {
+      omittedMiddle: '……内容过长，已省略中间部分……',
+      summarize:
+        '总结内容，使用简洁 Markdown，保留关键事实、待办和结论。不要编造未出现的信息。不要添加标题、摘要标签或开场白，直接从第一个要点或段落开始。',
+      rewrite:
+        '润色并改写内容，使表达更清晰自然。必须保留原有 Markdown 的标题层级、列表、链接、代码块与含义；只输出改写后的完整内容，不要添加“润色结果”等额外标题或开场白。',
+      title:
+        '根据内容生成一个准确、简洁的标题。只输出标题文字，不要引号、序号或解释。',
+      tags: '提取 3 到 8 个有区分度的检索标签。只输出以英文逗号分隔的标签，不要 #、说明或重复项。',
+      explainCode:
+        '解释这段代码的作用、关键流程、输入输出、边界情况与潜在风险。用简洁 Markdown 分段，不要编造代码中没有的行为。',
+      search:
+        '基于内容生成 3 条可直接用于全文检索或网页检索的查询，每条一行。关键词要具体，覆盖主题、技术名词和可能的问题。不要添加解释。',
+      ragContext:
+        '以下是从知识库中检索到的相关片段，请参考这些内容回答用户问题。如果片段中没有相关信息，请如实告知。',
+      ragSnippet: '### {title}（{category}）\n{content}',
+      ragWithContext:
+        '你是 Snippets Code 的知识库问答助手。回答使用与用户内容一致的语言。',
+      ragWithoutContext:
+        '你是 Snippets Code 的知识库问答助手。回答使用与用户内容一致的语言。如果知识库中没有相关信息，请基于你的通用知识回答，并说明该回答未来自知识库。',
+      ragTruncated: '（注：部分检索结果因长度限制已被截断）',
+      metadata: '标题：{title}\n已有标签：{tags}',
+      system:
+        '你是 Snippets Code 的本地写作与代码助手。回答使用与用户内容一致的语言；遵循用户请求的输出格式。',
+      continue:
+        '上一段回复在下方最后一个字符处停止。只输出紧接在其后的新内容；不要使用“好的”、标题、前言，也绝不能重述已有句子。\n\n--- 回复末尾上下文 ---\n{context}\n--- 上下文结束 ---',
+      source:
+        '标题：{title}\n已有标签：{tags}\n内容类型：{type}\n\n--- 内容开始 ---\n{content}\n--- 内容结束 ---',
+      untitled: '未命名',
+      uncategorized: '未分类',
+      none: '无'
+    }
+  },
+
   // 高级搜索
   search: {
     filterByDate: '按日期筛选',

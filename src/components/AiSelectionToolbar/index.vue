@@ -6,13 +6,16 @@
     @mousedown.prevent
   >
     <CustomButton type="primary" size="small" @click="emit('rewrite')">
-      ✦ AI 润色选区
+      ✦ {{ t('aiAssist.selectionRewrite') }}
     </CustomButton>
   </div>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { CustomButton } from '@/components/UI';
+
+const { t } = useI18n();
 
 defineProps<{
   visible: boolean;

@@ -1,4 +1,5 @@
 import { ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { searchMarkdownFiles } from '@/api/markdown';
 import { logger } from '@/utils/logger';
 
@@ -22,6 +23,7 @@ const SNIPPET_CHARS = 800;
  * 流程：用户提问 → 关键词检索 → 截取片段 → 拼接为 system prompt 上下文。
  */
 export function useFragmentRag() {
+  const { t } = useI18n();
   const isSearching = ref(false);
   const lastQuery = ref('');
   const lastSources = ref<Array<{ title: string; category: string }>>([]);
@@ -53,8 +55,9 @@ export function useFragmentRag() {
       let truncated = false;
 
       for (const file of files.slice(0, MAX_RESULTS)) {
-        const title = file.title || '未命名';
-        const category = file.categoryName || '未分类';
+        const title = file.title || t('aiAssist.prompt.untitled');
+        const category =
+          file.categoryName || t('aiAssist.prompt.uncategorized');
         const content = (file.content || '').trim();
 
         if (!content) continue;
@@ -67,14 +70,16 @@ export function useFragmentRag() {
           break;
         }
 
-        snippets.push(`### ${title}（${category}）\n${snippet}`);
+        snippets.push(
+          t('aiAssist.prompt.ragSnippet', { title, category, content: snippet })
+        );
         sources.push({ title, category });
         totalChars += snippet.length;
       }
 
       const context =
         snippets.length > 0
-          ? `以下是从知识库中检索到的相关片段，请参考这些内容回答用户问题。如果片段中没有相关信息，请如实告知。\n\n${snippets.join('\n\n---\n\n')}`
+          ? `${t('aiAssist.prompt.ragContext')}\n\n${snippets.join('\n\n---\n\n')}`
           : '';
 
       lastSources.value = sources;
