@@ -1117,7 +1117,11 @@ export default {
   content: {
     handleLinkFailed: '处理链接失败',
     createNoteFailed: '创建笔记失败',
-    aiAssistant: 'AI 助手'
+    aiAssistant: 'AI 助手',
+    copyTitle: '复制标题',
+    copyContent: '复制内容',
+    copySuccess: '已复制到剪贴板',
+    copyFailed: '复制失败'
   },
 
   // 高级搜索

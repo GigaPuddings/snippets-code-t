@@ -12,80 +12,140 @@
           @keydown.enter.prevent="commitTitleChange"
         />
 
-        <!-- 编辑器控制按钮（仅笔记类型显示） -->
-        <div v-if="currentEditorType === 'note'" class="editor-controls">
-          <!-- 阅读模式切换按钮 -->
-          <button
-            v-if="editorViewMode !== 'reading'"
-            class="control-btn"
-            @click="toggleToReadingMode"
-            :title="$t('noteEditor.toggleReading')"
-          >
-            <svg viewBox="0 0 24 24" width="18" height="18">
-              <path
-                fill="currentColor"
-                d="M21,5C19.89,4.65 18.67,4.5 17.5,4.5C15.55,4.5 13.45,4.9 12,6C10.55,4.9 8.45,4.5 6.5,4.5C4.55,4.5 2.45,4.9 1,6V20.65C1,20.9 1.25,21.15 1.5,21.15C1.6,21.15 1.65,21.1 1.75,21.1C3.1,20.45 5.05,20 6.5,20C8.45,20 10.55,20.4 12,21.5C13.35,20.65 15.8,20 17.5,20C19.15,20 20.85,20.3 22.25,21.05C22.35,21.1 22.4,21.1 22.5,21.1C22.75,21.1 23,20.85 23,20.6V6C22.4,5.55 21.75,5.25 21,5M21,18.5C19.9,18.15 18.7,18 17.5,18C15.8,18 13.35,18.65 12,19.5V8C13.35,7.15 15.8,6.5 17.5,6.5C18.7,6.5 19.9,6.65 21,7V18.5Z"
-              />
-            </svg>
-          </button>
-
-          <button
-            v-else
-            class="control-btn"
-            @click="toggleToEditingMode"
-            :title="$t('noteEditor.toggleEditing')"
-          >
-            <svg viewBox="0 0 24 24" width="18" height="18">
-              <path
-                fill="currentColor"
-                d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z"
-              />
-            </svg>
-          </button>
-
-          <!-- 大纲按钮 -->
-          <button
-            class="control-btn"
-            @click="toggleOutline"
-            :title="$t('noteEditor.outline')"
-          >
-            <svg viewBox="0 0 24 24" width="18" height="18">
-              <path
-                fill="currentColor"
-                d="M3,9H17V7H3V9M3,13H17V11H3V13M3,17H17V15H3V17M19,17H21V15H19V17M19,7V9H21V7H19M19,13H21V11H19V13Z"
-              />
-            </svg>
-          </button>
-        </div>
-
         <div v-if="state.currentContent" class="content-header-actions">
-          <button
-            class="ai-assist-button"
-            type="button"
-            :title="t('content.aiAssistant')"
-            @click="showAiAssist = true"
+          <!-- 编辑器控制按钮（仅笔记类型显示） -->
+          <div v-if="currentEditorType === 'note'" class="editor-controls">
+            <!-- 阅读模式切换按钮 -->
+            <button
+              v-if="editorViewMode !== 'reading'"
+              class="control-btn"
+              type="button"
+              @click="toggleToReadingMode"
+              :title="$t('noteEditor.toggleReading')"
+              :aria-label="$t('noteEditor.toggleReading')"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width="18"
+                height="18"
+                aria-hidden="true"
+              >
+                <path
+                  fill="currentColor"
+                  d="M21,5C19.89,4.65 18.67,4.5 17.5,4.5C15.55,4.5 13.45,4.9 12,6C10.55,4.9 8.45,4.5 6.5,4.5C4.55,4.5 2.45,4.9 1,6V20.65C1,20.9 1.25,21.15 1.5,21.15C1.6,21.15 1.65,21.1 1.75,21.1C3.1,20.45 5.05,20 6.5,20C8.45,20 10.55,20.4 12,21.5C13.35,20.65 15.8,20 17.5,20C19.15,20 20.85,20.3 22.25,21.05C22.35,21.1 22.4,21.1 22.5,21.1C22.75,21.1 23,20.85 23,20.6V6C22.4,5.55 21.75,5.25 21,5M21,18.5C19.9,18.15 18.7,18 17.5,18C15.8,18 13.35,18.65 12,19.5V8C13.35,7.15 15.8,6.5 17.5,6.5C18.7,6.5 19.9,6.65 21,7V18.5Z"
+                />
+              </svg>
+            </button>
+
+            <button
+              v-else
+              class="control-btn"
+              type="button"
+              @click="toggleToEditingMode"
+              :title="$t('noteEditor.toggleEditing')"
+              :aria-label="$t('noteEditor.toggleEditing')"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width="18"
+                height="18"
+                aria-hidden="true"
+              >
+                <path
+                  fill="currentColor"
+                  d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z"
+                />
+              </svg>
+            </button>
+
+            <!-- 大纲按钮 -->
+            <button
+              class="control-btn"
+              type="button"
+              @click="toggleOutline"
+              :title="$t('noteEditor.outline')"
+              :aria-label="$t('noteEditor.outline')"
+              :aria-pressed="isOutlineVisible"
+              :class="{ 'is-active': isOutlineVisible }"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width="18"
+                height="18"
+                aria-hidden="true"
+              >
+                <path
+                  fill="currentColor"
+                  d="M3,9H17V7H3V9M3,13H17V11H3V13M3,17H17V15H3V17M19,17H21V15H19V17M19,7V9H21V7H19M19,13H21V11H19V13Z"
+                />
+              </svg>
+            </button>
+          </div>
+          <el-dropdown
+            trigger="click"
+            placement="bottom-end"
+            @command="handleContentMenuCommand"
           >
-            <span>✦</span>
-            {{ t('content.aiAssistant') }}
-          </button>
-          <span class="content-more" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="18" height="18">
-              <path
-                fill="currentColor"
-                d="M12,8A2,2 0 1,0 12,4A2,2 0 0,0 12,8M12,10A2,2 0 1,0 12,14A2,2 0 0,0 12,10M12,16A2,2 0 1,0 12,20A2,2 0 0,0 12,16Z"
-              />
-            </svg>
-          </span>
+            <button
+              class="content-more"
+              type="button"
+              :title="t('common.more')"
+              :aria-label="t('common.more')"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width="18"
+                height="18"
+                aria-hidden="true"
+              >
+                <path
+                  fill="currentColor"
+                  d="M12,8A2,2 0 1,0 12,4A2,2 0 0,0 12,8M12,10A2,2 0 1,0 12,14A2,2 0 0,0 12,10M12,16A2,2 0 1,0 12,20A2,2 0 0,0 12,16Z"
+                />
+              </svg>
+            </button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="save" :disabled="state.isLoading">
+                  {{ t('common.save') }}
+                </el-dropdown-item>
+                <el-dropdown-item command="copyTitle">
+                  {{ t('content.copyTitle') }}
+                </el-dropdown-item>
+                <el-dropdown-item command="copyContent">
+                  {{ t('content.copyContent') }}
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
       </div>
 
       <!-- 标签输入 -->
       <div v-if="state.currentContent" class="content-tags">
-        <TagInput
-          v-model="state.tags"
-          :existing-tags="allTags"
-          @update:model-value="handleTagsChange"
-        />
+        <div class="content-tags-input">
+          <TagInput
+            v-model="state.tags"
+            :existing-tags="allTags"
+            @update:model-value="handleTagsChange"
+          />
+        </div>
+        <button
+          class="ai-assist-button"
+          type="button"
+          :title="t('content.aiAssistant')"
+          :aria-label="t('content.aiAssistant')"
+          @click="showAiAssist = true"
+        >
+          <MagicWand
+            class="text-primary"
+            theme="outline"
+            size="15"
+            :strokeWidth="3"
+            aria-hidden="true"
+          />
+          <span>{{ t('content.aiAssistant') }}</span>
+        </button>
       </div>
     </div>
 
@@ -284,6 +344,7 @@ import { findBacklinks, getBacklinkStats } from '@/utils/wikilink-updater';
 import BacklinkUpdateDialog from '@/components/UI/BacklinkUpdateDialog.vue';
 import AiAssistDialog from '@/components/AiAssistDialog/index.vue';
 import AiSelectionToolbar from '@/components/AiSelectionToolbar/index.vue';
+import { MagicWand } from '@icon-park/vue-next';
 import {
   htmlToMarkdown,
   createTurndownService,
@@ -658,6 +719,7 @@ const titleInputRef = ref<any>(null);
 
 // 编辑器视图模式状态
 const editorViewMode = ref<'reading' | 'preview' | 'source'>('preview');
+const isOutlineVisible = ref(false);
 
 // 处理视图模式变化
 const handleViewModeChange = (mode: 'reading' | 'preview' | 'source') => {
@@ -670,8 +732,8 @@ const handleEditorScrollPosition = (_scrollTop: number) => {
 };
 
 // 处理大纲切换
-const handleOutlineToggle = () => {
-  // 大纲状态由编辑器内部管理
+const handleOutlineToggle = (show: boolean) => {
+  isOutlineVisible.value = show;
 };
 
 // 切换到阅读模式
@@ -1059,6 +1121,33 @@ const saveContent = async (data: Partial<ContentType> = {}) => {
     throw error;
   } finally {
     state.isLoading = false;
+  }
+};
+
+const handleContentMenuCommand = async (command: string) => {
+  if (!state.currentContent) return;
+
+  if (command === 'save') {
+    if (state.isLoading) return;
+    debouncedSave.cancel();
+    try {
+      await saveContent();
+      if (!showBacklinkDialog.value) modal.success(t('category.saveSuccess'));
+    } catch {
+      // saveContent 已显示保存错误。
+    }
+    return;
+  }
+
+  if (command !== 'copyTitle' && command !== 'copyContent') return;
+  try {
+    await navigator.clipboard.writeText(
+      command === 'copyTitle' ? draftTitle.value : state.editorContent
+    );
+    modal.success(t('content.copySuccess'));
+  } catch (error) {
+    logger.error('[Content] Copy from menu failed:', error);
+    modal.error(t('content.copyFailed'));
   }
 };
 
@@ -2214,14 +2303,16 @@ onMounted(async () => {
       }
 
       .editor-controls {
-        @apply flex items-center gap-1 ml-auto;
-
-        flex-shrink: 0;
+        @apply flex shrink-0 items-center gap-0.5;
       }
     }
 
     .content-tags {
-      @apply py-2;
+      @apply flex min-w-0 items-start justify-between gap-3 py-2;
+
+      .content-tags-input {
+        @apply min-w-0 flex-1;
+      }
     }
   }
 }
@@ -2429,29 +2520,21 @@ onMounted(async () => {
 }
 
 .control-btn {
-  @apply w-8 h-8 flex items-center justify-center rounded cursor-pointer;
-
-  background: transparent;
-  border: none;
-  transition: all 0.2s ease;
+  @apply flex h-7 w-7 items-center justify-center rounded-md border-0 bg-transparent text-panel-text-secondary cursor-pointer transition-colors duration-150;
 
   &:hover {
+    color: var(--el-color-primary);
     background-color: var(--categories-panel-bg-hover);
   }
 
-  &:active {
-    background-color: var(--categories-bg-tab-active);
-    transform: scale(0.95);
-  }
-
-  svg {
-    @apply text-panel-text-secondary;
-
-    transition: color 0.2s ease;
-  }
-
-  &:hover svg {
+  &.is-active {
     color: var(--el-color-primary);
+    background-color: var(--categories-bg-tab-active);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--el-color-primary);
+    outline-offset: 1px;
   }
 }
 
@@ -2468,72 +2551,42 @@ onMounted(async () => {
 }
 
 .ai-assist-button {
-  @apply h-7 px-2 flex items-center justify-center gap-1 rounded text-xs font-medium cursor-pointer;
+  @apply inline-flex h-7 shrink-0 items-center justify-center gap-1.5 rounded-md border-0 bg-hover px-2.5 text-xs font-medium text-primary cursor-pointer transition-colors duration-150;
 
-  color: var(--el-color-primary);
   white-space: nowrap;
-  background: color-mix(in srgb, var(--el-color-primary) 8%, transparent);
-  border: 1px solid color-mix(in srgb, var(--el-color-primary) 28%, transparent);
-  transition:
-    background-color 0.15s ease,
-    transform 0.15s ease;
-
-  span {
-    display: inline-grid;
-    flex: 0 0 14px;
-    place-items: center;
-    font-size: 14px;
-    line-height: 1;
-  }
 
   &:hover {
-    background: color-mix(in srgb, var(--el-color-primary) 16%, transparent);
+    color: var(--el-color-primary);
+    background-color: var(--categories-panel-bg-hover);
   }
 
-  &:active {
-    transform: scale(0.97);
+  &:focus-visible {
+    outline: 2px solid var(--el-color-primary);
+    outline-offset: 1px;
   }
 }
 
 .content-header-actions {
-  @apply flex shrink-0 items-center gap-2;
+  @apply ml-auto flex shrink-0 items-center gap-1 rounded-lg border border-panel bg-content p-0.5;
 }
 
 .content-more {
-  @apply inline-flex h-7 w-7 items-center justify-center rounded;
+  @apply inline-flex h-7 w-7 items-center justify-center rounded-md border-0 bg-transparent text-panel-text-secondary cursor-pointer transition-colors duration-150;
 
-  color: var(--panel-text-secondary);
+  &:hover {
+    color: var(--panel-text);
+    background-color: var(--categories-panel-bg-hover);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--el-color-primary);
+    outline-offset: 1px;
+  }
 }
 
 .editor-surface :deep(.editor-container),
 .editor-surface :deep(.editor-content) {
   background-color: var(--editor-surface-bg);
-}
-
-:global(.dark) {
-  .control-btn {
-    &:hover {
-      background-color: var(--categories-panel-bg-hover);
-    }
-
-    &:active {
-      background-color: var(--categories-bg-tab-active);
-    }
-
-    svg {
-      @apply text-panel-text-secondary;
-    }
-
-    &:hover svg {
-      color: var(--el-color-primary);
-    }
-  }
-
-  .ai-assist-button {
-    color: var(--el-color-primary-light-3);
-    background: color-mix(in srgb, var(--el-color-primary) 18%, transparent);
-    border-color: color-mix(in srgb, var(--el-color-primary) 42%, transparent);
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

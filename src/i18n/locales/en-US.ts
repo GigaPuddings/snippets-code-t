@@ -1157,7 +1157,11 @@ export default {
   content: {
     handleLinkFailed: 'Failed to handle link',
     createNoteFailed: 'Failed to create note',
-    aiAssistant: 'AI Assistant'
+    aiAssistant: 'AI Assistant',
+    copyTitle: 'Copy title',
+    copyContent: 'Copy content',
+    copySuccess: 'Copied to clipboard',
+    copyFailed: 'Failed to copy'
   },
 
   // Advanced Search
