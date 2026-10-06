@@ -1,63 +1,59 @@
 <template>
   <main
-    class="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-workbench-bg text-workbench-text [@media(max-height:620px)]:overflow-y-auto"
+    class="flex h-full min-h-0 w-full min-w-0 overflow-hidden font-ui text-ui text-[var(--workspace-nav-text)]"
     :aria-busy="loading"
   >
-    <p
-      v-if="loadError"
-      class="absolute left-1/2 top-3 z-20 max-w-[min(720px,calc(100%_-_48px))] -translate-x-1/2 rounded-lg border border-workbench-alert-border bg-workbench-alert-bg px-3 py-2 text-xs text-workbench-alert-text shadow-workbench"
-      role="alert"
-    >
-      {{ loadError }}
-    </p>
-
     <div
-      class="mx-auto grid min-h-0 w-full max-w-[1600px] flex-1 grid-rows-[134px_10px_100px_20px_minmax(0,1fr)] px-[clamp(24px,3vw,48px)] pb-4 pt-[18px] [@media(max-height:620px)]:min-h-[592px] [@media(max-height:620px)]:flex-none [@media(max-height:800px)]:!grid-rows-[108px_6px_76px_14px_minmax(0,1fr)] [@media(max-height:800px)]:!pt-3 [@media(max-height:800px)]:pb-2.5 [@media(max-height:830px)]:grid-rows-[130px_14px_76px_14px_minmax(0,1fr)] [@media(max-height:830px)]:pt-4 [@media(max-width:1080px)]:px-[22px]"
+      class="flex min-w-0 flex-1 flex-col overflow-y-auto bg-[var(--settings-surface)]"
     >
-      <WorkbenchHero
-        class="row-start-1 row-end-2"
-        :workspace-root="workspaceRoot"
-        :loading="loading"
-        @open-workspace="navigate(workspaceAction)"
-        @refresh="refresh"
-      />
-
-      <WorkbenchMetrics
-        class="row-start-3 row-end-4"
-        :metrics="metrics"
-        @select="openMetric"
-      />
-
       <div
-        class="row-start-5 row-end-6 grid min-h-0 min-w-0 grid-cols-[minmax(0,1.7fr)_minmax(340px,0.95fr)] gap-[18px] [@media(max-width:1080px)]:grid-cols-[minmax(0,1.55fr)_minmax(310px,0.85fr)] [@media(max-width:1080px)]:gap-[14px]"
+        class="mx-auto flex w-full max-w-6xl shrink-0 flex-col gap-4 px-8 py-4 max-[640px]:px-5"
       >
-        <RecentContent
-          :items="recentItems"
-          :workspace-root="workspaceRoot"
-          :empty-action-label="
-            workspaceRoot
-              ? t('workbenchHome.openWorkspace')
-              : t('workbenchHome.configureWorkspace')
-          "
-          @open="navigate"
-          @open-empty="navigate(workspaceEmptyAction)"
-          @view-all="navigate('/config/category/contentList')"
-        />
-
-        <aside
-          class="grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] gap-3 [@media(max-height:800px)]:gap-2.5"
+        <p
+          v-if="loadError"
+          class="m-0 rounded-lg bg-[var(--el-color-danger-light-9)] px-3 py-2 text-ui-caption text-[var(--el-color-danger)]"
+          role="alert"
         >
-          <QuickActions :actions="quickActions" @navigate="navigate" />
-          <CapabilityStatus
-            :layers="layers"
-            @manage="navigate('/config/category/settings?tab=workbench')"
-            @navigate-action="navigateTo"
+          {{ loadError }}
+        </p>
+        <WorkbenchHero
+          :workspace-root="workspaceRoot"
+          :loading="loading"
+          @open-workspace="navigate(workspaceAction)"
+          @refresh="refresh"
+        />
+        <WorkbenchMetrics :metrics="metrics" @select="openMetric" />
+        <div
+          class="grid min-w-0 grid-cols-[minmax(0,1.5fr)_minmax(280px,1fr)] items-start gap-8 max-[900px]:grid-cols-1"
+        >
+          <RecentContent
+            :items="recentItems"
+            :workspace-root="workspaceRoot"
+            :empty-action-label="
+              workspaceRoot
+                ? t('workbenchHome.openWorkspace')
+                : t('workbenchHome.configureWorkspace')
+            "
+            @open="navigate"
+            @open-empty="navigate(workspaceEmptyAction)"
+            @view-all="navigate('/config/category/contentList')"
           />
-        </aside>
+          <aside class="flex min-w-0 flex-col gap-5">
+            <QuickActions :actions="quickActions" @navigate="navigate" />
+            <CapabilityStatus
+              :layers="layers"
+              @manage="navigate('/config/category/settings?tab=workbench')"
+              @navigate-action="navigateTo"
+            />
+          </aside>
+        </div>
       </div>
+      <WorkbenchFooter
+        class="mt-auto"
+        :recent-count="recentItems.length"
+        :workspace-ready="Boolean(workspaceRoot)"
+      />
     </div>
-
-    <WorkbenchFooter :recent-count="recentItems.length" />
   </main>
 </template>
 
