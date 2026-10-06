@@ -6,6 +6,11 @@ vi.mock('@/utils', () => ({
   debounce: vi.fn()
 }));
 
+// Keep browser notification services outside the Node search lifecycle tests.
+vi.mock('@/utils/modal', () => ({
+  default: { msg: vi.fn() }
+}));
+
 vi.mock('@/utils/error-handler', () => ({
   ErrorHandler: {},
   ErrorType: {}
