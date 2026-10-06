@@ -1,5 +1,6 @@
 <template>
-  <div class="config">
+  <div class="config ui-icon-scope font-ui text-ui">
+    <GlobalNavigationRail />
     <Transition name="config-startup">
       <div v-if="isStarting" class="config-startup" aria-live="polite">
         <div class="config-startup__card">
@@ -14,22 +15,26 @@
         </div>
       </div>
     </Transition>
-    <router-view v-slot="{ Component, route: slotRoute }">
-      <template v-if="Component">
-        <keep-alive>
+    <div
+      class="min-w-0 flex-1 overflow-hidden rounded-[var(--workspace-panel-radius)] shadow-workspace-panel"
+    >
+      <router-view v-slot="{ Component, route: slotRoute }">
+        <template v-if="Component">
+          <keep-alive>
+            <component
+              v-if="shouldKeepAliveConfigChild(slotRoute)"
+              :is="Component"
+              :key="getConfigChildKey(slotRoute)"
+            />
+          </keep-alive>
           <component
-            v-if="shouldKeepAliveConfigChild(slotRoute)"
+            v-if="!shouldKeepAliveConfigChild(slotRoute)"
             :is="Component"
             :key="getConfigChildKey(slotRoute)"
           />
-        </keep-alive>
-        <component
-          v-if="!shouldKeepAliveConfigChild(slotRoute)"
-          :is="Component"
-          :key="getConfigChildKey(slotRoute)"
-        />
-      </template>
-    </router-view>
+        </template>
+      </router-view>
+    </div>
 
     <component
       v-for="hostComponent in configHostComponents"
@@ -64,6 +69,7 @@ import {
 import { useConfigNavigationEvents } from './composables/useConfigNavigationEvents';
 import { useConfigStartup } from './composables/useConfigStartup';
 import { useConfigLifecycle } from './composables/useConfigLifecycle';
+import GlobalNavigationRail from '@/layout/components/GlobalNavigationRail.vue';
 
 const { t } = useI18n();
 const pluginStore = usePluginStore();
@@ -194,7 +200,7 @@ onUnmounted(() => {
 
 <style scoped lang="scss">
 .config {
-  @apply relative z-50 flex h-full min-h-0 w-full justify-start bg-content;
+  @apply relative z-50 flex h-full min-h-0 w-full justify-start bg-[var(--workspace-nav-rail)] pt-10 pr-1 pb-1;
 }
 
 .config-startup {

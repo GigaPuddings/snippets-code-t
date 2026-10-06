@@ -64,3 +64,20 @@ export const configNavigationTabs: ConfigNavigationTab[] = [
     pluginId: 'local-ai'
   }
 ];
+
+export const getConfigTabLabelKey = (
+  currentPath: string
+): string | undefined => {
+  if (isConfigNavigationPathActive(currentPath, '/config/category/settings'))
+    return 'titlebar.settings';
+  if (
+    isConfigNavigationPathActive(
+      currentPath,
+      '/config/category/contentList/user'
+    )
+  )
+    return 'titlebar.userCenter';
+  return configNavigationTabs.find((tab) =>
+    isConfigNavigationPathActive(currentPath, tab.path)
+  )?.labelKey;
+};

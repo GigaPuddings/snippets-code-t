@@ -1,15 +1,27 @@
 <template>
   <main
+    class="relative"
     :class="[
-      !hasTabbar
-        ? 'w-screen h-screen rounded-lg border-[1.5px] border-panel'
+      !hasTabbar ? 'w-screen h-screen rounded-lg' : '',
+      isConfigRoute
+        ? '!rounded-[var(--workspace-window-radius)] overflow-hidden bg-[var(--workspace-nav-rail)] after:pointer-events-none after:absolute after:inset-0 after:z-[120] after:rounded-[inherit] after:border after:border-[var(--workspace-window-border)]'
         : ''
     ]"
   >
-    <Titlebar v-if="!hasTabbar" />
+    <div
+      v-if="!hasTabbar"
+      :class="isConfigRoute ? 'absolute inset-x-0 top-0 z-[60]' : ''"
+      :style="
+        isConfigRoute
+          ? { '--config-sidebar-offset': titlebarOffset }
+          : undefined
+      "
+    >
+      <Titlebar />
+    </div>
     <div
       :class="[
-        `relative w-full overflow-hidden ${hasTabbar ? 'h-screen' : 'h-[calc(100vh-42px)] bg-panel p-[1px] rounded-b-lg pb-0.5'}`
+        `relative w-full overflow-hidden ${hasTabbar || isConfigRoute ? 'h-screen' : 'h-[calc(100vh-42px)] bg-panel p-[1px] rounded-b-lg pb-0.5'}`
       ]"
     >
       <router-view v-slot="{ Component, route: slotRoute }">
@@ -37,6 +49,23 @@ defineOptions({
 
 const route = useRoute();
 const layoutStore = useLayoutStore();
+const isConfigRoute = computed(() => route.path.startsWith('/config'));
+const titlebarOffset = computed(() => {
+  if (
+    route.name === 'Settings' &&
+    !layoutStore.categoryPanelCollapsed &&
+    layoutStore.windowWidth <= 960
+  ) {
+    return 'calc(var(--workspace-rail-width) + 220px)';
+  }
+  const hasSidebar =
+    (route.name === 'Settings' && !layoutStore.categoryPanelCollapsed) ||
+    (route.path.startsWith('/config/category') &&
+      !layoutStore.effectiveCategoryCollapsed);
+  return hasSidebar
+    ? 'calc(var(--workspace-rail-width) + var(--workspace-sidebar-width))'
+    : 'var(--workspace-rail-width)';
+});
 
 // 需要显示标签栏的路由页面
 const hasTabbar = computed(() =>

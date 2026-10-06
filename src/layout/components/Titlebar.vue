@@ -1,11 +1,57 @@
 <template>
   <main
     data-tauri-drag-region
-    class="titlebar"
-    :class="{ gradient: activeTab?.id !== 'webSearch' }"
+    class="titlebar ui-icon-scope"
+    :class="{ 'titlebar--config': isConfigRoute }"
   >
-    <!-- 左侧：品牌 + 版本号；宽屏时含导航 -->
-    <div class="titlebar-left" data-tauri-drag-region>
+    <nav
+      v-if="isConfigRoute"
+      class="flex h-full shrink-0 items-center gap-1 px-2"
+      :aria-label="t('titlebar.navigation')"
+      data-tauri-drag-region
+    >
+      <button
+        type="button"
+        class="ui-icon-button text-content disabled:opacity-30"
+        :title="t('titlebar.back')"
+        :aria-label="t('titlebar.back')"
+        :disabled="!canGoBack"
+        @click="router.back()"
+      >
+        <ArrowLeft theme="outline" size="18" />
+      </button>
+      <button
+        type="button"
+        class="ui-icon-button text-content disabled:opacity-30"
+        :title="t('titlebar.forward')"
+        :aria-label="t('titlebar.forward')"
+        :disabled="!canGoForward"
+        @click="router.forward()"
+      >
+        <ArrowRight theme="outline" size="18" />
+      </button>
+      <button
+        v-if="showSidebarToggle"
+        type="button"
+        class="ui-icon-button text-content"
+        :title="
+          sidebarCollapsed
+            ? t('titlebar.showSidebar')
+            : t('titlebar.hideSidebar')
+        "
+        :aria-label="
+          sidebarCollapsed
+            ? t('titlebar.showSidebar')
+            : t('titlebar.hideSidebar')
+        "
+        :aria-expanded="!sidebarCollapsed"
+        @click="toggleSidebar"
+      >
+        <LeftBar theme="outline" size="18" />
+      </button>
+    </nav>
+    <!-- 搜索窗口品牌 -->
+    <div v-if="!isConfigRoute" class="titlebar-left" data-tauri-drag-region>
       <img
         src="@/assets/128x128.png"
         alt=""
@@ -15,32 +61,70 @@
       <span class="titlebar-app-name" data-tauri-drag-region>
         {{ state.appName }}
       </span>
-      <!-- <span class="titlebar-app-version">{{ state.appVersion }}</span> -->
-      <div v-show="!isNarrow" class="titlebar-nav">
-        <SegmentedToggle
-          v-model="activeTabIndex"
-          :items="visibleTabs"
-          @change="handleTabChange"
+    </div>
+    <div
+      v-else
+      class="flex min-w-0 flex-1 items-center gap-2 pr-3 text-ui font-medium text-[var(--workspace-nav-text)]"
+      data-tauri-drag-region
+    >
+      <span
+        class="min-w-0 max-w-[40vw] truncate"
+        :title="activeTabTitle"
+        data-tauri-drag-region
+      >
+        {{ activeTabTitle }}
+      </span>
+      <el-dropdown
+        trigger="click"
+        placement="bottom-start"
+        popper-class="about-menu-popper"
+        class="shrink-0"
+        @command="handleAboutMenuCommand"
+      >
+        <button
+          type="button"
+          class="ui-action text-content"
+          :title="t('titlebar.about')"
+          :aria-label="t('titlebar.about')"
+          @mousedown.stop
         >
-          <template #item="scope">
-            <component
-              :is="scope.item.icon"
-              class="text-panel"
-              :title="t(scope.item.labelKey)"
-              :aria-label="t(scope.item.labelKey)"
-              theme="outline"
-              size="18"
-              :strokeWidth="3"
-            />
-          </template>
-        </SegmentedToggle>
-      </div>
+          <span>{{ t('titlebar.about') }}</span>
+          <span
+            v-if="hasUpdate"
+            class="h-1.5 w-1.5 rounded-full bg-workbench-warning"
+            :title="t('titlebar.updateAvailable')"
+          ></span>
+        </button>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item command="aboutApp">
+              <Info theme="outline" size="17" />
+              <span>{{ t('titlebar.aboutApp') }}</span>
+            </el-dropdown-item>
+            <el-dropdown-item command="checkUpdate">
+              <UpdateRotation theme="outline" size="17" />
+              <span>{{ t('titlebar.checkUpdateMenu') }}</span>
+              <span
+                v-if="hasUpdate"
+                class="ml-auto h-1.5 w-1.5 rounded-full bg-workbench-warning"
+              ></span>
+            </el-dropdown-item>
+            <el-dropdown-item command="exitApp" divided>
+              <Logout theme="outline" size="17" />
+              <span>{{ t('titlebar.exitApp') }}</span>
+            </el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
     </div>
 
     <!-- 中间：快捷搜索入口 -->
     <div
+      v-if="!isConfigRoute"
       class="titlebar-center"
-      :class="{ 'titlebar-center--drag-only': hideQuickSearch }"
+      :class="{
+        'titlebar-center--drag-only': hideQuickSearch
+      }"
       data-tauri-drag-region
     >
       <button
@@ -52,12 +136,7 @@
         @mousedown.stop
         @click.stop="openConfigQuickSearch"
       >
-        <search
-          class="quick-search-icon"
-          theme="outline"
-          size="15"
-          :strokeWidth="3"
-        />
+        <search class="quick-search-icon" theme="outline" size="15" />
         <span class="quick-search-placeholder">
           {{ $t('titlebar.quickSearchPlaceholder') }}
         </span>
@@ -65,69 +144,40 @@
       </button>
     </div>
 
-    <!-- 右侧：插件动作、置顶窗口 + 更多；其余进更多面板 -->
+    <!-- 窗口控制与搜索窗口操作 -->
     <div class="titlebar-right">
-      <!-- 非窄屏时：显示插件动作、置顶 -->
-      <template v-if="!isNarrow">
-        <div
-          class="titlebar-button"
+      <!-- 配置窗口始终保留置顶；窄搜索窗口将其放入更多菜单 -->
+      <template v-if="!isNarrow || isConfigRoute">
+        <button
+          type="button"
+          class="ui-icon-button titlebar-button"
           @click="handleTitlebar('isAlwaysOnTop')"
           :title="
             isAlwaysOnTop
               ? $t('titlebar.unpinWindow')
               : $t('titlebar.pinWindow')
           "
-          :aria-label="$t('titlebar.pinWindow')"
+          :aria-label="
+            isAlwaysOnTop
+              ? $t('titlebar.unpinWindow')
+              : $t('titlebar.pinWindow')
+          "
+          :aria-pressed="isAlwaysOnTop"
         >
           <component
             :is="isAlwaysOnTop ? Pushpin : Pin"
             class="icon"
             :class="{ 'icon-active': isAlwaysOnTop }"
             size="18"
-            :strokeWidth="3"
             theme="outline"
             strokeLinecap="butt"
           />
-        </div>
+        </button>
       </template>
 
-      <!-- 面板折叠控制按钮：仅在 config 且窗口足够宽时显示，分类/列表按钮分别按宽度阈值显示，避免窄屏时可见却无法展开 -->
-      <!-- <div v-if="showPanelToggle" class="panel-toggle-group">
-        <div
-          v-if="layoutStore.isWideEnoughForCategoryPanel"
-          class="titlebar-button"
-          :title="layoutStore.categoryPanelCollapsed ? $t('titlebar.expandFolders') : $t('titlebar.collapseFolders')"
-          :aria-label="layoutStore.categoryPanelCollapsed ? $t('titlebar.expandFolders') : $t('titlebar.collapseFolders')"
-          @click="layoutStore.toggleCategoryPanel()"
-        >
-          <menu-fold-one
-            v-if="!layoutStore.categoryPanelCollapsed"
-            class="icon"
-            theme="outline"
-            size="16"
-            :strokeWidth="3"
-          />
-          <menu-unfold-one
-            v-else
-            class="icon"
-            theme="outline"
-            size="16"
-            :strokeWidth="3"
-          />
-        </div>
-        <div
-          v-if="layoutStore.isWideEnoughForContentListPanel"
-          class="titlebar-button"
-          :title="layoutStore.contentListPanelCollapsed ? $t('titlebar.expandSnippetList') : $t('titlebar.collapseSnippetList')"
-          :aria-label="layoutStore.contentListPanelCollapsed ? $t('titlebar.expandSnippetList') : $t('titlebar.collapseSnippetList')"
-          @click="layoutStore.toggleContentListPanel()"
-        >
-          <view-list class="icon" theme="outline" size="16" :strokeWidth="3" />
-        </div>
-      </div> -->
-
-      <!-- 更多选项：非窄屏=个人中心/检查更新/设置；窄屏=全部 5 项 -->
+      <!-- 搜索窗口的更多菜单；窄屏时合并导航入口 -->
       <el-dropdown
+        v-if="!isConfigRoute"
         ref="moreDropdownRef"
         trigger="click"
         placement="bottom-end"
@@ -136,11 +186,11 @@
       >
         <button
           type="button"
-          class="titlebar-button titlebar-button--more"
+          class="ui-icon-button titlebar-button titlebar-button--more"
           :title="$t('titlebar.more')"
           :aria-label="$t('titlebar.more')"
         >
-          <more-one class="icon" theme="outline" size="18" :strokeWidth="3" />
+          <more-one class="icon" theme="outline" size="18" />
           <span v-if="hasUpdate" class="update-dot"></span>
         </button>
         <template #dropdown>
@@ -160,22 +210,11 @@
               <span class="ml-2">{{ $t('titlebar.quickSearch') }}</span>
             </el-dropdown-item>
             <el-dropdown-item command="userCenter">
-              <me
-                theme="outline"
-                size="16"
-                :strokeWidth="3"
-                class="align-middle"
-              />
+              <me theme="outline" size="16" class="align-middle" />
               <span class="ml-2">{{ $t('titlebar.userCenter') }}</span>
             </el-dropdown-item>
-            <!-- 窄屏时更多里才显示插件动作 / 置顶 -->
             <el-dropdown-item command="checkUpdate">
-              <update-rotation
-                theme="outline"
-                size="16"
-                :strokeWidth="3"
-                class="align-middle"
-              />
+              <update-rotation theme="outline" size="16" class="align-middle" />
               <span class="ml-2">{{ $t('titlebar.checkUpdate') }}</span>
               <span v-if="hasUpdate" class="update-dot-inline"></span>
             </el-dropdown-item>
@@ -184,7 +223,6 @@
                 :is="isAlwaysOnTop ? Pushpin : Pin"
                 theme="outline"
                 size="16"
-                :strokeWidth="3"
                 class="align-middle"
               />
               <span class="ml-2">
@@ -196,22 +234,20 @@
               </span>
             </el-dropdown-item>
             <el-dropdown-item command="settings">
-              <setting-two
-                theme="outline"
-                size="16"
-                :strokeWidth="3"
-                class="align-middle"
-              />
+              <setting-two theme="outline" size="16" class="align-middle" />
               <span class="ml-2">{{ $t('titlebar.settings') }}</span>
             </el-dropdown-item>
           </el-dropdown-menu>
         </template>
       </el-dropdown>
 
-      <div class="titlebar-divider titlebar-divider--thick"></div>
+      <div
+        v-if="!isContentDetailRoute"
+        class="titlebar-divider titlebar-divider--thick"
+      ></div>
 
       <div
-        class="titlebar-button titlebar-button--window"
+        class="ui-icon-button titlebar-button titlebar-button--window"
         @click="handleTitlebar('minimize')"
         :title="$t('titlebar.minimize')"
         :aria-label="$t('titlebar.minimize')"
@@ -220,12 +256,11 @@
           class="icon !p-[2px]"
           theme="outline"
           size="20"
-          :strokeWidth="3"
           strokeLinecap="butt"
         />
       </div>
       <div
-        class="titlebar-button titlebar-button--window"
+        class="ui-icon-button titlebar-button titlebar-button--window"
         @click="handleTitlebar('maximize')"
         :title="title"
         :aria-label="title"
@@ -234,12 +269,11 @@
           class="icon"
           theme="outline"
           size="18"
-          :strokeWidth="3"
           strokeLinecap="butt"
         />
       </div>
       <div
-        class="titlebar-button titlebar-button--close"
+        class="ui-icon-button titlebar-button titlebar-button--close"
         @click="handleTitlebar('close')"
         :title="$t('titlebar.close')"
         :aria-label="$t('titlebar.close')"
@@ -248,7 +282,6 @@
           class="icon"
           theme="outline"
           size="18"
-          :strokeWidth="3"
           strokeLinecap="butt"
         />
       </div>
@@ -258,6 +291,27 @@
     :model-value="quickSearchVisible"
     @update:model-value="setQuickSearchVisible"
   />
+  <CommonDialog
+    v-model="aboutVisible"
+    :title="t('titlebar.aboutApp')"
+    width="380px"
+    custom-class="about-app-dialog"
+  >
+    <div class="flex items-center gap-4 py-2">
+      <img src="@/assets/128x128.png" alt="" class="h-14 w-14 shrink-0" />
+      <div class="min-w-0">
+        <strong class="block text-ui-title font-semibold text-main">
+          {{ state.appName || 'Snippets Code' }}
+        </strong>
+        <span class="mt-1 block text-ui-caption text-content">
+          {{ t('titlebar.version', { version: state.appVersion }) }}
+        </span>
+      </div>
+    </div>
+    <p class="mt-3 text-ui leading-6 text-content">
+      {{ t('userCenter.appDescription') }}
+    </p>
+  </CommonDialog>
 </template>
 
 <script setup lang="ts">
@@ -271,23 +325,25 @@ import {
   SettingTwo,
   Me,
   MoreOne,
-  Search
-  // ViewList,
-  // MenuFoldOne,
-  // MenuUnfoldOne
+  Search,
+  ArrowLeft,
+  ArrowRight,
+  LeftBar,
+  Info,
+  Logout
 } from '@icon-park/vue-next';
 import { appName, appVersion, getAppWindow, initEnv } from '@/utils/env';
 import { invoke } from '@tauri-apps/api/core';
-import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import SegmentedToggle from '@/components/SegmentedToggle/index.vue';
 import ConfigQuickSearch from '@/components/ConfigQuickSearch/index.vue';
+import { CommonDialog } from '@/components/UI';
 import { useConfigQuickSearch } from '@/composables/useConfigQuickSearch';
+import { useUpdateAvailability } from '@/composables/useUpdateAvailability';
 import { useLayoutStore, usePluginStore } from '@/store';
 import {
   configNavigationTabs,
-  isConfigNavigationPathActive
+  getConfigTabLabelKey
 } from '@/plugins/navigation';
 
 const { t } = useI18n();
@@ -298,8 +354,10 @@ const {
   open: openConfigQuickSearch,
   setVisible: setQuickSearchVisible
 } = useConfigQuickSearch();
+const { hasUpdate, checkForUpdates } = useUpdateAvailability();
+const aboutVisible = ref(false);
 
-/** 窄屏/最小窗口断点：小于等于此宽度时 左侧仅应用名+版本、导航居中、右侧仅折叠菜单+窗口控制 */
+/** 搜索窗口的操作收纳与快捷搜索显示断点。 */
 const TITLEBAR_NARROW_BREAKPOINT = 720;
 const TITLEBAR_SEARCH_BREAKPOINT = 980;
 
@@ -320,14 +378,6 @@ watch(isNarrow, (narrow) => {
   }
 });
 
-/** 仅在配置页面（/config）且窗口非窄屏时显示面板折叠区域；单个按钮再按宽度阈值显示，避免窄屏时按钮可见却无法展开 */
-// const showPanelToggle = computed(
-//   () =>
-//     router.currentRoute.value.path.startsWith('/config') &&
-//     !isNarrow.value &&
-//     (layoutStore.isWideEnoughForCategoryPanel || layoutStore.isWideEnoughForContentListPanel)
-// );
-
 defineOptions({
   name: 'Titlebar'
 });
@@ -343,45 +393,63 @@ const state = reactive({
   appVersion: ''
 });
 
-const hasUpdate = ref(false);
-// 当前激活的tab索引
-const activeTabIndex = ref(0);
-
 const visibleTabs = computed(() =>
   configNavigationTabs
     .filter((tab) => !tab.pluginId || pluginStore.isEnabled(tab.pluginId))
     .map((tab) => ({ ...tab, label: t(tab.labelKey) }))
 );
-const activeTab = computed(() => visibleTabs.value[activeTabIndex.value]);
-
-// 根据当前路由设置激活的 tab。插件启用状态初始化后 visibleTabs 会异步变化，
-// 因此路由和可见 Tab 列表都必须触发同步，避免索引停留在上一个页面。
-const setActiveTabFromRoute = () => {
-  const currentPath = router.currentRoute.value.path;
-  const index = visibleTabs.value.findIndex((tab) =>
-    isConfigNavigationPathActive(currentPath, tab.path)
-  );
-  activeTabIndex.value = index;
+const isConfigRoute = computed(() =>
+  router.currentRoute.value.path.startsWith('/config')
+);
+const activeTabTitle = computed(() => {
+  const key = getConfigTabLabelKey(router.currentRoute.value.path);
+  return key ? t(key) : state.appName || 'Snippets Code';
+});
+// Vue Router updates its history state before publishing the current route.
+// Only follow in-app config entries; never navigate to another webview's root.
+const canGoBack = computed(() => {
+  router.currentRoute.value.fullPath;
+  const target = router.options.history.state.back;
+  return typeof target === 'string' && target.startsWith('/config');
+});
+const canGoForward = computed(() => {
+  router.currentRoute.value.fullPath;
+  const target = router.options.history.state.forward;
+  return typeof target === 'string' && target.startsWith('/config');
+});
+const showSidebarToggle = computed(() =>
+  router.currentRoute.value.path.startsWith('/config/category')
+);
+const sidebarCollapsed = computed(() =>
+  router.currentRoute.value.name === 'Settings'
+    ? layoutStore.categoryPanelCollapsed
+    : layoutStore.effectiveCategoryCollapsed
+);
+const toggleSidebar = (): void => {
+  if (router.currentRoute.value.name === 'Settings') {
+    layoutStore.categoryPanelCollapsed = !layoutStore.categoryPanelCollapsed;
+  } else {
+    layoutStore.toggleCategoryPanel();
+  }
 };
-
+const isContentDetailRoute = computed(
+  () =>
+    router.currentRoute.value.name === 'Content' &&
+    Boolean(router.currentRoute.value.params.id)
+);
 const navigateTo = (path: string) => {
   router.push(path).catch((error) => {
     console.warn('[Titlebar] navigation failed:', error);
   });
 };
 
-// 切换Tab并跳转路由
-const handleTabChange = (index: number) => {
-  if (visibleTabs.value[index]) {
-    navigateTo(visibleTabs.value[index].path);
-  }
-};
-
-const handleUpdateClick = async () => {
-  if (hasUpdate.value) {
-    await invoke('hotkey_update_command');
-  } else {
-    await invoke('check_update_manually');
+const handleAboutMenuCommand = async (command: string): Promise<void> => {
+  if (command === 'aboutApp') {
+    aboutVisible.value = true;
+  } else if (command === 'checkUpdate') {
+    await checkForUpdates();
+  } else if (command === 'exitApp') {
+    await invoke('exit_application');
   }
 };
 
@@ -402,8 +470,9 @@ const appWindow = getAppWindow('config');
 // 操作映射对象
 const actionHandlers: Record<WindowAction, () => Promise<void>> = {
   isAlwaysOnTop: async () => {
-    isAlwaysOnTop.value = !isAlwaysOnTop.value;
-    await appWindow.setAlwaysOnTop(isAlwaysOnTop.value);
+    const next = !isAlwaysOnTop.value;
+    await appWindow.setAlwaysOnTop(next);
+    isAlwaysOnTop.value = next;
   },
   minimize: async () => appWindow.minimize(),
   maximize: async () => {
@@ -422,16 +491,6 @@ const handleTitlebar = async (type: WindowAction) => {
   }
 };
 
-// 打开设置页面
-const openSettingsDialog = () => {
-  navigateTo('/config/category/settings');
-};
-
-// 跳转到个人中心
-const goToUserCenter = () => {
-  navigateTo('/config/category/contentList/user');
-};
-
 /** 窄屏折叠菜单命令 */
 const handleMoreMenuCommand = (command: string) => {
   const tab = visibleTabs.value.find(
@@ -446,22 +505,19 @@ const handleMoreMenuCommand = (command: string) => {
       openConfigQuickSearch();
       break;
     case 'userCenter':
-      goToUserCenter();
+      navigateTo('/config/category/contentList/user');
       break;
     case 'checkUpdate':
-      handleUpdateClick();
+      void checkForUpdates();
       break;
     case 'pinWindow':
       handleTitlebar('isAlwaysOnTop');
       break;
     case 'settings':
-      openSettingsDialog();
+      navigateTo('/config/category/settings');
       break;
   }
 };
-
-let unListen: UnlistenFn;
-let disposed = false;
 
 onMounted(async () => {
   window.addEventListener('keydown', handleGlobalKeydown);
@@ -471,14 +527,8 @@ onMounted(async () => {
       state.appVersion = appVersion;
     }),
     pluginStore.initialize(),
-    invoke<boolean>('get_update_status').then((available) => {
-      hasUpdate.value = available;
-    }),
-    listen<boolean>('update-available', (event) => {
-      hasUpdate.value = event.payload;
-    }).then((stop) => {
-      if (disposed) stop();
-      else unListen = stop;
+    appWindow.isAlwaysOnTop().then((value) => {
+      isAlwaysOnTop.value = value;
     })
   ]);
   for (const result of results) {
@@ -488,65 +538,43 @@ onMounted(async () => {
   }
 });
 
-// 监听路由变化，同步更新activeTabIndex
-watch(
-  [
-    () => router.currentRoute.value.path,
-    () => visibleTabs.value.map((tab) => tab.path).join('|')
-  ],
-  () => {
-    setActiveTabFromRoute();
-  },
-  { immediate: true }
-);
-
 onUnmounted(() => {
-  disposed = true;
-  if (unListen) {
-    unListen();
-  }
   window.removeEventListener('keydown', handleGlobalKeydown);
 });
 </script>
 
 <style lang="scss" scoped>
-@mixin commonIcon {
-  @apply cursor-pointer text-panel hover:bg-panel dark:hover:bg-panel hover:rounded;
-}
-
 .titlebar {
-  @apply relative flex items-center justify-between rounded-t-md w-full h-10 leading-10 select-none pr-1 gap-1;
+  @apply relative flex items-center justify-between rounded-t-md w-full h-10 leading-10 select-none pr-1 gap-1 font-ui;
 
   z-index: 50;
   min-width: 0; /* 允许 flex 子项收缩 */
   cursor: grab;
-  background-color: rgba(var(--categories-panel-bg-rgb), 0.9);
-  border-bottom: 1px solid rgba(var(--categories-border-color-rgb), 0.3);
-  box-shadow: 0 1px 3px rgb(0 0 0 / 5%);
+  background-color: var(--categories-panel-bg);
+  box-shadow: none;
 
   &:active {
     cursor: grabbing;
   }
 }
 
-.gradient {
-  &::after {
-    position: absolute;
-    right: 0;
-    bottom: -8px;
-    left: 0;
-    height: 8px;
-    pointer-events: none;
-    content: '';
-    background: linear-gradient(
-      to bottom,
-      rgba(var(--categories-panel-bg-rgb), 0.9),
-      transparent
-    );
+.titlebar--config {
+  // The config shell supplies the rail color underneath this transparent bar,
+  // allowing the main panel's upward shadow to remain visible.
+  color: var(--workspace-nav-text);
+  background-color: transparent;
+
+  .icon,
+  .titlebar-button:hover .icon {
+    color: var(--workspace-nav-heading);
+  }
+
+  .titlebar-button--close:hover .icon {
+    color: var(--el-color-danger);
   }
 }
 
-/* 左侧：品牌 + 导航，可在小窗口内让应用名收缩 */
+/* 搜索窗口品牌允许在窄窗口内收缩。 */
 .titlebar-left {
   @apply flex items-center gap-2 text-slate-800 dark:text-panel pl-1;
 
@@ -566,16 +594,6 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.titlebar-app-version {
-  @apply text-sm text-stone-300 mt-1 flex-shrink-0;
-}
-
-.titlebar-nav {
-  @apply flex items-center flex-shrink-0 ml-2;
-
-  cursor: default;
 }
 
 /* 中间：快捷搜索入口，占据剩余空间并可收缩 */
@@ -612,7 +630,7 @@ onUnmounted(() => {
   &:hover {
     background-color: var(--search-soft-bg);
     border-color: var(--search-result-active-border);
-    box-shadow: 0 0 0 2px rgb(95 116 243 / 8%);
+    box-shadow: 0 0 0 2px var(--chat-primary-soft);
   }
 }
 
@@ -653,64 +671,15 @@ onUnmounted(() => {
 }
 
 .titlebar-button {
-  @apply leading-4 relative flex items-center justify-center rounded-md overflow-hidden;
+  @apply leading-4 overflow-hidden;
 
-  min-width: 32px;
-  min-height: 32px;
-  cursor: pointer;
-  border-radius: 4px;
-  transition: all 0.2s ease;
-
-  &:hover {
-    background-color: rgb(93 109 253 / 8%);
-
-    .icon {
-      color: #5d6dfd;
-      background-color: transparent !important;
-    }
-
-    .update-dot {
-      @apply animate-none;
-    }
+  &:hover .update-dot {
+    @apply animate-none;
   }
 
-  &--update {
-    &:hover .icon {
-      @apply animate-spin;
-
-      color: #5d6dfd;
-      background-color: transparent !important;
-      animation-duration: 1s;
-    }
+  &--close:hover .icon {
+    color: var(--el-color-danger);
   }
-
-  &--window {
-    &:hover {
-      background-color: rgb(93 109 253 / 8%);
-
-      .icon {
-        color: #5d6dfd;
-        background-color: transparent !important;
-      }
-    }
-  }
-
-  &--close {
-    &:hover {
-      background-color: rgb(239 68 68 / 10%);
-
-      .icon {
-        color: #ef4444;
-        background-color: transparent !important;
-      }
-    }
-  }
-}
-
-.panel-toggle-group {
-  @apply flex items-center;
-
-  gap: 2px;
 }
 
 .titlebar-divider {
@@ -740,38 +709,19 @@ onUnmounted(() => {
 }
 
 .icon {
-  @include commonIcon;
+  @apply flex min-h-ui-control min-w-ui-control items-center justify-center p-1.5;
 
-  @apply p-1.5;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 32px;
-  min-height: 32px;
-  font-size: 18px;
-  color: rgba(var(--categories-text-color-rgb), 0.85);
-  transition: all 0.2s ease;
-
-  &:hover {
-    color: #5d6dfd;
-    background-color: rgb(93 109 253 / 8%);
-  }
+  color: var(--workspace-nav-text);
 
   &.icon-active {
-    color: #5d6dfd;
-    background-color: rgb(93 109 253 / 10%);
-
-    &:hover {
-      background-color: rgb(93 109 253 / 15%);
-    }
+    color: var(--el-color-primary);
   }
 }
 
 .update-dot {
   @apply absolute top-0.5 right-0.5 w-[6px] h-[6px] rounded-full;
 
-  background-color: #5d6dfd;
+  background-color: var(--wb-warning);
   animation: pulse-dot 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
@@ -798,10 +748,6 @@ onUnmounted(() => {
     gap: 6px;
   }
 
-  .titlebar-nav {
-    margin-left: 6px;
-  }
-
   .titlebar-right {
     gap: 2px;
   }
@@ -816,7 +762,7 @@ onUnmounted(() => {
   }
 }
 
-/* 极窄屏（≤640px）：应用名可截断；窄屏布局由 isNarrow 控制，此处仅保留版本号 */
+/* 极窄屏（≤640px）：应用名截断。 */
 @media (width <= 640px) {
   .titlebar-app-name {
     max-width: 7em;
@@ -833,24 +779,7 @@ onUnmounted(() => {
   height: 6px;
   margin-left: 4px;
   vertical-align: middle;
-  background-color: #5d6dfd;
+  background-color: var(--wb-warning);
   border-radius: 50%;
-}
-
-@keyframes pulse {
-  0% {
-    box-shadow: 0 0 0 0 rgb(93 109 253 / 70%);
-    transform: scale(0.95);
-  }
-
-  70% {
-    box-shadow: 0 0 0 6px rgb(93 109 253 / 0%);
-    transform: scale(1);
-  }
-
-  100% {
-    box-shadow: 0 0 0 0 rgb(93 109 253 / 0%);
-    transform: scale(0.95);
-  }
 }
 </style>

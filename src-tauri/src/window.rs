@@ -1011,7 +1011,7 @@ pub fn open_local_ai_chat_with_new_chat(prompt: Option<String>, new_chat: bool) 
         height: 696.0,
         resizable: true,
         transparent: true,
-        shadow: false,
+        shadow: true,
         always_on_top: false,
         ready_event: None,
     };
@@ -1071,7 +1071,7 @@ fn open_config_settings_tab(tab: Option<&'static str>) {
         height: 696.0,
         resizable: true,
         transparent: true,
-        shadow: false,
+        shadow: true,
         always_on_top: false,
         ready_event: Some("config_ready"),
     };
@@ -1195,7 +1195,7 @@ pub async fn open_config_with_loading_transition() {
         height: 696.0,
         resizable: true,
         transparent: true,
-        shadow: false,
+        shadow: true,
         always_on_top: false,
         ready_event: Some("config_ready"),
     };
@@ -1399,7 +1399,7 @@ pub fn hotkey_config() {
         height: 696.0,
         resizable: true,
         transparent: true,
-        shadow: false,
+        shadow: true,
         always_on_top: false,
         ready_event: None,
     };
