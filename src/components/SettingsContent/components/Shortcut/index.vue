@@ -5,70 +5,72 @@
     </div>
 
     <main class="panel-content">
-      <section
-        v-for="hotkey in visibleHotkeySettings"
-        :key="hotkey.name"
-        class="summarize-section transparent-input"
-      >
-        <div class="summarize-label">
-          <div class="summarize-label-title">{{ hotkeyLabel(hotkey) }}</div>
-          <div class="summarize-label-desc">
-            {{ hotkeyDescription(hotkey) }}
+      <div class="settings-card">
+        <section
+          v-for="hotkey in visibleHotkeySettings"
+          :key="hotkey.name"
+          class="summarize-section transparent-input"
+        >
+          <div class="summarize-label">
+            <div class="summarize-label-title">{{ hotkeyLabel(hotkey) }}</div>
+            <div class="summarize-label-desc">
+              {{ hotkeyDescription(hotkey) }}
+            </div>
           </div>
-        </div>
-        <div class="summarize-input-wrapper">
-          <el-input
-            class="summarize-input"
-            required
-            :model-value="getHotkeyValue(store, hotkey.name)"
-            @update:model-value="
-              (value) => setHotkeyValue(store, hotkey.name, String(value))
-            "
-            @keydown="
-              keyDown($event, (value) =>
-                setHotkeyValue(store, hotkey.name, value)
-              )
-            "
-            @focus="
-              () =>
-                handleFocusUnregister(
-                  hotkey.name,
-                  getHotkeyValue(store, hotkey.name)
+          <div class="summarize-input-wrapper">
+            <el-input
+              class="summarize-input"
+              required
+              :model-value="getHotkeyValue(store, hotkey.name)"
+              @update:model-value="
+                (value) => setHotkeyValue(store, hotkey.name, String(value))
+              "
+              @keydown="
+                keyDown($event, (value) =>
+                  setHotkeyValue(store, hotkey.name, value)
                 )
-            "
-          >
-            <template #suffix>
-              <label class="label">
-                <span
-                  v-for="(char, index) in labelText"
-                  :key="index"
-                  class="label-char"
-                  :style="{ '--index': index }"
+              "
+              @focus="
+                () =>
+                  handleFocusUnregister(
+                    hotkey.name,
+                    getHotkeyValue(store, hotkey.name)
+                  )
+              "
+            >
+              <template #suffix>
+                <label class="label">
+                  <span
+                    v-for="(char, index) in labelText"
+                    :key="index"
+                    class="label-char"
+                    :style="{ '--index': index }"
+                  >
+                    {{ char }}
+                  </span>
+                </label>
+              </template>
+              <template #append>
+                <CustomButton
+                  v-if="getHotkeyValue(store, hotkey.name)"
+                  type="default"
+                  size="small"
+                  class="button-shortcut"
+                  @click="
+                    () =>
+                      registerHandler(
+                        hotkey.name,
+                        getHotkeyValue(store, hotkey.name)
+                      )
+                  "
                 >
-                  {{ char }}
-                </span>
-              </label>
-            </template>
-            <template #append>
-              <CustomButton
-                v-if="getHotkeyValue(store, hotkey.name)"
-                type="default"
-                size="small"
-                class="button-shortcut"
-                @click="
-                  () =>
-                    registerHandler(
-                      hotkey.name,
-                      getHotkeyValue(store, hotkey.name)
-                    )
-                "
-              >
-                {{ $t('shortcut.register') }}
-              </CustomButton>
-            </template>
-          </el-input>
-        </div>
-      </section>
+                  {{ $t('shortcut.register') }}
+                </CustomButton>
+              </template>
+            </el-input>
+          </div>
+        </section>
+      </div>
     </main>
   </div>
 </template>

@@ -1,28 +1,59 @@
 <template>
   <div class="settings-container">
     <!-- 左侧导航 -->
-    <div class="settings-sidebar">
-      <div
-        v-for="(item, index) in menuItems"
-        :key="index"
-        :class="['settings-menu-item', { active: activeTab === item.id }]"
-        @click="switchTab(item.id)"
+    <aside
+      v-show="!layoutStore.categoryPanelCollapsed"
+      class="settings-sidebar"
+    >
+      <h1
+        class="mb-4 truncate px-2 text-ui-title font-semibold text-[var(--workspace-nav-heading)]"
       >
-        <component
-          :is="item.icon"
-          class="mr-2"
-          theme="outline"
-          size="18"
-          :strokeWidth="3"
-        />
-        <span class="settings-menu-label" :title="item.label">
-          {{ item.label }}
-        </span>
-      </div>
-    </div>
+        {{ t('titlebar.settings') }}
+      </h1>
+      <nav
+        class="min-h-0 flex-1 overflow-y-auto"
+        :aria-label="t('titlebar.settings')"
+      >
+        <section v-for="group in menuGroups" :key="group.id" class="mb-7">
+          <h2 class="mb-2 px-2 text-ui text-[var(--workspace-nav-muted)]">
+            {{ group.label }}
+          </h2>
+          <button
+            v-for="item in group.items"
+            :key="item.id"
+            type="button"
+            :class="[
+              'ui-menu-item mb-ui-row-gap w-full px-2 text-left',
+              {
+                active: activeTab === item.id,
+                'font-medium': activeTab === item.id
+              }
+            ]"
+            :aria-current="activeTab === item.id ? 'page' : undefined"
+            @click="switchTab(item.id)"
+          >
+            <component
+              :is="item.icon"
+              class="shrink-0"
+              theme="outline"
+              size="18"
+            />
+            <span class="settings-menu-label" :title="item.label">
+              {{ item.label }}
+            </span>
+          </button>
+        </section>
+        <p
+          v-if="!menuGroups.length"
+          class="px-2 text-ui-caption text-[var(--workspace-nav-muted)]"
+        >
+          {{ t('common.empty') }}
+        </p>
+      </nav>
+    </aside>
 
     <!-- 右侧内容区 -->
-    <div class="settings-content">
+    <div ref="settingsContentRef" class="settings-content">
       <component
         v-for="tab in loadedTabs"
         :key="componentKey(tab)"
@@ -47,7 +78,7 @@ import {
   pluginSettingsMenuItems,
   type PluginSettingsMenuItem
 } from '@/plugins/settings';
-import { usePluginStore } from '@/store';
+import { useLayoutStore, usePluginStore } from '@/store';
 import { defineAsyncComponent } from 'vue';
 
 defineOptions({
@@ -57,9 +88,10 @@ defineOptions({
 const { t } = useI18n();
 const route = useRoute();
 const pluginStore = usePluginStore();
+const layoutStore = useLayoutStore();
 
 /** Git 插件启用后即显示设置入口；必要配置在个人中心完成，不能再把入口藏起来。 */
-const canShowGitSyncTab = ref(false);
+const canShowGitSyncTab = computed(() => pluginStore.isEnabled('git-sync'));
 
 const coreMenuItems: PluginSettingsMenuItem[] = [
   { id: 'workbench', labelKey: 'settings.workbench.menu', icon: WorkbenchIcon },
@@ -107,8 +139,29 @@ const menuItems = computed(() => {
     });
 });
 
-const activeTab = ref('workbench');
-const loadedTabs = ref<string[]>(['workbench']); // 已加载的 tab
+const activeTab = ref('general');
+const settingsContentRef = ref<HTMLElement>();
+watch(activeTab, async () => {
+  await nextTick();
+  settingsContentRef.value?.scrollTo({ top: 0 });
+});
+const menuGroups = computed(() => {
+  const visibleItems = menuItems.value;
+  const coreIds = new Set(coreMenuItems.map((item) => item.id));
+  return [
+    {
+      id: 'application',
+      label: t('settings.applicationSettings'),
+      items: visibleItems.filter((item) => coreIds.has(item.id))
+    },
+    {
+      id: 'extensions',
+      label: t('settings.extensionSettings'),
+      items: visibleItems.filter((item) => !coreIds.has(item.id))
+    }
+  ].filter((group) => group.items.length);
+});
+const loadedTabs = ref<string[]>(['general']); // 已加载的 tab
 const WorkbenchOverview = defineAsyncComponent(
   () => import('./components/Workbench/index.vue')
 );
@@ -163,18 +216,6 @@ const componentMap = computed<Record<string, any>>(() => {
   };
 });
 
-async function refreshCanShowGitSyncTab() {
-  canShowGitSyncTab.value = pluginStore.isEnabled('git-sync');
-}
-
-// 插件在当前设置页安装、启用或禁用后，立即同步 Git Tab 可见性。
-watch(
-  () => pluginStore.runtimeRevision,
-  () => {
-    void refreshCanShowGitSyncTab();
-  }
-);
-
 // 切换 tab
 const switchTab = (tabId: string) => {
   if (tabId === 'gitSync' && !canShowGitSyncTab.value) return;
@@ -226,16 +267,12 @@ watch(
   }
 );
 
-// 监听路由 query 参数变化（进入设置页或切到 gitSync 时先刷新 Tab 显示条件，避免从个人中心保存后不显示）
+// 路由入口与菜单点击共用插件启用状态检查。
 watch(
   () => route.query.tab,
   (newTab) => {
     if (newTab && typeof newTab === 'string') {
-      if (newTab === 'gitSync') {
-        refreshCanShowGitSyncTab().then(() => switchTab(newTab));
-      } else {
-        switchTab(newTab);
-      }
+      switchTab(newTab);
     }
   },
   { immediate: true }
@@ -244,7 +281,6 @@ watch(
 onMounted(async () => {
   await pluginStore.initialize();
   await pluginStore.loadEnabledPluginEntries();
-  await refreshCanShowGitSyncTab();
   const tabFromQuery = route.query.tab;
   if (tabFromQuery && typeof tabFromQuery === 'string') {
     if (tabFromQuery === 'gitSync' && !canShowGitSyncTab.value) {
@@ -258,49 +294,62 @@ onMounted(async () => {
 
 <style scoped lang="scss">
 .settings-container {
-  @apply flex h-full w-full border border-panel rounded-md overflow-hidden;
+  @apply flex h-full w-full overflow-hidden font-ui text-ui;
 }
 
 .settings-sidebar {
-  @apply w-52 border-r border-panel py-4 overflow-y-auto bg-panel px-2;
+  @apply flex w-[var(--workspace-sidebar-width)] min-h-0 flex-col border-r py-4 bg-[var(--workspace-nav-bg)] px-2;
 
-  flex: 0 0 13rem;
-}
-
-.settings-menu-item {
-  @apply flex items-center min-w-0 py-1.5 px-2 my-1.5 last:mb-0 text-panel rounded-md hover:bg-hover dark:hover:bg-hover dark:text-panel cursor-pointer transition-colors;
-
-  position: relative;
-  border: 1px solid transparent;
-
-  &.active {
-    color: var(--categories-text-color);
-    background-color: var(--search-result-active);
-    border-color: var(--search-result-active-border);
-
-    &::before {
-      position: absolute;
-      top: 7px;
-      bottom: 7px;
-      left: 0;
-      width: 3px;
-      pointer-events: none;
-      content: '';
-      background: var(--search-result-accent);
-      border-radius: 0 999px 999px 0;
-    }
-  }
+  flex: 0 0 var(--workspace-sidebar-width);
+  border-color: var(--settings-divider);
 }
 
 .settings-menu-label {
   min-width: 0;
   overflow: hidden;
-  font-size: 0.875rem;
+  font-size: var(--app-ui-font-size);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .settings-content {
-  @apply bg-panel flex-1 overflow-hidden p-4;
+  @apply min-w-0 flex-1 overflow-y-auto bg-[var(--settings-surface)] px-6 pb-6 pt-8;
+
+  --categories-panel-bg: var(--settings-surface);
+  --categories-content-bg: var(--settings-surface);
+  --categories-text-color: var(--workspace-nav-heading);
+  --categories-info-text-color: var(--settings-muted);
+  --categories-border-color: var(--settings-border);
+  --categories-panel-bg-hover: var(--workspace-nav-selected);
+  --panel-text: var(--workspace-nav-heading);
+  --panel-text-secondary: var(--settings-muted);
+  --el-text-color-primary: var(--workspace-nav-heading);
+  --el-text-color-regular: var(--workspace-nav-text);
+  --el-text-color-secondary: var(--settings-muted);
+  --el-border-color: var(--settings-border);
+  --el-border-color-light: var(--settings-border);
+  --el-fill-color-blank: var(--settings-surface);
+  --el-bg-color: var(--settings-surface);
+  --el-component-size: var(--settings-control-height);
+
+  color: var(--workspace-nav-heading);
+}
+
+@media (width <= 960px) {
+  .settings-sidebar {
+    @apply w-[220px];
+
+    flex-basis: 220px;
+  }
+
+  .settings-content {
+    @apply px-5;
+  }
+}
+
+@media (height <= 760px) {
+  .settings-content {
+    @apply pt-6;
+  }
 }
 </style>

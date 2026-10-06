@@ -1016,7 +1016,7 @@ defineExpose({
   scrollbar-color: transparent transparent;
 
   &:hover {
-    scrollbar-color: rgb(128 128 128 / 30%) transparent;
+    scrollbar-color: var(--app-scrollbar-thumb) transparent;
   }
 }
 

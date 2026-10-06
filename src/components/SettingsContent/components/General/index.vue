@@ -7,137 +7,159 @@
 
     <!-- 可滚动内容 -->
     <main class="panel-content">
-      <section class="summarize-section">
-        <div class="summarize-label">
-          <div class="summarize-label-title">{{ $t('settings.theme') }}</div>
-          <div class="summarize-label-desc">{{ $t('settings.themeDesc') }}</div>
-        </div>
-        <div class="summarize-input-wrapper">
-          <el-select
-            class="summarize-input !w-32"
-            v-model="store.theme"
-            @change="changeTheme"
-          >
-            <el-option
-              v-for="item in dictTheme"
-              :key="item.value"
-              :label="item.label"
-              :value="item.value"
-            >
-              <div class="flex items-center gap-2">
-                <component :is="item.icon" />
-                <div :class="{ 'text-primary': item.value === store.theme }">
-                  {{ item.label }}
-                </div>
+      <section class="settings-group">
+        <h4 class="settings-group-title">
+          {{ $t('settings.appearanceGroup') }}
+        </h4>
+        <div class="settings-card">
+          <section class="summarize-section">
+            <div class="summarize-label">
+              <div class="summarize-label-title">
+                {{ $t('settings.theme') }}
               </div>
-            </el-option>
-          </el-select>
-        </div>
-      </section>
-
-      <section class="summarize-section">
-        <div class="summarize-label">
-          <div class="summarize-label-title">{{ $t('settings.language') }}</div>
-          <div class="summarize-label-desc">
-            {{ $t('settings.languageDesc') }}
-          </div>
-        </div>
-        <div class="summarize-input-wrapper">
-          <el-select
-            class="summarize-input !w-32"
-            v-model="store.language"
-            @change="changeLanguage"
-          >
-            <el-option
-              v-for="item in dictLanguage"
-              :key="item.value"
-              :label="item.label"
-              :value="item.value"
-            >
-              <div class="flex items-center gap-2">
-                <span>{{ item.flag }}</span>
-                <div :class="{ 'text-primary': item.value === store.language }">
-                  {{ item.label }}
-                </div>
+              <div class="summarize-label-desc">
+                {{ $t('settings.themeDesc') }}
               </div>
-            </el-option>
-          </el-select>
+            </div>
+            <div class="summarize-input-wrapper">
+              <el-select
+                class="summarize-input !w-32"
+                popper-class="settings-select-popper"
+                v-model="store.theme"
+                @change="changeTheme"
+              >
+                <el-option
+                  v-for="item in dictTheme"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value"
+                >
+                  <div class="flex items-center gap-2">
+                    <component :is="item.icon" />
+                    <div
+                      :class="{ 'text-primary': item.value === store.theme }"
+                    >
+                      {{ item.label }}
+                    </div>
+                  </div>
+                </el-option>
+              </el-select>
+            </div>
+          </section>
+          <section class="summarize-section">
+            <div class="summarize-label">
+              <div class="summarize-label-title">
+                {{ $t('settings.language') }}
+              </div>
+              <div class="summarize-label-desc">
+                {{ $t('settings.languageDesc') }}
+              </div>
+            </div>
+            <div class="summarize-input-wrapper">
+              <el-select
+                class="summarize-input !w-32"
+                popper-class="settings-select-popper"
+                v-model="store.language"
+                @change="changeLanguage"
+              >
+                <el-option
+                  v-for="item in dictLanguage"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value"
+                >
+                  <div class="flex items-center gap-2">
+                    <span>{{ item.flag }}</span>
+                    <div
+                      :class="{ 'text-primary': item.value === store.language }"
+                    >
+                      {{ item.label }}
+                    </div>
+                  </div>
+                </el-option>
+              </el-select>
+            </div>
+          </section>
         </div>
       </section>
+      <section class="settings-group">
+        <h4 class="settings-group-title">
+          {{ $t('settings.applicationGroup') }}
+        </h4>
+        <div class="settings-card">
+          <section class="summarize-section">
+            <div class="summarize-label">
+              <div class="summarize-label-title">
+                {{ $t('settings.autoStart') }}
+              </div>
+              <div class="summarize-label-desc">
+                {{ $t('settings.autoStartDesc') }}
+              </div>
+            </div>
+            <div class="summarize-input-wrapper">
+              <CustomSwitch
+                v-model="store.autoStart"
+                :aria-label="$t('settings.autoStart')"
+                @change="handleAutoStartChange"
+              />
+            </div>
+          </section>
 
-      <section class="summarize-section">
-        <div class="summarize-label">
-          <div class="summarize-label-title">
-            {{ $t('settings.autoStart') }}
-          </div>
-          <div class="summarize-label-desc">
-            {{ $t('settings.autoStartDesc') }}
-          </div>
-        </div>
-        <div class="summarize-input-wrapper">
-          <CustomSwitch
-            v-model="store.autoStart"
-            :active-text="$t('common.on')"
-            :inactive-text="$t('common.off')"
-            @change="handleAutoStartChange"
-          />
-        </div>
-      </section>
+          <section class="summarize-section">
+            <div class="summarize-label">
+              <div class="summarize-label-title">
+                {{ $t('settings.autoUpdateCheck') }}
+              </div>
+              <div class="summarize-label-desc">
+                {{ $t('settings.autoUpdateCheckDesc') }}
+              </div>
+            </div>
+            <div class="summarize-input-wrapper">
+              <CustomSwitch
+                v-model="store.autoUpdateCheck"
+                :aria-label="$t('settings.autoUpdateCheck')"
+                @change="toggleAutoUpdateCheck"
+              />
+            </div>
+          </section>
 
-      <section class="summarize-section">
-        <div class="summarize-label">
-          <div class="summarize-label-title">
-            {{ $t('settings.autoUpdateCheck') }}
-          </div>
-          <div class="summarize-label-desc">
-            {{ $t('settings.autoUpdateCheckDesc') }}
-          </div>
-        </div>
-        <div class="summarize-input-wrapper">
-          <CustomSwitch
-            v-model="store.autoUpdateCheck"
-            :active-text="$t('common.on')"
-            :inactive-text="$t('common.off')"
-            @change="toggleAutoUpdateCheck"
-          />
-        </div>
-      </section>
+          <section class="summarize-section">
+            <div class="summarize-label">
+              <div class="summarize-label-title">
+                {{ $t('settings.autoHideOnBlur') }}
+              </div>
+              <div class="summarize-label-desc">
+                {{ $t('settings.autoHideOnBlurDesc') }}
+              </div>
+            </div>
+            <div class="summarize-input-wrapper">
+              <CustomSwitch
+                v-model="store.autoHideOnBlur"
+                :aria-label="$t('settings.autoHideOnBlur')"
+                @change="toggleAutoHideOnBlur"
+              />
+            </div>
+          </section>
 
-      <section class="summarize-section">
-        <div class="summarize-label">
-          <div class="summarize-label-title">
-            {{ $t('settings.autoHideOnBlur') }}
-          </div>
-          <div class="summarize-label-desc">
-            {{ $t('settings.autoHideOnBlurDesc') }}
-          </div>
-        </div>
-        <div class="summarize-input-wrapper">
-          <CustomSwitch
-            v-model="store.autoHideOnBlur"
-            :active-text="$t('common.on')"
-            :inactive-text="$t('common.off')"
-            @change="toggleAutoHideOnBlur"
-          />
-        </div>
-      </section>
-
-      <section class="summarize-section">
-        <div class="summarize-label">
-          <div class="summarize-label-title">{{ $t('settings.exitApp') }}</div>
-          <div class="summarize-label-desc">
-            {{ $t('settings.exitAppDesc') }}
-          </div>
-        </div>
-        <div class="summarize-input-wrapper">
-          <CustomButton
-            type="primary"
-            size="small"
-            :loading="exitApplicationLoading"
-            @click="exitApplication"
-          >
-            {{ $t('settings.exitApp') }}
-          </CustomButton>
+          <section class="summarize-section">
+            <div class="summarize-label">
+              <div class="summarize-label-title">
+                {{ $t('settings.exitApp') }}
+              </div>
+              <div class="summarize-label-desc">
+                {{ $t('settings.exitAppDesc') }}
+              </div>
+            </div>
+            <div class="summarize-input-wrapper">
+              <CustomButton
+                size="small"
+                :loading="exitApplicationLoading"
+                @click="exitApplication"
+              >
+                {{ $t('settings.exitApp') }}
+              </CustomButton>
+            </div>
+          </section>
         </div>
       </section>
     </main>
@@ -309,9 +331,3 @@ onMounted(async () => {
   watchAutoStart();
 });
 </script>
-
-<style scoped lang="scss">
-.text-primary {
-  color: var(--el-color-primary);
-}
-</style>

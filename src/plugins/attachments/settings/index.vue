@@ -7,171 +7,175 @@
 
     <!-- 可滚动内容 -->
     <main class="panel-content">
-      <!-- 编辑器行距 -->
-      <section class="summarize-section">
-        <div class="summarize-label">
-          <div class="summarize-label-title">
-            {{ $t('settings.editorLineHeight') }}
+      <div class="settings-card attachment-settings-card">
+        <!-- 编辑器行距 -->
+        <section class="summarize-section">
+          <div class="summarize-label">
+            <div class="summarize-label-title">
+              {{ $t('settings.editorLineHeight') }}
+            </div>
+            <div class="summarize-label-desc">
+              {{ $t('settings.editorLineHeightDesc') }}
+            </div>
           </div>
-          <div class="summarize-label-desc">
-            {{ $t('settings.editorLineHeightDesc') }}
-          </div>
-        </div>
-        <div class="summarize-input-wrapper line-height-control">
-          <el-slider
-            v-model="editorLineHeightDraft"
-            :min="1.2"
-            :max="2"
-            :step="0.05"
-            :show-tooltip="false"
-            @change="changeEditorLineHeight"
-          />
-          <span class="line-height-value">
-            {{ editorLineHeightDraft.toFixed(2) }}
-          </span>
-        </div>
-      </section>
-
-      <!-- 图片默认缩放 -->
-      <section class="summarize-section">
-        <div class="summarize-label">
-          <div class="summarize-label-title">
-            {{ $t('settings.attachment.defaultImageScale') }}
-          </div>
-          <div class="summarize-label-desc">
-            {{ $t('settings.attachment.defaultImageScaleHint') }}
-          </div>
-        </div>
-        <div class="summarize-input-wrapper image-scale-control">
-          <el-slider
-            v-model="config.defaultImageScalePercent"
-            :min="25"
-            :max="200"
-            :step="5"
-            :show-tooltip="false"
-            :disabled="isSaving"
-            @change="changeDefaultImageScale"
-          />
-          <span class="image-scale-value">
-            {{ config.defaultImageScalePercent }}%
-          </span>
-        </div>
-      </section>
-
-      <!-- 图片响应式适配 -->
-      <section class="summarize-section">
-        <div class="summarize-label">
-          <div class="summarize-label-title">
-            {{ $t('settings.attachment.responsiveImages') }}
-          </div>
-          <div class="summarize-label-desc">
-            {{ $t('settings.attachment.responsiveImagesHint') }}
-          </div>
-        </div>
-        <div class="summarize-input-wrapper">
-          <CustomSwitch
-            :model-value="config.responsiveImages"
-            :disabled="isSaving"
-            :active-text="$t('common.on')"
-            :inactive-text="$t('common.off')"
-            @change="
-              (value) => toggleAttachmentOption('responsiveImages', value)
-            "
-          />
-        </div>
-      </section>
-
-      <!-- 图片附件路径 -->
-      <section class="summarize-section">
-        <div class="summarize-label">
-          <div class="summarize-label-title">
-            {{ $t('settings.attachment.showImagePath') }}
-          </div>
-          <div class="summarize-label-desc">
-            {{ $t('settings.attachment.showImagePathHint') }}
-          </div>
-        </div>
-        <div class="summarize-input-wrapper">
-          <CustomSwitch
-            :model-value="config.showImagePath"
-            :disabled="isSaving"
-            :active-text="$t('common.on')"
-            :inactive-text="$t('common.off')"
-            @change="(value) => toggleAttachmentOption('showImagePath', value)"
-          />
-        </div>
-      </section>
-
-      <!-- 附件路径模板 -->
-      <section class="summarize-section transparent-input">
-        <div class="summarize-label">
-          <div class="summarize-label-title">
-            {{ $t('settings.attachment.pathTemplate') }}
-          </div>
-          <div class="summarize-label-desc">
-            {{ $t('settings.attachment.pathTemplateHint') }}
-          </div>
-        </div>
-        <div class="summarize-input-wrapper">
-          <el-input
-            class="summarize-input"
-            v-model="config.pathTemplate"
-            :placeholder="$t('settings.attachment.pathTemplatePlaceholder')"
-            :disabled="isSaving"
-            @blur="handleConfigChange"
-          />
-        </div>
-      </section>
-
-      <!-- 文件名生成格式 -->
-      <section class="summarize-section transparent-input">
-        <div class="summarize-label">
-          <div class="summarize-label-title">
-            {{ $t('settings.attachment.filenameFormat') }}
-          </div>
-          <div class="summarize-label-desc">
-            {{ $t('settings.attachment.filenameFormatHint') }}
-          </div>
-        </div>
-        <div class="summarize-input-wrapper">
-          <el-select
-            class="summarize-input !w-64"
-            v-model="config.filenameFormat"
-            :disabled="isSaving"
-            @change="handleConfigChange"
-          >
-            <el-option
-              :label="$t('settings.attachment.formatObsidian')"
-              value="obsidian"
+          <div class="summarize-input-wrapper line-height-control">
+            <el-slider
+              v-model="editorLineHeightDraft"
+              :min="1.2"
+              :max="2"
+              :step="0.05"
+              :show-tooltip="false"
+              @change="changeEditorLineHeight"
             />
-            <el-option
-              :label="$t('settings.attachment.formatSimple')"
-              value="simple"
-            />
-            <el-option
-              :label="$t('settings.attachment.formatUuid')"
-              value="uuid"
-            />
-          </el-select>
-        </div>
-      </section>
+            <span class="line-height-value">
+              {{ editorLineHeightDraft.toFixed(2) }}
+            </span>
+          </div>
+        </section>
 
-      <!-- 路径预览 -->
-      <section class="summarize-section transparent-input">
-        <div class="summarize-label">
-          <div class="summarize-label-title">
-            {{ $t('settings.attachment.pathPreview') }}
+        <!-- 图片默认缩放 -->
+        <section class="summarize-section">
+          <div class="summarize-label">
+            <div class="summarize-label-title">
+              {{ $t('settings.attachment.defaultImageScale') }}
+            </div>
+            <div class="summarize-label-desc">
+              {{ $t('settings.attachment.defaultImageScaleHint') }}
+            </div>
           </div>
-          <div class="summarize-label-desc">
-            {{ $t('settings.attachment.pathPreviewHint') }}
+          <div class="summarize-input-wrapper image-scale-control">
+            <el-slider
+              v-model="config.defaultImageScalePercent"
+              :min="25"
+              :max="200"
+              :step="5"
+              :show-tooltip="false"
+              :disabled="isSaving"
+              @change="changeDefaultImageScale"
+            />
+            <span class="image-scale-value">
+              {{ config.defaultImageScalePercent }}%
+            </span>
           </div>
-        </div>
-        <div class="summarize-input-wrapper">
-          <div class="preview-box">
-            <code>{{ previewPath }}</code>
+        </section>
+
+        <!-- 图片响应式适配 -->
+        <section class="summarize-section">
+          <div class="summarize-label">
+            <div class="summarize-label-title">
+              {{ $t('settings.attachment.responsiveImages') }}
+            </div>
+            <div class="summarize-label-desc">
+              {{ $t('settings.attachment.responsiveImagesHint') }}
+            </div>
           </div>
-        </div>
-      </section>
+          <div class="summarize-input-wrapper">
+            <CustomSwitch
+              :model-value="config.responsiveImages"
+              :disabled="isSaving"
+              :active-text="$t('common.on')"
+              :inactive-text="$t('common.off')"
+              @change="
+                (value) => toggleAttachmentOption('responsiveImages', value)
+              "
+            />
+          </div>
+        </section>
+
+        <!-- 图片附件路径 -->
+        <section class="summarize-section">
+          <div class="summarize-label">
+            <div class="summarize-label-title">
+              {{ $t('settings.attachment.showImagePath') }}
+            </div>
+            <div class="summarize-label-desc">
+              {{ $t('settings.attachment.showImagePathHint') }}
+            </div>
+          </div>
+          <div class="summarize-input-wrapper">
+            <CustomSwitch
+              :model-value="config.showImagePath"
+              :disabled="isSaving"
+              :active-text="$t('common.on')"
+              :inactive-text="$t('common.off')"
+              @change="
+                (value) => toggleAttachmentOption('showImagePath', value)
+              "
+            />
+          </div>
+        </section>
+
+        <!-- 附件路径模板 -->
+        <section class="summarize-section transparent-input">
+          <div class="summarize-label">
+            <div class="summarize-label-title">
+              {{ $t('settings.attachment.pathTemplate') }}
+            </div>
+            <div class="summarize-label-desc">
+              {{ $t('settings.attachment.pathTemplateHint') }}
+            </div>
+          </div>
+          <div class="summarize-input-wrapper">
+            <el-input
+              class="summarize-input"
+              v-model="config.pathTemplate"
+              :placeholder="$t('settings.attachment.pathTemplatePlaceholder')"
+              :disabled="isSaving"
+              @blur="handleConfigChange"
+            />
+          </div>
+        </section>
+
+        <!-- 文件名生成格式 -->
+        <section class="summarize-section transparent-input">
+          <div class="summarize-label">
+            <div class="summarize-label-title">
+              {{ $t('settings.attachment.filenameFormat') }}
+            </div>
+            <div class="summarize-label-desc">
+              {{ $t('settings.attachment.filenameFormatHint') }}
+            </div>
+          </div>
+          <div class="summarize-input-wrapper">
+            <el-select
+              class="summarize-input !w-64"
+              v-model="config.filenameFormat"
+              :disabled="isSaving"
+              @change="handleConfigChange"
+            >
+              <el-option
+                :label="$t('settings.attachment.formatObsidian')"
+                value="obsidian"
+              />
+              <el-option
+                :label="$t('settings.attachment.formatSimple')"
+                value="simple"
+              />
+              <el-option
+                :label="$t('settings.attachment.formatUuid')"
+                value="uuid"
+              />
+            </el-select>
+          </div>
+        </section>
+
+        <!-- 路径预览 -->
+        <section class="summarize-section transparent-input">
+          <div class="summarize-label">
+            <div class="summarize-label-title">
+              {{ $t('settings.attachment.pathPreview') }}
+            </div>
+            <div class="summarize-label-desc">
+              {{ $t('settings.attachment.pathPreviewHint') }}
+            </div>
+          </div>
+          <div class="summarize-input-wrapper">
+            <div class="preview-box">
+              <code>{{ previewPath }}</code>
+            </div>
+          </div>
+        </section>
+      </div>
     </main>
   </div>
 </template>
@@ -295,6 +299,15 @@ onMounted(async () => {
 </script>
 
 <style lang="scss" scoped>
+@media (width <= 960px) {
+  // This private breakpoint takes precedence over the shared settings row.
+  .attachment-settings-card.settings-card
+    > .summarize-section:not(.transparent-input),
+  .attachment-settings-card > .summarize-section.transparent-input {
+    @apply flex-col items-stretch gap-2;
+  }
+}
+
 .preview-box {
   @apply bg-content border border-panel rounded px-3 py-2;
 

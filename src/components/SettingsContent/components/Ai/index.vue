@@ -26,53 +26,55 @@
         </div>
       </section>
 
-      <section
-        v-for="capability in capabilities"
-        :key="capability"
-        class="ai-provider-row"
-      >
-        <div class="provider-label">
-          <div class="provider-title">{{ capabilityLabel(capability) }}</div>
-          <div class="provider-desc">
-            {{ capabilityDescription(capability) }}
-          </div>
-          <div
-            v-if="preferenceUnavailable(capability)"
-            class="provider-warning"
-          >
-            {{
-              t('settings.ai.preferenceUnavailable', {
-                provider: selectedProviderIds[capability]
-              })
-            }}
-          </div>
-        </div>
-
-        <div class="provider-control">
-          <el-select
-            v-model="selectedProviderIds[capability]"
-            class="provider-select"
-            :disabled="loading"
-            :loading="savingCapability === capability"
-            @change="
-              (value) => handlePreferenceChange(capability, String(value))
-            "
-          >
-            <el-option :label="t('settings.ai.automatic')" value="" />
-            <el-option
-              v-for="provider in providersByCapability[capability]"
-              :key="provider.id"
-              :label="provider.label"
-              :value="provider.id"
+      <div class="settings-card mt-4">
+        <section
+          v-for="capability in capabilities"
+          :key="capability"
+          class="ai-provider-row"
+        >
+          <div class="provider-label">
+            <div class="provider-title">{{ capabilityLabel(capability) }}</div>
+            <div class="provider-desc">
+              {{ capabilityDescription(capability) }}
+            </div>
+            <div
+              v-if="preferenceUnavailable(capability)"
+              class="provider-warning"
             >
-              <div class="provider-option">
-                <span>{{ provider.label }}</span>
-                <small>{{ providerMeta(provider) }}</small>
-              </div>
-            </el-option>
-          </el-select>
-        </div>
-      </section>
+              {{
+                t('settings.ai.preferenceUnavailable', {
+                  provider: selectedProviderIds[capability]
+                })
+              }}
+            </div>
+          </div>
+
+          <div class="provider-control">
+            <el-select
+              v-model="selectedProviderIds[capability]"
+              class="provider-select"
+              :disabled="loading"
+              :loading="savingCapability === capability"
+              @change="
+                (value) => handlePreferenceChange(capability, String(value))
+              "
+            >
+              <el-option :label="t('settings.ai.automatic')" value="" />
+              <el-option
+                v-for="provider in providersByCapability[capability]"
+                :key="provider.id"
+                :label="provider.label"
+                :value="provider.id"
+              >
+                <div class="provider-option">
+                  <span>{{ provider.label }}</span>
+                  <small>{{ providerMeta(provider) }}</small>
+                </div>
+              </el-option>
+            </el-select>
+          </div>
+        </section>
+      </div>
 
       <section v-if="!enabledProviderCount" class="provider-empty">
         {{ t('settings.ai.noProviders') }}

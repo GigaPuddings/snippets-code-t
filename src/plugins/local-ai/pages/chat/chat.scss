@@ -1,12 +1,12 @@
 .local-ai-chat-shell {
   --chat-readable-width: 1032px;
-  --chat-sidebar-width: 270px;
+  --chat-sidebar-width: 308px;
 
   @apply grid w-full h-full min-h-0 text-chat bg-chat-bg;
 
   grid-template-columns: var(--chat-sidebar-width) minmax(0, 1fr);
-  gap: 7px;
-  padding: 0 7px 2px;
+  gap: 0;
+  padding: 0;
   transition: grid-template-columns 0.18s ease;
 }
 
@@ -16,7 +16,11 @@
 
 .chat-sidebar,
 .chat-panel {
-  @apply min-h-0 bg-chat-panel border border-chat rounded-md shadow-chat-sm;
+  @apply min-h-0 bg-chat-panel;
+
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .chat-sidebar {
@@ -25,6 +29,7 @@
   width: var(--chat-sidebar-width);
   max-width: var(--chat-sidebar-width);
   padding: 16px 14px 12px;
+  border-right: 1px solid var(--chat-border);
   transition:
     width 0.18s ease,
     max-width 0.18s ease,
@@ -344,7 +349,7 @@
 .chat-panel {
   @apply flex relative flex-col overflow-hidden;
 
-  padding: 0 24px 16px;
+  padding: 0 32px 16px;
 }
 
 .chat-panel-header {

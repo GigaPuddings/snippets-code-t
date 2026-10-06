@@ -330,13 +330,13 @@ onUnmounted(() => {
 
 <style scoped lang="scss">
 .todo-container {
-  @apply w-full h-full flex flex-col overflow-hidden p-4 pt-2 text-panel;
+  @apply w-full h-full flex flex-col overflow-hidden px-8 py-7 text-panel bg-panel;
 
   .todo-toolbar {
-    @apply flex items-center justify-between gap-3 px-3 py-2 mb-3 rounded-md bg-panel border border-panel;
+    @apply flex items-center justify-between gap-3 px-0 py-3 mb-5 bg-panel border-b border-panel;
 
     .todo-toolbar__summary {
-      @apply flex items-center gap-2 min-w-0 text-sm font-semibold text-panel;
+      @apply flex items-center gap-2 min-w-0 text-[28px] font-semibold text-panel;
 
       strong {
         @apply inline-flex items-center justify-center min-w-6 h-6 px-1 rounded-md text-xs;

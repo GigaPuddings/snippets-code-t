@@ -1,5 +1,5 @@
 <template>
-  <section class="rounded-lg border border-panel bg-panel px-4 pb-2">
+  <section class="settings-card bg-panel pb-2">
     <div class="border-b border-panel py-3">
       <h4 class="text-sm font-semibold text-panel">
         {{ t('dataManager.cleanupTitle') }}

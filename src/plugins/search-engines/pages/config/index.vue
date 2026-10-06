@@ -540,18 +540,18 @@ const handleIconError = async (engine: SearchEngineConfig) => {
 }
 
 .retrieve-container {
-  @apply relative w-full h-full overflow-hidden p-4 pt-2 text-panel;
+  @apply relative w-full h-full overflow-hidden px-8 py-7 text-panel bg-panel;
 
   .search-config {
     @apply h-full flex flex-col min-h-0;
 
     .config-title {
-      @apply flex items-center justify-between gap-4 mb-2 px-4 py-2.5 rounded-md border border-panel;
+      @apply flex items-center justify-between gap-4 mb-5 px-0 py-3 border-b border-panel;
 
       background: var(--search-card-bg);
 
       .title-text {
-        @apply text-base font-semibold text-panel;
+        @apply text-[28px] font-semibold text-panel;
       }
 
       .header-actions {
