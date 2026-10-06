@@ -1,41 +1,77 @@
 <template>
   <div class="category-header-list">
-    <div class="category-header-title">{{ $t('category.folders') }}</div>
+    <div class="ui-section-heading">
+      {{ viewLabel || $t('category.folders') }}
+    </div>
     <div class="category-header-action">
       <el-tooltip
+        v-if="viewLabel"
         effect="light"
-        :content="$t('category.newFolder')"
+        :content="$t('category.backToFolders')"
         placement="bottom"
       >
-        <FolderPlus
-          class="category-header-action-item-icon"
-          theme="outline"
-          size="16"
-          :strokeWidth="3"
-          @click="handleAdd"
-        />
+        <button
+          type="button"
+          class="ui-icon-button ui-icon-button--small"
+          :aria-label="$t('category.backToFolders')"
+          @click="$emit('back')"
+        >
+          <ArrowLeft theme="outline" size="16" />
+        </button>
       </el-tooltip>
-      <el-tooltip
-        effect="light"
-        :content="
-          sortOrder === 'asc'
-            ? $t('category.ascending')
-            : $t('category.descending')
-        "
-        placement="bottom"
-      >
-        <component
-          class="category-header-action-item-icon"
-          :is="sortOrder === 'asc' ? SortAmountUp : SortAmountDown"
-          @click="handleSort"
-        />
-      </el-tooltip>
+      <template v-else>
+        <el-tooltip
+          effect="light"
+          :content="$t('category.newFolder')"
+          placement="bottom"
+        >
+          <button
+            type="button"
+            class="ui-icon-button ui-icon-button--small"
+            :aria-label="$t('category.newFolder')"
+            @click="handleAdd"
+          >
+            <Add theme="outline" size="16" />
+          </button>
+        </el-tooltip>
+        <el-tooltip
+          effect="light"
+          :content="
+            sortOrder === 'asc'
+              ? $t('category.ascending')
+              : $t('category.descending')
+          "
+          placement="bottom"
+        >
+          <button
+            type="button"
+            class="ui-icon-button ui-icon-button--small"
+            :aria-label="
+              sortOrder === 'asc'
+                ? $t('category.ascending')
+                : $t('category.descending')
+            "
+            @click="handleSort"
+          >
+            <component
+              :is="sortOrder === 'asc' ? SortAmountUp : SortAmountDown"
+              theme="outline"
+              size="16"
+            />
+          </button>
+        </el-tooltip>
+      </template>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { SortAmountUp, SortAmountDown, FolderPlus } from '@icon-park/vue-next';
+import {
+  SortAmountUp,
+  SortAmountDown,
+  Add,
+  ArrowLeft
+} from '@icon-park/vue-next';
 
 /**
  * CategoryHeader 组件 Props
@@ -43,6 +79,7 @@ import { SortAmountUp, SortAmountDown, FolderPlus } from '@icon-park/vue-next';
 interface CategoryHeaderProps {
   /** 排序方式：'asc' 升序 | 'desc' 降序 */
   sortOrder: 'asc' | 'desc';
+  viewLabel?: string;
 }
 
 /**
@@ -53,6 +90,7 @@ interface CategoryHeaderEmits {
   (e: 'sort'): void;
   /** 点击添加分类按钮时触发 */
   (e: 'add'): void;
+  (e: 'back'): void;
 }
 
 defineOptions({
@@ -73,18 +111,10 @@ const handleAdd = () => {
 
 <style scoped lang="scss">
 .category-header-list {
-  @apply flex justify-between items-center mt-2;
-
-  .category-header-title {
-    @apply px-1 opacity-90 text-content text-xs select-none;
-  }
+  @apply flex h-8 shrink-0 justify-between items-center mt-1 px-5;
 
   .category-header-action {
-    @apply flex items-center;
-
-    .category-header-action-item-icon {
-      @apply p-1 rounded-md cursor-pointer text-content hover:bg-hover dark:hover:bg-hover;
-    }
+    @apply flex items-center gap-1;
   }
 }
 </style>

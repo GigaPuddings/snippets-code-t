@@ -3,7 +3,7 @@
  * 管理内容列表相关的对话框状态和操作
  */
 
-import { ref } from 'vue';
+import { inject, ref, type Ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useConfigurationStore, usePluginStore } from '@/store';
@@ -13,6 +13,7 @@ import {
   getCategories,
   getFragmentContent,
   getFragmentList,
+  getFavoriteFragments,
   getUncategorizedId,
   convertFragmentType,
   moveFragmentToCategory
@@ -55,8 +56,6 @@ function addCategoryNames(
  * useContentDialogs 返回值接口
  */
 export interface UseContentDialogsReturn {
-  /** 显示类型选择器 */
-  showTypeSelector: Ref<boolean>;
   /** 显示删除对话框 */
   showDeleteDialog: Ref<boolean>;
   /** 显示分类更改对话框 */
@@ -84,12 +83,8 @@ export interface UseContentDialogsReturn {
       occurrences: number;
     }>;
   } | null>;
-  /** 处理添加内容 */
-  handleAddContent: () => void;
   /** 处理类型确认 */
   handleTypeConfirm: (type: 'code' | 'note') => Promise<void>;
-  /** 处理类型取消 */
-  handleTypeCancel: () => void;
   /** 处理删除 */
   handleDelete: (content: ContentType) => Promise<void>;
   /** 确认删除 */
@@ -118,11 +113,7 @@ export interface UseContentDialogsReturn {
  *
  * @example
  * ```typescript
- * const {
- *   showTypeSelector,
- *   handleAddContent,
- *   handleDelete
- * } = useContentDialogs();
+ * const { handleTypeConfirm, handleDelete } = useContentDialogs();
  * ```
  */
 export function useContentDialogs(): UseContentDialogsReturn {
@@ -132,8 +123,12 @@ export function useContentDialogs(): UseContentDialogsReturn {
   const pluginStore = usePluginStore();
   const { t } = useI18n();
 
-  const showTypeSelector = ref<boolean>(false);
-  const pendingFragmentType = ref<'code' | 'note'>('code');
+  const isCreating = ref(false);
+  const sidebarMode = inject<Ref<string>>('categorySidebarMode', ref('all'));
+  const captureCreation = () => ({
+    cid: String(route.params.cid || ''),
+    sourcePath: route.fullPath
+  });
   const showDeleteDialog = ref<boolean>(false);
   const showCategoryDialog = ref<boolean>(false);
   const showBacklinkUpdateDialog = ref<boolean>(false);
@@ -154,30 +149,25 @@ export function useContentDialogs(): UseContentDialogsReturn {
   } | null>(null);
 
   /**
-   * 处理添加内容按钮点击
-   */
-  const handleAddContent = (): void => {
-    showTypeSelector.value = true;
-  };
-
-  /**
    * 处理类型确认
    * @param type - 片段类型（code 或 note）
    */
   const handleTypeConfirm = async (type: 'code' | 'note'): Promise<void> => {
-    showTypeSelector.value = false;
-    pendingFragmentType.value = type;
-    await handleCreateContentConfirm();
+    if (isCreating.value) return;
+    const target = captureCreation();
+    await handleCreateContentConfirm(type, target);
   };
 
-  const handleCreateContentConfirm = async (title?: string): Promise<void> => {
-    const normalizedTitle = title?.trim() || 'New Fragment';
-
-    const cid = route.params.cid as string;
-
+  const handleCreateContentConfirm = async (
+    type: 'code' | 'note',
+    target: { cid: string; sourcePath: string }
+  ): Promise<void> => {
+    const normalizedTitle = 'New Fragment';
+    const { cid } = target;
+    isCreating.value = true;
     try {
-      // 分类通常已在列表页加载，避免每次新建前重复扫描整个工作区。
-      if (store.categories.length === 0) {
+      // Explicit folder targets must still exist; never silently fall back.
+      if ((cid && cid !== '0') || store.categories.length === 0) {
         store.categories = await getCategories(store.categorySort);
       }
 
@@ -191,34 +181,44 @@ export function useContentDialogs(): UseContentDialogsReturn {
       } else {
         // 从最新的分类列表中查找对应的分类
         const numCid = Number(cid);
-        const category = store.categories.find((c) => c.id === numCid);
+        const category = store.categories.find((c) => Number(c.id) === numCid);
 
-        if (category) {
-          categoryId = category.id;
-        } else {
-          categoryId = '未分类';
+        if (!category || !Number.isFinite(numCid) || numCid <= 0) {
+          modal.error(t('fragmentType.creationFolderMissing'));
+          return;
         }
+        categoryId = numCid;
       }
 
       const filePath = await addFragment({
         categoryId,
-        fragmentType: pendingFragmentType.value,
+        fragmentType: type,
         metadata: {
           title: normalizedTitle
         }
       });
-      // 导航到新片段，内容页会自动聚焦标题输入框中的默认标题
-      // 如果没有 cid，使用 categoryId 作为 cid（确保路由参数正确）
-      const routeCid = cid || (categoryId === '未分类' ? '0' : categoryId);
-      const targetPath = `/config/category/contentList/${routeCid}/content/${encodeURIComponent(filePath)}`;
-      const category = store.categories.find((item) => item.id === categoryId);
+      // Keep All / Uncategorized / folder context, and do not steal navigation
+      // if the user has moved elsewhere while the disk write was pending.
+      window.dispatchEvent(
+        new CustomEvent('refresh-data', {
+          detail: {
+            source: 'fragment-create',
+            activate: route.fullPath === target.sourcePath
+          }
+        })
+      );
+      if (route.fullPath !== target.sourcePath) return;
+      const targetPath = `/config/category/contentList${cid ? `/${cid}` : ''}/content/${encodeURIComponent(filePath)}`;
+      const category = store.categories.find(
+        (item) => Number(item.id) === categoryId
+      );
       const createdAt = new Date().toISOString();
       const optimisticContent: ContentType = {
         id: filePath,
         title: normalizedTitle,
         content: '',
-        type: pendingFragmentType.value,
-        format: pendingFragmentType.value === 'note' ? 'markdown' : 'plain',
+        type,
+        format: type === 'note' ? 'markdown' : 'plain',
         category_id: categoryId === '未分类' ? 0 : categoryId,
         category_name:
           category?.name || (categoryId === '未分类' ? '未分类' : undefined),
@@ -231,16 +231,21 @@ export function useContentDialogs(): UseContentDialogsReturn {
         ...store.contents.filter((item) => item.id !== filePath)
       ];
 
+      sidebarMode.value =
+        cid === '0' ? 'uncategorized' : cid ? 'folders' : 'all';
       await router.replace(targetPath);
 
       // 文件系统列表刷新放到空闲阶段，避免它与标题首轮输入、编辑器初始化争用主线程。
       const refreshAfterCreate = async () => {
+        if (route.path !== targetPath) return;
         try {
           store.categories = await getCategories(store.categorySort);
           const result = !cid
             ? ((await getFragmentList(undefined, '')) as ContentType[])
             : ((await getFragmentList(Number(cid), '')) as ContentType[]);
-          store.contents = addCategoryNames(result, store.categories);
+          if (route.path === targetPath) {
+            store.contents = addCategoryNames(result, store.categories);
+          }
         } catch (error) {
           console.warn(
             '[useContentDialogs] 新建后的列表刷新失败，将由文件监听器补充:',
@@ -260,14 +265,9 @@ export function useContentDialogs(): UseContentDialogsReturn {
       }, 1200);
     } catch (error) {
       // Error already handled by API layer
+    } finally {
+      isCreating.value = false;
     }
-  };
-
-  /**
-   * 处理类型取消
-   */
-  const handleTypeCancel = (): void => {
-    showTypeSelector.value = false;
   };
 
   /**
@@ -340,16 +340,25 @@ export function useContentDialogs(): UseContentDialogsReturn {
         categoryId = Number(cid);
       }
 
-      const result = (await getFragmentList(categoryId, '')) as ContentType[];
+      const result = (
+        route.query.view === 'favorites'
+          ? await getFavoriteFragments()
+          : await getFragmentList(categoryId, '')
+      ) as ContentType[];
       // 为内容添加分类名称
       store.contents = addCategoryNames(result, store.categories);
+      window.dispatchEvent(
+        new CustomEvent('refresh-data', {
+          detail: { source: 'delete-fragment' }
+        })
+      );
 
       // 如果当前正在查看被删除的片段，导航到列表页
       if (route.params.id) {
         const targetPath = cid
           ? `/config/category/contentList/${cid}`
           : '/config/category/contentList';
-        router.push(targetPath);
+        router.push({ path: targetPath, query: route.query });
       }
 
       showDeleteDialog.value = false;
@@ -430,16 +439,25 @@ export function useContentDialogs(): UseContentDialogsReturn {
         categoryId = Number(cid);
       }
 
-      const result = (await getFragmentList(categoryId, '')) as ContentType[];
+      const result = (
+        route.query.view === 'favorites'
+          ? await getFavoriteFragments()
+          : await getFragmentList(categoryId, '')
+      ) as ContentType[];
       // 为内容添加分类名称
       store.contents = addCategoryNames(result, store.categories);
+      window.dispatchEvent(
+        new CustomEvent('refresh-data', {
+          detail: { source: 'delete-fragment' }
+        })
+      );
 
       // 如果当前正在查看被删除的片段，导航到列表页
       if (route.params.id) {
         const targetPath = cid
           ? `/config/category/contentList/${cid}`
           : '/config/category/contentList';
-        router.push(targetPath);
+        router.push({ path: targetPath, query: route.query });
       }
 
       deleteTarget.value = null;
@@ -511,7 +529,10 @@ export function useContentDialogs(): UseContentDialogsReturn {
 
         const targetCid =
           actualCategoryId === uncategorizedId.value ? '0' : actualCategoryId;
-        router.replace(`/config/category/contentList/${targetCid}`);
+        router.replace({
+          path: `/config/category/contentList/${targetCid}`,
+          query: route.query
+        });
       }
 
       showCategoryDialog.value = false;
@@ -647,7 +668,6 @@ export function useContentDialogs(): UseContentDialogsReturn {
   };
 
   return {
-    showTypeSelector,
     showDeleteDialog,
     showCategoryDialog,
     showBacklinkUpdateDialog,
@@ -658,9 +678,7 @@ export function useContentDialogs(): UseContentDialogsReturn {
     selectedCategoryId,
     uncategorizedId,
     backlinkStats,
-    handleAddContent,
     handleTypeConfirm,
-    handleTypeCancel,
     handleDelete,
     confirmDelete,
     confirmDeleteWithBacklinks,

@@ -4,8 +4,13 @@
       v-for="item in categories"
       :key="item.id"
       :category="item"
-      v-memo="[item.id, item.name, editCategoryId]"
+      :reveal-active-content="String(item.id) === String(activeCategoryId)"
+      v-memo="[item.id, item.name, editCategoryId, activeCategoryId]"
       @move-content="$emit('move-content', $event, item.id)"
+      @select-category="$emit('select-category', $event)"
+      @create-content="
+        $emit('create-content', { type: $event, categoryId: item.id })
+      "
     />
   </div>
   <div v-else class="category-empty">
@@ -25,6 +30,7 @@ interface CategoryListViewProps {
   categories: CategoryType[];
   /** 当前编辑的分类 ID */
   editCategoryId?: string | number;
+  activeCategoryId?: string | number;
 }
 
 defineOptions({
@@ -34,12 +40,20 @@ defineOptions({
 const props = defineProps<CategoryListViewProps>();
 defineEmits<{
   (e: 'move-content', content: ContentType, categoryId: string | number): void;
+  (e: 'select-category', category: CategoryType): void;
+  (
+    e: 'create-content',
+    target: { type: 'note' | 'code'; categoryId: string | number }
+  ): void;
 }>();
 const route = useRoute();
 const listRef = ref<HTMLDivElement | null>(null);
 
 const activeCategoryIndex = computed(() => {
-  const cid = route.params.cid;
+  const cid =
+    route.params.cid && route.params.cid !== '0'
+      ? route.params.cid
+      : props.activeCategoryId;
   const normalizedCid = Array.isArray(cid) ? cid[0] : cid;
   if (
     normalizedCid === undefined ||
@@ -52,16 +66,6 @@ const activeCategoryIndex = computed(() => {
   );
 });
 
-const isIndexVisible = (index: number, container: HTMLElement) => {
-  const itemHeight =
-    container.scrollHeight / Math.max(props.categories.length, 1);
-  const top = container.scrollTop;
-  const bottom = top + container.clientHeight;
-  const itemTop = index * itemHeight;
-  const itemBottom = itemTop + itemHeight;
-  return itemTop >= top && itemBottom <= bottom;
-};
-
 watch(
   activeCategoryIndex,
   async (index) => {
@@ -73,15 +77,19 @@ watch(
     await nextTick();
 
     const container = listRef.value;
-    const activeEl = container?.querySelector(
-      '.link.active'
+    const activeEl = container?.children[resolvedIndex]?.querySelector(
+      '.category-item-title .link'
     ) as HTMLElement | null;
     if (!container) {
       return;
     }
 
     if (activeEl) {
-      const containerRect = container.getBoundingClientRect();
+      const scrollContainer =
+        container.closest('.category-page__browse') ??
+        container.parentElement ??
+        container;
+      const containerRect = scrollContainer.getBoundingClientRect();
       const itemRect = activeEl.getBoundingClientRect();
       const visible =
         itemRect.top >= containerRect.top &&
@@ -92,20 +100,6 @@ watch(
       activeEl.scrollIntoView({ block: 'center' });
       return;
     }
-
-    const visibleByIndex = isIndexVisible(resolvedIndex, container);
-
-    if (!visibleByIndex) {
-      const averageItemHeight =
-        container.scrollHeight / Math.max(props.categories.length, 1);
-      const targetScrollTop = Math.max(
-        0,
-        resolvedIndex * averageItemHeight -
-          Math.floor(container.clientHeight / 2) +
-          Math.floor(averageItemHeight / 2)
-      );
-      container.scrollTop = targetScrollTop;
-    }
   },
   { immediate: true }
 );
@@ -113,7 +107,7 @@ watch(
 
 <style scoped lang="scss">
 .category-list {
-  @apply h-full overflow-y-auto;
+  @apply min-h-0;
 }
 
 .category-empty {

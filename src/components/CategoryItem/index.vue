@@ -1,6 +1,6 @@
 <template>
   <main class="category-item">
-    <div class="category-item-title">
+    <div class="category-item-title mb-ui-row-gap">
       <el-input
         v-if="isEdit"
         class="category-item-input"
@@ -14,23 +14,38 @@
       />
       <ContextMenu v-else :menu="menu" @select="handleContextMenu">
         <div
-          class="link"
+          class="link ui-menu-item justify-between px-3 truncate"
+          role="button"
+          tabindex="0"
+          :aria-expanded="expanded"
           :class="{
             active: isActive,
             'is-drop-target': isDropTarget,
             'is-invalid-drop-target': isInvalidDropTarget
           }"
           @click="handleClick"
+          @keydown.enter.prevent="handleClick"
+          @keydown.space.prevent="handleClick"
           @dragenter.prevent="handleDragEnter"
           @dragover.prevent="handleDragOver"
           @dragleave="handleDragLeave"
           @drop.prevent="handleDrop"
         >
           <div class="category-label">
+            <Right
+              class="category-chevron"
+              theme="outline"
+              size="10"
+              :class="{ 'rotate-90 !opacity-100': expanded }"
+            />
             <span class="category-folder-icon">
-              <FolderClose theme="outline" size="16" :strokeWidth="2" />
+              <component
+                :is="expanded ? FolderOpen : FolderClose"
+                theme="outline"
+                size="16"
+              />
             </span>
-            <div class="truncate ml-1">{{ category.name }}</div>
+            <div class="truncate">{{ category.name }}</div>
           </div>
           <span v-if="isDropTarget" class="drop-action">
             <span class="drop-action-dot"></span>
@@ -41,6 +56,30 @@
           </span>
         </div>
       </ContextMenu>
+    </div>
+
+    <div
+      v-if="expanded"
+      class="ml-5 pl-1"
+      role="group"
+      :aria-label="category.name"
+    >
+      <div v-if="loadingContents" class="px-2 py-1 text-xs text-content">
+        {{ t('common.loading') }}
+      </div>
+      <ContentItem
+        v-for="content in folderContents"
+        :key="String(content.id)"
+        :content="content"
+        :category-id="category.id"
+        @delete="dispatchContentAction('delete', content)"
+        @toggle-favorite="dispatchContentAction('toggle-favorite', content)"
+        @change-category="dispatchContentAction('change-category', content)"
+        @convert-type="
+          (_, targetType) =>
+            dispatchContentAction('convert-type', content, targetType)
+        "
+      />
     </div>
 
     <!-- 删除确认对话框 -->
@@ -58,10 +97,24 @@
 </template>
 
 <script setup lang="ts">
-import { FolderClose, EditTwo, DeleteFour } from '@icon-park/vue-next';
+import {
+  FolderClose,
+  FolderOpen,
+  Right,
+  Notebook,
+  FileCodeOne,
+  EditTwo,
+  DeleteFour
+} from '@icon-park/vue-next';
+import ContentItem from '@/components/ContentItem/index.vue';
 import { useConfigurationStore } from '@/store';
 import { useI18n } from 'vue-i18n';
-import { editCategory, deleteCategory, getCategories } from '@/api/fragment';
+import {
+  editCategory,
+  deleteCategory,
+  getCategories,
+  getFragmentList
+} from '@/api/fragment';
 import { useRouter, useRoute } from 'vue-router';
 import modal from '@/utils/modal';
 import { ConfirmDialog } from '@/components/UI';
@@ -75,6 +128,7 @@ import {
 const { t } = useI18n();
 const props = defineProps<{
   category: CategoryType;
+  revealActiveContent?: boolean;
 }>();
 const store = useConfigurationStore();
 const inputRef = ref<any>(null);
@@ -86,9 +140,46 @@ const originalName = ref(''); // 原始名称
 const dragDepth = ref(0);
 const isDropTarget = ref(false);
 const isInvalidDropTarget = ref(false);
+const expanded = ref(false);
+const loadingContents = ref(false);
+const folderContents = ref<ContentType[]>([]);
+
+const loadFolderContents = async () => {
+  loadingContents.value = true;
+  try {
+    folderContents.value = await getFragmentList(props.category.id);
+  } finally {
+    loadingContents.value = false;
+  }
+};
+
+const dispatchContentAction = (
+  action: string,
+  content: ContentType,
+  targetType?: 'code' | 'note'
+) =>
+  window.dispatchEvent(
+    new CustomEvent('sidebar-content-action', {
+      detail: { action, content, targetType }
+    })
+  );
+
+const refreshFolderContents = () => {
+  if (expanded.value) void loadFolderContents();
+};
+onMounted(() => window.addEventListener('refresh-data', refreshFolderContents));
+onUnmounted(() =>
+  window.removeEventListener('refresh-data', refreshFolderContents)
+);
 
 const emit = defineEmits<{
   (e: 'move-content', content: ContentType, categoryId: string | number): void;
+  (e: 'select-category', category: CategoryType): void;
+  (
+    e: 'create-content',
+    type: 'note' | 'code',
+    categoryId: string | number
+  ): void;
 }>();
 
 defineOptions({
@@ -129,6 +220,8 @@ const validateCategoryName = (value: string) => {
 };
 
 const menu = computed(() => [
+  { label: t('nav.newNote'), icon: Notebook, type: 'note' },
+  { label: t('fragmentType.newSnippet'), icon: FileCodeOne, type: 'code' },
   { label: t('common.edit'), icon: EditTwo, type: 'edit' },
   { label: t('common.delete'), icon: DeleteFour, type: 'delete' }
 ]);
@@ -142,25 +235,28 @@ const isEdit = computed(() => {
 
 // 判断是否是当前激活的分类
 const isActive = computed(() => {
-  const active = route.params.cid === props.category.id.toString();
+  const active =
+    !route.query.view && String(route.params.cid) === String(props.category.id);
   return active;
 });
 
 // 处理点击事件
 const handleClick = () => {
-  // 如果已经在当前分类，不做任何操作
-  if (isActive.value) {
-    return;
-  }
-
-  const targetPath = `/config/category/contentList/${props.category.id}`;
-
-  // 使用 replace 导航，只刷新 contentList 和 content 子路由
-  router.replace({
-    path: targetPath,
-    replace: true
-  });
+  expanded.value = isActive.value ? !expanded.value : true;
+  emit('select-category', props.category);
+  if (expanded.value) void loadFolderContents();
 };
+
+watch(
+  [isActive, () => props.revealActiveContent],
+  ([active, reveal]) => {
+    if ((active || reveal) && !expanded.value) {
+      expanded.value = true;
+      void loadFolderContents();
+    }
+  },
+  { immediate: true }
+);
 
 const isFragmentDrag = (event: DragEvent): boolean => {
   const dataTransfer = event.dataTransfer;
@@ -330,6 +426,7 @@ const handleEditCategory = async () => {
 
     // 重新获取分类列表以更新缓存
     store.categories = await getCategories(store.categorySort);
+    if (expanded.value) void loadFolderContents();
 
     // 检查当前显示的内容列表中是否有属于该分类的内容
     const hasContentsInCategory = store.contents.some(
@@ -378,7 +475,10 @@ const handleEditCategory = async () => {
 
 // 菜单的点击事件
 const handleContextMenu = async (item: any) => {
-  if (item.type === 'edit') {
+  if (item.type === 'note' || item.type === 'code') {
+    expanded.value = true;
+    emit('create-content', item.type, props.category.id);
+  } else if (item.type === 'edit') {
     const categoryIdStr = String(props.category.id);
     store.editCategoryId = categoryIdStr;
   } else if (item.type === 'delete') {
@@ -401,24 +501,7 @@ const confirmDelete = async () => {
 </script>
 
 <style scoped lang="scss">
-@mixin commonLink {
-  @apply rounded-md text-sm block my-1 last:mb-0 px-3 py-[6px] truncate cursor-pointer hover:bg-hover dark:hover:bg-hover dark:text-panel;
-
-  position: relative;
-  border: 1px solid transparent;
-}
-
 .link {
-  @include commonLink();
-
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 34px;
-
-  /* 禁止选中 */
-  user-select: none;
   transition:
     color 0.16s ease,
     background 0.16s ease,
@@ -473,15 +556,24 @@ const confirmDelete = async () => {
 }
 
 .category-label {
-  @apply flex min-w-0 items-center gap-1;
+  @apply flex min-w-0 items-center gap-2;
+}
+
+.category-chevron {
+  @apply absolute left-0.5 text-content opacity-0 transition-opacity;
+}
+
+.link:hover .category-chevron,
+.link:focus-visible .category-chevron {
+  @apply opacity-100;
 }
 
 .category-folder-icon {
   display: grid;
-  flex: 0 0 24px;
+  flex: 0 0 16px;
   place-items: center;
-  width: 24px;
-  height: 24px;
+  width: 16px;
+  height: 20px;
   border-radius: 7px;
   transition:
     color 0.16s ease,
@@ -532,27 +624,9 @@ const confirmDelete = async () => {
 }
 
 .active {
-  @include commonLink();
-
-  color: var(--categories-text-color);
-  background-color: var(--search-result-active);
-  border-color: var(--search-result-active-border);
-
   :deep(.i-icon),
   svg {
     color: var(--search-result-accent);
-  }
-
-  &::before {
-    position: absolute;
-    top: 7px;
-    bottom: 7px;
-    left: 0;
-    width: 3px;
-    pointer-events: none;
-    content: '';
-    background: var(--search-result-accent);
-    border-radius: 0 999px 999px 0;
   }
 }
 

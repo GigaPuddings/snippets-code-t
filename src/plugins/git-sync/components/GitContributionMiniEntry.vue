@@ -38,77 +38,80 @@
       </button>
     </el-tooltip>
 
-    <transition name="git-contribution-mini-pop">
-      <section
-        v-if="isPanelOpen && contributionActivity"
-        class="git-contribution-mini__panel"
-        :style="panelStyle"
-        @mousedown.stop
-      >
-        <header class="git-contribution-mini__panel-head">
-          <div class="git-contribution-mini__panel-copy">
-            <div class="git-contribution-mini__panel-title">
-              {{ $t('settings.gitSync.contribution.title') }}
-            </div>
-            <div class="git-contribution-mini__panel-desc">
-              {{ $t('settings.gitSync.contribution.desc') }}
-            </div>
-          </div>
-          <el-tooltip
-            effect="light"
-            :content="$t('settings.gitSync.title')"
-            placement="top"
-          >
-            <button
-              class="git-contribution-mini__settings"
-              type="button"
-              @click.stop="goToGitSettings"
-            >
-              <SettingTwo theme="outline" size="15" :strokeWidth="3" />
-            </button>
-          </el-tooltip>
-        </header>
-
-        <div
-          class="git-contribution-mini__board"
-          :aria-label="$t('settings.gitSync.contribution.title')"
+    <Teleport to="body">
+      <transition name="git-contribution-mini-pop">
+        <section
+          v-if="isPanelOpen && contributionActivity"
+          ref="panelRef"
+          class="git-contribution-mini__panel"
+          :style="panelStyle"
+          @mousedown.stop
         >
+          <header class="git-contribution-mini__panel-head">
+            <div class="git-contribution-mini__panel-copy">
+              <div class="git-contribution-mini__panel-title">
+                {{ $t('settings.gitSync.contribution.title') }}
+              </div>
+              <div class="git-contribution-mini__panel-desc">
+                {{ $t('settings.gitSync.contribution.desc') }}
+              </div>
+            </div>
+            <el-tooltip
+              effect="light"
+              :content="$t('settings.gitSync.title')"
+              placement="top"
+            >
+              <button
+                class="git-contribution-mini__settings"
+                type="button"
+                @click.stop="goToGitSettings"
+              >
+                <SettingTwo theme="outline" size="15" :strokeWidth="3" />
+              </button>
+            </el-tooltip>
+          </header>
+
           <div
-            class="git-contribution-mini__weeks"
-            :style="{
-              gridTemplateColumns: `repeat(${panelWeeks.length}, 8px)`
-            }"
+            class="git-contribution-mini__board"
+            :aria-label="$t('settings.gitSync.contribution.title')"
           >
             <div
-              v-for="(week, weekIndex) in panelWeeks"
-              :key="weekIndex"
-              class="git-contribution-mini__week"
+              class="git-contribution-mini__weeks"
+              :style="{
+                gridTemplateColumns: `repeat(${panelWeeks.length}, 8px)`
+              }"
             >
-              <i
-                v-for="(day, dayIndex) in week"
-                :key="day?.date || `empty-${weekIndex}-${dayIndex}`"
-                class="git-contribution-mini__day git-contribution-mini__day--panel"
-                :class="getDayClass(day)"
-                :title="day ? getDayTitle(day) : ''"
-              ></i>
+              <div
+                v-for="(week, weekIndex) in panelWeeks"
+                :key="weekIndex"
+                class="git-contribution-mini__week"
+              >
+                <i
+                  v-for="(day, dayIndex) in week"
+                  :key="day?.date || `empty-${weekIndex}-${dayIndex}`"
+                  class="git-contribution-mini__day git-contribution-mini__day--panel"
+                  :class="getDayClass(day)"
+                  :title="day ? getDayTitle(day) : ''"
+                ></i>
+              </div>
             </div>
           </div>
-        </div>
 
-        <footer class="git-contribution-mini__footer">
-          <span class="git-contribution-mini__legend">
-            {{ $t('settings.gitSync.contribution.less') }}
-            <i
-              v-for="level in [0, 1, 2, 3, 4]"
-              :key="level"
-              class="git-contribution-mini__day git-contribution-mini__day--legend"
-              :class="`git-contribution-mini__day--level-${level}`"
-            ></i>
-            {{ $t('settings.gitSync.contribution.more') }}
-          </span>
-        </footer>
-      </section>
-    </transition>
+          <footer class="git-contribution-mini__footer">
+            <span class="git-contribution-mini__legend">
+              {{ $t('settings.gitSync.contribution.less') }}
+              <i
+                v-for="level in [0, 1, 2, 3, 4]"
+                :key="level"
+                class="git-contribution-mini__day git-contribution-mini__day--legend"
+                :class="`git-contribution-mini__day--level-${level}`"
+              ></i>
+              {{ $t('settings.gitSync.contribution.more') }}
+            </span>
+          </footer>
+        </section>
+      </transition>
+    </Teleport>
   </div>
 </template>
 
@@ -135,6 +138,7 @@ const { gitSettings, syncState, refreshSettings, refreshStatus } =
   useGitStatus();
 
 const rootRef = ref<HTMLElement | null>(null);
+const panelRef = ref<HTMLElement | null>(null);
 const contributionActivity = ref<GitContributionActivity | null>(null);
 const isLoading = ref(false);
 const isPanelOpen = ref(false);
@@ -250,20 +254,25 @@ function handleDocumentKeydown(event: KeyboardEvent): void {
 function handleDocumentMouseDown(event: MouseEvent): void {
   if (!isPanelOpen.value) return;
   const target = event.target;
-  if (target instanceof Node && rootRef.value?.contains(target)) return;
+  if (
+    target instanceof Node &&
+    (rootRef.value?.contains(target) || panelRef.value?.contains(target))
+  )
+    return;
 
   isPanelOpen.value = false;
 }
 
 function updatePanelPosition(): void {
-  const wrapper = rootRef.value?.closest('.content-search-wrapper');
-  if (!(wrapper instanceof HTMLElement)) return;
+  const anchor = rootRef.value;
+  if (!anchor) return;
 
-  const rect = wrapper.getBoundingClientRect();
+  const rect = anchor.getBoundingClientRect();
+  const width = Math.min(320, window.innerWidth - 24);
   panelStyle.value = {
-    left: `${rect.left}px`,
-    top: `${rect.bottom + 4}px`,
-    width: `${rect.width}px`
+    left: `${Math.max(12, Math.min(rect.right - width, window.innerWidth - width - 12))}px`,
+    top: `${rect.bottom + 8}px`,
+    width: `${width}px`
   };
 }
 
@@ -348,7 +357,7 @@ onUnmounted(() => {
 }
 
 .git-contribution-mini__button {
-  @apply inline-flex w-8 h-[30px] items-center justify-center p-0 text-panel cursor-pointer bg-transparent border border-transparent rounded-md outline-none;
+  @apply inline-flex w-8 h-8 items-center justify-center p-0 text-panel cursor-pointer bg-transparent border border-transparent rounded-lg outline-none;
 
   transition:
     background 0.16s ease,
@@ -357,8 +366,10 @@ onUnmounted(() => {
   &:hover,
   &:focus-visible {
     @apply bg-hover;
+  }
 
-    border-color: rgba(var(--categories-border-color-rgb), 0.65);
+  &:focus-visible {
+    @apply ring-2 ring-primary;
   }
 }
 
@@ -433,7 +444,7 @@ onUnmounted(() => {
 }
 
 .git-contribution-mini__panel {
-  @apply fixed box-border z-[20] p-3 bg-content border border-panel rounded-lg;
+  @apply fixed box-border z-[120] p-3 bg-content border border-panel rounded-lg;
 
   box-shadow: 0 12px 30px rgb(15 23 42 / 18%);
 }

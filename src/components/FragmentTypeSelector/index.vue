@@ -6,6 +6,15 @@
     :close-on-click-modal="true"
     @close="handleCancel"
   >
+    <p
+      v-if="folderName"
+      class="mb-4 flex items-center gap-2 text-ui text-content"
+    >
+      <FolderClose theme="outline" size="16" class="shrink-0" />
+      <span class="truncate" :title="folderName">
+        {{ t('fragmentType.createIn', { folder: folderName }) }}
+      </span>
+    </p>
     <div class="type-options">
       <div
         class="type-option"
@@ -109,7 +118,7 @@
         <CustomButton @click="handleCancel">
           {{ t('common.cancel') }}
         </CustomButton>
-        <CustomButton type="primary" @click="handleConfirm">
+        <CustomButton type="primary" :disabled="busy" @click="handleConfirm">
           {{ t('common.confirm') }}
         </CustomButton>
       </div>
@@ -120,6 +129,9 @@
 <script setup lang="ts">
 import { CommonDialog, CustomButton } from '@/components/UI';
 import { useI18n } from 'vue-i18n';
+import { FolderClose } from '@icon-park/vue-next';
+
+const props = defineProps<{ folderName?: string; busy?: boolean }>();
 
 const { t } = useI18n();
 
@@ -136,6 +148,7 @@ const selectType = (type: 'code' | 'note') => {
 };
 
 const handleConfirm = () => {
+  if (props.busy) return;
   emit('confirm', selectedType.value);
 };
 

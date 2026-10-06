@@ -1,62 +1,27 @@
 <template>
   <main class="content-list-container">
-    <Splitter
-      default-size="25%"
-      min-size="25%"
-      max-size="40%"
-      :first-collapsed="layoutStore.effectiveContentListCollapsed"
-    >
-      <template #first>
-        <!-- 折叠态不显示边条/箭头；展开态仅显示列表，无折叠把手 -->
-        <div
-          v-if="!layoutStore.effectiveContentListCollapsed"
-          class="left-panel transparent-input"
-        >
-          <div class="left-panel__content">
-            <ContentSearchBar
-              v-model:searchText="searchText"
-              :show-filter-panel="showFilterPanel"
-              :has-active-filters="hasActiveFilters"
-              :active-filter-count="activeFilterCount"
-              @toggle-filter="toggleFilterPanel"
-              @add-content="handleAddContent"
-            />
-            <ContentListView
-              :contents="filteredContents"
-              :tag-filter="tagFilter"
-              :combined-filter="combinedFilter"
-              @delete="handleDelete"
-              @change-category="handleChangeCategory"
-              @convert-type="handleConvertType"
-              @clear-tag-filter="handleClearTagFilter"
-            />
-          </div>
-        </div>
-      </template>
+    <Teleport v-if="sidebarMode !== 'folders'" to="#category-side-results">
+      <DeletedNotesView v-if="route.query.view === 'trash'" />
+      <div v-else class="left-panel__content">
+        <ContentListView
+          :contents="contents"
+          @delete="handleDelete"
+          @toggle-favorite="handleToggleFavorite"
+          @change-category="handleChangeCategory"
+          @convert-type="handleConvertType"
+        />
+      </div>
+    </Teleport>
 
-      <template #second>
-        <div class="right-panel">
-          <router-view />
-        </div>
-      </template>
-    </Splitter>
-
-    <!-- Fragment Type Selector Modal -->
-    <FragmentTypeSelector
-      v-if="showTypeSelector"
-      @confirm="handleTypeConfirm"
-      @cancel="handleTypeCancel"
-    />
-
-    <!-- Filter Panel (Floating) -->
-    <FilterPanel
-      :visible="showFilterPanel"
-      :filter="panelFilter"
-      :available-tags="availableTags"
-      @update:filter="handleFilterUpdate"
-      @reset="handleFilterReset"
-      @close="showFilterPanel = false"
-    />
+    <div class="right-panel">
+      <router-view v-if="route.query.view !== 'trash' || route.params.id" />
+      <div
+        v-else
+        class="flex h-full items-center justify-center text-sm text-content"
+      >
+        {{ t('nav.recentlyDeleted') }}
+      </div>
+    </div>
 
     <!-- Delete Confirmation Dialog -->
     <ConfirmDialog
@@ -119,18 +84,16 @@
 
 <script setup lang="ts">
 import { useRoute, useRouter } from 'vue-router';
-import { useConfigurationStore, useLayoutStore } from '@/store';
+import { useConfigurationStore } from '@/store';
 import { useI18n } from 'vue-i18n';
-import Splitter from '@/components/Splitter/index.vue';
-import FragmentTypeSelector from '@/components/FragmentTypeSelector/index.vue';
-import FilterPanel from './FilterPanel.vue';
+import type { Ref } from 'vue';
 import {
   ConfirmDialog,
   SelectConfirmDialog,
   BacklinkUpdateDialog
 } from '@/components/UI';
-import ContentSearchBar from './components/ContentSearchBar.vue';
 import ContentListView from './components/ContentListView.vue';
+import DeletedNotesView from './components/DeletedNotesView.vue';
 import { useContentList } from './composables/useContentList';
 import { useContentDialogs } from './composables/useContentDialogs';
 import { rebuildSearchIndex } from '@/api/markdown';
@@ -149,7 +112,7 @@ interface CategoryOption {
 const route = useRoute();
 const router = useRouter();
 const store = useConfigurationStore();
-const layoutStore = useLayoutStore();
+const sidebarMode = inject<Ref<string>>('categorySidebarMode', ref('folders'));
 const { t } = useI18n();
 
 defineOptions({
@@ -158,22 +121,13 @@ defineOptions({
 
 // 使用内容列表 Composable
 const {
-  searchText,
-  panelFilter,
-  tagFilter,
-  combinedFilter,
-  activeFilterCount,
-  hasActiveFilters,
-  availableTags,
-  filteredContents,
+  contents,
   queryFragments,
-  updateFilter,
-  clearTagFilter
+  toggleContentFavorite: handleToggleFavorite
 } = useContentList();
 
 // 使用对话框 Composable
 const {
-  showTypeSelector,
   showDeleteDialog,
   showCategoryDialog,
   showBacklinkUpdateDialog,
@@ -182,9 +136,7 @@ const {
   typeConversionTargetType,
   selectedCategoryId,
   backlinkStats,
-  handleAddContent,
   handleTypeConfirm,
-  handleTypeCancel,
   handleDelete,
   confirmDelete,
   confirmDeleteWithBacklinks,
@@ -193,83 +145,6 @@ const {
   handleConvertType,
   confirmTypeConversion
 } = useContentDialogs();
-
-const showFilterPanel = ref<boolean>(false);
-
-/**
- * 切换筛选面板显示状态
- */
-function toggleFilterPanel(): void {
-  if (!showFilterPanel.value) {
-    const currentFilter: SearchFilter = {
-      type: panelFilter.value.type || 'all',
-      sortBy: panelFilter.value.sortBy,
-      sortOrder: panelFilter.value.sortOrder
-    };
-
-    if (tagFilter.value) {
-      currentFilter.tags = [tagFilter.value];
-    } else if (panelFilter.value.tags) {
-      currentFilter.tags = [...panelFilter.value.tags];
-    }
-
-    panelFilter.value = currentFilter;
-  }
-
-  showFilterPanel.value = !showFilterPanel.value;
-}
-
-/**
- * 处理筛选面板更新
- * @param filter - 新的筛选条件
- */
-function handleFilterUpdate(filter: SearchFilter): void {
-  updateFilter(filter);
-
-  if (!filter.tags || filter.tags.length === 0) {
-    if (route.query.tag) {
-      const { tag, ...restQuery } = route.query;
-      router.replace({
-        path: route.path,
-        query: restQuery
-      });
-    }
-  } else {
-    if (route.query.tag && !filter.tags.includes(route.query.tag as string)) {
-      const { tag, ...restQuery } = route.query;
-      router.replace({
-        path: route.path,
-        query: restQuery
-      });
-    }
-  }
-}
-
-/**
- * 处理清除标签筛选
- */
-function handleClearTagFilter(): void {
-  clearTagFilter();
-  router.replace({
-    path: `/config/category/contentList/${route.params.cid || 0}`,
-    query: {}
-  });
-}
-
-/**
- * 处理筛选面板重置
- */
-function handleFilterReset(): void {
-  // 清空搜索框文本
-  searchText.value = '';
-  // 清除标签筛选
-  clearTagFilter();
-  // 清除路由查询参数
-  router.replace({
-    path: route.path,
-    query: {}
-  });
-}
 
 // 分类选项（包括"未分类"）
 const categoryOptions = computed<CategoryOption[]>(() => {
@@ -292,20 +167,16 @@ const refreshHandler = getDebouncedHandler('contentList-refresh', 200);
 const handleRefreshData = async (event: Event) => {
   const customEvent = event as CustomEvent;
 
+  if (customEvent.detail?.source === 'favorite-change') {
+    await queryFragments(route.params.cid as string | undefined);
+    return;
+  }
+
   // 使用防抖处理，避免重复刷新
   await refreshHandler.handle(async () => {
     try {
       // 重新加载当前分类的文件列表
       const categoryId = route.params.cid as string | undefined;
-
-      // 保存当前的搜索文本，以便刷新后恢复
-      const currentSearchText = searchText.value;
-
-      // git-pull 事件：后端会先发送 files-changed-batch，此处做兜底全量刷新
-      if (customEvent.detail?.source === 'git-pull') {
-        await queryFragments(categoryId, currentSearchText);
-        return;
-      }
 
       // 处理批量文件变更事件
       if (customEvent.detail?.source === 'files-changed-batch') {
@@ -315,14 +186,9 @@ const handleRefreshData = async (event: Event) => {
         } catch (err) {
           console.error('[ContentList] 重建搜索索引失败:', err);
         }
-
-        // 刷新列表（保持搜索状态）
-        await queryFragments(categoryId, currentSearchText);
-        return;
       }
 
-      // 其他事件：正常刷新列表（保持搜索状态）
-      await queryFragments(categoryId, currentSearchText);
+      await queryFragments(categoryId);
     } catch (error) {
       console.error('[ContentList] 数据刷新失败:', error);
     }
@@ -337,8 +203,7 @@ const handleDirsChanged = async (_event: Event) => {
   // 使用防抖处理
   await dirsChangeHandler.handle(async () => {
     const categoryId = route.params.cid as string | undefined;
-    const currentSearchText = searchText.value;
-    await queryFragments(categoryId, currentSearchText);
+    await queryFragments(categoryId);
   });
 };
 
@@ -347,13 +212,45 @@ onMounted(() => {
   window.addEventListener('refresh-data', handleRefreshData);
   // 监听目录变更事件（外部编辑器创建/删除/重命名文件夹）
   window.addEventListener('refresh-categories', handleDirsChanged);
+  window.addEventListener('sidebar-content-action', handleSidebarContentAction);
 });
 
 onUnmounted(() => {
   // 清理事件监听器
   window.removeEventListener('refresh-data', handleRefreshData);
   window.removeEventListener('refresh-categories', handleDirsChanged);
+  window.removeEventListener(
+    'sidebar-content-action',
+    handleSidebarContentAction
+  );
 });
+
+function handleSidebarContentAction(event: Event): void {
+  const { action, content, targetType } = (
+    event as CustomEvent<{
+      action: string;
+      content: ContentType;
+      targetType?: 'code' | 'note';
+    }>
+  ).detail;
+  if (action === 'delete') handleDelete(content);
+  else if (action === 'toggle-favorite') void handleToggleFavorite(content);
+  else if (action === 'change-category') handleChangeCategory(content);
+  else if (action === 'convert-type' && targetType)
+    handleConvertType(content, targetType);
+}
+
+watch(
+  () => route.query.create,
+  async (value) => {
+    if (value !== 'note' && value !== 'code') return;
+    const query = { ...route.query };
+    delete query.create;
+    await router.replace({ path: route.path, query });
+    await handleTypeConfirm(value);
+  },
+  { immediate: true }
+);
 </script>
 
 <style scoped lang="scss">
@@ -361,15 +258,11 @@ onUnmounted(() => {
   @apply h-full w-full min-w-0 max-w-full overflow-hidden text-xs;
 }
 
-.left-panel {
-  @apply h-full flex overflow-hidden bg-panel dark:bg-panel border dark:border-panel rounded-md;
-}
-
 .left-panel__content {
-  @apply flex-1 flex flex-col overflow-hidden px-2 min-w-0;
+  @apply flex-1 flex flex-col overflow-hidden min-w-0;
 }
 
 .right-panel {
-  @apply h-full w-full min-w-0 max-w-full overflow-hidden border-l border-panel bg-panel dark:bg-panel;
+  @apply h-full w-full min-w-0 max-w-full overflow-hidden bg-panel dark:bg-panel;
 }
 </style>

@@ -1,74 +1,44 @@
 <template>
   <ContextMenu :menu="menu" @select="handleContextMenu">
     <div
-      class="link"
+      class="link ui-menu-item block mt-0 mb-ui-row-gap"
       :class="{ active: isActive, 'is-dragging': isDragging }"
+      role="link"
+      tabindex="0"
+      :aria-label="content.title"
+      :aria-current="isActive ? 'page' : undefined"
       draggable="true"
       @click.prevent="handleClick"
+      @keydown.enter.prevent="handleClick"
+      @keydown.space.prevent="handleClick"
       @dragstart="handleDragStart"
       @dragend="handleDragEnd"
     >
-      <main class="content-item-wrapper">
-        <div class="content-item-header">
-          <div class="content-item-title">{{ content.title }}</div>
-          <el-tooltip
-            effect="light"
-            :content="fragmentTypeLabel"
-            placement="top"
-          >
-            <div
-              class="fragment-type-icon"
-              :class="`type-${content.type || 'code'}`"
-            >
-              <notebook
-                v-if="content.type === 'note'"
-                theme="outline"
-                size="14"
-                :strokeWidth="3"
-              />
-              <file-code-one
-                v-else
-                theme="outline"
-                size="14"
-                :strokeWidth="3"
-              />
-            </div>
-          </el-tooltip>
-        </div>
-        <div class="content-item-info">
-          <div
-            v-if="content.tags && content.tags.length > 0"
-            class="content-item-tags"
-          >
-            <span
-              v-for="(tag, index) in displayTags"
-              :key="index"
-              class="tag-item"
-              @click.stop="handleTagClick(tag)"
-            >
-              {{ tag }}
-            </span>
-            <span v-if="content.tags.length > 2" class="more-tags">
-              +{{ content.tags.length - 2 }}
-            </span>
-          </div>
-          <div v-else-if="content.category_name" class="content-item-category">
-            <folder-open theme="outline" size="12" :strokeWidth="3" />
-            <span class="category-name">{{ content.category_name }}</span>
-          </div>
-          <div class="content-item-info-time">
-            {{
-              formatDate(content.updated_at || content.created_at || new Date())
-            }}
-          </div>
-        </div>
+      <main class="compact-content-item">
+        <component
+          :is="content.type === 'note' ? Notebook : FileCodeOne"
+          theme="outline"
+          size="16"
+          class="shrink-0"
+          :title="fragmentTypeLabel"
+        />
+        <span class="min-w-0 flex-1 truncate" :title="content.title">
+          {{ content.title }}
+        </span>
+        <Star
+          v-if="content.favorite"
+          theme="filled"
+          size="13"
+          class="shrink-0 text-[var(--workspace-nav-muted)]"
+          :title="t('nav.favorited')"
+          :aria-label="t('nav.favorited')"
+        />
       </main>
     </div>
   </ContextMenu>
 </template>
 
 <script setup lang="ts">
-import { formatDate } from '@/utils';
 import {
   EditTwo,
   DeleteFour,
@@ -76,7 +46,8 @@ import {
   Notebook,
   FileCodeOne,
   FolderOpen,
-  FileConversion
+  FileConversion,
+  Star
 } from '@icon-park/vue-next';
 import type { Component } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -97,6 +68,7 @@ import {
 interface ContentItemProps {
   /** 内容项数据 */
   content: ContentType;
+  categoryId?: string | number;
 }
 
 /**
@@ -109,6 +81,7 @@ interface ContentItemEmits {
   (e: 'changeCategory', content: ContentType): void;
   /** 转换内容类型 */
   (e: 'convertType', content: ContentType, targetType: 'code' | 'note'): void;
+  (e: 'toggle-favorite', content: ContentType): void;
 }
 
 /**
@@ -135,6 +108,11 @@ defineOptions({
 });
 
 const menu = computed<MenuItem[]>(() => [
+  {
+    label: t(content.value.favorite ? 'nav.removeFavorite' : 'nav.addFavorite'),
+    type: 'toggleFavorite',
+    icon: Star
+  },
   {
     label: t('contentItem.showInExplorer'),
     type: 'showInExplorer',
@@ -198,18 +176,6 @@ const createDragPreview = (): HTMLElement => {
   return preview;
 };
 
-// 显示最多2个标签(标签多时避免换行)
-const displayTags = computed(() => {
-  if (!content.value.tags) {
-    return [];
-  }
-
-  // tags 现在是 string[] 类型
-  const tagsArray = Array.isArray(content.value.tags) ? content.value.tags : [];
-
-  return tagsArray.slice(0, 2);
-});
-
 /**
  * 处理点击事件
  */
@@ -221,7 +187,7 @@ const handleClick = (): void => {
     }
 
     // 获取当前的 cid（保持当前分类上下文）
-    const currentCid = route.params.cid;
+    const currentCid = props.categoryId ?? route.params.cid;
 
     // 构建路由路径，始终保持当前的 cid
     const targetPath = currentCid
@@ -230,6 +196,10 @@ const handleClick = (): void => {
 
     router.replace({
       path: targetPath,
+      query:
+        props.categoryId === undefined && route.query.view
+          ? { view: route.query.view }
+          : {},
       replace: true
     });
   } catch (error) {
@@ -274,34 +244,6 @@ const handleDragEnd = (): void => {
 };
 
 /**
- * 处理标签点击事件
- * @param tag - 标签名称
- */
-const handleTagClick = (tag: string): void => {
-  try {
-    // 保持在当前视图下进行标签筛选
-    // 如果在"所有片段"视图，不传 cid
-    // 如果在特定分类视图，保持当前 cid
-    const currentCid = route.params.cid;
-    const targetPath = currentCid
-      ? `/config/category/contentList/${currentCid}`
-      : '/config/category/contentList';
-
-    router.push({
-      path: targetPath,
-      query: { tag }
-    });
-  } catch (error) {
-    ErrorHandler.handle(error, {
-      type: ErrorType.UNKNOWN_ERROR,
-      operation: 'ContentItem.handleTagClick',
-      details: { tag },
-      timestamp: new Date()
-    });
-  }
-};
-
-/**
  * 处理右键菜单选择
  * @param item - 菜单项
  */
@@ -324,7 +266,7 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
     } else if (item.type === 'rename') {
       // 重命名时，通过 query 参数传递标识
       // 获取当前的 cid（保持当前分类上下文）
-      const currentCid = route.params.cid;
+      const currentCid = props.categoryId ?? route.params.cid;
 
       // 构建正确的路由路径，始终保持当前的 cid
       const targetPath = currentCid
@@ -333,11 +275,18 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
 
       router.push({
         path: targetPath,
-        query: { rename: 'true' }
+        query: {
+          ...(props.categoryId === undefined && route.query.view
+            ? { view: route.query.view }
+            : {}),
+          rename: 'true'
+        }
       });
     } else if (item.type === 'delete') {
       // 触发删除事件，让父组件处理
       emit('delete', content.value);
+    } else if (item.type === 'toggleFavorite') {
+      emit('toggle-favorite', content.value);
     } else if (item.type === 'edit') {
       // 触发更改分类事件，让父组件处理
       emit('changeCategory', content.value);
@@ -357,16 +306,7 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
 </script>
 
 <style scoped lang="scss">
-@mixin commonLink {
-  @apply block rounded-lg cursor-pointer transition-colors duration-200 ease-out border-b-transparent;
-
-  position: relative;
-  border: 1px solid transparent;
-}
-
 .link {
-  @include commonLink();
-
   &.is-dragging {
     z-index: 1;
     background: color-mix(
@@ -374,12 +314,6 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
       var(--search-result-active) 42%,
       transparent
     );
-    border-color: transparent;
-    box-shadow: none;
-
-    .content-item-wrapper {
-      opacity: 0.42;
-    }
 
     &::before {
       position: absolute;
@@ -391,6 +325,10 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
       border-radius: 7px;
     }
   }
+}
+
+.compact-content-item {
+  @apply flex h-ui-row min-w-0 items-center gap-2 px-2;
 }
 
 :global(.fragment-drag-active) {
@@ -455,211 +393,5 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
   color: var(--panel-text);
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.link:not(.active):hover {
-  @apply bg-hover dark:bg-hover border-panel;
-
-  .fragment-type-icon {
-    background-color: rgb(0 0 0 / 8%);
-    transform: scale(1.05);
-  }
-
-  .content-item-tags {
-    .tag-item {
-      color: #4a9eff;
-      background-color: rgb(0 0 0 / 8%);
-    }
-  }
-}
-
-.active {
-  background-color: var(--search-result-active);
-  border-color: var(--search-result-active-border);
-
-  &::before {
-    position: absolute;
-    top: 7px;
-    bottom: 7px;
-    left: 0;
-    width: 3px;
-    pointer-events: none;
-    content: '';
-    background: var(--search-result-accent);
-    border-radius: 0 999px 999px 0;
-  }
-
-  .content-item-wrapper {
-    .content-item-header {
-      .content-item-title {
-        @apply truncate;
-
-        font-weight: 600;
-        color: var(--categories-text-color);
-      }
-
-      .fragment-type-icon {
-        &.type-code,
-        &.type-note {
-          color: var(--search-result-accent);
-          background-color: var(--search-card-bg);
-        }
-
-        :deep(svg) {
-          color: inherit;
-        }
-      }
-    }
-
-    .content-item-info,
-    .content-item-category {
-      color: var(--categories-info-text-color);
-      transition: color 0.2s ease;
-    }
-
-    .content-item-info-time {
-      color: var(--categories-info-text-color);
-      transition: color 0.2s ease;
-    }
-
-    .content-item-tags {
-      .tag-item {
-        color: var(--search-result-accent);
-        background-color: var(--search-card-bg);
-        border: 1px solid var(--search-result-active-border);
-
-        &:hover {
-          color: var(--search-result-accent);
-          background-color: var(--search-result-active);
-          border-color: var(--search-result-active-border);
-        }
-      }
-
-      .more-tags {
-        color: var(--categories-info-text-color);
-        opacity: 1;
-      }
-    }
-  }
-}
-
-.content-item-wrapper {
-  @apply relative text-xs px-2.5 py-1.5 rounded-md select-none;
-
-  .content-item-header {
-    @apply flex items-center justify-between gap-2 mb-3;
-
-    .content-item-title {
-      @apply truncate text-panel flex-1 font-medium;
-
-      transition: none;
-    }
-
-    .fragment-type-icon {
-      @apply flex-shrink-0 w-5 h-5 rounded flex items-center justify-center;
-
-      transition:
-        background-color 0.2s ease,
-        color 0.2s ease,
-        transform 0.15s ease;
-
-      &.type-code,
-      &.type-note {
-        color: #666;
-        background-color: rgb(0 0 0 / 4%);
-      }
-    }
-  }
-
-  .content-item-info {
-    @apply flex items-center gap-2 text-content;
-
-    .content-item-info-time {
-      @apply text-[10px] opacity-60 flex-shrink-0 ml-auto;
-    }
-  }
-
-  .content-item-tags {
-    @apply flex gap-1 items-center flex-1 min-w-0 overflow-hidden;
-
-    .tag-item {
-      @apply inline-flex items-center px-1.5 py-0.5 rounded text-[10px] cursor-pointer flex-shrink-0;
-
-      max-width: 60px;
-      overflow: hidden;
-      line-height: 1.2;
-      color: #666;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      background-color: rgb(0 0 0 / 4%);
-      transition:
-        background-color 0.2s ease,
-        border-color 0.2s ease,
-        color 0.2s ease;
-    }
-
-    .more-tags {
-      @apply text-[10px] text-content opacity-50 flex-shrink-0;
-    }
-  }
-
-  .content-item-category {
-    @apply flex gap-1 items-center flex-1 min-w-0 overflow-hidden;
-    @apply text-[10px] text-content opacity-60;
-
-    .category-name {
-      @apply truncate;
-    }
-  }
-}
-
-// 暗色模式
-:global(.dark) {
-  .link:not(.active):hover {
-    .fragment-type-icon {
-      background-color: rgb(255 255 255 / 10%);
-    }
-
-    .content-item-tags {
-      .tag-item {
-        color: #4a9eff;
-        background-color: rgb(255 255 255 / 10%);
-      }
-    }
-  }
-
-  .fragment-type-icon {
-    &.type-code,
-    &.type-note {
-      color: #999;
-      background-color: rgb(255 255 255 / 6%);
-    }
-  }
-
-  .content-item-tags {
-    .tag-item {
-      color: #999;
-      background-color: rgb(255 255 255 / 6%);
-    }
-  }
-
-  .active {
-    .content-item-tags {
-      .tag-item {
-        color: var(--search-result-accent);
-        background-color: var(--search-card-bg);
-        border-color: var(--search-result-active-border);
-
-        &:hover {
-          background-color: var(--search-result-active);
-          border-color: var(--search-result-active-border);
-        }
-      }
-    }
-
-    .content-item-category {
-      color: var(--categories-info-text-color);
-    }
-  }
 }
 </style>
