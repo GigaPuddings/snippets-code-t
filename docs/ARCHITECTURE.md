@@ -344,20 +344,27 @@ search/
 category/
 ├── index.vue                     # 主组件
 └── components/
+    ├── CategoryHeader.vue        # 品牌与新建入口
+    ├── CategoryListView.vue      # 文件夹树
+    ├── CategorySyncStatus.vue    # 同步状态
     ├── content/                  # 内容编辑
-    │   ├── index.vue
-    │   └── components/
-    │       └── EditorControls.vue
+    │   └── index.vue
     ├── contentList/              # 内容列表
     │   ├── index.vue
-    │   └── FilterPanel.vue
+    │   ├── components/
+    │   │   ├── ContentListView.vue
+    │   │   └── DeletedNotesView.vue
+    │   └── composables/
+    │       ├── useContentList.ts
+    │       └── useContentDialogs.ts
     └── settings/                 # 设置
         └── index.vue
 ```
 
 **关键组件**:
-- `ContentItem`: 片段项组件
-- `FilterPanel`: 过滤面板
+- `ContentItem`: 笔记/片段的紧凑列表项，支持收藏与右键操作
+- `ContentListView`: 虚拟滚动内容列表；搜索统一使用全局快速搜索入口
+- `DeletedNotesView`: 最近删除的内容与恢复入口
 - `TipTapEditor`: 富文本编辑器
 - `CodeMirrorEditor`: 代码编辑器
 
