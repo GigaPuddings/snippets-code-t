@@ -27,32 +27,20 @@
       @action="handleContextMenuAction"
     />
 
-    <div
-      class="editor-status"
+    <EditorStatusBar
+      :word-count="0"
+      :line-count="lines"
+      :char-count="length"
+      :language="detectedLanguage"
+      view-mode="source"
+      :show-view-toggle="false"
+      :dark="props.dark"
       :style="
         resolvedStatusBackground
-          ? { background: resolvedStatusBackground }
+          ? { '--editor-status-surface': resolvedStatusBackground }
           : undefined
       "
-    >
-      <div class="editor-status-left">
-        <div class="editor-status-item">
-          <span class="editor-status-text">
-            {{ lines }} {{ $t('codeEditor.lines') }}
-          </span>
-        </div>
-        <div class="editor-status-item">
-          <span class="editor-status-text">
-            {{ length }} {{ $t('codeEditor.chars') }}
-          </span>
-        </div>
-      </div>
-      <div class="editor-status-right">
-        <div class="editor-status-item">
-          <span class="editor-status-text">{{ detectedLanguage }}</span>
-        </div>
-      </div>
-    </div>
+    />
   </main>
 </template>
 
@@ -88,6 +76,7 @@ import {
 import modal from '@/utils/modal';
 import { useI18n } from 'vue-i18n';
 import CodeContextMenu from './components/CodeContextMenu.vue';
+import EditorStatusBar from '@/components/TipTapEditor/components/EditorStatusBar.vue';
 
 interface Props {
   codeStyle?: CSSProperties;
@@ -755,15 +744,6 @@ defineExpose({
 
   height: 100%;
   min-height: 0;
-
-  &.dark-theme {
-    .editor-status {
-      @apply text-statusbar;
-
-      background-color: var(--statusbar-bg);
-      border-color: var(--statusbar-border);
-    }
-  }
 }
 
 .editor-content {
@@ -771,34 +751,6 @@ defineExpose({
 
   height: 0;
   min-height: 0;
-}
-
-.editor-status {
-  @apply h-6 px-2 border-t flex items-center justify-between text-sm text-content;
-
-  flex-shrink: 0;
-  color: var(--statusbar-text);
-  background-color: var(--statusbar-bg);
-  border-color: var(--statusbar-border);
-}
-
-.editor-status-left {
-  @apply flex items-center gap-3;
-}
-
-.editor-status-right {
-  @apply flex items-center;
-}
-
-.editor-status-item {
-  @apply flex items-center;
-}
-
-.editor-status-text {
-  @apply text-xs opacity-70;
-
-  font-weight: 400;
-  text-transform: capitalize;
 }
 
 :deep(.cm-editor) {

@@ -1,6 +1,6 @@
 <template>
   <main
-    class="editor-container"
+    class="editor-container rounded-b-[var(--workspace-panel-radius)]"
     :class="{ 'dark-theme': props.dark }"
     :style="editorContainerStyle"
   >
@@ -62,6 +62,7 @@
         :show-view-toggle="props.showViewToggle"
         :show-backlink-button="!!props.currentTitle"
         :backlink-count="backlinkCount"
+        :document-properties="props.documentProperties"
         :dark="props.dark"
         @view-mode-change="handleViewModeCommand"
         @toggle-backlinks="toggleBacklinks"
@@ -179,6 +180,7 @@ interface Props {
   lineHeight?: number;
   currentTitle?: string;
   currentFragmentId?: number | string;
+  documentProperties?: Array<{ label: string; value: string }>;
 }
 
 defineOptions({
@@ -872,7 +874,7 @@ const editor = useEditor({
   }),
   onUpdate: ({ editor }) => {
     try {
-      editorPersistenceBridge.handleEditorUpdate(editor);
+      editorPersistenceBridge.handleEditorUpdate(editor, editor.isFocused);
       setCurrentCursorPos(editor.state.selection.from);
       // 输入、Markdown 转换等内容事务可能短暂保留旧 NodeView 坐标。
       // 内容更新只向下追踪光标，避免旧图片坐标把滚动条拉回上方。
@@ -1369,23 +1371,11 @@ defineExpose({
 }
 
 .dark-theme {
-  :deep(.editor-status) {
-    color: var(--statusbar-text);
-    background-color: var(--statusbar-bg);
-    border-color: var(--statusbar-border);
-  }
-
   :deep(.action-btn) {
     color: var(--editor-text-secondary);
 
     &:hover {
       color: var(--editor-text);
-      background-color: var(--editor-hover-bg);
-    }
-  }
-
-  :deep(.view-toggle-btn) {
-    &:hover {
       background-color: var(--editor-hover-bg);
     }
   }
@@ -1407,9 +1397,9 @@ defineExpose({
   @apply box-border h-auto min-h-full max-w-full whitespace-pre-wrap overflow-y-visible min-w-0 outline-none;
 
   width: min(100%, 1080px);
-  padding: 22px 22px 0;
+  padding: 28px 0 0;
   margin: 0 auto;
-  font-size: 15px;
+  font-size: 17px;
   line-height: var(--editor-line-height);
   color: var(--editor-text);
   background-color: var(--editor-bg);

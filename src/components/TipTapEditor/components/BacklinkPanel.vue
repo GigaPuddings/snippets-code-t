@@ -1,58 +1,56 @@
 <template>
-  <div class="backlink-sidebar" :class="{ dark: dark, 'is-visible': show }">
+  <aside
+    class="backlink-sidebar"
+    :class="{ dark: dark, 'is-visible': show }"
+    :aria-label="t('backlinks.title')"
+    :aria-hidden="!show"
+    :inert="!show"
+  >
     <div class="backlink-sidebar-header">
+      <h3 class="backlink-sidebar-title">{{ t('backlinks.title') }}</h3>
       <div class="backlink-sidebar-actions">
         <!-- 搜索按钮 -->
         <button
-          class="backlink-action-btn"
+          class="ui-icon-button ui-icon-button--small shrink-0"
+          type="button"
           @click="toggleSearch"
           :title="$t('noteEditor.search')"
-          :class="{ 'is-active': showSearch }"
+          :aria-label="t('noteEditor.search')"
+          :aria-pressed="showSearch"
         >
-          <svg viewBox="0 0 24 24" width="14" height="14">
-            <path
-              fill="currentColor"
-              d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z"
-            />
-          </svg>
+          <Search theme="outline" size="16" />
         </button>
         <button
-          class="backlink-sidebar-close"
+          class="ui-icon-button ui-icon-button--small shrink-0"
+          type="button"
           @click="$emit('close')"
           :title="t('common.close')"
+          :aria-label="t('common.close')"
         >
-          <svg viewBox="0 0 24 24" width="16" height="16">
-            <path
-              fill="currentColor"
-              d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"
-            />
-          </svg>
+          <CloseSmall theme="outline" size="18" />
         </button>
       </div>
     </div>
 
     <!-- 搜索框 -->
     <div v-show="showSearch" class="backlink-search-box">
-      <svg viewBox="0 0 24 24" width="14" height="14" class="search-icon">
-        <path
-          fill="currentColor"
-          d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z"
-        />
-      </svg>
+      <Search class="search-icon" theme="outline" size="16" />
       <input
         ref="searchInputRef"
         v-model="searchQuery"
         type="text"
         class="search-input"
         :placeholder="t('backlinks.searchPlaceholder')"
+        :aria-label="t('backlinks.searchPlaceholder')"
       />
-      <button v-if="searchQuery" class="clear-search-btn" @click="clearSearch">
-        <svg viewBox="0 0 24 24" width="14" height="14">
-          <path
-            fill="currentColor"
-            d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"
-          />
-        </svg>
+      <button
+        v-if="searchQuery"
+        type="button"
+        class="ui-icon-button h-ui-control-sm w-ui-control-sm shrink-0"
+        :aria-label="t('common.clear')"
+        @click="clearSearch"
+      >
+        <CloseSmall theme="outline" size="16" />
       </button>
     </div>
 
@@ -86,13 +84,14 @@
             {{ t('noteEditor.noSearchResults') }}
           </div>
           <div v-else class="backlink-list">
-            <div
+            <button
               v-for="item in filteredLinkedReferences"
               :key="item.id"
               class="backlink-item"
+              type="button"
               @click="handleNavigate(item.id)"
             >
-              <div class="item-header">
+              <span class="item-header">
                 <span
                   class="item-title"
                   v-html="highlightSearchText(item.title)"
@@ -100,16 +99,16 @@
                 <span class="item-count">
                   {{ item.occurrences }}{{ t('backlinks.occurrences') }}
                 </span>
-              </div>
-              <div
+              </span>
+              <span
                 class="item-preview"
                 v-html="
                   highlightSearchInPreview(
                     highlightWikilink(item.preview, currentTitle)
                   )
                 "
-              ></div>
-            </div>
+              ></span>
+            </button>
           </div>
         </div>
 
@@ -134,13 +133,14 @@
             {{ t('noteEditor.noSearchResults') }}
           </div>
           <div v-else class="backlink-list">
-            <div
+            <button
               v-for="item in filteredUnlinkedMentions"
               :key="item.id"
               class="backlink-item"
+              type="button"
               @click="handleNavigate(item.id)"
             >
-              <div class="item-header">
+              <span class="item-header">
                 <span
                   class="item-title"
                   v-html="highlightSearchText(item.title)"
@@ -148,25 +148,26 @@
                 <span class="item-count">
                   {{ item.occurrences }}{{ t('backlinks.occurrences') }}
                 </span>
-              </div>
-              <div
+              </span>
+              <span
                 class="item-preview"
                 v-html="
                   highlightSearchInPreview(
                     highlightMention(item.preview, currentTitle)
                   )
                 "
-              ></div>
-            </div>
+              ></span>
+            </button>
           </div>
         </div>
       </div>
     </div>
-  </div>
+  </aside>
 </template>
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
+import { CloseSmall, Search } from '@icon-park/vue-next';
 import { findBacklinks, findUnlinkedMentions } from '@/utils/wikilink-updater';
 
 interface BacklinkItem {
@@ -486,161 +487,74 @@ watch(
 
 <style lang="scss" scoped>
 .backlink-sidebar {
-  @apply bg-panel flex-shrink-0;
+  @apply flex h-full min-h-0 shrink-0 flex-col overflow-hidden font-ui text-ui;
 
-  display: flex;
-  flex-direction: column;
   width: 0;
-  height: 100%;
-  overflow: hidden;
-  border-left: 0 solid transparent;
-  transition: width 0.25s ease;
+  color: var(--workspace-nav-text);
+  background: var(--workspace-nav-bg);
+  border-left: 0 solid var(--workspace-nav-border);
+  transition: width 0.2s ease;
 
   &.is-visible {
-    width: 320px;
-    border-left: 1px solid var(--panel-border);
-  }
-
-  &.dark {
-    background-color: var(--panel-bg);
-
-    &.is-visible {
-      border-color: var(--panel-border);
-    }
+    width: var(--workspace-sidebar-width);
+    max-width: 45%;
+    border-left-width: 1px;
   }
 }
 
 .backlink-sidebar-header {
-  @apply flex items-center justify-between px-3 py-2;
+  @apply flex h-10 shrink-0 items-center justify-between gap-2 px-4;
+}
 
-  flex-shrink: 0;
-  border-bottom: 1px solid var(--panel-border);
+.backlink-sidebar-title {
+  @apply min-w-0 truncate text-ui font-semibold;
+
+  color: var(--workspace-nav-heading);
 }
 
 .backlink-sidebar-actions {
-  @apply flex items-center gap-1 w-full justify-end;
-}
-
-.backlink-action-btn {
-  @apply w-7 h-7 flex items-center justify-center rounded cursor-pointer;
-
-  color: var(--panel-text-secondary);
-  transition: all 0.15s ease;
-
-  &:hover {
-    color: var(--panel-text);
-    background-color: var(--panel-hover-bg);
-  }
-
-  &.is-active {
-    color: var(--el-color-primary);
-    background-color: var(--categories-bg-tab-active);
-  }
-
-  svg {
-    @apply text-current;
-  }
+  @apply flex shrink-0 items-center gap-1;
 }
 
 .backlink-search-box {
-  @apply flex items-center px-3 py-2 gap-2;
-
-  flex-shrink: 0;
-  border-bottom: 1px solid var(--panel-border);
+  @apply mx-4 mb-2 flex h-8 shrink-0 items-center gap-2 rounded-lg bg-hover px-2;
 }
 
 .search-icon {
-  @apply flex-shrink-0;
+  @apply shrink-0;
 
-  color: var(--panel-text-secondary);
+  color: var(--workspace-nav-muted);
 }
 
 .search-input {
-  @apply flex-1 bg-transparent border-none outline-none text-sm;
+  @apply min-w-0 flex-1 border-0 bg-transparent text-ui outline-none;
 
-  color: var(--panel-text);
+  color: var(--workspace-nav-text);
 
   &::placeholder {
-    color: var(--panel-text-secondary);
-  }
-}
-
-.clear-search-btn {
-  @apply w-5 h-5 flex items-center justify-center rounded cursor-pointer flex-shrink-0;
-
-  color: var(--panel-text-secondary);
-  transition: background-color 0.15s ease;
-
-  &:hover {
-    color: var(--panel-text);
-    background-color: var(--panel-hover-bg);
-  }
-}
-
-.backlink-sidebar-close {
-  @apply w-7 h-7 flex items-center justify-center rounded cursor-pointer;
-
-  color: var(--panel-text-secondary);
-  transition: background-color 0.15s ease;
-
-  &:hover {
-    color: var(--panel-text);
-    background-color: var(--panel-hover-bg);
-  }
-
-  svg {
-    @apply text-current;
+    color: var(--workspace-nav-muted);
   }
 }
 
 .backlink-sidebar-content {
-  @apply overflow-y-auto flex-1 py-2 px-3;
-
-  padding-bottom: 48px;
-
-  &::-webkit-scrollbar {
-    width: 10px;
-  }
-
-  &::-webkit-scrollbar-track {
-    @apply bg-transparent;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background-color: rgb(0 0 0 / 15%);
-    background-clip: padding-box;
-    border: 3px solid transparent;
-    border-radius: 5px;
-
-    &:hover {
-      background-color: rgb(0 0 0 / 25%);
-    }
-  }
-
-  .dark & {
-    &::-webkit-scrollbar-thumb {
-      background-color: rgb(255 255 255 / 15%);
-
-      &:hover {
-        background-color: rgb(255 255 255 / 25%);
-      }
-    }
-  }
+  @apply min-h-0 flex-1 overflow-y-auto px-3 pb-4 pt-2;
 }
 
 .loading-state {
-  @apply flex flex-col items-center justify-center py-8 text-panel-text-secondary;
+  @apply flex flex-col items-center justify-center py-8 text-ui-caption;
+
+  color: var(--workspace-nav-muted);
 }
 
 .spinner {
-  @apply w-8 h-8 border-4 rounded-full animate-spin mb-2;
+  @apply mb-2 h-6 w-6 animate-spin rounded-full border-2;
 
-  border-color: var(--panel-border);
+  border-color: var(--workspace-nav-border);
   border-top-color: var(--el-color-primary);
 }
 
 .backlink-sections {
-  @apply space-y-6;
+  @apply space-y-5;
 }
 
 .backlink-section {
@@ -648,26 +562,25 @@ watch(
 }
 
 .section-header {
-  @apply flex items-center justify-between mb-2;
+  @apply flex items-center justify-between gap-2 px-1;
 }
 
 .section-title {
-  @apply text-xs font-semibold uppercase tracking-wide;
+  @apply min-w-0 text-ui-caption font-medium;
 
-  color: var(--panel-text-secondary);
+  color: var(--workspace-nav-text);
 }
 
 .count-badge {
-  @apply px-1.5 py-0.5 text-xs font-medium rounded;
+  @apply min-w-5 shrink-0 rounded-full bg-hover px-1.5 text-center text-ui-caption tabular-nums;
 
-  color: var(--panel-text-secondary);
-  background-color: var(--editor-hover-bg);
+  color: var(--workspace-nav-muted);
 }
 
 .empty-state {
-  @apply text-xs italic py-2;
+  @apply px-1 py-2 text-ui-caption leading-5;
 
-  color: var(--panel-text-secondary);
+  color: var(--workspace-nav-muted);
 }
 
 .backlink-list {
@@ -675,64 +588,43 @@ watch(
 }
 
 .backlink-item {
-  @apply p-2 rounded cursor-pointer transition-all;
-
-  &:hover {
-    background-color: var(--categories-panel-bg-hover);
-  }
-
-  .dark & {
-    &:hover {
-      background-color: var(--categories-panel-bg-hover);
-    }
-  }
+  @apply block w-full min-w-0 rounded-lg border-0 bg-transparent p-2 text-left transition-colors hover:bg-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary;
 }
 
 .item-header {
-  @apply flex items-center justify-between mb-1;
+  @apply mb-1 flex min-w-0 items-start justify-between gap-2;
 }
 
 .item-title {
-  @apply text-sm font-medium text-panel truncate flex-1;
+  @apply min-w-0 flex-1 truncate text-ui font-medium;
 
-  :deep(.search-highlight) {
-    @apply bg-blue-100 text-blue-700 px-0.5 rounded font-semibold;
-
-    .dark & {
-      @apply bg-blue-900 bg-opacity-30 text-blue-400;
-    }
-  }
+  color: var(--workspace-nav-heading);
 }
 
 .item-count {
-  @apply text-xs text-panel-text-secondary ml-2 flex-shrink-0;
+  @apply shrink-0 text-ui-caption;
+
+  color: var(--workspace-nav-muted);
 }
 
 .item-preview {
-  @apply text-xs text-panel-text-secondary line-clamp-2 leading-relaxed;
+  @apply line-clamp-2 text-ui-caption leading-5;
 
-  :deep(.search-highlight) {
-    @apply bg-blue-100 text-blue-700 px-0.5 rounded font-semibold;
+  color: var(--workspace-nav-muted);
+}
 
-    .dark & {
-      @apply bg-blue-900 bg-opacity-30 text-blue-400;
-    }
+.item-title,
+.item-preview {
+  :deep(mark) {
+    @apply rounded bg-hover px-0.5 font-medium;
+
+    color: var(--workspace-nav-heading);
   }
+}
 
-  :deep(mark.wikilink-highlight) {
-    @apply bg-purple-100 text-purple-700 px-0.5 rounded;
-
-    .dark & {
-      @apply bg-purple-900 bg-opacity-30 text-purple-400;
-    }
-  }
-
-  :deep(mark.mention-highlight) {
-    @apply bg-yellow-100 text-yellow-700 px-0.5 rounded;
-
-    .dark & {
-      @apply bg-yellow-900 bg-opacity-30 text-yellow-400;
-    }
+@media (prefers-reduced-motion: reduce) {
+  .backlink-sidebar {
+    transition: none;
   }
 }
 </style>

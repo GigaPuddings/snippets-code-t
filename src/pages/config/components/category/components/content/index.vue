@@ -1,11 +1,15 @@
 <template>
-  <main class="content-container transparent-input">
+  <main
+    class="content-container transparent-input"
+    :class="{ 'content-container--note': currentEditorType === 'note' }"
+  >
     <div class="content-header">
       <div class="content-title">
         <el-input
           ref="titleInputRef"
           class="content-title-input"
           :model-value="draftTitle"
+          :title="draftTitle"
           placeholder=""
           @input="handleTitleInput"
           @blur="commitTitleChange"
@@ -13,72 +17,60 @@
         />
 
         <div v-if="state.currentContent" class="content-header-actions">
+          <nav
+            class="workspace-breadcrumb"
+            :aria-label="t('titlebar.navigation')"
+          >
+            <router-link
+              :to="contentFolder.path"
+              class="max-w-[40%] shrink-0 truncate"
+              :title="contentFolder.name"
+            >
+              {{ contentFolder.name }}
+            </router-link>
+            <span class="shrink-0" aria-hidden="true">/</span>
+            <span class="min-w-0 truncate" :title="draftTitle">
+              {{ draftTitle }}
+            </span>
+          </nav>
+          <button
+            class="ui-icon-button ui-icon-button--small text-panel-text-secondary disabled:cursor-wait"
+            type="button"
+            :title="favoriteActionLabel"
+            :aria-label="favoriteActionLabel"
+            :aria-pressed="isCurrentFavorite"
+            :disabled="isFavoritePending(state.currentContent.id)"
+            @click="toggleContentFavorite(state.currentContent)"
+          >
+            <Star
+              :theme="isCurrentFavorite ? 'filled' : 'outline'"
+              size="18"
+              aria-hidden="true"
+            />
+          </button>
           <!-- 编辑器控制按钮（仅笔记类型显示） -->
           <div v-if="currentEditorType === 'note'" class="editor-controls">
             <!-- 阅读模式切换按钮 -->
             <button
               v-if="editorViewMode !== 'reading'"
-              class="control-btn"
+              class="ui-icon-button ui-icon-button--small text-panel-text-secondary"
               type="button"
               @click="toggleToReadingMode"
               :title="$t('noteEditor.toggleReading')"
               :aria-label="$t('noteEditor.toggleReading')"
             >
-              <svg
-                viewBox="0 0 24 24"
-                width="18"
-                height="18"
-                aria-hidden="true"
-              >
-                <path
-                  fill="currentColor"
-                  d="M21,5C19.89,4.65 18.67,4.5 17.5,4.5C15.55,4.5 13.45,4.9 12,6C10.55,4.9 8.45,4.5 6.5,4.5C4.55,4.5 2.45,4.9 1,6V20.65C1,20.9 1.25,21.15 1.5,21.15C1.6,21.15 1.65,21.1 1.75,21.1C3.1,20.45 5.05,20 6.5,20C8.45,20 10.55,20.4 12,21.5C13.35,20.65 15.8,20 17.5,20C19.15,20 20.85,20.3 22.25,21.05C22.35,21.1 22.4,21.1 22.5,21.1C22.75,21.1 23,20.85 23,20.6V6C22.4,5.55 21.75,5.25 21,5M21,18.5C19.9,18.15 18.7,18 17.5,18C15.8,18 13.35,18.65 12,19.5V8C13.35,7.15 15.8,6.5 17.5,6.5C18.7,6.5 19.9,6.65 21,7V18.5Z"
-                />
-              </svg>
+              <BookOpen theme="outline" size="18" aria-hidden="true" />
             </button>
 
             <button
               v-else
-              class="control-btn"
+              class="ui-icon-button ui-icon-button--small text-panel-text-secondary"
               type="button"
               @click="toggleToEditingMode"
               :title="$t('noteEditor.toggleEditing')"
               :aria-label="$t('noteEditor.toggleEditing')"
             >
-              <svg
-                viewBox="0 0 24 24"
-                width="18"
-                height="18"
-                aria-hidden="true"
-              >
-                <path
-                  fill="currentColor"
-                  d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z"
-                />
-              </svg>
-            </button>
-
-            <!-- 大纲按钮 -->
-            <button
-              class="control-btn"
-              type="button"
-              @click="toggleOutline"
-              :title="$t('noteEditor.outline')"
-              :aria-label="$t('noteEditor.outline')"
-              :aria-pressed="isOutlineVisible"
-              :class="{ 'is-active': isOutlineVisible }"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                width="18"
-                height="18"
-                aria-hidden="true"
-              >
-                <path
-                  fill="currentColor"
-                  d="M3,9H17V7H3V9M3,13H17V11H3V13M3,17H17V15H3V17M19,17H21V15H19V17M19,7V9H21V7H19M19,13H21V11H19V13Z"
-                />
-              </svg>
+              <EditTwo theme="outline" size="18" aria-hidden="true" />
             </button>
           </div>
           <el-dropdown
@@ -87,7 +79,7 @@
             @command="handleContentMenuCommand"
           >
             <button
-              class="content-more"
+              class="ui-icon-button ui-icon-button--small text-panel-text-secondary"
               type="button"
               :title="t('common.more')"
               :aria-label="t('common.more')"
@@ -115,14 +107,51 @@
                 <el-dropdown-item command="copyContent">
                   {{ t('content.copyContent') }}
                 </el-dropdown-item>
+                <el-dropdown-item
+                  v-if="currentEditorType === 'note'"
+                  command="copyNoteLink"
+                >
+                  {{ t('content.copyNoteLink') }}
+                </el-dropdown-item>
+                <el-dropdown-item
+                  v-if="currentEditorType === 'note'"
+                  command="outline"
+                  :class="{ 'text-primary': isOutlineVisible }"
+                >
+                  {{ t('noteEditor.outline') }}
+                </el-dropdown-item>
+                <el-dropdown-item
+                  v-if="currentEditorType === 'note'"
+                  command="addTag"
+                >
+                  {{ t('tags.addTag') }}
+                </el-dropdown-item>
+                <el-dropdown-item command="aiAssist">
+                  {{ t('content.aiAssistant') }}
+                </el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
+          <span
+            v-if="state.currentContent.updated_at"
+            class="content-toolbar-updated"
+          >
+            {{ t('content.lastModified') }}:
+            {{ formatUpdatedAt(state.currentContent.updated_at) }}
+          </span>
         </div>
       </div>
 
       <!-- 标签输入 -->
-      <div v-if="state.currentContent" class="content-tags">
+      <div
+        v-if="
+          state.currentContent &&
+          (currentEditorType !== 'note' ||
+            state.tags.length > 0 ||
+            showTagEditor)
+        "
+        class="content-tags"
+      >
         <div class="content-tags-input">
           <TagInput
             v-model="state.tags"
@@ -130,22 +159,6 @@
             @update:model-value="handleTagsChange"
           />
         </div>
-        <button
-          class="ai-assist-button"
-          type="button"
-          :title="t('content.aiAssistant')"
-          :aria-label="t('content.aiAssistant')"
-          @click="showAiAssist = true"
-        >
-          <MagicWand
-            class="text-primary"
-            theme="outline"
-            size="15"
-            :strokeWidth="3"
-            aria-hidden="true"
-          />
-          <span>{{ t('content.aiAssistant') }}</span>
-        </button>
       </div>
     </div>
 
@@ -301,6 +314,7 @@
             :current-title="state.title"
             :current-fragment-id="state.currentContent?.id"
             :line-height="store.editorLineHeight"
+            :document-properties="noteProperties"
             :dark="isDark"
             @update:content="handleEditorChange"
             @ready="handleEditorReady"
@@ -317,6 +331,12 @@
 </template>
 
 <script setup lang="ts">
+import { BookOpen, EditTwo, Star } from '@icon-park/vue-next';
+import {
+  useContentFavorites,
+  applyFavoriteChange,
+  type FavoriteChangeDetail
+} from '@/composables/useContentFavorites';
 import { useConfigurationStore, usePluginStore } from '@/store';
 import {
   getFragmentContent,
@@ -344,7 +364,6 @@ import { findBacklinks, getBacklinkStats } from '@/utils/wikilink-updater';
 import BacklinkUpdateDialog from '@/components/UI/BacklinkUpdateDialog.vue';
 import AiAssistDialog from '@/components/AiAssistDialog/index.vue';
 import AiSelectionToolbar from '@/components/AiSelectionToolbar/index.vue';
-import { MagicWand } from '@icon-park/vue-next';
 import {
   htmlToMarkdown,
   createTurndownService,
@@ -378,6 +397,19 @@ const loadGitSyncApi = async (): Promise<GitSyncApi> => {
 };
 
 const { t } = useI18n();
+const formatUpdatedAt = (value?: string): string => {
+  if (!value) return '';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleString(undefined, {
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+};
 
 // 组件状态集中管理
 const state = reactive({
@@ -400,6 +432,7 @@ const state = reactive({
 });
 
 const draftTitle = ref('');
+const showTagEditor = ref(false);
 const titleDirty = ref(false);
 let deferredEditorTimer: ReturnType<typeof setTimeout> | null = null;
 let editorReadyTimer: ReturnType<typeof setTimeout> | null = null;
@@ -624,6 +657,7 @@ const resetMissingContentState = (id: string | number, notify = true): void => {
   draftTitle.value = '';
   titleDirty.value = false;
   state.tags = [];
+  showTagEditor.value = false;
   state.editorContent = '';
   state.contentChanged = false;
   state.lastSavedAt = null;
@@ -654,6 +688,65 @@ const getContentMetadata = (): FragmentMetadata => {
 
 defineOptions({
   name: 'Content'
+});
+
+const contentFolder = computed(() => {
+  const content = state.currentContent;
+  const folder = store.categories.find(
+    (category) =>
+      !category.isSystem && String(category.id) === String(content?.category_id)
+  );
+  const id = folder?.id ?? content?.category_id ?? 0;
+  return {
+    name: folder?.name || content?.category_name || t('nav.uncategorized'),
+    path: `/config/category/contentList/${encodeURIComponent(String(id))}`
+  };
+});
+
+const { toggleContentFavorite, isFavoritePending } = useContentFavorites();
+const isCurrentFavorite = computed(
+  () =>
+    store.contents.find(
+      (item) => String(item.id) === String(state.currentContent?.id)
+    )?.favorite ??
+    state.currentContent?.favorite ??
+    false
+);
+const favoriteActionLabel = computed(() =>
+  t(isCurrentFavorite.value ? 'nav.favoritedAction' : 'nav.addFavorite')
+);
+
+const noteProperties = computed(() => {
+  const content = state.currentContent;
+  if (!content) return [];
+  const favorite = isCurrentFavorite.value;
+  const values: Record<string, string | undefined> = {
+    title: state.title,
+    type: t(
+      content.type === 'note' ? 'fragmentType.note' : 'fragmentType.codeSnippet'
+    ),
+    folder: contentFolder.value.name,
+    favorite:
+      typeof favorite === 'boolean'
+        ? t(favorite ? 'common.yes' : 'common.no')
+        : undefined,
+    tags: state.tags.length ? state.tags.join(', ') : undefined,
+    created: content.created_at
+      ? formatUpdatedAt(content.created_at)
+      : undefined,
+    modified: content.updated_at
+      ? formatUpdatedAt(content.updated_at)
+      : undefined,
+    language: content.metadata?.language as string | undefined,
+    framework: content.metadata?.framework as string | undefined,
+    kind: content.metadata?.kind as string | undefined
+  };
+  return Object.entries(values)
+    .filter((entry): entry is [string, string] => Boolean(entry[1]))
+    .map(([key, value]) => ({
+      label: t(`noteEditor.propertyLabels.${key}`),
+      value
+    }));
 });
 
 // 计算当前应该显示的编辑器类型
@@ -754,6 +847,17 @@ const toggleToEditingMode = () => {
 const toggleOutline = () => {
   if (tipTapEditorRef.value) {
     tipTapEditorRef.value.toggleOutline();
+  }
+};
+
+const copyNoteLink = async () => {
+  if (!state.currentContent || !state.title) return;
+  try {
+    await navigator.clipboard.writeText(`[[${state.title}]]`);
+    modal.success(t('content.copySuccess'));
+  } catch (error) {
+    logger.error('[Content] Copy note link failed:', error);
+    modal.error(t('content.copyFailed'));
   }
 };
 
@@ -1049,7 +1153,7 @@ const performSave = async (
       // 使用 replace 更新路由，添加 skipReload 查询参数
       router.replace({
         path: targetPath,
-        query: { skipReload: 'true' }
+        query: { ...route.query, skipReload: 'true' }
       });
     } else {
       // 跳过路由更新
@@ -1071,6 +1175,14 @@ const performSave = async (
   // 更新原始标题
   originalTitle.value = state.title;
   titleDirty.value = false;
+
+  if (titleChanged) {
+    window.dispatchEvent(
+      new CustomEvent('refresh-data', {
+        detail: { source: 'fragment-rename' }
+      })
+    );
+  }
 
   // 通知自动同步管理器（如果启用）
   try {
@@ -1126,6 +1238,24 @@ const saveContent = async (data: Partial<ContentType> = {}) => {
 
 const handleContentMenuCommand = async (command: string) => {
   if (!state.currentContent) return;
+
+  if (command === 'copyNoteLink' && currentEditorType.value === 'note') {
+    await copyNoteLink();
+    return;
+  }
+
+  if (command === 'outline' && currentEditorType.value === 'note') {
+    toggleOutline();
+    return;
+  }
+  if (command === 'addTag' && currentEditorType.value === 'note') {
+    showTagEditor.value = true;
+    return;
+  }
+  if (command === 'aiAssist' && currentEditorType.value === 'note') {
+    showAiAssist.value = true;
+    return;
+  }
 
   if (command === 'save') {
     if (state.isLoading) return;
@@ -1401,7 +1531,7 @@ const handleFragmentTypeConversionRequest = (event: Event): void => {
           path: cid
             ? `/config/category/contentList/${cid}/content/${encodeURIComponent(newPath)}`
             : `/config/category/contentList/content/${encodeURIComponent(newPath)}`,
-          query: { skipReload: 'true' }
+          query: { ...route.query, skipReload: 'true' }
         });
       }
 
@@ -1481,7 +1611,7 @@ const handleFragmentCategoryMoveRequest = (event: Event): void => {
 
       await router.replace({
         path: `/config/category/contentList/${moved.category_id ?? detail.categoryId}/content/${encodeURIComponent(String(moved.id))}`,
-        query: { skipReload: 'true' }
+        query: { ...route.query, skipReload: 'true' }
       });
 
       try {
@@ -1766,10 +1896,7 @@ const confirmCreateNote = async () => {
     // 优先从路由参数获取分类ID，如果没有则从当前内容获取
     let currentCategoryId: number;
 
-    if (route.params.cid) {
-      // 从路由参数获取分类ID
-      currentCategoryId = Number(route.params.cid);
-    } else if (state.currentContent?.category_id) {
+    if (state.currentContent?.category_id !== undefined) {
       // 从当前内容获取分类ID
       currentCategoryId =
         typeof state.currentContent.category_id === 'number'
@@ -1793,7 +1920,7 @@ const confirmCreateNote = async () => {
     store.contents = result;
 
     // 跳转到新笔记（保持当前的 cid 上下文）
-    const currentCid = route.params.cid || currentCategoryId;
+    const currentCid = currentCategoryId;
     router.push({
       path: `/config/category/contentList/${currentCid}/content/${encodeURIComponent(newFragmentId)}`
     });
@@ -1987,9 +2114,11 @@ watch(
     if (route.query.skipReload === 'true') {
       // 使用 nextTick 延迟清除查询参数，避免触发额外的路由变化
       nextTick(() => {
+        const query = { ...route.query };
+        delete query.skipReload;
         router.replace({
           path: route.path,
-          query: {}
+          query
         });
       });
       return;
@@ -1998,6 +2127,7 @@ watch(
     if (newId && oldId !== undefined) {
       beginEditorLoading();
     }
+    if (newId !== oldId) showTagEditor.value = false;
 
     // 如果路由参数变化，先自动保存当前内容（如果有更改）
     if (oldId && state.currentContent && hasUnsavedChanges()) {
@@ -2027,9 +2157,11 @@ watch(
         });
 
         // 清除 query 参数，避免下次进入时误触发
+        const query = { ...route.query };
+        delete query.rename;
         router.replace({
           path: route.path,
-          query: {}
+          query
         });
       }
     }
@@ -2080,6 +2212,18 @@ watch(currentEditorType, (newType, oldType) => {
 const handleRefreshData = async (event: Event) => {
   const customEvent = event as CustomEvent;
   const source = customEvent.detail?.source;
+
+  if (source === 'favorite-change') {
+    applyFavoriteChange(
+      state.currentContent,
+      customEvent.detail as FavoriteChangeDetail
+    );
+    return;
+  }
+
+  // Local create/rename events refresh navigation lists. The editor already
+  // owns its latest state and must not reload its body in response.
+  if (source === 'fragment-create' || source === 'fragment-rename') return;
 
   // git-pull 事件跳过，等待 files-changed-batch
   if (source === 'git-pull') return;
@@ -2269,10 +2413,6 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
-@mixin common() {
-  @apply outline-none bg-panel;
-}
-
 .content-container {
   @apply h-full w-full min-w-0 max-w-full overflow-hidden bg-panel text-xs;
 
@@ -2281,15 +2421,17 @@ onMounted(async () => {
   grid-template-columns: minmax(0, 1fr);
 
   .content-header {
-    @apply mx-2 min-w-0 max-w-full overflow-hidden;
+    @apply mx-auto min-w-0 w-full max-w-[1120px] overflow-hidden px-8 pt-0;
 
     .content-title {
-      @apply flex items-center gap-2 h-[40px];
+      @apply flex flex-wrap items-center gap-0 min-h-10;
 
       min-width: 0;
 
       .content-title-input {
-        flex: 1 1 auto;
+        @apply mt-2 w-full;
+
+        flex: 0 0 100%;
         min-width: 0;
 
         :deep(.el-input__wrapper) {
@@ -2299,7 +2441,9 @@ onMounted(async () => {
       }
 
       :deep(input) {
-        @apply text-lg text-panel pt-1 box-border;
+        @apply box-border text-ui-title font-semibold text-panel;
+
+        text-overflow: ellipsis;
       }
 
       .editor-controls {
@@ -2308,7 +2452,7 @@ onMounted(async () => {
     }
 
     .content-tags {
-      @apply flex min-w-0 items-start justify-between gap-3 py-2;
+      @apply flex min-w-0 items-start gap-3 py-2;
 
       .content-tags-input {
         @apply min-w-0 flex-1;
@@ -2318,9 +2462,43 @@ onMounted(async () => {
 }
 
 .editor-stage {
-  @apply relative h-full px-2 min-h-0 min-w-0 overflow-hidden;
+  @apply relative mx-auto h-full min-h-0 min-w-0 w-full max-w-[1120px] overflow-hidden px-8;
 
   background: var(--categories-panel-bg);
+}
+
+.content-container--note {
+  background: var(--editor-surface-bg);
+
+  .content-header {
+    @apply pt-0;
+
+    .content-tags {
+      @apply border-0 py-1;
+    }
+  }
+
+  .editor-stage {
+    @apply mx-auto w-full max-w-[1120px] px-8;
+
+    background: var(--editor-surface-bg);
+  }
+
+  .editor-stage:has(.backlink-sidebar.is-visible) {
+    @apply max-w-none pr-0;
+
+    .editor-surface :deep(.editor-main) {
+      @apply pr-8;
+    }
+  }
+
+  .editor-surface {
+    @apply rounded-none border-0;
+  }
+
+  .editor-surface :deep(.tiptap-editor) {
+    padding-top: 12px;
+  }
 }
 
 .editor-surface {
@@ -2519,25 +2697,6 @@ onMounted(async () => {
   }
 }
 
-.control-btn {
-  @apply flex h-7 w-7 items-center justify-center rounded-md border-0 bg-transparent text-panel-text-secondary cursor-pointer transition-colors duration-150;
-
-  &:hover {
-    color: var(--el-color-primary);
-    background-color: var(--categories-panel-bg-hover);
-  }
-
-  &.is-active {
-    color: var(--el-color-primary);
-    background-color: var(--categories-bg-tab-active);
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--el-color-primary);
-    outline-offset: 1px;
-  }
-}
-
 .editor-host {
   @apply h-full w-full min-h-0 min-w-0 max-w-full overflow-hidden;
 
@@ -2550,38 +2709,22 @@ onMounted(async () => {
   opacity: 0;
 }
 
-.ai-assist-button {
-  @apply inline-flex h-7 shrink-0 items-center justify-center gap-1.5 rounded-md border-0 bg-hover px-2.5 text-xs font-medium text-primary cursor-pointer transition-colors duration-150;
+.content-header-actions {
+  @apply order-first flex w-full min-w-0 items-center gap-1 border-b border-panel py-1.5;
+}
+
+.workspace-breadcrumb {
+  @apply mr-auto flex min-w-0 flex-1 items-center gap-2 pr-3 text-ui-caption text-content;
+}
+
+.content-header-actions > :not(.workspace-breadcrumb) {
+  flex-shrink: 0;
+}
+
+.content-toolbar-updated {
+  @apply ml-2 border-l border-panel pl-3 text-xs text-content;
 
   white-space: nowrap;
-
-  &:hover {
-    color: var(--el-color-primary);
-    background-color: var(--categories-panel-bg-hover);
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--el-color-primary);
-    outline-offset: 1px;
-  }
-}
-
-.content-header-actions {
-  @apply ml-auto flex shrink-0 items-center gap-1 rounded-lg border border-panel bg-content p-0.5;
-}
-
-.content-more {
-  @apply inline-flex h-7 w-7 items-center justify-center rounded-md border-0 bg-transparent text-panel-text-secondary cursor-pointer transition-colors duration-150;
-
-  &:hover {
-    color: var(--panel-text);
-    background-color: var(--categories-panel-bg-hover);
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--el-color-primary);
-    outline-offset: 1px;
-  }
 }
 
 .editor-surface :deep(.editor-container),
