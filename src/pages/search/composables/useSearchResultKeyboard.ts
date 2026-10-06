@@ -17,6 +17,7 @@ interface UseSearchResultKeyboardOptions {
   showHideWindow: () => Promise<void>;
   backToSearch: () => void;
   primaryAction: (item: ContentType) => void;
+  togglePreview: () => void;
 }
 
 const preventKey = (event: KeyboardEvent) => {
@@ -94,6 +95,9 @@ export function useSearchResultKeyboard(
         break;
       case 'Space':
         preventKey(event);
+        if (!event.repeat) {
+          options.togglePreview();
+        }
         break;
     }
   };
