@@ -103,12 +103,15 @@ export function useEditorPersistenceBridge(
   );
 
   const handleEditorUpdate = (
-    editorInstance: EditorPersistenceBridgeEditor
+    editorInstance: EditorPersistenceBridgeEditor,
+    shouldPersist = true
   ) => {
     if (isDisposed || !isEditorAvailable(editorInstance)) return;
 
-    isInternalUpdate.value = true;
     options.updateStats(editorInstance.getText());
+    if (!shouldPersist) return;
+
+    isInternalUpdate.value = true;
     debouncedEmitUpdate(editorInstance);
 
     nextTick(() => {

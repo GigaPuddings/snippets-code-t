@@ -103,6 +103,19 @@ describe('useEditorPersistenceBridge', () => {
     expect(bridge.emitContentChange).toHaveBeenCalledWith('# Button');
   });
 
+  it('updates statistics without persisting background editor normalization', async () => {
+    vi.useFakeTimers();
+    const bridge = createBridge();
+    const { editor } = createEditor();
+
+    bridge.handleEditorUpdate(editor, false);
+    await vi.advanceTimersByTimeAsync(10);
+
+    expect(bridge.updateStats).toHaveBeenCalledWith('Hello persistence');
+    expect(bridge.emitContentChange).not.toHaveBeenCalled();
+    expect(bridge.isInternalUpdate.value).toBe(false);
+  });
+
   it('applies source Markdown to the editor without triggering TipTap updates', async () => {
     const bridge = createBridge();
     const { editor, setContent } = createEditor();

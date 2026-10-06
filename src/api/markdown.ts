@@ -79,6 +79,21 @@ export async function deleteMarkdownFile(filePath: string): Promise<void> {
   }
 }
 
+export interface DeletedNote {
+  id: string;
+  title: string;
+  originalPath: string;
+  deletedAt: string;
+}
+
+export async function getDeletedNotes(): Promise<DeletedNote[]> {
+  return invoke<DeletedNote[]>('get_deleted_notes');
+}
+
+export async function restoreDeletedNote(id: string): Promise<string> {
+  return invoke<string>('restore_deleted_note', { id });
+}
+
 /**
  * 移动 Markdown 文件到新分类
  * @param filePath 当前文件路径
@@ -135,7 +150,9 @@ export async function getFilesByTag(tag: string): Promise<MarkdownFile[]> {
  */
 export async function getFavoriteFiles(): Promise<MarkdownFile[]> {
   try {
-    return await invoke<MarkdownFile[]>('get_favorite_files');
+    // Reuse the registered workspace listing command; favorite is read from
+    // each file's frontmatter, so no separate or stale favorites cache is used.
+    return (await getAllFiles()).filter((file) => file.favorite);
   } catch (error) {
     throw new Error(`获取收藏列表失败: ${error}`);
   }

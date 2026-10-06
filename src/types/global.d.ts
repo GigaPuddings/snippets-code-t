@@ -51,6 +51,7 @@ declare global {
     format?: ContentFormat;
     metadata?: FragmentMetadata | null;
     tags?: string[] | null;
+    favorite?: boolean;
   }
 
   interface SearchHistoryItem {
@@ -65,6 +66,7 @@ declare global {
     id: string | number;
     categories: CategoryType[];
     contents: ContentType[];
+    favoriteCount: number | null;
     editCategoryId: string | number;
     categorySort: 'asc' | 'desc';
     searchHotkey: string;

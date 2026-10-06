@@ -10,6 +10,7 @@ export const useConfigurationStore = defineStore('configuration', {
     id: '', // 搜索框的 id
     data: [], // 搜索结果
     contents: [], // 搜索结果
+    favoriteCount: null, // 当前收藏集合的总数；加载前不展示徽标
     categories: [], // 分类集合
     editCategoryId: '', // 编辑分类的 id
     categorySort: 'asc', // 分类排序

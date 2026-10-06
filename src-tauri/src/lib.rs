@@ -701,6 +701,8 @@ pub fn run() {
             markdown::read_markdown_file,               // 读取 Markdown 文件
             markdown::update_markdown_file,             // 更新 Markdown 文件
             markdown::delete_markdown_file,             // 删除 Markdown 文件
+            markdown::get_deleted_notes,                // 本机笔记回收站
+            markdown::restore_deleted_note,             // 恢复笔记原始字节
             markdown::move_markdown_file,               // 移动 Markdown 文件到新分类
             markdown::cleanup_cache,                    // 清理 cache.json 中已删除文件的元数据
             markdown::scan_new_files,                   // 扫描新文件并更新 cache（用于 Git Pull 后）

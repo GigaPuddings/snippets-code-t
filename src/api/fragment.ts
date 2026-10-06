@@ -2,10 +2,7 @@ import { ErrorHandler, ErrorType } from '@/utils/error-handler';
 import type { Category, FragmentMetadata } from '@/types/database';
 import type { ContentType, MarkdownFile } from '@/types/models';
 import * as markdownApi from './markdown';
-import {
-  cleanupAttachmentsOnDelete,
-  syncAttachmentsOnRename
-} from '@/plugins/attachments/api';
+import { syncAttachmentsOnRename } from '@/plugins/attachments/api';
 import { applyFilter } from '@/utils/filterEngine';
 import { parseSearchText } from '@/utils/searchParser';
 import { logger } from '@/utils/logger';
@@ -50,8 +47,19 @@ function markdownFileToContentType(file: MarkdownFile): ContentType {
     metadata: Object.keys(metadata).length > 0 ? metadata : null,
     created_at: file.created,
     updated_at: file.modified,
-    usage_count: 0
+    usage_count: 0,
+    favorite: file.favorite
   };
+}
+
+export async function getFavoriteFragments(): Promise<ContentType[]> {
+  try {
+    const files = await markdownApi.getFavoriteFiles();
+    return files.map(markdownFileToContentType);
+  } catch (error) {
+    if (isWorkspaceNotSetError(error)) return [];
+    throw error;
+  }
 }
 
 // ============= 分类相关 API =============
@@ -224,38 +232,8 @@ export async function deleteCategory(id: number | string): Promise<void> {
       throw new Error(`Category with id ${id} not found`);
     }
 
-    // 获取该分类下的所有文件
-    const files = await markdownApi.getFilesByCategory(numId);
-
-    // 清理所有文件的附件，统计实际清理的数量
-    let cleanedCount = 0;
-    for (const file of files) {
-      try {
-        const hasAttachments = await cleanupAttachmentsOnDelete(file.title);
-        if (hasAttachments) {
-          cleanedCount++;
-        }
-      } catch (error) {
-        console.error(`清理附件失败 (${file.title}):`, error);
-        // 继续清理其他文件
-      }
-    }
-
-    // 删除分类文件夹
+    // 后端统一回收分类下的所有 Markdown 文件，再移除空文件夹。
     await markdownApi.deleteCategory(category.name);
-
-    // 只有在实际清理了附件时才显示通知
-    if (cleanedCount > 0) {
-      const modalModule = await import('@/utils/modal');
-      const i18nModule = await import('@/i18n');
-      modalModule.default.success(
-        i18nModule.default.global.t(
-          'settings.attachment.categoryCleanupSuccessMessage',
-          { count: cleanedCount }
-        ),
-        'top-right'
-      );
-    }
   } catch (error) {
     ErrorHandler.handle(error, {
       type: ErrorType.API_ERROR,
@@ -371,9 +349,15 @@ export async function addFragment(params?: AddFragmentParams): Promise<string> {
       } else {
         // 根据数字 ID 查找分类名
         const categories = await getCategories();
-        const category = categories.find((c) => c.id === params.categoryId);
+        const category = categories.find(
+          (c) => Number(c.id) === params.categoryId
+        );
         if (category) {
           categoryName = category.name;
+        } else if (params.categoryId === 0) {
+          categoryName = '未分类';
+        } else {
+          throw new Error(`Category with id ${params.categoryId} not found`);
         }
       }
     }
@@ -434,40 +418,10 @@ function isFilePath(id: number | string): boolean {
  */
 export async function deleteFragment(id: number | string): Promise<void> {
   try {
-    // 如果 ID 看起来像文件路径，直接使用
+    // 文件内容进入本机回收站，原始正文与 Front Matter 保持不变。
     if (isFilePath(id)) {
       const filePath = String(id);
-
-      // 读取文件以获取标题（用于清理附件）
-      try {
-        const file = await markdownApi.readMarkdownFile(filePath);
-
-        // 删除文件
-        await markdownApi.deleteMarkdownFile(filePath);
-
-        // 清理附件并显示通知
-        try {
-          const hasAttachments = await cleanupAttachmentsOnDelete(file.title);
-
-          // 只有在实际删除了附件时才显示通知
-          if (hasAttachments) {
-            const modalModule = await import('@/utils/modal');
-            const i18nModule = await import('@/i18n');
-            modalModule.default.success(
-              i18nModule.default.global.t(
-                'settings.attachment.cleanupSuccessMessage'
-              ),
-              'top-right'
-            );
-          }
-        } catch (cleanupError) {
-          console.error('清理附件失败:', cleanupError);
-          // 不阻止删除操作，只记录错误
-        }
-      } catch (error) {
-        // 如果读取文件失败，仍然尝试删除文件
-        await markdownApi.deleteMarkdownFile(filePath);
-      }
+      await markdownApi.deleteMarkdownFile(filePath);
     } else {
       // 否则，这可能是旧的数字 ID 或者是从 route.params 转换来的
       // 在新系统中，我们不应该收到纯数字 ID

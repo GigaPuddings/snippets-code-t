@@ -490,7 +490,9 @@ impl FileWatcher {
             if !final_md_deleted.is_empty() {
                 let deleted_abs_paths: Vec<String> = final_md_deleted
                     .iter()
-                    .map(|r| workspace_root.join(r).to_string_lossy().to_string())
+                    .map(|r| workspace_root.join(r))
+                    .filter(|path| !crate::markdown::trash::was_soft_deleted(path))
+                    .map(|path| path.to_string_lossy().to_string())
                     .collect();
                 let app_handle_clone = app_handle.clone();
                 tokio::spawn(async move {

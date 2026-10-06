@@ -4,6 +4,7 @@ use crate::json_config::get_workspace_root;
 use crate::markdown::file_ops::{get_relative_path, FileNameGenerator};
 use crate::markdown::file_system_manager::FileSystemManager;
 use crate::markdown::metadata::{try_parse_front_matter, FileMetadata, FrontMatter};
+use crate::markdown::trash::{self, DeletedNote};
 use crate::markdown::watcher::FileWatcher;
 use crate::markdown::CacheManager;
 use crate::markdown::IndexManager; // 使用模块级别的 IndexManager（已重命名为 OptimizedIndexManager）
@@ -85,6 +86,16 @@ fn get_fs_manager(app_handle: &AppHandle) -> Result<FileSystemManager, String> {
     let workspace_root =
         get_workspace_root(app_handle)?.ok_or("工作区未配置，请先设置工作区根目录")?;
     Ok(FileSystemManager::new(workspace_root))
+}
+
+fn favorite_after_metadata_update(
+    metadata: &serde_json::Value,
+    current: Option<&FrontMatter>,
+) -> bool {
+    metadata
+        .get("favorite")
+        .and_then(|value| value.as_bool())
+        .unwrap_or_else(|| current.is_some_and(|fm| fm.favorite))
 }
 
 fn normalize_for_content_compare(content: &str) -> String {
@@ -596,10 +607,7 @@ pub async fn update_markdown_file(
                 .get("kind")
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string()),
-            favorite: meta
-                .get("favorite")
-                .and_then(|v| v.as_bool())
-                .unwrap_or(false),
+            favorite: favorite_after_metadata_update(meta, current_frontmatter.as_ref()),
         })
     } else {
         None
@@ -684,30 +692,24 @@ pub async fn delete_markdown_file(
     let relative_path = get_relative_path(&workspace_root, &path)?;
     debug!("🗑️ [删除文件] 相对路径: {}", relative_path);
 
-    // 删除文件
-    fs_manager.delete_markdown_file(&path)?;
+    // 保留文件的原始字节到本机回收站；正文和 Front Matter 不变。
+    trash::soft_delete_note(&app_handle, &workspace_root, &path)?;
 
     // 从 cache.json 中移除元数据
-    let mut cache = cache_manager
-        .write()
-        .map_err(|e| format!("获取 cache 锁失败: {}", e))?;
-
-    if cache.get_file_metadata(&relative_path).is_some() {
-        cache.remove_file_metadata(&relative_path);
-        cache.save()?;
-        debug!(
-            "🗑️ [删除文件] 已从 cache.json 移除元数据: {}",
-            relative_path
-        );
+    if let Ok(mut cache) = cache_manager.write() {
+        if cache.get_file_metadata(&relative_path).is_some() {
+            cache.remove_file_metadata(&relative_path);
+            if let Err(error) = cache.save() {
+                warn!("笔记已回收，但保存 cache 失败: {}", error);
+            }
+            debug!(
+                "🗑️ [删除文件] 已从 cache.json 移除元数据: {}",
+                relative_path
+            );
+        }
     } else {
-        warn!(
-            "⚠️ [删除文件] cache.json 中未找到文件元数据: {}",
-            relative_path
-        );
+        warn!("笔记已回收，但无法取得 cache 写锁");
     }
-
-    // 释放 cache 锁
-    drop(cache);
 
     // 从索引中移除
     if let Ok(manager_lock) = index_manager.read() {
@@ -719,6 +721,44 @@ pub async fn delete_markdown_file(
 
     debug!("✅ 删除文件: {}", path.display());
     Ok(())
+}
+
+#[command]
+pub fn get_deleted_notes(app_handle: AppHandle) -> Result<Vec<DeletedNote>, String> {
+    let fs_manager = get_fs_manager(&app_handle)?;
+    trash::list_deleted_notes(&app_handle, fs_manager.workspace_root())
+}
+
+#[command]
+pub fn restore_deleted_note(
+    app_handle: AppHandle,
+    id: String,
+    index_manager: State<'_, Arc<RwLock<Option<IndexManager>>>>,
+    cache_manager: State<'_, Arc<RwLock<CacheManager>>>,
+) -> Result<String, String> {
+    let fs_manager = get_fs_manager(&app_handle)?;
+    let workspace_root = fs_manager.workspace_root().to_path_buf();
+    let restored_path = trash::restore_deleted_note(&app_handle, &workspace_root, &id)?;
+    if let Ok(mut cache) = cache_manager.write() {
+        if let Err(error) = cache
+            .add_file(&restored_path, &workspace_root)
+            .and_then(|_| cache.save())
+        {
+            warn!("笔记已恢复，但更新 cache 失败: {}", error);
+        }
+    } else {
+        warn!("笔记已恢复，但无法取得 cache 写锁");
+    }
+    if let Ok(manager_lock) = index_manager.read() {
+        if let Some(ref manager) = *manager_lock {
+            if let Ok(cache) = cache_manager.read() {
+                if let Err(error) = manager.update_entry(&restored_path, &workspace_root, &cache) {
+                    warn!("笔记已恢复，但更新搜索索引失败: {}", error);
+                }
+            }
+        }
+    }
+    Ok(restored_path.to_string_lossy().to_string())
 }
 
 // ============= 分类操作命令 =============
@@ -827,12 +867,63 @@ pub fn create_category_folder(app_handle: AppHandle, name: String) -> Result<Str
     Ok(folder_path.to_string_lossy().to_string())
 }
 
+fn collect_recyclable_category_contents(
+    folder_path: &Path,
+) -> Result<(Vec<PathBuf>, Vec<PathBuf>), String> {
+    // 先检查所有内容，避免删除非 Markdown 文件或符号链接。
+    let mut note_paths = Vec::new();
+    let mut directories = Vec::new();
+    for entry in walkdir::WalkDir::new(folder_path).follow_links(false) {
+        let entry = entry.map_err(|e| format!("检查分类内容失败: {}", e))?;
+        if entry.file_type().is_dir() {
+            directories.push(entry.path().to_path_buf());
+        } else if entry.file_type().is_file()
+            && entry.path().extension().and_then(|ext| ext.to_str()) == Some("md")
+        {
+            note_paths.push(entry.path().to_path_buf());
+        } else {
+            return Err(format!(
+                "分类包含非笔记文件，未执行删除: {}",
+                entry.path().display()
+            ));
+        }
+    }
+    Ok((note_paths, directories))
+}
+
+#[cfg(test)]
+mod category_delete_tests {
+    use super::*;
+
+    #[test]
+    fn scans_nested_notes_and_rejects_other_files_before_deletion() {
+        let root = std::env::temp_dir().join(format!(
+            "snippets-category-trash-test-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let nested = root.join("nested");
+        std::fs::create_dir_all(&nested).unwrap();
+        let note = nested.join("note.md");
+        std::fs::write(&note, b"# Note").unwrap();
+
+        let (notes, directories) = collect_recyclable_category_contents(&root).unwrap();
+        assert_eq!(notes, vec![note.clone()]);
+        assert_eq!(directories.len(), 2);
+
+        std::fs::write(root.join("keep.txt"), b"keep").unwrap();
+        assert!(collect_recyclable_category_contents(&root).is_err());
+        assert!(note.exists());
+        std::fs::remove_dir_all(root).unwrap();
+    }
+}
+
 // 删除分类文件夹
 #[command]
 pub fn delete_category_folder(
     app_handle: AppHandle,
     name: String,
     cache_manager: State<'_, Arc<RwLock<CacheManager>>>,
+    index_manager: State<'_, Arc<RwLock<Option<IndexManager>>>>,
 ) -> Result<(), String> {
     let workspace_root = get_workspace_root(&app_handle)?.ok_or("工作区未配置")?;
 
@@ -847,8 +938,15 @@ pub fn delete_category_folder(
         return Err(format!("路径不是文件夹: {}", name));
     }
 
-    // 删除文件夹及其内容
-    std::fs::remove_dir_all(&folder_path).map_err(|e| format!("删除分类失败: {}", e))?;
+    let (note_paths, mut directories) = collect_recyclable_category_contents(&folder_path)?;
+
+    for path in &note_paths {
+        trash::soft_delete_note(&app_handle, &workspace_root, path)?;
+    }
+    directories.sort_by_key(|path| std::cmp::Reverse(path.components().count()));
+    for path in directories {
+        std::fs::remove_dir(&path).map_err(|e| format!("删除空分类文件夹失败: {}", e))?;
+    }
 
     info!("✅ 删除分类: {}", name);
 
@@ -873,7 +971,17 @@ pub fn delete_category_folder(
     // 删除分类元数据
     cache.remove_category_metadata(&name);
 
-    cache.save()?;
+    if let Err(error) = cache.save() {
+        warn!("分类笔记已回收，但保存 cache 失败: {}", error);
+    }
+    drop(cache);
+    if let Ok(manager_lock) = index_manager.read() {
+        if let Some(ref manager) = *manager_lock {
+            for path in &note_paths {
+                let _ = manager.remove_entry(path);
+            }
+        }
+    }
     if !files_to_remove.is_empty() {
         info!("✅ 已清理 {} 个文件的元数据", files_to_remove.len());
     }
@@ -1106,44 +1214,255 @@ pub async fn toggle_favorite(
     cache_manager: State<'_, Arc<RwLock<CacheManager>>>,
 ) -> Result<(), String> {
     let fs_manager = get_fs_manager(&app_handle)?;
-    let workspace_root = fs_manager.workspace_root().to_path_buf();
-    let path = PathBuf::from(&file_path);
+    set_file_favorite(
+        &fs_manager,
+        Path::new(&file_path),
+        favorite,
+        &index_manager,
+        &cache_manager,
+    )
+}
 
-    // 获取相对路径
-    let relative_path = get_relative_path(&workspace_root, &path)?;
+fn set_file_favorite(
+    fs_manager: &FileSystemManager,
+    file_path: &Path,
+    favorite: bool,
+    index_manager: &RwLock<Option<IndexManager>>,
+    cache_manager: &RwLock<CacheManager>,
+) -> Result<(), String> {
+    let workspace_root = fs_manager.workspace_root();
+    let path = if file_path.is_absolute() {
+        file_path.to_path_buf()
+    } else {
+        workspace_root.join(file_path)
+    };
 
-    // 更新 Frontmatter（唯一数据源，cache.json 不再存储 favorite）
-    if let Ok((mut fm, _)) = fs_manager.read_markdown_file(&path) {
-        fm.favorite = favorite;
-        fm.modified = chrono::Utc::now().to_rfc3339();
-        if let Err(e) = fs_manager.update_file_frontmatter(&path, &fm) {
-            warn!("⚠️ [切换收藏] 更新 Front Matter 失败: {}", e);
-        }
-    }
+    // Disk metadata is authoritative. Failed reads/writes must reach the UI.
+    let (mut fm, _) = fs_manager.read_markdown_file(&path)?;
+    fm.favorite = favorite;
+    fm.modified = chrono::Utc::now().to_rfc3339();
+    fs_manager.update_file_frontmatter(&path, &fm)?;
 
-    // 更新 cache.json 中的 modified 时间戳（仅文件系统索引字段）
-    let mut cache = cache_manager
-        .write()
-        .map_err(|e| format!("获取 cache 锁失败: {}", e))?;
+    // Release the cache write lock before updating the search index. The old
+    // command acquired a cache read lock while still holding this write lock.
+    let cache_snapshot = {
+        let mut cache = cache_manager
+            .write()
+            .map_err(|e| format!("获取 cache 锁失败: {}", e))?;
+        cache.update_file(&path, workspace_root)?;
+        cache.save()?;
+        cache.clone()
+    };
 
-    cache.update_file_metadata(&relative_path, |m| {
-        m.modified = chrono::Utc::now().timestamp_millis();
-    })?;
-
-    cache.save()?;
-
-    // 更新索引
-    if let Ok(manager_lock) = index_manager.read() {
-        if let Some(ref manager) = *manager_lock {
-            let cache = cache_manager
-                .read()
-                .map_err(|e| format!("获取 cache 锁失败: {}", e))?;
-            let _ = manager.update_entry(&path, &workspace_root, &cache);
-        }
+    let manager_lock = index_manager
+        .read()
+        .map_err(|e| format!("获取索引锁失败: {}", e))?;
+    if let Some(manager) = manager_lock.as_ref() {
+        manager.update_entry(&path, workspace_root, &cache_snapshot)?;
     }
 
     info!("✅ 切换收藏状态: {} -> {}", path.display(), favorite);
     Ok(())
+}
+
+#[cfg(test)]
+mod favorite_tests {
+    use super::*;
+    use crate::markdown::metadata::format_frontmatter_block;
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    struct Workspace {
+        root: PathBuf,
+        fs: FileSystemManager,
+        cache: RwLock<CacheManager>,
+        index: RwLock<Option<IndexManager>>,
+    }
+
+    impl Workspace {
+        fn new() -> Self {
+            let root = std::env::temp_dir()
+                .join(format!("snippets-favorite-test-{}", uuid::Uuid::new_v4()));
+            std::fs::create_dir_all(&root).unwrap();
+            Self {
+                fs: FileSystemManager::new(root.clone()),
+                cache: RwLock::new(CacheManager::new_silent(root.join(".snippets-code")).unwrap()),
+                index: RwLock::new(Some(IndexManager::new())),
+                root,
+            }
+        }
+
+        fn write(&self, name: &str, file_type: &str, suffix: &str) -> PathBuf {
+            let metadata = FrontMatter {
+                id: name.to_string(),
+                title: name.to_string(),
+                tags: vec!["keep".to_string()],
+                created: "2026-01-01T00:00:00Z".to_string(),
+                modified: "2026-01-01T00:00:00Z".to_string(),
+                fragment_type: file_type.to_string(),
+                language: Some("typescript".to_string()),
+                framework: Some("vue".to_string()),
+                kind: Some("component".to_string()),
+                favorite: false,
+            };
+            let path = self.root.join(name);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(
+                &path,
+                format!(
+                    "{}{}",
+                    format_frontmatter_block(&metadata).unwrap().trim_end(),
+                    suffix
+                ),
+            )
+            .unwrap();
+            path
+        }
+    }
+
+    impl Drop for Workspace {
+        fn drop(&mut self) {
+            assert!(self.root.starts_with(std::env::temp_dir()));
+            assert!(self
+                .root
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .starts_with("snippets-favorite-test-"));
+            let _ = std::fs::remove_dir_all(&self.root);
+        }
+    }
+
+    #[test]
+    fn persists_both_types_and_refreshes_index_without_relocking_cache() {
+        let (sender, receiver) = mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            let workspace = Workspace::new();
+            let suffix = "\r\n\r\n    indented code\r\n\r\n";
+            for file_type in ["note", "code"] {
+                let path = workspace.write(&format!("Docs/{file_type}.md"), file_type, suffix);
+                for favorite in [true, true, false] {
+                    set_file_favorite(
+                        &workspace.fs,
+                        &path,
+                        favorite,
+                        &workspace.index,
+                        &workspace.cache,
+                    )
+                    .unwrap();
+                    let (metadata, _) = workspace.fs.read_markdown_file(&path).unwrap();
+                    assert_eq!(metadata.favorite, favorite);
+                    assert_eq!(metadata.fragment_type, file_type);
+                    assert_eq!(metadata.created, "2026-01-01T00:00:00Z");
+                    assert_eq!(metadata.language.as_deref(), Some("typescript"));
+                    assert_eq!(metadata.framework.as_deref(), Some("vue"));
+                    assert_eq!(metadata.tags, vec!["keep"]);
+                    let raw = std::fs::read_to_string(&path).unwrap();
+                    let closing = 3 + raw[3..].find("\n---").unwrap();
+                    assert_eq!(&raw[closing + 4..], suffix);
+                    let indexed = workspace.index.read().unwrap();
+                    let favorites = indexed.as_ref().unwrap().get_favorites();
+                    assert_eq!(favorites.len(), usize::from(favorite));
+                    assert!(workspace
+                        .cache
+                        .read()
+                        .unwrap()
+                        .get_file_metadata(&format!("Docs/{file_type}.md"))
+                        .is_some());
+                }
+            }
+            // Reload from disk: persistence must survive cache reinitialization.
+            let reloaded = CacheManager::new_silent(workspace.root.join(".snippets-code")).unwrap();
+            assert!(reloaded.get_file_metadata("Docs/note.md").is_some());
+            sender.send(()).unwrap();
+        });
+        receiver
+            .recv_timeout(Duration::from_secs(10))
+            .expect("favorite update deadlocked");
+        worker.join().unwrap();
+    }
+
+    #[test]
+    fn missing_file_returns_error_without_changing_cache() {
+        let workspace = Workspace::new();
+        assert!(set_file_favorite(
+            &workspace.fs,
+            Path::new("missing.md"),
+            true,
+            &workspace.index,
+            &workspace.cache
+        )
+        .is_err());
+        assert!(workspace.cache.read().unwrap().get_all_files().is_empty());
+    }
+
+    #[test]
+    fn editor_metadata_updates_preserve_favorite_unless_explicitly_changed() {
+        let workspace = Workspace::new();
+        let path = workspace.write("note.md", "note", "\n\nbody\n");
+        set_file_favorite(
+            &workspace.fs,
+            &path,
+            true,
+            &workspace.index,
+            &workspace.cache,
+        )
+        .unwrap();
+        let (current, _) = workspace.fs.read_markdown_file(&path).unwrap();
+        let editor_update = serde_json::json!({ "title": "Edited title", "tags": ["new"] });
+        let mut updated = current.clone();
+        updated.favorite = favorite_after_metadata_update(&editor_update, Some(&current));
+        updated.title = "Edited title".to_string();
+        workspace
+            .fs
+            .update_markdown_file(&path, Some("edited body"), Some(&updated))
+            .unwrap();
+        let (saved, body) = workspace.fs.read_markdown_file(&path).unwrap();
+        assert!(saved.favorite);
+        assert_eq!(saved.title, "Edited title");
+        assert_eq!(body, "edited body");
+        assert!(!favorite_after_metadata_update(
+            &serde_json::json!({"favorite": false}),
+            Some(&saved)
+        ));
+        assert!(favorite_after_metadata_update(
+            &serde_json::json!({"favorite": true}),
+            None
+        ));
+        assert!(!favorite_after_metadata_update(&editor_update, None));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn failed_disk_write_is_not_reported_as_success() {
+        let workspace = Workspace::new();
+        let path = workspace.write("read-only.md", "code", "\n\nbody\n");
+        let original = std::fs::read(&path).unwrap();
+        let permissions = std::fs::metadata(&path).unwrap().permissions();
+        let mut read_only = permissions.clone();
+        read_only.set_readonly(true);
+        std::fs::set_permissions(&path, read_only).unwrap();
+        let result = set_file_favorite(
+            &workspace.fs,
+            &path,
+            true,
+            &workspace.index,
+            &workspace.cache,
+        );
+        std::fs::set_permissions(&path, permissions).unwrap();
+        assert!(result.is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), original);
+    }
+
+    #[test]
+    fn workspace_listing_excludes_recycled_and_internal_files() {
+        let workspace = Workspace::new();
+        let live = workspace.write("Docs/live.md", "note", "\n\nbody\n");
+        workspace.write(".snippets-code/trash/deleted.md", "note", "\n\nbody\n");
+        workspace.write(".git/internal.md", "note", "\n\nbody\n");
+        workspace.write("assets/attachment.md", "note", "\n\nbody\n");
+        assert_eq!(workspace.fs.list_markdown_files(None).unwrap(), vec![live]);
+    }
 }
 
 // ============= 文件监听器命令 =============

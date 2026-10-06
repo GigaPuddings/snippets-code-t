@@ -47,6 +47,8 @@ export interface ContentType {
   updated_at?: string;
   /** 使用次数 */
   usage_count?: number;
+  /** 收藏状态 */
+  favorite?: boolean;
 }
 
 /**

@@ -402,44 +402,20 @@ impl FileSystemManager {
         let content = fs::read_to_string(&full_path)
             .map_err(|e| format!("读取文件失败 '{}': {}", full_path.display(), e))?;
 
-        let (_, body) = try_parse_front_matter(&content);
         let frontmatter_block = format_frontmatter_block(metadata)?;
-        let new_content = if body.trim().is_empty() {
-            frontmatter_block.trim_end().to_string()
+        let new_content = if parse_front_matter(&content).is_ok() {
+            // Preserve the original suffix after the closing delimiter, including
+            // CRLFs, blank lines and code indentation. The body parser trims them.
+            let raw = content.trim_start();
+            let closing = 3 + raw[3..].find("\n---").ok_or("Front matter 缺少结束标记")?;
+            format!("{}{}", frontmatter_block.trim_end(), &raw[closing + 4..])
         } else {
-            format!("{}\n\n{}", frontmatter_block.trim_end(), body)
+            format!("{}\n\n{}", frontmatter_block.trim_end(), content)
         };
 
         fs::write(&full_path, new_content).map_err(|e| map_io_error(&e, "写入文件", &full_path))?;
 
         debug!("✏️ 更新文件 Front Matter: {}", full_path.display());
-        Ok(())
-    }
-
-    // 删除 Markdown 文件
-    //
-    // # Arguments
-    // * `file_path` - 文件路径（相对于 workspace_root 或绝对路径）
-    //
-    // # Returns
-    // * `Ok(())` - 删除成功
-    // * `Err(String)` - 删除失败的错误信息
-    pub fn delete_markdown_file(&self, file_path: &Path) -> Result<(), String> {
-        // 解析为完整路径
-        let full_path = if file_path.is_absolute() {
-            file_path.to_path_buf()
-        } else {
-            self.workspace_root.join(file_path)
-        };
-
-        // 验证路径安全性
-        self.validate_path(&full_path)?;
-
-        // 删除文件
-        fs::remove_file(&full_path)
-            .map_err(|e| format!("删除文件失败 '{}': {}", full_path.display(), e))?;
-
-        debug!("🗑️ 删除文件: {}", full_path.display());
         Ok(())
     }
 
@@ -650,18 +626,15 @@ impl FileSystemManager {
                 for entry in WalkDir::new(&self.workspace_root)
                     .follow_links(true)
                     .into_iter()
+                    .filter_entry(|entry| {
+                        entry.depth() == 0
+                            || !entry.file_type().is_dir()
+                            || (!entry.file_name().to_string_lossy().starts_with('.')
+                                && entry.file_name() != "assets")
+                    })
                     .filter_map(|e| e.ok())
                 {
                     let path = entry.path();
-
-                    // 跳过隐藏文件夹
-                    if path.is_dir() {
-                        if let Some(name) = path.file_name() {
-                            if name.to_string_lossy().starts_with('.') {
-                                continue;
-                            }
-                        }
-                    }
 
                     // 只包含 .md 文件
                     if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("md") {
