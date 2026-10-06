@@ -920,6 +920,7 @@ async function openInConfig() {
 }
 
 function togglePreviewVisible() {
+  if (!canPreview.value) return;
   isPreviewVisible.value = !isPreviewVisible.value;
 }
 
@@ -956,22 +957,6 @@ function handleActionShortcut(event: KeyboardEvent) {
   }
 }
 
-function handlePreviewToggleShortcut(event: KeyboardEvent) {
-  if (!props.item) return;
-  if (event.type !== 'keyup') return;
-  if (event.key !== ' ' && event.code !== 'Space') return;
-  if (
-    !canPreview.value ||
-    props.item.summarize === 'app' ||
-    props.item.summarize === 'bookmark'
-  )
-    return;
-
-  event.preventDefault();
-  event.stopPropagation();
-  togglePreviewVisible();
-}
-
 watch(
   () => props.item,
   () => {
@@ -985,12 +970,14 @@ watch(
 
 onMounted(() => {
   window.addEventListener('keydown', handleActionShortcut, true);
-  window.addEventListener('keyup', handlePreviewToggleShortcut, true);
 });
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleActionShortcut, true);
-  window.removeEventListener('keyup', handlePreviewToggleShortcut, true);
+});
+
+defineExpose({
+  togglePreview: togglePreviewVisible
 });
 
 function getFallbackTitle(item: ContentType | null): string {

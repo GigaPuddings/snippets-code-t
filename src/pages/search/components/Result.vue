@@ -66,6 +66,7 @@
             @selection-change="handleSelectionChange"
             @tab-change="handleTabChange"
             @primary-action="handlePrimaryAction"
+            @preview-toggle="handlePreviewToggle"
           />
         </section>
         <section
@@ -73,7 +74,7 @@
           :class="{ collapsed: !previewPanelVisible }"
           :aria-hidden="!previewPanelVisible"
         >
-          <InlinePreview :item="selectedItem" />
+          <InlinePreview ref="inlinePreviewRef" :item="selectedItem" />
         </section>
       </div>
     </transition>
@@ -107,6 +108,7 @@ const emit = defineEmits<{
 const { isListMode } = useFocusMode();
 
 const resultListRef = ref<InstanceType<typeof ResultList> | null>(null);
+const inlinePreviewRef = ref<InstanceType<typeof InlinePreview> | null>(null);
 const activeTab = ref<SummarizeType>('text');
 const selectedItem = ref<ContentType | null>(null);
 const previewPanelVisible = ref(false);
@@ -191,6 +193,10 @@ watch(activeTab, ensurePreviewSelection);
 
 async function handlePrimaryAction(item: ContentType) {
   await resultListRef.value?.runPrimaryAction(item);
+}
+
+function handlePreviewToggle(): void {
+  inlinePreviewRef.value?.togglePreview();
 }
 
 defineExpose({

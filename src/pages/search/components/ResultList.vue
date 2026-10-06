@@ -137,6 +137,7 @@ const emit = defineEmits<{
   selectionChange: [item: ContentType | null];
   tabChange: [tab: SummarizeType];
   primaryAction: [item: ContentType];
+  previewToggle: [];
 }>();
 
 interface ResultScrollerRef extends RecycleScrollerInstance {
@@ -332,7 +333,8 @@ useSearchResultKeyboard({
   runPrimaryAction,
   showHideWindow,
   backToSearch: () => emit('backToSearch'),
-  primaryAction: (item) => emit('primaryAction', item)
+  primaryAction: (item) => emit('primaryAction', item),
+  togglePreview: () => emit('previewToggle')
 });
 
 function handleItemClick(item: ContentType) {
