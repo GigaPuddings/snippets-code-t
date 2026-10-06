@@ -1,5 +1,6 @@
 @use './reset';
 @use './theme';
+@use './components';
 
 @tailwind base;
 @tailwind components;
@@ -52,7 +53,7 @@
 }
 
 .summarize-section {
-  @apply flex items-center justify-between gap-6 mt-5 first:!mt-1 border-b border-panel;
+  @apply flex items-center justify-between gap-6 mt-5 first:!mt-1;
 }
 
 .summarize-label {
@@ -63,7 +64,7 @@
   }
 
   .summarize-label-desc {
-    @apply flex text-xs text-content font-thin;
+    @apply flex text-xs text-content font-normal;
   }
 }
 
@@ -99,6 +100,15 @@
 
   .el-input__inner {
     @apply pl-[10px];
+  }
+}
+
+.summarize-input .el-select__wrapper {
+  box-shadow: none;
+
+  &.is-focused {
+    outline: 2px solid var(--el-color-primary);
+    outline-offset: 2px;
   }
 }
 
@@ -436,27 +446,4 @@
     color: rgb(243 244 246) !important;
     background-color: rgb(55 65 81) !important;
   }
-}
-
-// ============================================
-// 设置面板通用样式
-// 所有设置组件共享的布局样式
-// ============================================
-.settings-panel {
-  @apply flex flex-col h-full;
-}
-
-.panel-header {
-  @apply flex-shrink-0 pb-4 border-b border-panel;
-}
-
-.panel-title {
-  @apply text-base font-bold;
-}
-
-.panel-content {
-  @apply flex-1 overflow-y-auto pt-4;
-
-  max-width: 100%; /* 确保不超出容器宽度 */
-  overflow-x: hidden; /* 防止横向滚动 */
 }

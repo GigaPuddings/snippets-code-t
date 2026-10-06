@@ -25,8 +25,7 @@ async function initApp() {
   const stylePromises = [
     import('element-plus/theme-chalk/dark/css-vars.css'),
     import('@icon-park/vue-next/styles/index.css'),
-    import('@/styles/index.scss'),
-    import('@/styles/theme.scss')
+    import('@/styles/index.scss')
   ];
 
   const { initTheme } = await import('@/utils/theme-sync');

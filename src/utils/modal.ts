@@ -1,5 +1,3 @@
-import { ElMessage, ElNotification } from 'element-plus';
-
 /**
  * 消息提示位置
  * - center: 居中显示（默认，用于重要操作反馈）
@@ -91,7 +89,8 @@ const modal = {
       showClose = false
     } = options;
 
-    // 如果位置是 center，使用 ElMessage（居中显示）
+    // AutoImport resolves Element Plus services together with their styles.
+    // "center" means horizontally centered below the window titlebar.
     if (position === 'center') {
       ElMessage({
         message,
@@ -99,6 +98,7 @@ const modal = {
         duration,
         showClose,
         grouping: true,
+        offset: 52,
         customClass: `app-toast app-toast--${type}`
       });
     } else {

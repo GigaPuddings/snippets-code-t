@@ -38,11 +38,9 @@ export default {
   },
 
   workbenchHome: {
-    eyebrow: '开发者工作台',
-    title: 'Developer Workbench',
+    title: '开发者工作台',
     workspaceNotSet: '尚未设置工作区',
     refresh: '刷新',
-    searchPlaceholder: '搜索片段、笔记、应用、文件和命令',
     metrics: '工作台概览',
     recent: '最近内容',
     viewAll: '查看全部',
@@ -52,8 +50,6 @@ export default {
     quickActions: '常用入口',
     systemStatus: '能力状态',
     manage: '管理',
-    heroTagline: '收集 · 整理 · 创造',
-    heroSubtitle: '让技术知识触手可及',
     quickActionDescriptions: {
       workspace: '打开工作区面板',
       launcher: '快速启动应用',
@@ -67,9 +63,19 @@ export default {
     },
     footer: {
       workspaceReady: 'Workspace 已就绪',
-      recentCount: '{count} 个最近内容',
-      tagline: '更高效的开发知识管理'
+      recentCount: '{count} 个最近内容'
     }
+  },
+
+  workspaceStart: {
+    title: '从这里开始，整理你的知识',
+    description: '记录想法，保存可复用的代码。新建一份内容，或继续最近的工作。',
+    noteDescription: '记录思路与知识',
+    codeDescription: '收藏可复用的代码',
+    searchDescription: '搜索内容 · Ctrl K',
+    recent: '最近更新',
+    noRecent: '还没有内容。新建一份笔记或片段，让你的知识积累从这里开始。',
+    loadFailed: '暂时无法读取最近内容，请重试。'
   },
 
   // 设置向导
@@ -151,6 +157,11 @@ export default {
     loadingRepository: '正在加载仓库…',
     loadingRepositoryHint: '正在准备插件、设置与工作区索引',
     general: '通用设置',
+    searchSettings: '搜索设置',
+    applicationSettings: '应用',
+    extensionSettings: '扩展',
+    appearanceGroup: '外观',
+    applicationGroup: '启动与窗口',
     theme: '基础颜色',
     themeDesc: '设置 Snippets Code 的基本颜色',
     themeLight: '浅色',
@@ -822,6 +833,7 @@ export default {
 
   // 侧边栏导航
   nav: {
+    quickAccess: '快速访问',
     quickActions: '快捷操作',
     workbench: '工作台',
     workspace: '工作区',
@@ -831,7 +843,19 @@ export default {
     aiChat: 'AI 对话',
     allSnippets: '所有片段',
     uncategorized: '未分类',
-    folders: '文件夹',
+    favorites: '收藏',
+    addFavorite: '添加到收藏',
+    removeFavorite: '取消收藏',
+    favorited: '已收藏',
+    favoritedAction: '已收藏，点击取消收藏',
+    favoriteCount: '{count} 个收藏',
+    recentlyDeleted: '最近删除',
+    recentDocuments: '最近文档',
+    newNote: '新建笔记',
+    restore: '恢复',
+    restoreConflict: '原位置已有同名文件，请先处理该文件',
+    deletedEmpty: '最近删除中没有内容',
+    loadingTrash: '正在读取最近删除…',
     noFolders: '暂无文件夹'
   },
 
@@ -1060,13 +1084,11 @@ export default {
 
   // 分类/片段
   category: {
+    backToFolders: '返回文件夹',
     newFolder: '新建文件夹',
-    rename: '重命名',
     delete: '删除',
     noContent: '暂无片段内容',
     folders: '文件夹',
-    newSnippet: '新建内容',
-    searchPlaceholder: '搜索...',
     ascending: '升序',
     descending: '降序',
     saveSuccess: '保存成功',
@@ -1076,10 +1098,10 @@ export default {
     loadingEditor: '编辑器加载中...',
     preparingEditor: '正在准备编辑器，标题输入完成后即可编辑正文',
     retry: '重试',
-    deleteConfirm: '确定要删除文件夹「{name}」吗？其中的片段也会被删除。',
+    deleteConfirm:
+      '确定要删除文件夹「{name}」吗？其中的笔记和片段会移入最近删除。',
     deleteSuccess: '文件夹已删除',
     deleteFailed: '删除失败',
-    convertType: '转换类型',
     convertToNote: '转换为笔记',
     convertToCode: '转换为片段',
     convertConfirmTitle: '确认类型转换',
@@ -1092,17 +1114,11 @@ export default {
     unsavedChanges: '当前内容有未保存的更改，是否保存？',
     discardChanges: '放弃更改',
     createNoteConfirm: '未找到名为"{name}"的笔记，是否创建新笔记？',
-    createContentTitle: '新建片段',
-    createContentPlaceholder: '输入片段标题',
     emptyName: '分类名称不能为空',
     invalidNameChars: '分类名称不能包含 \\ / : * ? " < > |',
     duplicateName: '分类名称已存在',
     createSuccess: '分类创建成功',
-    createFailed: '分类创建失败',
-    emptyContentTitle: '内容标题不能为空',
-    language: '语言',
-    framework: '框架',
-    kind: '类型'
+    createFailed: '分类创建失败'
   },
 
   codeBlock: {
@@ -1118,6 +1134,8 @@ export default {
     handleLinkFailed: '处理链接失败',
     createNoteFailed: '创建笔记失败',
     aiAssistant: 'AI 助手',
+    lastModified: '最后修改',
+    copyNoteLink: '复制笔记链接',
     copyTitle: '复制标题',
     copyContent: '复制内容',
     copySuccess: '已复制到剪贴板',
@@ -1233,17 +1251,7 @@ export default {
     createdDesc: '创建时间（降序）',
     createdAsc: '创建时间（升序）',
     updatedDesc: '更新时间（降序）',
-    updatedAsc: '更新时间（升序）',
-    filterPanel: '筛选面板',
-    applyFilter: '应用筛选',
-    resetFilter: '重置',
-    allTypes: '全部类型',
-    allDates: '全部日期',
-    selectTags: '选择标签',
-    syntaxHelp: '搜索语法帮助',
-    syntaxExamples: '示例：type:code tag:vue created:week',
-    filterCount: '筛选条件',
-    resultCount: '{count} 个结果'
+    updatedAsc: '更新时间（升序）'
   },
 
   // 搜索引擎设置
@@ -1710,8 +1718,6 @@ export default {
 
   // 内容项目右键菜单
   contentItem: {
-    move: '移动',
-    dragHint: '拖放到左侧文件夹以移动',
     dropToMove: '移至此处',
     currentCategory: '当前分类',
     changeCategory: '修改分类',
@@ -1721,14 +1727,11 @@ export default {
     delete: '删除',
     showInExplorer: '打开文件位置',
     uncategorized: '未分类',
-    updateFailed: '更新分类失败',
     deleteConfirm: '确定要删除片段「{name}」吗？',
-    deleteSuccess: '片段已删除',
+    deleteSuccess: '删除成功',
     deleteFailed: '删除失败',
     codeSnippet: '片段',
-    note: '笔记',
-    filterByType: '按类型筛选',
-    allTypes: '全部类型'
+    note: '笔记'
   },
 
   // 搜索结果
@@ -1795,12 +1798,19 @@ export default {
 
   // 标题栏
   titlebar: {
+    navigation: '页面导航',
+    back: '返回',
+    forward: '前进',
+    showSidebar: '显示侧边栏',
+    hideSidebar: '隐藏侧边栏',
     more: '更多',
+    about: '关于',
+    aboutApp: '关于 Snippets Code',
+    checkUpdateMenu: '检查更新…',
+    exitApp: '退出 Snippets Code',
+    updateAvailable: '发现新版本',
+    version: '版本 {version}',
     userCenter: '个人中心',
-    collapseFolders: '折叠文件夹',
-    expandFolders: '展开文件夹',
-    collapseSnippetList: '折叠片段列表',
-    expandSnippetList: '展开片段列表',
     checkUpdate: '检查更新',
     pinWindow: '置顶窗口',
     unpinWindow: '取消置顶',
@@ -1811,17 +1821,8 @@ export default {
     close: '关闭窗口',
     // Git 状态相关
     gitSync: 'Git 同步',
-    gitSyncing: '同步中...',
-    gitSynced: '已同步',
-    gitHasChanges: '{count} 个文件待同步',
-    gitError: '同步出错',
-    gitDisabled: 'Git 同步已禁用',
-    gitLastSync: '上次同步: {time}',
-    goToGitSettings: '点击查看 Git 同步设置',
     quickSearch: '快速搜索',
-    quickSearchPlaceholder: '搜索片段、笔记、文件、标签和命令...',
-    workspace: '工作区',
-    openWorkspace: '打开工作区'
+    quickSearchPlaceholder: '搜索片段、笔记、文件、标签和命令...'
   },
 
   // 个人中心
@@ -1888,6 +1889,20 @@ export default {
 
   // 笔记编辑器
   noteEditor: {
+    documentStatus: '文档状态',
+    properties: '{count} 个笔记属性',
+    propertyLabels: {
+      title: '标题',
+      type: '类型',
+      folder: '文件夹',
+      favorite: '收藏',
+      tags: '标签',
+      created: '创建时间',
+      modified: '修改时间',
+      language: '语言',
+      framework: '框架',
+      kind: '分类'
+    },
     words: '个词',
     chars: '个字符',
     livePreview: '实时阅览',
@@ -1916,6 +1931,7 @@ export default {
 
   // 反向链接
   backlinks: {
+    statusCount: '{count} 条反向链接',
     title: '反向链接',
     togglePanel: '切换反向链接面板',
     linkedReferences: '链接当前文件',
@@ -2022,6 +2038,9 @@ export default {
   // 片段类型选择器
   fragmentType: {
     selectType: '创建新内容',
+    newSnippet: '新建片段',
+    createIn: '创建位置：{folder}',
+    creationFolderMissing: '目标文件夹已不存在，请重新选择文件夹后创建',
     codeSnippet: '片段',
     codeSnippetDesc: '存储和管理带语法高亮的代码',
     note: '笔记',
@@ -2107,30 +2126,6 @@ export default {
     debugLog: '调试日志',
     saveRecording: '保存录屏',
     ffmpegMissing: '未找到 FFmpeg，请安装或配置 FFmpeg 后再录制。'
-  },
-
-  // 搜索语法提示
-  searchSyntax: {
-    typeFilter: '类型筛选',
-    typeCodeDesc: '筛选代码片段',
-    typeNoteDesc: '筛选笔记',
-    languageDesc: '按语言筛选',
-    frameworkDesc: '按前端框架筛选',
-    kindDesc: '按片段语义类型筛选',
-    tagFilter: '标签筛选',
-    tagDesc: '按标签筛选',
-    multipleTags: '多标签',
-    dateFilter: '日期筛选',
-    createdTodayDesc: '今天创建',
-    createdWeekDesc: '本周创建',
-    createdMonthDesc: '本月创建',
-    specificDateDesc: '指定日期',
-    afterDateDesc: '此日期后',
-    beforeDateDesc: '此日期前',
-    updatedTodayDesc: '今天更新',
-    updatedWeekDesc: '本周更新',
-    updatedMonthDesc: '本月更新',
-    combinedSearch: '组合搜索'
   },
 
   // 片段预览

@@ -1,0 +1,247 @@
+// Shared UI appearance. Tailwind utilities on callers describe layout only.
+@layer components {
+  .ui-action {
+    @apply relative inline-flex h-ui-control shrink-0 items-center justify-center gap-1.5 rounded-ui border-0 bg-transparent px-2 font-ui text-ui text-ui-main transition-colors;
+  }
+
+  .ui-icon-button {
+    @apply ui-action w-ui-control p-0;
+  }
+
+  .ui-icon-button--small {
+    @apply h-ui-icon-control-sm w-ui-icon-control-sm;
+  }
+
+  .ui-action--muted {
+    @apply text-ui-muted;
+  }
+
+  .ui-menu-item {
+    @apply relative flex min-h-ui-row min-w-0 items-center gap-2 rounded-ui border-0 text-ui text-ui-main transition-colors select-none;
+  }
+
+  .ui-list-action {
+    @apply min-w-0 rounded-ui border-0 bg-transparent text-left text-ui-main transition-colors;
+  }
+
+  .ui-card {
+    @apply min-w-0 rounded-ui border-0 bg-ui-card text-left transition-colors;
+  }
+
+  .ui-card--soft {
+    @apply bg-ui-card-soft;
+  }
+
+  .ui-action,
+  .ui-menu-item,
+  .ui-list-action,
+  .ui-card {
+    @apply cursor-pointer;
+
+    &:focus-visible {
+      outline: 2px solid var(--el-color-primary);
+      outline-offset: -2px;
+    }
+
+    &:disabled {
+      @apply cursor-default opacity-50;
+    }
+  }
+
+  .ui-action:hover:not(:disabled),
+  .ui-list-action:hover:not(:disabled),
+  .ui-menu-item:hover:not(:disabled) {
+    @apply bg-ui-hover;
+  }
+
+  .ui-action--muted:hover:not(:disabled) {
+    @apply text-ui-main;
+  }
+
+  .ui-card:hover:not(:disabled) {
+    @apply bg-ui-card-hover;
+  }
+
+  .ui-card--soft:hover:not(:disabled) {
+    @apply bg-ui-hover;
+  }
+
+  .ui-menu-item.active,
+  .ui-menu-item[aria-current='page'],
+  .ui-action[aria-pressed='true'] {
+    @apply bg-ui-selected text-ui-heading;
+  }
+
+  .ui-section-heading {
+    @apply text-ui font-medium text-ui-main opacity-75 select-none;
+  }
+}
+
+// Icon Park sets stroke widths as SVG attributes. Keep one CSS value for the
+// shell and for its teleported menus and dialogs; custom SVG artwork is excluded.
+:where(.ui-icon-scope, .account-menu-popper, .about-menu-popper, .app-dialog)
+  .i-icon
+  svg
+  [stroke-width] {
+  stroke-width: var(--workspace-icon-stroke);
+}
+
+// ============================================
+// 设置面板通用样式
+// 所有设置组件共享的布局样式
+// ============================================
+.settings-panel {
+  @apply flex flex-col h-full;
+}
+
+.panel-header {
+  @apply flex-shrink-0 pb-5;
+}
+
+.panel-title {
+  @apply font-ui text-ui-title font-semibold text-panel;
+}
+
+.panel-content {
+  @apply flex-1 overflow-y-auto pt-5;
+
+  max-width: 100%; /* 确保不超出容器宽度 */
+  overflow-x: hidden; /* 防止横向滚动 */
+}
+
+// Settings share one scroll surface and neutral, grouped controls.
+.settings-content {
+  .settings-panel {
+    @apply h-auto min-h-full;
+  }
+
+  .panel-header {
+    @apply mb-settings-group pb-0;
+  }
+
+  .panel-title {
+    @apply text-2xl leading-8;
+  }
+
+  .panel-content {
+    @apply flex-none overflow-visible pt-0;
+  }
+
+  .settings-group + .settings-group {
+    @apply mt-settings-group;
+  }
+
+  .settings-group-title {
+    @apply mb-2.5 text-ui font-semibold;
+  }
+
+  .settings-card {
+    @apply rounded-ui-lg border px-settings-card;
+
+    border-color: var(--settings-border);
+  }
+
+  .settings-card > .summarize-section {
+    @apply mt-0 py-settings-row first:!mt-0;
+
+    & + .summarize-section {
+      border-top: 1px solid var(--settings-border);
+    }
+
+    &:not(.transparent-input) {
+      @apply min-h-settings-row-height flex-row items-center gap-4;
+    }
+  }
+
+  .summarize-label {
+    @apply mb-0;
+  }
+
+  .summarize-label-title {
+    @apply text-ui font-medium;
+  }
+
+  .summarize-label-desc {
+    @apply text-ui-caption font-normal;
+  }
+
+  .el-select__wrapper {
+    @apply rounded-[10px];
+
+    box-shadow: inset 0 0 0 1px var(--settings-border);
+  }
+
+  .custom-button--small {
+    @apply h-settings-control rounded-full text-ui;
+
+    line-height: var(--settings-control-height);
+  }
+
+  .custom-button--default {
+    color: var(--workspace-nav-heading);
+  }
+
+  .custom-switch:focus-visible {
+    outline: 2px solid var(--workspace-nav-accent);
+    outline-offset: 3px;
+  }
+
+  .panel-content > .summarize-section {
+    @apply rounded-ui-lg border px-settings-card py-settings-row first:!mt-0;
+
+    border-color: var(--settings-border);
+  }
+}
+
+.settings-select-popper {
+  --el-bg-color-overlay: var(--settings-surface);
+  --el-text-color-regular: var(--workspace-nav-text);
+  --el-fill-color-light: var(--workspace-nav-selected);
+  --el-border-color-light: var(--settings-border);
+}
+
+.el-scrollbar__thumb {
+  background-color: var(--app-scrollbar-thumb);
+  opacity: 1;
+
+  &:hover {
+    background-color: var(--app-scrollbar-hover);
+    opacity: 1;
+  }
+}
+
+.account-menu-popper.el-popper,
+.about-menu-popper.el-popper {
+  @apply min-w-52 rounded-ui-lg border p-1 font-ui text-ui shadow-lg;
+
+  color: var(--workspace-nav-text);
+  background: var(--settings-surface);
+  border-color: var(--settings-border);
+
+  .el-dropdown-menu {
+    @apply flex flex-col gap-ui-row-gap;
+
+    padding: 0;
+    background: transparent;
+  }
+
+  .el-dropdown-menu__item {
+    @apply flex h-9 items-center gap-2 rounded-ui px-3 py-0 text-ui;
+
+    color: var(--workspace-nav-text);
+
+    &:hover,
+    &:focus {
+      color: var(--workspace-nav-heading);
+      background: var(--workspace-nav-selected);
+    }
+  }
+}
+
+@media (width <= 720px) {
+  .settings-content
+    .settings-card
+    > .summarize-section:not(.transparent-input) {
+    @apply flex-col items-stretch gap-2.5;
+  }
+}

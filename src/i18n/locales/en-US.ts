@@ -38,11 +38,9 @@ export default {
   },
 
   workbenchHome: {
-    eyebrow: 'Developer workspace',
     title: 'Developer Workbench',
     workspaceNotSet: 'Workspace is not configured',
     refresh: 'Refresh',
-    searchPlaceholder: 'Search snippets, notes, apps, files, and commands',
     metrics: 'Workbench overview',
     recent: 'Recent Content',
     viewAll: 'View All',
@@ -52,8 +50,6 @@ export default {
     quickActions: 'Quick Access',
     systemStatus: 'Capability Status',
     manage: 'Manage',
-    heroTagline: 'Collect · Organize · Create',
-    heroSubtitle: 'Keep technical knowledge within reach',
     quickActionDescriptions: {
       workspace: 'Open the workspace panel',
       launcher: 'Launch applications quickly',
@@ -67,9 +63,21 @@ export default {
     },
     footer: {
       workspaceReady: 'Workspace ready',
-      recentCount: '{count} recent items',
-      tagline: 'More efficient developer knowledge management'
+      recentCount: '{count} recent items'
     }
+  },
+
+  workspaceStart: {
+    title: 'A place for your ideas and code',
+    description:
+      'Capture what you learn and save code worth reusing. Start something new or pick up recent work.',
+    noteDescription: 'Capture ideas and knowledge',
+    codeDescription: 'Save reusable code',
+    searchDescription: 'Find content · Ctrl K',
+    recent: 'Recently updated',
+    noRecent:
+      'No content yet. Create a note or snippet to start building your knowledge collection.',
+    loadFailed: 'Recent content could not be loaded. Please try again.'
   },
 
   // Setup Wizard
@@ -158,6 +166,11 @@ export default {
     loadingRepository: 'Loading repository…',
     loadingRepositoryHint: 'Preparing plugins, settings, and workspace index',
     general: 'General Settings',
+    searchSettings: 'Search settings',
+    applicationSettings: 'Application',
+    extensionSettings: 'Extensions',
+    appearanceGroup: 'Appearance',
+    applicationGroup: 'Startup and window',
     theme: 'Theme',
     themeDesc: 'Set the color theme for Snippets Code',
     themeLight: 'Light',
@@ -843,6 +856,7 @@ export default {
 
   // Sidebar Navigation
   nav: {
+    quickAccess: 'Quick access',
     quickActions: 'Quick Actions',
     workbench: 'Workbench',
     workspace: 'Workspace',
@@ -852,7 +866,19 @@ export default {
     aiChat: 'AI Chat',
     allSnippets: 'All Snippets',
     uncategorized: 'Uncategorized',
-    folders: 'Folders',
+    favorites: 'Favorites',
+    addFavorite: 'Add to Favorites',
+    removeFavorite: 'Remove from Favorites',
+    favorited: 'Favorited',
+    favoritedAction: 'Favorited, click to remove',
+    favoriteCount: '{count} favorites',
+    recentlyDeleted: 'Recently Deleted',
+    recentDocuments: 'Recent Documents',
+    newNote: 'New Note',
+    restore: 'Restore',
+    restoreConflict: 'A file already exists at the original location',
+    deletedEmpty: 'No recently deleted items',
+    loadingTrash: 'Loading recently deleted items…',
     noFolders: 'No folders'
   },
 
@@ -1098,13 +1124,11 @@ export default {
 
   // Category/Snippets
   category: {
+    backToFolders: 'Back to folders',
     newFolder: 'New Folder',
-    rename: 'Rename',
     delete: 'Delete',
     noContent: 'No snippets',
     folders: 'Folders',
-    newSnippet: 'New Content',
-    searchPlaceholder: 'Search...',
     ascending: 'Ascending',
     descending: 'Descending',
     saveSuccess: 'Saved successfully',
@@ -1116,10 +1140,9 @@ export default {
     preparingEditor: 'Preparing the editor while you finish the title',
     retry: 'Retry',
     deleteConfirm:
-      'Delete folder "{name}"? All snippets inside will also be deleted.',
+      'Delete folder "{name}"? Notes and snippets inside will move to Recently Deleted.',
     deleteSuccess: 'Folder deleted',
     deleteFailed: 'Delete failed',
-    convertType: 'Convert Type',
     convertToNote: 'Convert to Note',
     convertToCode: 'Convert to Snippet',
     convertConfirmTitle: 'Confirm Type Conversion',
@@ -1132,17 +1155,11 @@ export default {
     unsavedChanges: 'You have unsaved changes. Do you want to save them?',
     discardChanges: 'Discard Changes',
     createNoteConfirm: 'Note "{name}" not found. Create a new note?',
-    createContentTitle: 'New Fragment',
-    createContentPlaceholder: 'Enter fragment title',
     emptyName: 'Category name cannot be empty',
     invalidNameChars: 'Category name cannot contain \\ / : * ? " < > |',
     duplicateName: 'Category name already exists',
     createSuccess: 'Category created successfully',
-    createFailed: 'Failed to create category',
-    emptyContentTitle: 'Content title cannot be empty',
-    language: 'Language',
-    framework: 'Framework',
-    kind: 'Kind'
+    createFailed: 'Failed to create category'
   },
 
   codeBlock: {
@@ -1158,6 +1175,8 @@ export default {
     handleLinkFailed: 'Failed to handle link',
     createNoteFailed: 'Failed to create note',
     aiAssistant: 'AI Assistant',
+    lastModified: 'Last modified',
+    copyNoteLink: 'Copy note link',
     copyTitle: 'Copy title',
     copyContent: 'Copy content',
     copySuccess: 'Copied to clipboard',
@@ -1295,17 +1314,7 @@ export default {
     createdDesc: 'Created (Descending)',
     createdAsc: 'Created (Ascending)',
     updatedDesc: 'Updated (Descending)',
-    updatedAsc: 'Updated (Ascending)',
-    filterPanel: 'Filter Panel',
-    applyFilter: 'Apply Filter',
-    resetFilter: 'Reset',
-    allTypes: 'All Types',
-    allDates: 'All Dates',
-    selectTags: 'Select Tags',
-    syntaxHelp: 'Search Syntax Help',
-    syntaxExamples: 'Examples: type:code tag:vue created:week',
-    filterCount: 'Filters',
-    resultCount: '{count} results'
+    updatedAsc: 'Updated (Ascending)'
   },
 
   // Search Engine Settings
@@ -1785,8 +1794,6 @@ export default {
 
   // Content Item Context Menu
   contentItem: {
-    move: 'Move',
-    dragHint: 'Drop on a folder to move',
     dropToMove: 'Move here',
     currentCategory: 'Current',
     changeCategory: 'Change Category',
@@ -1796,14 +1803,11 @@ export default {
     delete: 'Delete',
     showInExplorer: 'Show in folder',
     uncategorized: 'Uncategorized',
-    updateFailed: 'Failed to update category',
     deleteConfirm: 'Delete snippet "{name}"?',
-    deleteSuccess: 'Snippet deleted',
+    deleteSuccess: 'Deleted successfully',
     deleteFailed: 'Failed to delete',
     codeSnippet: 'Snippet',
-    note: 'Note',
-    filterByType: 'Filter by Type',
-    allTypes: 'All Types'
+    note: 'Note'
   },
 
   // Search Result
@@ -1870,12 +1874,19 @@ export default {
 
   // Titlebar
   titlebar: {
+    navigation: 'Page navigation',
+    back: 'Back',
+    forward: 'Forward',
+    showSidebar: 'Show sidebar',
+    hideSidebar: 'Hide sidebar',
     more: 'More',
+    about: 'About',
+    aboutApp: 'About Snippets Code',
+    checkUpdateMenu: 'Check for Updates…',
+    exitApp: 'Quit Snippets Code',
+    updateAvailable: 'Update available',
+    version: 'Version {version}',
     userCenter: 'User Center',
-    collapseFolders: 'Collapse folders',
-    expandFolders: 'Expand folders',
-    collapseSnippetList: 'Collapse snippet list',
-    expandSnippetList: 'Expand snippet list',
     checkUpdate: 'Check Update',
     pinWindow: 'Pin Window',
     unpinWindow: 'Unpin Window',
@@ -1886,18 +1897,9 @@ export default {
     close: 'Close',
     // Git status
     gitSync: 'Git Sync',
-    gitSyncing: 'Syncing...',
-    gitSynced: 'Synced',
-    gitHasChanges: '{count} files pending',
-    gitError: 'Sync error',
-    gitDisabled: 'Git sync disabled',
-    gitLastSync: 'Last sync: {time}',
-    goToGitSettings: 'Click to view Git sync settings',
     quickSearch: 'Quick Search',
     quickSearchPlaceholder:
-      'Search snippets, notes, files, tags and commands...',
-    workspace: 'Workspace',
-    openWorkspace: 'Open Workspace'
+      'Search snippets, notes, files, tags and commands...'
   },
 
   // User Center
@@ -1966,6 +1968,20 @@ export default {
 
   // Note Editor
   noteEditor: {
+    documentStatus: 'Document status',
+    properties: '{count} note properties',
+    propertyLabels: {
+      title: 'Title',
+      type: 'Type',
+      folder: 'Folder',
+      favorite: 'Favorite',
+      tags: 'Tags',
+      created: 'Created',
+      modified: 'Modified',
+      language: 'Language',
+      framework: 'Framework',
+      kind: 'Kind'
+    },
     words: 'Words',
     chars: 'Chars',
     livePreview: 'Live Preview',
@@ -1994,6 +2010,7 @@ export default {
 
   // Backlinks
   backlinks: {
+    statusCount: '{count} backlinks',
     title: 'Backlinks',
     togglePanel: 'Toggle Backlinks Panel',
     linkedReferences: 'Linked References',
@@ -2100,6 +2117,10 @@ export default {
   // Fragment Type Selector
   fragmentType: {
     selectType: 'Create New Content',
+    newSnippet: 'New Snippet',
+    createIn: 'Create in: {folder}',
+    creationFolderMissing:
+      'The target folder no longer exists. Select a folder before creating content.',
     codeSnippet: 'Snippet',
     codeSnippetDesc: 'Store and manage code with syntax highlighting',
     note: 'Note',
@@ -2193,30 +2214,6 @@ export default {
     saveRecording: 'Save Recording',
     ffmpegMissing:
       'FFmpeg was not found. Install or configure FFmpeg before recording.'
-  },
-
-  // Search Syntax Helper
-  searchSyntax: {
-    typeFilter: 'Type Filter',
-    typeCodeDesc: 'Filter code snippets',
-    typeNoteDesc: 'Filter notes',
-    languageDesc: 'Filter by language',
-    frameworkDesc: 'Filter by frontend framework',
-    kindDesc: 'Filter by semantic snippet kind',
-    tagFilter: 'Tag Filter',
-    tagDesc: 'Filter by tag',
-    multipleTags: 'Multiple tags',
-    dateFilter: 'Date Filter',
-    createdTodayDesc: 'Created today',
-    createdWeekDesc: 'Created this week',
-    createdMonthDesc: 'Created this month',
-    specificDateDesc: 'Specific date',
-    afterDateDesc: 'After this date',
-    beforeDateDesc: 'Before this date',
-    updatedTodayDesc: 'Updated today',
-    updatedWeekDesc: 'Updated this week',
-    updatedMonthDesc: 'Updated this month',
-    combinedSearch: 'Combined search'
   },
 
   // Snippet Preview

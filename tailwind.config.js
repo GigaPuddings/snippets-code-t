@@ -4,7 +4,37 @@ export default {
   darkMode: 'class',
   theme: {
     extend: {
+      fontFamily: {
+        ui: ['var(--app-ui-font-family)']
+      },
+      fontSize: {
+        ui: ['var(--app-ui-font-size)', 'var(--app-ui-line-height)'],
+        'ui-caption': ['var(--app-ui-caption-size)', '18px'],
+        'ui-title': ['var(--app-ui-title-size)', '28px']
+      },
+      spacing: {
+        'ui-row': 'var(--app-ui-row-height)',
+        'ui-control': 'var(--app-ui-control-height)',
+        'ui-control-sm': 'var(--app-ui-control-sm-height)',
+        'ui-control-lg': 'var(--app-ui-control-lg-height)',
+        'ui-icon-control-sm': 'var(--app-ui-icon-control-sm-height)',
+        'ui-row-gap': 'var(--app-ui-row-gap)',
+        'settings-card': 'var(--settings-card-padding)',
+        'settings-row': 'var(--settings-row-padding)',
+        'settings-row-height': 'var(--settings-row-min-height)',
+        'settings-group': 'var(--settings-group-gap)',
+        'settings-control': 'var(--settings-control-height)'
+      },
+      borderRadius: {
+        ui: 'var(--app-ui-radius)',
+        'ui-lg': 'var(--app-ui-radius-lg)'
+      },
       backgroundColor: {
+        'ui-hover': 'var(--app-ui-hover-bg)',
+        'ui-selected': 'var(--app-ui-selected-bg)',
+        'ui-card': 'var(--app-ui-card-bg)',
+        'ui-card-hover': 'var(--app-ui-card-hover-bg)',
+        'ui-card-soft': 'var(--app-ui-card-soft-bg)',
         // 基础面板
         panel: 'var(--categories-panel-bg)',
         content: 'var(--categories-content-bg)',
@@ -81,6 +111,9 @@ export default {
         'recorder-green': 'var(--recorder-green)'
       },
       textColor: {
+        'ui-main': 'var(--workspace-nav-text)',
+        'ui-heading': 'var(--workspace-nav-heading)',
+        'ui-muted': 'var(--workspace-nav-muted)',
         // 基础面板
         panel: 'var(--categories-text-color)',
         content: 'var(--categories-info-text-color)',
@@ -183,37 +216,11 @@ export default {
           dark: 'var(--el-color-primary-dark-2)'
         },
         workbench: {
-          bg: 'var(--wb-bg)',
-          card: 'var(--wb-card-bg)',
-          'card-strong': 'var(--wb-card-bg-strong)',
-          'card-border': 'var(--wb-card-border)',
-          'card-border-hover': 'var(--wb-card-border-hover)',
-          text: 'var(--wb-text)',
-          muted: 'var(--wb-muted)',
-          'muted-soft': 'var(--wb-muted-soft)',
-          primary: 'var(--wb-primary)',
-          success: 'var(--wb-success)',
-          warning: 'var(--wb-warning)',
-          hover: 'var(--wb-hover)',
-          'footer-border': 'var(--wb-footer-border)',
-          'footer-bg': 'var(--wb-footer-bg)',
-          'alert-text': 'var(--wb-alert-text)',
-          'alert-bg': 'var(--wb-alert-bg)',
-          'alert-border': 'var(--wb-alert-border)',
-          'recent-icon': 'var(--wb-recent-icon-bg)',
-          'recent-icon-hover': 'var(--wb-recent-icon-hover-bg)',
-          tag: 'var(--wb-tag-bg)',
-          'metric-content': 'var(--wb-metric-content)',
-          'metric-content-bg': 'var(--wb-metric-content-bg)',
-          'metric-plugins': 'var(--wb-metric-plugins)',
-          'metric-plugins-bg': 'var(--wb-metric-plugins-bg)',
-          'metric-search': 'var(--wb-metric-search)',
-          'metric-search-bg': 'var(--wb-metric-search-bg)',
-          'metric-ai': 'var(--wb-metric-ai)',
-          'metric-ai-bg': 'var(--wb-metric-ai-bg)'
+          warning: 'var(--wb-warning)'
         }
       },
       boxShadow: {
+        'workspace-panel': 'var(--workspace-panel-shadow)',
         ocr: 'var(--ocr-shadow)',
         'ocr-panel': 'var(--ocr-panel-shadow)',
         'chat-sm': 'var(--chat-shadow-sm)',
@@ -227,8 +234,7 @@ export default {
         'dm-ring': '0 0 0 1px var(--dm-accent)',
         'dm-focus': '0 0 0 2px var(--dm-accent-ring)',
         // 录屏窗口
-        'recorder-overlay': 'var(--recorder-overlay-shadow)',
-        workbench: 'var(--wb-shadow)'
+        'recorder-overlay': 'var(--recorder-overlay-shadow)'
       }
     }
   },

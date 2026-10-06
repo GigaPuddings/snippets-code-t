@@ -1,5 +1,9 @@
 <template>
-  <div
+  <button
+    type="button"
+    role="switch"
+    :aria-checked="modelValue"
+    :disabled="disabled"
     class="custom-switch"
     :class="{
       'custom-switch--active': modelValue,
@@ -17,7 +21,7 @@
     <div class="custom-switch__core">
       <div class="custom-switch__handle"></div>
     </div>
-  </div>
+  </button>
 </template>
 
 <script setup lang="ts">
@@ -41,10 +45,6 @@ const props = defineProps({
   inactiveText: {
     type: String,
     default: ''
-  },
-  activeColor: {
-    type: String,
-    default: '#4b94f8'
   }
 });
 

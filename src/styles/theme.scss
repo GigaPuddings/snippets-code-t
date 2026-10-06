@@ -2,14 +2,71 @@
 @use 'sass:color';
 
 :root {
+  // Desktop UI scale inferred from the supplied Codex screenshot at 150% DPI.
+  --app-ui-font-family: 'Segoe UI Variable', 'Segoe UI', 'Microsoft YaHei UI',
+    'Microsoft YaHei', sans-serif;
+  --app-document-font-family: 'Helvetica Neue', helvetica, 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', '微软雅黑', arial, sans-serif;
+  --app-ui-font-size: 14px;
+  --app-ui-line-height: 20px;
+  --app-ui-caption-size: 12px;
+  --app-ui-title-size: 20px;
+  --app-ui-row-height: 32px;
+  --app-ui-control-height: 32px;
+  --app-ui-control-sm-height: 24px;
+  --app-ui-control-lg-height: 40px;
+  --app-ui-icon-control-sm-height: 28px;
+  --app-ui-radius: 8px;
+  --app-ui-radius-lg: 12px;
+  --app-ui-row-gap: 2px;
+  // Shared interaction surfaces; pages retain only their layout differences.
+  --app-ui-hover-bg: var(--workspace-nav-selected);
+  --app-ui-selected-bg: var(--workspace-nav-selected);
+  --app-ui-card-bg: var(--workspace-nav-selected);
+  --app-ui-card-hover-bg: var(--workspace-rail-selected);
+  --app-ui-card-soft-bg: var(--workspace-nav-bg);
+  --settings-card-padding: 16px;
+  --settings-row-padding: 8px;
+  --settings-row-min-height: 56px;
+  --settings-group-gap: 24px;
+  --settings-control-height: var(--app-ui-icon-control-sm-height);
+  --el-font-family: var(--app-ui-font-family);
+  --el-font-size-base: var(--app-ui-font-size);
+  --el-font-size-small: var(--app-ui-caption-size);
+  --el-component-size: var(--app-ui-control-height);
+  --workspace-rail-width: 50px;
+  --workspace-sidebar-width: 292px;
+  --workspace-nav-bg: #fafbfb;
+  --workspace-nav-rail: #f0f4f3;
+  --workspace-nav-text: #313534;
+  --workspace-nav-heading: #202322;
+  --workspace-nav-muted: #747b78;
+  --workspace-nav-border: #e5e9e8;
+  --workspace-nav-selected: #ecefee;
+  --workspace-rail-selected: #d8e0dc;
+  --workspace-nav-accent: #303735;
+  --workspace-nav-avatar: #00ad96;
+  --workspace-icon-stroke: 2.5;
+  --workspace-window-radius: 6px;
+  --workspace-window-border: #c5ceca;
+  --workspace-panel-radius: 10px;
+  --app-scrollbar-thumb: #d4d8d6;
+  --app-scrollbar-hover: #bcc3bf;
+  --workspace-panel-shadow: -2px 0 12px rgb(26 40 34 / 3%),
+    0 -2px 12px rgb(26 40 34 / 2%);
+  --settings-surface: #fff;
+  --settings-border: #e7e9e8;
+  --settings-divider: #dce1df;
+  --settings-muted: #707673;
+  // Shared update indicators in the titlebar and account menu.
+  --wb-warning: #ff9f1c;
   // ==================== 基础面板主题变量 ====================
-  --categories-panel-bg: #f9fafc;
-  --categories-panel-bg-rgb: 251, 252, 255;
-  --categories-content-bg: #f3f6fb;
-  --categories-bg-active: #5f74f3;
+  --categories-panel-bg: #f7f8fa;
+  --categories-panel-bg-rgb: 247, 248, 250;
+  --categories-content-bg: #fff;
+  --categories-bg-active: var(--el-color-primary);
   --categories-bg-tab-active: #eaf2ff;
-  --categories-panel-bg-hover: #edf4ff;
-  --categories-panel-bg-hover-rgb: 237, 244, 255;
+  --categories-panel-bg-hover: var(--workspace-nav-selected);
   --categories-text-color: #111827;
   --categories-text-color-rgb: 17, 24, 39;
   --categories-info-text-color: #6b7280;
@@ -17,43 +74,12 @@
   --categories-border-color: #d9e2ef;
   --categories-border-color-rgb: 217, 226, 239;
 
-  // ==================== Workbench ====================
-  --wb-bg: #f7faff;
-  --wb-card-bg: rgb(255 255 255 / 78%);
-  --wb-card-bg-strong: rgb(255 255 255 / 92%);
-  --wb-card-border: rgb(214 224 238 / 78%);
-  --wb-card-border-hover: rgb(95 116 243 / 35%);
-  --wb-text: #172033;
-  --wb-muted: #748197;
-  --wb-muted-soft: #93a0b3;
-  --wb-primary: var(--el-color-primary);
-  --wb-success: #19bf67;
-  --wb-warning: #ff9f1c;
-  --wb-hover: rgb(95 116 243 / 4%);
-  --wb-shadow: 0 3px 14px rgb(36 78 140 / 3%);
-  --wb-footer-border: rgb(214 224 238 / 66%);
-  --wb-footer-bg: rgb(255 255 255 / 30%);
-  --wb-alert-text: #b42318;
-  --wb-alert-bg: rgb(254 243 242 / 96%);
-  --wb-alert-border: #fecdca;
-  --wb-recent-icon-bg: rgb(95 116 243 / 5%);
-  --wb-recent-icon-hover-bg: rgb(95 116 243 / 9%);
-  --wb-tag-bg: rgb(116 129 151 / 8%);
-  --wb-metric-content: #397bf6;
-  --wb-metric-content-bg: rgb(57 123 246 / 9%);
-  --wb-metric-plugins: #19b968;
-  --wb-metric-plugins-bg: rgb(25 185 104 / 9%);
-  --wb-metric-search: #8055ef;
-  --wb-metric-search-bg: rgb(128 85 239 / 9%);
-  --wb-metric-ai: #f28b16;
-  --wb-metric-ai-bg: rgb(242 139 22 / 10%);
-
   // ==================== 主色调 ====================
   --el-color-primary: #5f74f3 !important;
   --el-color-primary-light-3: #7d91f6;
   --el-color-primary-dark-2: #4d63dd;
-  --el-button-hover-bg-color: #4d63dd;
-  --el-button-hover-border-color: #5f74f3;
+  --el-button-hover-bg-color: var(--el-color-primary-dark-2);
+  --el-button-hover-border-color: var(--el-color-primary);
 
   // ==================== 搜索窗口主题变量 ====================
   --search-bg-color: #f9fafc;
@@ -73,14 +99,13 @@
   --search-preview-status-bg: #f6f9fe;
 
   // ==================== 编辑器主题变量 ====================
-  --editor-bg: #f9fafc;
+  --editor-bg: #fff;
   --editor-border: #d9e2ef;
   --editor-surface-bg: #fff;
   --editor-text: #111827;
   --editor-text-secondary: #6b7280;
   --editor-hover-bg: #f3f7ff;
-  --editor-scrollbar-thumb: #c0c4cc;
-  --editor-scrollbar-track: #f5f7fa;
+  --editor-scrollbar-thumb: var(--app-scrollbar-thumb);
   --code-block-bg: #f3f6fb;
   --code-block-border: #d8e1ed;
   --code-block-hover-border: #bdc9da;
@@ -186,9 +211,6 @@
   --chat-send-disabled-bg: var(--el-color-primary);
   --chat-send-disabled-text: #fff;
   --chat-primary-soft: rgb(95 116 243 / 12%);
-  --chat-neon-text: #4f46e5;
-  --chat-neon-glow: rgb(79 70 229 / 34%);
-  --chat-neon-glow-strong: rgb(34 211 238 / 24%);
   --chat-shadow-sm: 0 2px 8px rgb(15 23 42 / 4%);
   --chat-shadow-md: 0 8px 28px rgb(15 23 42 / 5%);
   --chat-shadow-lg: 0 10px 28px rgb(15 23 42 / 8%);
@@ -232,34 +254,40 @@ html.dark {
 }
 
 .dark {
+  --app-ui-card-bg: var(--categories-content-bg);
+  --app-ui-card-hover-bg: var(--workspace-nav-selected);
   // ==================== 基础面板深色主题变量 ====================
+  --workspace-nav-bg: #202423;
+  --workspace-nav-rail: #191e1c;
+  --workspace-nav-text: #cdd2d0;
+  --workspace-nav-heading: #f0f3f2;
+  --workspace-nav-muted: #989f9c;
+  --workspace-nav-border: #343c38;
+  --workspace-nav-selected: #303834;
+  --workspace-rail-selected: #435149;
+  --workspace-nav-accent: #e1e7e3;
+  --workspace-nav-avatar: #008c7a;
+  --workspace-window-border: #4b5651;
+  --workspace-panel-shadow: -3px 0 14px rgb(0 0 0 / 18%),
+    0 -3px 14px rgb(0 0 0 / 14%);
+  --settings-surface: #202322;
+  --settings-border: #373d3a;
+  --settings-divider: #3c433f;
+  --settings-muted: #aeb6b2;
+  --app-scrollbar-thumb: #454d49;
+  --app-scrollbar-hover: #626c66;
   --categories-panel-bg: #1a1a1a;
   --categories-panel-bg-rgb: 26, 26, 26;
   --categories-content-bg: #2c2c2c;
-  --categories-bg-active: #5d6dfd;
+  --categories-bg-active: var(--el-color-primary);
   --categories-bg-tab-active: #409eff1a;
-  --categories-panel-bg-hover: #363636;
-  --categories-panel-bg-hover-rgb: 54, 54, 54;
+  --categories-panel-bg-hover: var(--workspace-nav-selected);
   --categories-text-color: #fff;
   --categories-text-color-rgb: 255, 255, 255;
   --categories-info-text-color: #a0a0a0;
   --categories-text-color-active: #fff;
   --categories-border-color: #363636;
   --categories-border-color-rgb: 54, 54, 54;
-
-  // ==================== Workbench 深色主题变量 ====================
-  --wb-bg: #24262b;
-  --wb-card-bg: rgb(31 34 40 / 84%);
-  --wb-card-bg-strong: rgb(35 38 45 / 94%);
-  --wb-card-border: rgb(93 105 124 / 40%);
-  --wb-card-border-hover: rgb(123 136 253 / 52%);
-  --wb-text: #f1f5fb;
-  --wb-muted: #aab4c4;
-  --wb-muted-soft: #818c9e;
-  --wb-hover: rgb(123 136 253 / 9%);
-  --wb-shadow: 0 3px 14px rgb(0 0 0 / 10%);
-  --wb-footer-border: rgb(93 105 124 / 34%);
-  --wb-footer-bg: rgb(20 22 26 / 18%);
 
   // ==================== 搜索窗口深色主题变量 ====================
   --search-bg-color: #202020;
@@ -285,8 +313,7 @@ html.dark {
   --editor-text: #e5e7eb;
   --editor-text-secondary: #9ca3af;
   --editor-hover-bg: #2a2a2a;
-  --editor-scrollbar-thumb: #4b5563;
-  --editor-scrollbar-track: #1e1e1e;
+  --editor-scrollbar-thumb: var(--app-scrollbar-thumb);
   --code-block-bg: #24272c;
   --code-block-border: #343a43;
   --code-block-hover-border: #4b5563;
@@ -391,9 +418,6 @@ html.dark {
   --chat-send-disabled-bg: var(--el-color-primary);
   --chat-send-disabled-text: #fff;
   --chat-primary-soft: rgb(93 109 253 / 15%);
-  --chat-neon-text: #67e8f9;
-  --chat-neon-glow: rgb(103 232 249 / 52%);
-  --chat-neon-glow-strong: rgb(167 139 250 / 42%);
   --chat-shadow-sm: 0 2px 8px rgb(0 0 0 / 20%);
   --chat-shadow-md: 0 8px 28px rgb(0 0 0 / 20%);
   --chat-shadow-lg: 0 10px 28px rgb(0 0 0 / 25%);

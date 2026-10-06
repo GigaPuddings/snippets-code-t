@@ -117,7 +117,12 @@ defineEmits(['click']);
 }
 
 .custom-button {
-  @apply inline-flex items-center justify-center gap-1.5 rounded-md shadow-sm transition-all duration-200 font-medium outline-none relative overflow-hidden;
+  @apply inline-flex items-center justify-center gap-1.5 rounded-ui shadow-none transition-all duration-200 font-ui font-medium outline-none relative overflow-hidden;
+
+  &:focus-visible {
+    outline: 2px solid var(--el-color-primary);
+    outline-offset: 2px;
+  }
 
   &:not(:disabled):active {
     transform: scale(0.98);
@@ -128,7 +133,7 @@ defineEmits(['click']);
   }
 
   &--default {
-    @apply bg-panel dark:bg-panel text-panel-text-secondary dark:text-panel hover:bg-content dark:hover:bg-panel-hover-bg border border-panel dark:border-panel;
+    @apply bg-ui-selected text-panel-text-secondary dark:text-panel hover:bg-ui-hover border-0;
   }
 
   &--primary {
@@ -148,7 +153,7 @@ defineEmits(['click']);
   }
 
   &--plain {
-    @apply bg-transparent border;
+    @apply bg-transparent border-0;
 
     &.custom-button--primary {
       @apply border-active text-primary hover:bg-active hover:text-white;
@@ -197,27 +202,27 @@ defineEmits(['click']);
   }
 
   &--medium {
-    @apply text-sm px-4 h-8;
+    @apply text-ui px-4 h-ui-control;
 
     padding-top: 0;
     padding-bottom: 0;
-    line-height: 32px;
+    line-height: var(--app-ui-control-height);
   }
 
   &--small {
-    @apply text-xs px-3 h-6;
+    @apply text-ui-caption px-3 h-ui-control-sm;
 
     padding-top: 0;
     padding-bottom: 0;
-    line-height: 24px;
+    line-height: var(--app-ui-control-sm-height);
   }
 
   &--large {
-    @apply text-base px-5 h-10;
+    @apply text-base px-5 h-ui-control-lg;
 
     padding-top: 0;
     padding-bottom: 0;
-    line-height: 40px;
+    line-height: var(--app-ui-control-lg-height);
   }
 
   &--loading {
