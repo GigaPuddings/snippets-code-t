@@ -323,7 +323,7 @@
     },
     {
       "id": "local-launcher",
-      "version": "2.0.34",
+      "version": "2.0.35",
       "name": {
         "i18nKey": "plugins.localLauncher.name",
         "fallback": "Apps and Bookmarks Launcher"
@@ -333,20 +333,20 @@
         "fallback": "Local app and browser bookmark management, plus quick-launch search results."
       },
       "category": "search",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-launcher/archive/refs/tags/2.0.34.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-launcher/archive/refs/tags/2.0.35.zip",
       "builtinPluginId": "local-launcher",
       "status": "included",
-      "sizeBytes": 469478,
-      "sha256": "fafba91f524bbb8cb70eceab31688493af1ae0e1feecdb52c6e514c7a095ffc1",
+      "sizeBytes": 329522,
+      "sha256": "c7efd4e3fef7e18a712cfd7b301445f66df3a89c48717c5df83b2024d70036b2",
       "tags": [
         "apps",
         "bookmarks",
         "launcher"
       ],
-      "minAppVersion": "2.2.1",
-      "compatibleAppVersion": ">=2.2.1",
+      "minAppVersion": "2.2.5",
+      "compatibleAppVersion": ">=2.2.5",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-local-launcher",
-      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-launcher/releases/tag/2.0.34"
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-launcher/releases/tag/2.0.35"
     },
     {
       "id": "desktop-files",
