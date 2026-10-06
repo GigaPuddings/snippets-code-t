@@ -123,13 +123,13 @@ fn soft_delete_into(root: &Path, workspace_root: &Path, file_path: &Path) -> Res
         return Err("只能回收工作区中的 Markdown 笔记".to_string());
     }
 
-    fs::create_dir_all(&root).map_err(|e| format!("创建回收站失败: {}", e))?;
+    fs::create_dir_all(root).map_err(|e| format!("创建回收站失败: {}", e))?;
     let id = format!(
         "{}{}",
         Utc::now().timestamp_micros(),
         NEXT_ID.fetch_add(1, Ordering::Relaxed)
     );
-    let dir = entry_dir(&root, &id)?;
+    let dir = entry_dir(root, &id)?;
     fs::create_dir(&dir).map_err(|e| format!("创建回收站条目失败: {}", e))?;
 
     let result = (|| {
@@ -207,7 +207,7 @@ fn restore_from(root: &Path, workspace_root: &Path, id: &str) -> Result<PathBuf,
     let workspace = workspace_root
         .canonicalize()
         .map_err(|e| format!("无法读取工作区路径: {}", e))?;
-    let dir = entry_dir(&root, id)?;
+    let dir = entry_dir(root, id)?;
     let entry = read_entry(&dir)?;
     if entry.id != id {
         return Err("回收站记录不匹配".to_string());
