@@ -1046,7 +1046,7 @@ export default {
   // 提醒事项
   alarm: {
     noAlarms: '暂无设定提醒事项',
-    noAlarmsDesc: '点击右下角的"＋"以添加新提醒事项',
+    noAlarmsDesc: '为重要事项设置时间，支持每天、每周或指定日期提醒。',
     addAlarm: '新增提醒',
     editAlarm: '编辑提醒',
     title: '提醒标题',

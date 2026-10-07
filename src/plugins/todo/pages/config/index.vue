@@ -1,74 +1,74 @@
 <template>
-  <div class="todo-container">
-    <div class="todo-toolbar">
-      <div class="todo-toolbar__summary">
-        <Remind theme="outline" size="18" :strokeWidth="3" />
-        <span>{{ $t('plugins.todo.name') }}</span>
-        <strong>{{ alarmCards.length }}</strong>
+  <main class="plugin-config-page ui-icon-scope todo-container">
+    <header class="plugin-config-header">
+      <div class="flex min-w-0 items-center gap-2">
+        <h1 class="plugin-config-title">{{ $t('plugins.todo.name') }}</h1>
+        <span class="plugin-config-count">{{ alarmCards.length }}</span>
       </div>
-      <div class="todo-toolbar__actions">
+      <div class="flex shrink-0 items-center gap-2">
         <el-tooltip
           effect="light"
           :content="isEdit ? $t('local.done') : $t('local.edit')"
           placement="bottom"
         >
-          <button
-            class="todo-icon-button"
-            type="button"
-            :class="{ active: isEdit }"
+          <CustomButton
+            unstyled
+            class="ui-icon-button ui-action--muted"
+            :aria-label="isEdit ? $t('local.done') : $t('local.edit')"
+            :aria-pressed="isEdit"
+            :icon="isEdit ? CheckSmall : Write"
             :disabled="alarmCards.length === 0"
             @click="handleEdit"
-          >
-            <write v-if="!isEdit" theme="outline" size="18" :strokeWidth="3" />
-            <check-small v-else theme="outline" size="18" :strokeWidth="3" />
-          </button>
+          />
         </el-tooltip>
         <el-tooltip
           effect="light"
           :content="$t('local.add')"
           placement="bottom"
         >
-          <button
-            class="todo-icon-button todo-icon-button--primary"
-            type="button"
-            :disabled="isEdit"
-            @click="addAlarmCard"
-          >
-            <plus theme="outline" size="20" :strokeWidth="3" />
-          </button>
+          <CustomButton :icon="Plus" :disabled="isEdit" @click="addAlarmCard">
+            {{ $t('alarm.addAlarm') }}
+          </CustomButton>
         </el-tooltip>
       </div>
-    </div>
+    </header>
 
     <div v-if="alarmCards.length > 0" class="alarm-grid">
       <div
-        class="alarm-card"
+        class="ui-card alarm-card"
         v-for="item in alarmCards"
         :key="item.id"
         :class="getCardClass(item)"
       >
-        <div :class="{ 'is-edit': isEdit }" @click="editAlarmCard(item)">
+        <button
+          type="button"
+          class="alarm-card-content"
+          :class="{ 'is-edit': isEdit }"
+          :disabled="isEdit"
+          :aria-label="`${$t('alarm.editAlarm')}: ${item.title}`"
+          @click="editAlarmCard(item)"
+        >
           <div class="time">{{ item.time }}</div>
           <div class="info">
             <div class="time-left">
-              <remind theme="outline" size="14" :strokeWidth="3" />
+              <remind theme="outline" size="14" />
               <span>{{ item.time_left }}</span>
             </div>
-            <div class="title">{{ item.title }}</div>
+            <div class="title" :title="item.title">{{ item.title }}</div>
             <div class="alarm-type">
               <span
                 v-if="(item as any).alarm_type === 'Daily'"
-                class="type-badge daily"
+                class="type-badge"
               >
                 {{ $t('alarm.daily') }}
               </span>
               <span
                 v-else-if="(item as any).alarm_type === 'SpecificDate'"
-                class="type-badge specific"
+                class="type-badge"
               >
                 {{ formatSpecificDates((item as any).specific_dates) }}
               </span>
-              <span v-else class="type-badge weekly">
+              <span v-else class="type-badge">
                 {{ $t('alarm.weekly') }}
               </span>
             </div>
@@ -86,17 +86,11 @@
             </template>
           </div>
 
-          <div
-            v-else-if="(item as any).alarm_type === 'Daily'"
-            class="daily-indicator"
-          >
+          <div v-else-if="(item as any).alarm_type === 'Daily'">
             <span class="daily-text">{{ $t('alarm.dailyRepeat') }}</span>
           </div>
 
-          <div
-            v-else-if="(item as any).alarm_type === 'SpecificDate'"
-            class="specific-date-info"
-          >
+          <div v-else-if="(item as any).alarm_type === 'SpecificDate'">
             <span class="date-info">
               {{
                 $t('alarm.totalDates', {
@@ -105,29 +99,45 @@
               }}
             </span>
           </div>
-        </div>
+        </button>
         <div class="toggle">
           <el-switch
             v-if="!isEdit"
             v-model="item.is_active"
+            :aria-label="item.title"
             @change="toggleAlarmCard(item)"
           />
-          <delete
+          <CustomButton
             v-else
-            class="cursor-pointer text-red-500"
-            theme="outline"
-            size="20"
-            :strokeWidth="3"
+            type="danger"
+            text
+            :icon="Delete"
+            :aria-label="`${$t('local.delete')}: ${item.title}`"
             @click="deleteAlarmCard(item)"
           />
         </div>
       </div>
     </div>
-    <div v-else class="alarm-no-data">
-      <remind theme="outline" size="28" :strokeWidth="3" />
-      <div class="alarm-no-title">{{ $t('alarm.noAlarms') }}</div>
-      <div class="alarm-no-description">{{ $t('alarm.noAlarmsDesc') }}</div>
-    </div>
+    <section
+      v-else
+      class="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-4 pb-10 text-center"
+    >
+      <div
+        class="mb-1 flex h-12 w-12 items-center justify-center rounded-ui-lg bg-ui-card text-ui-muted"
+        aria-hidden="true"
+      >
+        <remind theme="outline" size="24" />
+      </div>
+      <h2 class="m-0 text-base font-medium text-ui-heading">
+        {{ $t('alarm.noAlarms') }}
+      </h2>
+      <p class="m-0 max-w-sm text-ui text-ui-muted">
+        {{ $t('alarm.noAlarmsDesc') }}
+      </p>
+      <CustomButton class="mt-2" :icon="Plus" @click="addAlarmCard">
+        {{ $t('alarm.addAlarm') }}
+      </CustomButton>
+    </section>
 
     <alarm-edit-dialog
       ref="alarmEditDialogRef"
@@ -149,7 +159,7 @@
         {{ $t('alarm.deleteConfirm', { name: deleteTarget?.title || '' }) }}
       </div>
     </ConfirmDialog>
-  </div>
+  </main>
 </template>
 
 <script setup lang="ts">
@@ -157,7 +167,7 @@ import { Write, Plus, CheckSmall, Delete, Remind } from '@icon-park/vue-next';
 import { useI18n } from 'vue-i18n';
 import AlarmEditDialog from './components/AlarmEditDialog.vue';
 import { invoke } from '@tauri-apps/api/core';
-import { ConfirmDialog } from '@/components/UI';
+import { ConfirmDialog, CustomButton } from '@/components/UI';
 import modal from '@/utils/modal';
 
 const { t } = useI18n();
@@ -330,131 +340,77 @@ onUnmounted(() => {
 
 <style scoped lang="scss">
 .todo-container {
-  @apply w-full h-full flex flex-col overflow-hidden px-8 py-7 text-panel bg-panel;
-
-  .todo-toolbar {
-    @apply flex items-center justify-between gap-3 px-0 py-3 mb-5 bg-panel border-b border-panel;
-
-    .todo-toolbar__summary {
-      @apply flex items-center gap-2 min-w-0 text-[28px] font-semibold text-panel;
-
-      strong {
-        @apply inline-flex items-center justify-center min-w-6 h-6 px-1 rounded-md text-xs;
-
-        color: var(--search-result-accent);
-        background: var(--search-card-bg);
-      }
-    }
-
-    .todo-toolbar__actions {
-      @apply flex items-center gap-2;
-    }
-
-    .todo-icon-button {
-      @apply inline-flex w-8 h-8 items-center justify-center rounded-md border border-transparent text-panel-text-secondary cursor-pointer transition-colors;
-
-      background: transparent;
-
-      &:hover:not(:disabled),
-      &.active {
-        color: var(--search-result-accent);
-        background: var(--search-result-active);
-        border-color: var(--search-result-active-border);
-      }
-
-      &:disabled {
-        @apply cursor-not-allowed opacity-45;
-      }
-    }
-
-    .todo-icon-button--primary {
-      color: var(--search-result-accent);
-      background: var(--search-card-bg);
-      border-color: var(--search-result-active-border);
-    }
-  }
-
   .alarm-grid {
-    @apply grid grid-cols-3 gap-3 overflow-y-auto pr-1;
+    @apply grid min-h-0 gap-3 overflow-y-auto p-0.5;
+
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
   }
 
   .alarm-card {
-    @apply min-h-[150px] border border-panel bg-panel rounded-md p-3 relative cursor-pointer select-none transition-colors;
-
-    &:hover {
-      background: var(--search-result-active);
-      border-color: var(--search-result-active-border);
-    }
+    @apply relative min-w-0 select-none;
 
     &.disabled {
-      @apply opacity-60 bg-content;
+      @apply opacity-60;
     }
 
     &.expired {
-      @apply border-red-500/35 bg-red-500/[0.08];
+      background: var(--el-color-danger-light-9);
 
       .time {
-        @apply text-red-600 dark:text-red-400;
+        color: var(--el-color-danger);
       }
     }
 
     &.urgent {
-      @apply border-amber-500/40 bg-amber-500/10;
+      background: var(--el-color-warning-light-9);
 
       .time {
-        @apply text-orange-600 dark:text-orange-400;
+        color: var(--el-color-warning);
+      }
+    }
+
+    .alarm-card-content {
+      @apply block h-full min-h-[160px] w-full rounded-ui border-0 bg-transparent p-4 text-left text-ui-main;
+
+      &:focus-visible {
+        outline: 2px solid var(--el-color-primary);
+        outline-offset: -2px;
       }
     }
 
     .time {
-      @apply text-4xl font-bold mb-2 text-panel;
+      @apply mb-2 pr-14 text-2xl font-semibold tabular-nums text-ui-heading;
     }
 
     .info {
       @apply mb-3;
 
       .title {
-        @apply text-sm font-semibold mb-1 truncate text-panel;
+        @apply mb-1 truncate text-ui font-medium text-ui-main;
       }
 
       .time-left {
-        @apply flex items-center gap-2 text-xs text-panel-text-secondary mb-2;
+        @apply mb-2 flex items-center gap-1.5 text-ui-caption text-ui-muted;
       }
 
       .alarm-type {
         @apply mt-2;
+      }
 
-        .type-badge {
-          @apply text-xs px-2 py-1 rounded-md border;
-
-          &.daily {
-            @apply text-blue-600 bg-blue-500/10 border-blue-500/[0.18];
-          }
-
-          &.weekly {
-            @apply text-green-600 bg-green-500/10 border-green-500/[0.18];
-          }
-
-          &.specific {
-            @apply text-purple-600 bg-purple-600/10 border-purple-600/[0.18];
-          }
-        }
+      .type-badge {
+        @apply text-ui-caption text-ui-muted;
       }
     }
 
     .weekdays {
-      @apply flex flex-wrap gap-1.5 mb-3;
+      @apply flex flex-wrap gap-1;
 
       .weekday {
-        @apply text-xs text-panel px-2 py-1 rounded-md border border-panel;
-
-        background: var(--search-card-bg);
+        @apply rounded-ui px-1.5 py-0.5 text-ui-caption text-ui-muted;
       }
 
       .active-weekday {
-        color: var(--search-result-accent);
-        background: var(--search-result-active);
-        border-color: var(--search-result-active-border);
+        @apply bg-ui-card-hover text-ui-main;
       }
     }
 
@@ -462,37 +418,14 @@ onUnmounted(() => {
       @apply absolute top-3 right-3;
     }
 
-    .daily-indicator {
-      @apply flex gap-2 mb-4;
-
-      .daily-text {
-        @apply text-xs text-blue-600 dark:text-blue-400 px-2 py-1 rounded-md border bg-blue-500/10 border-blue-500/[0.18];
-      }
-    }
-
-    .specific-date-info {
-      @apply flex gap-2 mb-4;
-
-      .date-info {
-        @apply text-xs text-purple-600 dark:text-purple-400 px-2 py-1 rounded-md border bg-purple-600/10 border-purple-600/[0.18];
-      }
+    .daily-text,
+    .date-info {
+      @apply text-ui-caption text-ui-muted;
     }
   }
 
   .is-edit {
     @apply opacity-65;
-  }
-
-  .alarm-no-data {
-    @apply flex flex-col items-center justify-center flex-1 select-none rounded-md border border-panel bg-panel;
-
-    .alarm-no-title {
-      @apply text-lg font-medium mb-2;
-    }
-
-    .alarm-no-description {
-      @apply text-sm text-panel-text-secondary;
-    }
   }
 }
 </style>

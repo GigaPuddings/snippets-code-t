@@ -1,3 +1,5 @@
+@use './plugin-config';
+
 // Shared UI appearance. Tailwind utilities on callers describe layout only.
 @layer components {
   .ui-action {

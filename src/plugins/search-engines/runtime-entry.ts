@@ -1,3 +1,4 @@
+import '@/styles/plugin-config.scss';
 import type { PluginFrontendRuntimeContext } from '../runtime';
 import type { SearchEngine } from '@/types';
 import {

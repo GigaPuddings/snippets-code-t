@@ -1,0 +1,47 @@
+// Shared by the host and external plugin bundles. Keeping this stylesheet in
+// each bundle lets a plugin update carry its page layout without a host rebuild.
+.plugin-config-page {
+  @apply relative flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden px-8 py-4 font-ui text-ui text-ui-main max-[640px]:px-5;
+
+  background: var(--settings-surface);
+
+  // Neutral form chrome is restricted to plugin pages. Focus keeps the theme
+  // accent; dropdown poppers continue using the host's Element Plus tokens.
+  .el-input__wrapper,
+  .el-select__wrapper {
+    @apply min-h-ui-control rounded-ui shadow-none;
+
+    background: var(--settings-surface);
+    box-shadow: inset 0 0 0 1px var(--settings-border);
+
+    &:hover {
+      box-shadow: inset 0 0 0 1px var(--settings-divider);
+    }
+
+    &.is-focus,
+    &.is-focused {
+      box-shadow: inset 0 0 0 1px var(--el-color-primary);
+    }
+  }
+
+  .el-input__inner,
+  .el-select__selected-item {
+    @apply font-ui text-ui text-ui-main;
+  }
+}
+
+.plugin-config-header {
+  @apply mb-4 flex min-h-ui-control shrink-0 items-center justify-between gap-4;
+}
+
+.plugin-config-title {
+  @apply m-0 min-w-0 truncate text-ui-title font-semibold text-ui-heading;
+}
+
+.plugin-config-toolbar {
+  @apply mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3;
+}
+
+.plugin-config-count {
+  @apply inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-ui bg-ui-selected px-1.5 text-ui-caption font-medium text-ui-muted;
+}

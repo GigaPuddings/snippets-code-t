@@ -1086,7 +1086,8 @@ export default {
   // Alarms/Reminders
   alarm: {
     noAlarms: 'No reminders set',
-    noAlarmsDesc: 'Click "+" at bottom right to add a reminder',
+    noAlarmsDesc:
+      'Schedule important tasks with daily, weekly or date-specific reminders.',
     addAlarm: 'Add Reminder',
     editAlarm: 'Edit Reminder',
     title: 'Reminder Title',

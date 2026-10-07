@@ -973,3 +973,40 @@ final result: shared appearance centralized, responsive precedence repaired, foc
 - Type checking, targeted ESLint, Stylelint, Prettier and diff whitespace checks passed. No full build or unrelated test suite was required for this selection-state repair.
 - Native checks covered a full renderer reload and all four collection clicks. Accepted captures: `quicknav-startup-before.png`, `quicknav-startup-after.png`, `quicknav-all-after.png`, `quicknav-uncategorized-after.png`, `quicknav-favorites-after.png`, and `quicknav-trash-after.png`, in the artifact directory above.
 - No content was created, deleted, restored or favorited during verification. Returned the native window to the initial folder/welcome state in light theme. Existing worktree changes were preserved; no commit, push, dependency or build output was added.
+
+---
+
+## Official Plugin Page Style Alignment — 2026-10-07
+
+### Scope and visual references
+
+- User screenshots: `C:/Users/zero/AppData/Local/Temp/codex-clipboard-5915b6da-2be7-49fb-b581-f75c3c047200.png` (launcher), `C:/Users/zero/AppData/Local/Temp/codex-clipboard-fd2db0e9-e86b-43af-9347-539ed9a79323.png` (search engines), `C:/Users/zero/AppData/Local/Temp/codex-clipboard-15128812-5587-4592-9483-bc1886df637c.png` (todo).
+- Target: the existing refactored Codex shell and workbench design, including the user's Codex reference screenshots earlier in this document/task.
+- The user explicitly requested code changes only and will manually update plugin versions and verify the application. No browser automation, native window changes, installed-package replacement or data mutation was performed.
+- Implementation screenshot, rendered viewport and density normalization: unavailable for this iteration by user choice. No rendered visual comparison or visual acceptance is claimed.
+
+### Implementation and remaining visual checks
+
+- Typography: shared 20px title, 14px UI text and 12px supporting text; inherited UI font and icon stroke. Rendered fallback and truncation need manual confirmation.
+- Spacing: shared page/header/toolbar rules; bounded 56–64px launcher rows; a narrower editable search table with horizontal scrolling contained within the table; responsive todo card columns. Actual default-window and narrow-window overflow need manual confirmation.
+- Colors: existing light/dark theme variables provide neutral list hover, tabs, forms, badges and cards. Reminder expiration/urgency retain semantic theme colors. System-theme synchronization and rendered contrast need manual confirmation.
+- Assets: existing application icons, engine icons and Icon Park components are retained. No new raster assets or custom icon drawings were added.
+- Copy: fixed both reminder empty-state translations and provided an explicit add-reminder action instead of the incorrect bottom-right-button instruction.
+- Removed obsolete launcher usage-color levels and old local toolbar/card/empty-state presentation rules. Shared plugin layout and form chrome live in `src/styles/plugin-config.scss`, imported by the host and all three external runtime entries.
+
+### Code verification
+
+- Type checking passed; targeted ESLint reported no errors (existing size/type warnings remain); Stylelint and Prettier checks passed.
+- Existing focused tests passed: 4 files / 9 tests covering virtual-scroller refresh, plugin routes, runtime CSS loading and CustomButton.
+- The running Vite service compiled the host stylesheet with HTTP 200 and emitted the shared plugin selectors. This is compilation evidence, not rendered UI evidence.
+- The three official plugin runtimes were rebuilt with their shared page stylesheet. Marketplace validation passed for 17 entries / 17 installable packages.
+- Plugin version numbers and remote releases are left for the user's update workflow. The unrelated existing deletion of `ARCHITECTURE_P0_REPORT.md` is preserved.
+
+### Comparison history
+
+- Initial evidence: oversized titles, blue card outlines/hover and uneven control styles in the supplied plugin screenshots; todo's empty-state instruction pointed to the wrong location.
+- Code changes address those discrepancies, but a post-change full-view/focused comparison has not been performed. Manual checks should cover launcher tabs/search/edit, engine form focus and default selection, todo empty/populated/edit states, light/dark themes and smaller windows.
+
+final result: blocked
+
+Visual acceptance is deferred to the user's requested manual plugin update and verification; code compilation and focused automated checks passed.

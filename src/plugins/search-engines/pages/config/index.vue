@@ -1,15 +1,9 @@
 <template>
-  <main class="w-full h-full overflow-hidden relative">
+  <main class="plugin-config-page ui-icon-scope">
     <!-- 加载中提示 -->
     <div v-if="isScanning" class="scanning-overlay">
       <div class="scanning-content">
-        <LoadingIcon
-          class="scanning-icon"
-          theme="outline"
-          size="48"
-          :strokeWidth="3"
-          spin
-        />
+        <LoadingIcon class="scanning-icon" theme="outline" size="48" spin />
         <div class="scanning-text">
           {{ scanStage || $t('progress.preparing') }}
         </div>
@@ -18,16 +12,21 @@
     </div>
 
     <div class="retrieve-container">
-      <div class="search-config transparent-input">
-        <header class="config-title">
-          <h1 class="title-text">{{ $t('retrieve.title') }}</h1>
+      <div class="search-config">
+        <header class="plugin-config-header">
+          <h1 class="plugin-config-title">{{ $t('retrieve.title') }}</h1>
           <div class="header-actions">
             <el-tooltip
               :content="$t('retrieve.resetDefault')"
               placement="top"
               effect="light"
             >
-              <CustomButton :icon="Redo" @click="resetEngines">
+              <CustomButton
+                unstyled
+                class="ui-action ui-action--muted"
+                :icon="Redo"
+                @click="resetEngines"
+              >
                 {{ $t('common.reset') }}
               </CustomButton>
             </el-tooltip>
@@ -36,7 +35,7 @@
               placement="top"
               effect="light"
             >
-              <CustomButton type="primary" :icon="Add" @click="handleAdd">
+              <CustomButton :icon="Add" @click="handleAdd">
                 {{ $t('common.add') }}
               </CustomButton>
             </el-tooltip>
@@ -75,6 +74,7 @@
                   <el-input
                     v-model="engine.name"
                     :placeholder="$t('retrieve.name')"
+                    :aria-label="$t('retrieve.name')"
                     @change="handleInputChange"
                   />
 
@@ -89,9 +89,6 @@
                         class="engine-icon placeholder-icon"
                         theme="outline"
                         size="24"
-                        :strokeWidth="3"
-                        strokeLinejoin="miter"
-                        strokeLinecap="butt"
                       />
                       <img
                         v-else
@@ -106,12 +103,14 @@
                   <el-input
                     v-model="engine.keyword"
                     :placeholder="$t('retrieve.keyword')"
+                    :aria-label="$t('retrieve.keyword')"
                     @change="handleInputChange"
                   />
 
                   <el-input
                     v-model="engine.url"
                     :placeholder="$t('retrieve.urlFormat')"
+                    :aria-label="$t('retrieve.urlTemplate')"
                     @change="handleUrlChange(engine)"
                   />
 
@@ -126,6 +125,7 @@
                   <el-select
                     v-model="engine.name"
                     :placeholder="$t('retrieve.defaultConfig')"
+                    :aria-label="$t('retrieve.preset')"
                     clearable
                     @change="handleSelect(index, engine.name)"
                   >
@@ -157,7 +157,7 @@
               </div>
 
               <div class="url-tip">
-                <Info theme="outline" size="17" :strokeWidth="3" />
+                <Info class="shrink-0" theme="outline" size="16" />
                 <span>{{ $t('retrieve.urlFormatTip') }}</span>
               </div>
             </div>
@@ -515,61 +515,47 @@ const handleIconError = async (engine: SearchEngineConfig) => {
 
 <style scoped lang="scss">
 .scanning-overlay {
-  @apply absolute inset-0 z-50 flex items-center justify-center bg-white/90 dark:bg-[rgba(30,30,30,0.9)];
+  @apply absolute inset-0 z-50 flex items-center justify-center;
 
+  background: var(--settings-surface);
   backdrop-filter: blur(4px);
 
   .scanning-content {
-    @apply flex flex-col items-center gap-3 p-6 rounded-lg border border-panel;
-
-    background: var(--search-bg-color);
-    box-shadow: 0 12px 30px rgb(15 23 42 / 14%);
+    @apply flex flex-col items-center gap-3 p-6 rounded-ui-lg bg-ui-card;
 
     .scanning-icon {
-      @apply text-blue-500;
+      @apply text-ui-muted;
     }
 
     .scanning-text {
-      @apply text-base font-medium text-panel;
+      @apply text-ui font-medium text-ui-main;
     }
 
     .scanning-progress {
-      @apply text-sm text-panel-text-secondary font-mono;
+      @apply text-ui-caption text-ui-muted font-mono;
     }
   }
 }
 
 .retrieve-container {
-  @apply relative w-full h-full overflow-hidden px-8 py-7 text-panel bg-panel;
+  @apply w-full min-h-0 flex-1;
 
   .search-config {
     @apply h-full flex flex-col min-h-0;
 
-    .config-title {
-      @apply flex items-center justify-between gap-4 mb-5 px-0 py-3 border-b border-panel;
-
-      background: var(--search-card-bg);
-
-      .title-text {
-        @apply text-[28px] font-semibold text-panel;
-      }
-
-      .header-actions {
-        @apply flex items-center gap-2 flex-shrink-0;
-      }
+    .header-actions {
+      @apply flex items-center gap-2 flex-shrink-0;
     }
 
     .search-list {
       @apply flex-1 min-h-0;
 
       :deep(.el-empty) {
-        @apply h-full bg-panel border border-panel rounded-md;
+        @apply h-full;
       }
 
       .search-table {
-        @apply h-full flex flex-col min-h-0 overflow-hidden border border-panel rounded-md;
-
-        background: var(--search-card-bg);
+        @apply h-full flex flex-col min-h-0 overflow-hidden;
       }
 
       .table-scroll {
@@ -579,59 +565,29 @@ const handleIconError = async (engine: SearchEngineConfig) => {
       .table-grid {
         display: grid;
         grid-template-columns:
-          minmax(132px, 1.1fr)
-          84px
-          minmax(128px, 0.9fr)
-          minmax(280px, 2.55fr)
-          76px
-          minmax(138px, 1.05fr)
-          52px;
-        column-gap: 16px;
+          minmax(104px, 1fr)
+          36px
+          minmax(92px, 0.8fr)
+          minmax(260px, 2.6fr)
+          56px
+          minmax(112px, 1fr)
+          32px;
+        column-gap: 12px;
         align-items: center;
-        min-width: 1020px;
+        min-width: 800px;
       }
 
       .table-header {
-        @apply sticky top-0 z-10 px-4 py-2.5 text-xs font-semibold whitespace-nowrap text-panel-text-secondary border-b border-panel;
-
-        background: var(--search-card-bg);
+        @apply sticky top-0 z-10 rounded-ui bg-ui-card px-3 py-2 text-ui-caption font-medium whitespace-nowrap text-ui-muted;
       }
 
       .search-item {
-        @apply px-4 py-3 border-b border-panel transition-colors last:border-b-0;
+        @apply px-3 py-3 border-b transition-colors last:border-b-0;
 
-        background: var(--search-card-bg);
+        border-color: var(--settings-border);
 
         &:hover {
-          background: var(--search-result-hover);
-        }
-
-        :deep(.el-input__wrapper) {
-          @apply border border-panel rounded-md shadow-none;
-
-          min-height: 36px;
-          background: var(--search-input-bg);
-
-          &:hover {
-            border-color: var(--search-result-active-border);
-          }
-
-          &.is-focus {
-            border-color: var(--search-result-active-border);
-            box-shadow: 0 0 0 1px var(--search-result-active-border);
-          }
-        }
-
-        :deep(.el-select__wrapper) {
-          @apply border border-panel rounded-md shadow-none;
-
-          min-height: 36px;
-          background: var(--search-input-bg);
-
-          &:hover,
-          &.is-focused {
-            border-color: var(--search-result-active-border);
-          }
+          background: var(--app-ui-card-soft-bg);
         }
 
         .icon-wrapper {
@@ -642,7 +598,7 @@ const handleIconError = async (engine: SearchEngineConfig) => {
           }
 
           .placeholder-icon {
-            @apply text-panel-text-secondary;
+            @apply text-ui-muted;
           }
         }
 
@@ -661,31 +617,7 @@ const handleIconError = async (engine: SearchEngineConfig) => {
       }
 
       .url-tip {
-        @apply flex items-center flex-none gap-2 mx-4 my-3 px-4 py-2.5 rounded-md text-xs text-panel-text-secondary;
-
-        background: var(--search-soft-bg);
-      }
-    }
-  }
-}
-
-@media (width <= 768px) {
-  .retrieve-container {
-    @apply p-3;
-
-    .search-config {
-      .config-title {
-        @apply px-4 py-3;
-
-        .title-text {
-          @apply text-base;
-        }
-      }
-
-      .search-list {
-        .table-grid {
-          column-gap: 16px;
-        }
+        @apply flex items-start flex-none gap-2 mt-3 px-3 py-2.5 rounded-ui bg-ui-card-soft text-ui-caption text-ui-muted;
       }
     }
   }

@@ -1,3 +1,4 @@
+import '@/styles/plugin-config.scss';
 import type { ContentType } from '@/types';
 import { isContentType } from '@/utils/type-guards';
 import type { PluginFrontendRuntimeContext } from '../runtime';

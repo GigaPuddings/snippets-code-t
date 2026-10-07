@@ -1,9 +1,26 @@
 <template>
-  <main class="local-container">
-    <h1 class="mb-5 text-[28px] font-semibold">{{ $t('nav.launcher') }}</h1>
+  <main class="plugin-config-page ui-icon-scope local-container">
+    <header class="plugin-config-header">
+      <h1 class="plugin-config-title">{{ $t('nav.launcher') }}</h1>
+      <div class="flex shrink-0 items-center gap-2">
+        <CustomButton
+          unstyled
+          class="ui-icon-button ui-action--muted"
+          :aria-label="isEditMode ? $t('local.done') : $t('local.edit')"
+          :title="isEditMode ? $t('local.done') : $t('local.edit')"
+          :aria-pressed="isEditMode"
+          :icon="isEditMode ? Check : Edit"
+          :disabled="currentList.length === 0"
+          @click="toggleEditMode"
+        />
+        <CustomButton :icon="Plus" @click="handleAdd">
+          {{ $t('local.add') }}
+        </CustomButton>
+      </div>
+    </header>
     <!-- 头部区域 -->
     <div class="local-header">
-      <div class="header-main">
+      <div class="plugin-config-toolbar">
         <!-- Tab 和统计 -->
         <div class="header-left">
           <el-segmented v-model="activeTab" :options="tabs" size="default" />
@@ -24,45 +41,16 @@
         <!-- 搜索和操作 -->
         <div class="header-right">
           <div class="search-wrapper">
-            <Search
-              class="search-icon"
-              theme="outline"
-              size="16"
-              :strokeWidth="3"
-            />
+            <Search class="search-icon" theme="outline" size="16" />
             <el-input
               v-model="searchQuery"
               :placeholder="$t('local.search')"
               clearable
               size="default"
               class="search-input"
+              :aria-label="$t('local.search')"
             />
           </div>
-          <el-tooltip
-            effect="light"
-            :content="isEditMode ? $t('local.done') : $t('local.edit')"
-            placement="bottom"
-          >
-            <CustomButton
-              :type="isEditMode ? 'primary' : 'default'"
-              :icon="isEditMode ? Check : Edit"
-              size="default"
-              @click="toggleEditMode"
-              :disabled="currentList.length === 0"
-            />
-          </el-tooltip>
-          <el-tooltip
-            effect="light"
-            :content="$t('local.add')"
-            placement="bottom"
-          >
-            <CustomButton
-              type="primary"
-              :icon="Plus"
-              size="default"
-              @click="handleAdd"
-            />
-          </el-tooltip>
         </div>
       </div>
 
@@ -74,7 +62,7 @@
       >
         <div class="scan-status__summary">
           <span class="scan-status__icon">
-            <LoadingIcon theme="outline" size="17" :strokeWidth="3" spin />
+            <LoadingIcon theme="outline" size="17" spin />
           </span>
           <div class="scan-status__copy">
             <span class="scan-status__title">{{ localizedScanStage }}</span>
@@ -112,7 +100,7 @@
           <span class="indexing-orbit indexing-orbit--outer"></span>
           <span class="indexing-orbit indexing-orbit--inner"></span>
           <span class="indexing-core">
-            <LoadingIcon theme="outline" size="28" :strokeWidth="2.5" />
+            <LoadingIcon theme="outline" size="28" />
           </span>
         </div>
 
@@ -152,7 +140,7 @@
               })
         "
       >
-        <CustomButton v-if="!searchQuery" type="primary" @click="handleAdd">
+        <CustomButton v-if="!searchQuery" @click="handleAdd">
           {{
             $t('local.addItem', {
               type:
@@ -174,12 +162,17 @@
       >
         <div class="item-wrapper" :style="{ height: `${listItemSize}px` }">
           <div
-            class="local-item"
+            class="ui-list-action local-item"
             :class="{ 'is-editing': isEditMode }"
-            @click="!isEditMode && handleItemClick(item)"
           >
             <div class="item-number">{{ index + 1 }}</div>
-            <div class="item-content">
+            <button
+              type="button"
+              class="item-content"
+              :disabled="isEditMode"
+              :title="item.content"
+              @click="handleItemClick(item)"
+            >
               <div class="item-icon">
                 <img
                   v-if="item.icon"
@@ -193,17 +186,12 @@
                   class="icon-placeholder"
                   theme="outline"
                   size="28"
-                  :strokeWidth="3"
                 />
               </div>
               <div class="item-info">
                 <div class="item-title-row">
                   <span class="item-title">{{ item.title }}</span>
-                  <div
-                    v-if="item.usage_count > 0"
-                    class="usage-indicator"
-                    :class="`usage-level-${getUsageLevel(item.usage_count)}`"
-                  >
+                  <div v-if="item.usage_count > 0" class="usage-indicator">
                     <el-tooltip
                       effect="light"
                       :content="
@@ -221,31 +209,30 @@
                   <component
                     :is="activeTab === 'app' ? FolderOpen : Link"
                     size="14"
-                    :strokeWidth="3"
                   />
                   <span>{{ item.content }}</span>
                 </div>
               </div>
-            </div>
+            </button>
             <div class="item-actions">
               <CustomButton
                 v-if="!isEditMode"
-                type="primary"
-                text
+                unstyled
+                class="ui-icon-button ui-action--muted item-edit"
+                :aria-label="$t('local.edit')"
+                :title="$t('local.edit')"
                 :icon="Edit"
                 @click.stop="handleEdit(item)"
-              >
-                {{ $t('local.edit') }}
-              </CustomButton>
+              />
               <CustomButton
                 v-if="isEditMode"
                 type="danger"
                 text
+                :aria-label="$t('local.delete')"
+                :title="$t('local.delete')"
                 :icon="Delete"
                 @click.stop="handleDelete(item)"
-              >
-                {{ $t('local.delete') }}
-              </CustomButton>
+              />
             </div>
           </div>
         </div>
@@ -383,7 +370,7 @@ const deleteTarget = ref<AppInfo | BookmarkInfo | null>(null);
 const deleteFromDialog = ref(false);
 const localContentRef = ref<HTMLElement | null>(null);
 const scrollerRef = ref<RecycleScrollerInstance | null>(null);
-const listItemSize = ref(88);
+const listItemSize = ref(64);
 const visibleListItemCount = 8;
 
 // 扫描状态
@@ -650,14 +637,6 @@ const confirmDelete = async () => {
   }
 };
 
-// 根据使用次数获取等级（1-4）
-const getUsageLevel = (count: number) => {
-  if (count >= 50) return 4; // 经常使用：红色
-  if (count >= 20) return 3; // 很常用：橙色
-  if (count >= 5) return 2; // 常用：绿色
-  return 1; // 偶尔使用：蓝色
-};
-
 // 使用次数徽标文案（超出两位数时收敛显示）
 const formatUsageCount = (count: number) => (count > 99 ? '99+' : `${count}`);
 
@@ -725,7 +704,10 @@ const updateListItemSize = () => {
   const contentHeight = localContentRef.value?.clientHeight ?? 0;
   if (contentHeight <= 0) return;
 
-  listItemSize.value = Math.max(64, contentHeight / visibleListItemCount);
+  listItemSize.value = Math.min(
+    64,
+    Math.max(56, contentHeight / visibleListItemCount)
+  );
 };
 
 const setupListResizeObserver = async () => {
@@ -760,62 +742,54 @@ onUnmounted(() => {
 
 <style scoped lang="scss">
 .local-container {
-  @apply w-full h-full flex flex-col overflow-hidden px-8 py-7 relative text-panel bg-panel;
-
   .local-header {
-    @apply mb-2;
+    @apply shrink-0;
 
-    .header-main {
-      @apply flex items-center justify-between gap-3 px-1 py-3 bg-panel border-b border-panel;
-
+    .plugin-config-toolbar {
       .header-left {
-        @apply flex items-center gap-3 min-w-0;
+        @apply flex flex-wrap items-center gap-3 min-w-0;
 
         .el-segmented {
-          --el-segmented-item-selected-bg-color: var(--search-result-active);
-          --el-segmented-item-selected-color: var(--categories-text-color);
-          --el-segmented-bg-color: var(--search-card-bg);
-          --el-border-radius-base: 6px;
+          --el-segmented-item-selected-bg-color: var(--app-ui-selected-bg);
+          --el-segmented-item-selected-color: var(--workspace-nav-heading);
+          --el-segmented-bg-color: transparent;
+          --el-segmented-item-hover-bg-color: var(--app-ui-hover-bg);
+          --el-segmented-color: var(--workspace-nav-muted);
+          --el-border-radius-base: var(--app-ui-radius);
+
+          :deep(.el-segmented__item) {
+            @apply font-ui text-ui;
+          }
         }
 
         .header-stats {
-          @apply flex items-center gap-2 text-xs text-panel-text-secondary whitespace-nowrap;
+          @apply flex items-center gap-2 text-ui-caption text-ui-muted whitespace-nowrap;
 
           .stat-text {
             @apply flex items-center gap-1;
 
             strong {
-              @apply text-panel font-semibold;
+              @apply text-ui-main font-medium;
             }
           }
         }
       }
 
       .header-right {
-        @apply flex items-center gap-2 min-w-0;
+        @apply flex items-center min-w-0 max-[700px]:w-full;
 
         .search-wrapper {
-          @apply relative;
-
-          width: 260px;
+          @apply relative w-60 max-[700px]:w-full;
 
           .search-icon {
-            @apply absolute left-2.5 top-1/2 transform -translate-y-1/2 text-panel-text-secondary pointer-events-none z-10;
+            @apply absolute left-2.5 top-1/2 transform -translate-y-1/2 text-ui-muted pointer-events-none z-10;
           }
 
           .search-input {
             @apply w-full;
 
             :deep(.el-input__wrapper) {
-              @apply rounded-md border border-panel shadow-none;
-
               padding-left: 32px;
-              background: var(--search-input-bg);
-
-              &:hover,
-              &.is-focus {
-                border-color: var(--search-result-active-border);
-              }
             }
           }
         }
@@ -823,16 +797,14 @@ onUnmounted(() => {
     }
 
     .scan-status {
-      @apply relative mt-2 overflow-hidden rounded-md border border-panel bg-panel px-3 py-2;
+      @apply relative mb-3 overflow-hidden rounded-ui bg-ui-card px-3 py-2;
 
       .scan-status__summary {
         @apply flex min-w-0 items-center gap-2.5;
       }
 
       .scan-status__icon {
-        @apply flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-blue-500;
-
-        background: var(--search-result-active);
+        @apply flex h-7 w-7 flex-shrink-0 items-center justify-center text-ui-muted;
       }
 
       .scan-status__copy {
@@ -840,11 +812,11 @@ onUnmounted(() => {
       }
 
       .scan-status__title {
-        @apply truncate text-xs font-semibold text-panel;
+        @apply truncate text-ui-caption font-semibold text-ui-main;
       }
 
       .scan-status__hint {
-        @apply truncate text-[11px] text-panel-text-secondary;
+        @apply truncate text-ui-caption text-ui-muted;
       }
 
       .scan-status__metrics {
@@ -852,11 +824,11 @@ onUnmounted(() => {
       }
 
       .scan-status__count {
-        @apply text-panel-text-secondary;
+        @apply text-ui-muted;
       }
 
       .scan-status__percent {
-        @apply min-w-[34px] text-right font-semibold text-blue-500;
+        @apply min-w-[34px] text-right font-medium text-ui-main;
       }
 
       .scan-status__track {
@@ -866,13 +838,13 @@ onUnmounted(() => {
       }
 
       .scan-status__bar {
-        @apply h-full rounded-full bg-blue-500 transition-[width] duration-300 ease-out;
+        @apply h-full rounded-full bg-active transition-[width] duration-300 ease-out;
       }
     }
   }
 
   .local-content {
-    @apply flex-1 overflow-hidden;
+    @apply min-h-0 flex-1 overflow-hidden;
 
     .initial-index-state {
       @apply flex h-full flex-col items-center justify-center px-6 pb-10 text-center;
@@ -900,20 +872,18 @@ onUnmounted(() => {
       }
 
       .indexing-core {
-        @apply relative z-10 flex h-12 w-12 items-center justify-center rounded-2xl text-blue-500 shadow-sm;
-
-        background: var(--search-result-active);
+        @apply relative z-10 flex h-12 w-12 items-center justify-center rounded-ui-lg bg-ui-card text-ui-muted;
       }
 
       .indexing-copy {
         @apply max-w-md;
 
         h2 {
-          @apply text-base font-semibold text-panel;
+          @apply text-ui-title font-semibold text-ui-heading;
         }
 
         p {
-          @apply mt-1.5 text-xs leading-5 text-panel-text-secondary;
+          @apply mt-1.5 text-ui-caption leading-5 text-ui-muted;
         }
       }
 
@@ -925,7 +895,7 @@ onUnmounted(() => {
         @apply mb-2 flex items-center justify-between font-mono text-[11px] text-panel-text-secondary;
 
         strong {
-          @apply font-semibold text-blue-500;
+          @apply font-medium text-ui-main;
         }
       }
 
@@ -936,7 +906,7 @@ onUnmounted(() => {
       }
 
       .indexing-progress__bar {
-        @apply block h-full rounded-full bg-blue-500 transition-[width] duration-300 ease-out;
+        @apply block h-full rounded-full bg-active transition-[width] duration-300 ease-out;
       }
 
       .indexing-progress__track.is-indeterminate .indexing-progress__bar {
@@ -958,36 +928,33 @@ onUnmounted(() => {
       }
 
       .local-item {
-        @apply flex items-center gap-3 px-3 py-2 rounded-md border border-panel bg-panel cursor-pointer transition-colors duration-150 h-full min-h-0;
+        @apply flex items-center gap-3 px-2 h-full min-h-0;
 
         &.is-editing {
           @apply cursor-default;
         }
 
-        &:hover:not(.is-editing) {
-          background: var(--search-result-active);
-          border-color: var(--search-result-active-border);
-        }
-
         .item-number {
-          @apply flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-md text-xs font-bold;
-
-          color: var(--search-result-accent);
-          background: var(--search-card-bg);
+          @apply flex-shrink-0 w-5 flex items-center justify-center text-ui-caption tabular-nums text-ui-muted;
         }
 
         .item-content {
-          @apply flex items-center gap-3 flex-1 overflow-hidden;
+          @apply flex min-w-0 h-full items-center gap-3 flex-1 overflow-hidden rounded-ui border-0 bg-transparent p-0 text-left text-ui-main;
+
+          &:focus-visible {
+            outline: 2px solid var(--el-color-primary);
+            outline-offset: 1px;
+          }
 
           .item-icon {
-            @apply flex-shrink-0 w-[38px] h-[38px] flex items-center justify-center rounded-md bg-content border border-panel;
+            @apply flex-shrink-0 w-9 h-9 flex items-center justify-center;
 
             .icon-image {
               @apply w-[30px] h-[30px] object-contain;
             }
 
             .icon-placeholder {
-              @apply text-panel-text-secondary;
+              @apply text-ui-muted;
             }
           }
 
@@ -998,52 +965,20 @@ onUnmounted(() => {
               @apply flex items-center gap-2 mb-0.5;
 
               .item-title {
-                @apply text-sm font-semibold text-panel truncate;
+                @apply text-ui font-medium text-ui-main truncate;
               }
 
               .usage-indicator {
-                @apply inline-flex flex-shrink-0 items-center justify-center rounded-full px-1.5 h-[18px] min-w-[18px];
+                @apply inline-flex flex-shrink-0 items-center justify-center rounded-full bg-ui-card px-1.5 h-[18px] min-w-[18px] text-ui-muted;
 
                 .usage-indicator__count {
                   @apply block text-[10px] font-semibold leading-none font-mono;
-                }
-
-                &.usage-level-1 {
-                  @apply text-blue-600 bg-blue-500/10 dark:text-blue-300;
-
-                  .usage-indicator__count {
-                    @apply text-blue-600 dark:text-blue-300;
-                  }
-                }
-
-                &.usage-level-2 {
-                  @apply text-green-600 bg-green-500/10 dark:text-green-300;
-
-                  .usage-indicator__count {
-                    @apply text-green-600 dark:text-green-300;
-                  }
-                }
-
-                &.usage-level-3 {
-                  @apply text-orange-600 bg-orange-500/10 dark:text-orange-300;
-
-                  .usage-indicator__count {
-                    @apply text-orange-600 dark:text-orange-300;
-                  }
-                }
-
-                &.usage-level-4 {
-                  @apply text-red-600 bg-red-500/10 dark:text-red-300;
-
-                  .usage-indicator__count {
-                    @apply text-red-600 dark:text-red-300;
-                  }
                 }
               }
             }
 
             .item-path {
-              @apply flex items-center gap-1 text-xs text-panel-text-secondary truncate;
+              @apply flex items-center gap-1 text-ui-caption text-ui-muted truncate;
 
               span {
                 @apply truncate;
@@ -1055,8 +990,23 @@ onUnmounted(() => {
         .item-actions {
           @apply flex-shrink-0 flex items-center;
         }
+
+        .item-edit {
+          @apply opacity-0;
+        }
+
+        &:hover .item-edit,
+        &:focus-within .item-edit {
+          @apply opacity-100;
+        }
       }
     }
+  }
+}
+
+@media (hover: none) {
+  .local-container .local-content .local-list .local-item .item-edit {
+    @apply opacity-100;
   }
 }
 

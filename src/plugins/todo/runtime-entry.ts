@@ -1,3 +1,4 @@
+import '@/styles/plugin-config.scss';
 import type { PluginFrontendRuntimeContext } from '../runtime';
 
 export const activate = (context: PluginFrontendRuntimeContext): void => {

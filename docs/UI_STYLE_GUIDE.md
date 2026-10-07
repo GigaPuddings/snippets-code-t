@@ -8,6 +8,7 @@
 | Tailwind 映射 | `tailwind.config.js` | 把变量映射为 `text-ui`、`h-ui-control`、`rounded-ui` 等 utility |
 | 构建配置 | `postcss.config.js` | 按配置文件自身的位置加载 Tailwind，避免受启动目录影响 |
 | 公共外观 | `src/styles/components.scss` | 操作按钮、菜单项、卡片、列表行、设置卡片及悬浮菜单 |
+| 插件页面外观 | `src/styles/plugin-config.scss` | 插件页面布局及中性表单控件，同时供主应用和独立插件包编译 |
 | 样式入口 | `src/styles/index.scss` | 加载主题与公共规则，处理第三方组件覆盖、提示和弹窗 |
 | 页面与组件 | 对应 Vue 文件 | 业务排列、私有响应式规则及必要的编辑器/拖放样式 |
 
@@ -44,6 +45,10 @@
 | `ui-card` | 工作台统计与快捷入口卡片 |
 | `ui-card--soft` | 欢迎页引导卡片的较轻背景 |
 | `ui-section-heading` | 侧栏分组标题 |
+| `plugin-config-page` | 官方插件页面的公共字体、内容背景、内边距与滚动边界 |
+| `plugin-config-header` / `plugin-config-title` | 插件页标题和操作区，复用主界面标题规格 |
+| `plugin-config-toolbar` | 插件筛选、Tab 和搜索工具栏，窄窗口允许换行 |
+| `plugin-config-count` | 插件数量徽标，使用中性主题色 |
 
 菜单选中由 `.active` 或 `aria-current="page"` 驱动；操作按钮切换状态用 `aria-pressed`。业务按钮继续复用 `CustomButton`，开关复用 `CustomSwitch`。
 
@@ -74,6 +79,8 @@
 文件树缩进、拖放提示、编辑器专用覆盖、动画和复杂响应式布局属于页面职责。附件设置的滑块需要在较宽断点换行，因此保留专用断点，但设置行的基础内边距与分隔线复用公共规则。
 
 插件专用的搜索、聊天、录屏等语义 token 继续保留。只有确认用途和状态一致时才合并变量，避免把不同语义的颜色强制绑定。
+
+启动器、搜索引擎、待办使用 `plugin-config-page` 和已有 `ui-*` 类。插件页内的 Element Plus 输入框与选择器通过公共规则统一尺寸、描边和焦点；表格列宽、虚拟列表行高及提醒的过期/紧急状态属于各插件。`plugin-config.scss` 由主应用公共样式加载，也由这三个插件的 `runtime-entry.ts` 导入，让独立插件更新携带页面样式。样式源码只维护一份，更新后重新构建对应插件。
 
 ## 修改后的验证
 
