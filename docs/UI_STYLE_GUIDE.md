@@ -82,6 +82,8 @@
 
 启动器、搜索引擎、待办使用 `plugin-config-page` 和已有 `ui-*` 类。插件页内的 Element Plus 输入框与选择器通过公共规则统一尺寸、描边和焦点；表格列宽、虚拟列表行高及提醒的过期/紧急状态属于各插件。`plugin-config.scss` 由主应用公共样式加载，也由这三个插件的 `runtime-entry.ts` 导入，让独立插件更新携带页面样式。样式源码只维护一份，更新后重新构建对应插件。
 
+Local AI 对话页采用独立的双栏布局，标题、图标按钮、列表操作和快捷提示卡片复用同一套公共类；其 `runtime-entry.ts` 同样导入 `plugin-config.scss`。`chat.scss` 仅维护聊天布局、Markdown、输入框和响应式规则，聊天背景与文字通过页面内变量引用公共主题 token，服务状态和警告继续使用聊天语义色。正文 14px、辅助信息 12px，消息与输入框共享最大阅读宽度；模型选择的悬浮菜单直接使用全局主题变量，避免 teleport 后丢失页面变量。
+
 ## 修改后的验证
 
 1. 对修改文件执行 Prettier、ESLint、Stylelint，并运行 `pnpm typecheck`。

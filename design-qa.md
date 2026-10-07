@@ -1010,3 +1010,33 @@ final result: shared appearance centralized, responsive precedence repaired, foc
 final result: blocked
 
 Visual acceptance is deferred to the user's requested manual plugin update and verification; code compilation and focused automated checks passed.
+
+---
+
+## Local AI Chat Style Alignment — 2026-10-07
+
+### Scope and visual reference
+
+- User screenshot: `C:/Users/zero/AppData/Local/Temp/codex-clipboard-82c6e6e3-59c7-473d-83c6-361a373a1029.png` (1775 × 1049 physical pixels; CSS viewport and display scaling are not verified).
+- Target: the existing refactored Codex shell, shared UI typography, neutral hover/selection surfaces and rounded composer. The supplied screenshot shows the old blue conversation indicator, framed assistant replies and smaller text.
+- The user's code-only/manual-plugin-update boundary continues to apply. No browser/native automation, installed-package replacement, model inference or conversation-data changes were performed. Post-change screenshots and rendered acceptance are deferred to the user.
+
+### Implementation
+
+- Sidebar: shared UI title, 14px navigation and conversation titles, 12px supporting text, neutral selection with no blue stripe, shared icon actions and a compact service status area. History deletion becomes visible on hover or keyboard focus; history keyboard events target the row itself so nested deletion buttons do not also open a history.
+- Content: compact truncated conversation header, centered date label, gray user bubbles, plain assistant responses, distinct Markdown heading levels and neutral code/thinking surfaces. Model labels truncate with full-name tooltips; context/output/time statistics remain visible and wrap.
+- Composer: message-aligned reading width, a larger neutral rounded input surface, circular send/stop action, shared attachment/enhancement/thinking controls and a model selector using host theme tokens. Controls can wrap rather than losing their text labels at smaller widths.
+- The jump-to-latest action is positioned above the composer relative to its actual height instead of a fixed offset from the whole panel. Attachment and multiline draft growth therefore change its position through CSS, while existing scroll handlers remain unchanged.
+- Existing light/dark/system theme variables are reused. Removed the unused avatar markup, obsolete boxed header/response styles, hardcoded blue outlines and duplicated local action-button rules. Shared plugin title styles are included in the Local AI runtime entry.
+
+### Verification and manual checks
+
+- Existing focused Vitest: 7 files / 34 tests passed, covering message trees, context limits, prompt enhancement/transfer, attachments, Local AI provider and plugin stylesheet loading.
+- Type checking passed. Targeted ESLint reported 0 errors / 39 existing warnings; Stylelint passed after correcting declaration spacing/order.
+- Compared the entire chat setup script against HEAD: unchanged. Reviewed its DOM selectors and retained the streaming response marker used by the resize observer, as well as the history-title marquee markers.
+- Rebuilt only the Local AI runtime and its CSS; its manifest points to the new CSS asset. Local marketplace validation passed for 17 entries / 17 installable packages. Plugin version numbers and remote releases remain in the user's update workflow.
+- Manual checks after the plugin update: empty and populated chats; sidebar collapse/expand/search/selection; long titles/model names; multiline drafts and attachments; streaming/stopping/thinking; version/fork actions; jump-to-latest placement; light/dark/system themes and narrower windows.
+
+final result: blocked
+
+Rendered visual acceptance is deferred to the user's requested manual plugin update and verification.

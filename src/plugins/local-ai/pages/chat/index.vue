@@ -1,7 +1,7 @@
 <template>
   <main
     :class="[
-      'local-ai-chat-shell',
+      'local-ai-chat-shell font-ui text-ui ui-icon-scope',
       sidebarCollapsed ? 'local-ai-chat-shell--sidebar-collapsed' : '',
       sending ? 'local-ai-chat-shell--sending' : ''
     ]"
@@ -15,12 +15,12 @@
       <header class="sidebar-header">
         <div class="sidebar-brand">
           <div class="sidebar-title-block">
-            <h2>{{ t('localAi.chatTitle') }}</h2>
+            <h2 class="plugin-config-title">{{ t('localAi.chatTitle') }}</h2>
             <p>{{ t('localAi.chatPrivacySubtitle') }}</p>
           </div>
         </div>
         <button
-          class="icon-action-btn sidebar-collapse-btn"
+          class="ui-icon-button ui-action--muted"
           type="button"
           :title="
             sidebarCollapsed
@@ -36,7 +36,7 @@
 
       <div class="sidebar-nav">
         <button
-          class="sidebar-new-chat-btn"
+          class="ui-list-action sidebar-new-chat-btn"
           type="button"
           :disabled="navigationLocked"
           @click="createNewChat"
@@ -49,6 +49,7 @@
           <Search theme="outline" size="16" />
           <input
             v-model="searchQuery"
+            :aria-label="t('localAi.searchHistory')"
             :placeholder="t('localAi.searchHistory')"
           />
           <span v-if="searchQuery" class="sidebar-search-count">
@@ -62,7 +63,7 @@
           <div class="section-title">{{ t('localAi.recent') }}</div>
           <div class="section-title-actions">
             <button
-              class="icon-action-btn"
+              class="ui-icon-button ui-icon-button--small ui-action--muted"
               type="button"
               :title="t('localAi.clearAllChats')"
               :disabled="
@@ -70,10 +71,10 @@
               "
               @click="clearHistoryDialogVisible = true"
             >
-              <Delete theme="outline" size="14" />
+              <Delete theme="outline" size="16" />
             </button>
             <button
-              class="icon-action-btn"
+              class="ui-icon-button ui-icon-button--small ui-action--muted"
               type="button"
               :title="t('plugins.refresh')"
               :disabled="navigationLocked || refreshing || clearingHistories"
@@ -82,7 +83,7 @@
               <Refresh
                 :class="{ 'animate-spin': refreshing }"
                 theme="outline"
-                size="14"
+                size="16"
               />
             </button>
           </div>
@@ -92,15 +93,17 @@
             v-for="history in filteredHistories"
             :key="history.id"
             :class="[
-              'chat-list-item',
+              'ui-list-action chat-list-item',
               activeHistoryId === history.id ? 'active' : '',
               navigationLocked ? 'disabled' : ''
             ]"
             role="button"
             :tabindex="navigationLocked ? -1 : 0"
             :aria-disabled="navigationLocked"
+            :aria-pressed="activeHistoryId === history.id"
             @click="openHistory(history.id)"
-            @keydown.enter.prevent="openHistory(history.id)"
+            @keydown.enter.self.prevent="openHistory(history.id)"
+            @keydown.space.self.prevent="openHistory(history.id)"
           >
             <span class="chat-item-copy">
               <span v-auto-scroll-title class="chat-item-title">
@@ -119,13 +122,13 @@
               </span>
             </span>
             <button
-              class="chat-item-delete"
+              class="ui-icon-button ui-icon-button--small ui-action--muted chat-item-delete"
               type="button"
               :title="t('common.delete')"
               :disabled="navigationLocked"
               @click.stop="deleteHistoryItem(history.id)"
             >
-              <Delete theme="outline" size="13" />
+              <Delete theme="outline" size="16" />
             </button>
           </div>
         </div>
@@ -154,7 +157,11 @@
             ]"
           ></span>
         </div>
-        <button class="sidebar-settings-btn" type="button" @click="goSettings">
+        <button
+          class="ui-action sidebar-settings-btn"
+          type="button"
+          @click="goSettings"
+        >
           <SettingTwo theme="outline" size="16" />
           <span>{{ t('localAi.settings') }}</span>
           <Right theme="outline" size="14" />
@@ -167,20 +174,16 @@
         <div class="chat-panel-heading">
           <button
             v-if="sidebarCollapsed"
-            class="panel-sidebar-toggle"
+            class="ui-icon-button ui-action--muted"
             type="button"
             :title="t('localAi.expandSidebar')"
             @click="sidebarCollapsed = false"
           >
             <LeftBar theme="outline" size="17" />
           </button>
-          <div class="chat-context-mark">
-            <Robot theme="outline" size="18" />
-          </div>
-          <div class="chat-context-copy">
-            <span>{{ t('localAi.chatSubtitle') }}</span>
-            <h1>{{ activeHistoryTitle }}</h1>
-          </div>
+          <h1 class="chat-context-title" :title="activeHistoryTitle">
+            {{ activeHistoryTitle }}
+          </h1>
         </div>
       </header>
 
@@ -215,7 +218,7 @@
               <button
                 v-for="item in quickPrompts"
                 :key="item.title"
-                class="quick-prompt-card"
+                class="ui-card quick-prompt-card"
                 type="button"
                 @click="applyQuickPrompt(item.title)"
               >
@@ -243,15 +246,6 @@
           <article
             :class="['message-row', `message-row--${display.message.role}`]"
           >
-            <div class="message-avatar">
-              <Robot
-                v-if="display.message.role === 'assistant'"
-                theme="outline"
-                size="18"
-              />
-              <span v-else>{{ t('localAi.youShort') }}</span>
-            </div>
-
             <div class="message-body">
               <template v-if="display.message.role === 'user'">
                 <div class="user-bubble">
@@ -297,38 +291,47 @@
                 </div>
                 <div v-if="!display.message.streaming" class="message-actions">
                   <button
+                    class="ui-icon-button ui-icon-button--small ui-action--muted"
                     type="button"
                     :title="t('common.copy')"
                     @click="copyMessage(display.message)"
                   >
-                    <Copy theme="outline" size="14" />
+                    <Copy theme="outline" size="16" />
                   </button>
                   <button
+                    class="ui-icon-button ui-icon-button--small ui-action--muted"
                     type="button"
                     :title="t('common.edit')"
                     @click="editMessage(display.message)"
                   >
-                    <Edit theme="outline" size="14" />
+                    <Edit theme="outline" size="16" />
                   </button>
                   <button
+                    class="ui-icon-button ui-icon-button--small ui-action--muted"
                     type="button"
                     :title="t('common.delete')"
                     @click="deleteMessage(display.message.id)"
                   >
-                    <Delete theme="outline" size="14" />
+                    <Delete theme="outline" size="16" />
                   </button>
                 </div>
               </template>
 
               <template v-else>
                 <div class="assistant-head">
-                  <span>{{ currentModelDisplay }}</span>
+                  <span
+                    class="assistant-model-name"
+                    :title="currentModelDisplay"
+                  >
+                    {{ currentModelDisplay }}
+                  </span>
                   <small v-if="display.message.streaming">
                     {{ messageActivityLabel(display.message) }}
                   </small>
                 </div>
+                <!-- Keep the streaming marker used by the resize observer. -->
                 <div
-                  class="assistant-card"
+                  class="assistant-response"
                   :class="{
                     'assistant-card--streaming': display.message.streaming
                   }"
@@ -394,25 +397,21 @@
                   </div>
                 </div>
                 <div v-if="display.message.content" class="message-stats">
-                  <span class="message-stats__context">
+                  <span>
                     {{ t('localAi.contextLabel') }}:
                     {{ messageStats(display.message).context }}/{{
                       messageStats(display.message).contextMax
                     }}
                     ({{ messageStats(display.message).contextPercent }}%)
                   </span>
-                  <span class="message-stats__output">
+                  <span>
                     {{ t('localAi.outputLabel') }}:
                     {{ messageStats(display.message).output }}/{{
                       messageStats(display.message).outputMax
                     }}
                   </span>
-                  <span class="message-stats__elapsed">
-                    {{ messageStats(display.message).seconds }}s
-                  </span>
-                  <span class="message-stats__speed">
-                    {{ messageStats(display.message).speed }} t/s
-                  </span>
+                  <span>{{ messageStats(display.message).seconds }}s</span>
+                  <span>{{ messageStats(display.message).speed }} t/s</span>
                   <span
                     v-if="!display.message.streaming"
                     class="message-stats-time"
@@ -434,6 +433,7 @@
                     :aria-label="messageVersionLabel(display)"
                   >
                     <button
+                      class="ui-icon-button ui-action--muted"
                       type="button"
                       :disabled="display.siblingCurrentIndex <= 0"
                       :title="t('localAi.previousVersion')"
@@ -446,6 +446,7 @@
                       {{ display.siblingLeafNodeIds.length }}
                     </span>
                     <button
+                      class="ui-icon-button ui-action--muted"
                       type="button"
                       :disabled="
                         display.siblingCurrentIndex >=
@@ -458,41 +459,46 @@
                     </button>
                   </div>
                   <button
+                    class="ui-icon-button ui-icon-button--small ui-action--muted"
                     type="button"
                     :title="t('common.copy')"
                     @click="copyMessage(display.message)"
                   >
-                    <Copy theme="outline" size="14" />
+                    <Copy theme="outline" size="16" />
                   </button>
                   <button
                     v-if="display.message.role === 'assistant'"
+                    class="ui-icon-button ui-icon-button--small ui-action--muted"
                     type="button"
                     :title="t('localAi.regenerate')"
                     @click="regenerateMessage(display.message.id)"
                   >
-                    <Refresh theme="outline" size="14" />
+                    <Refresh theme="outline" size="16" />
                   </button>
                   <button
                     v-if="display.message.role === 'assistant'"
+                    class="ui-icon-button ui-icon-button--small ui-action--muted"
                     type="button"
                     :title="t('localAi.branchChat')"
                     @click="forkFromMessage(display.message.id)"
                   >
-                    <Fork theme="outline" size="14" />
+                    <Fork theme="outline" size="16" />
                   </button>
                   <button
+                    class="ui-icon-button ui-icon-button--small ui-action--muted"
                     type="button"
                     :title="t('common.edit')"
                     @click="editMessage(display.message)"
                   >
-                    <Edit theme="outline" size="14" />
+                    <Edit theme="outline" size="16" />
                   </button>
                   <button
+                    class="ui-icon-button ui-icon-button--small ui-action--muted"
                     type="button"
                     :title="t('common.delete')"
                     @click="deleteMessage(display.message.id)"
                   >
-                    <Delete theme="outline" size="14" />
+                    <Delete theme="outline" size="16" />
                   </button>
                 </div>
               </template>
@@ -501,18 +507,17 @@
         </template>
       </div>
 
-      <button
-        v-if="showJumpToBottom"
-        class="scroll-bottom-btn"
-        type="button"
-        :title="t('localAi.jumpToLatest')"
-        @click="forceScrollToBottom"
-      >
-        <Down theme="outline" size="15" />
-        <span>{{ t('localAi.jumpToLatest') }}</span>
-      </button>
-
       <div class="composer-dock">
+        <button
+          v-if="showJumpToBottom"
+          class="ui-action scroll-bottom-btn"
+          type="button"
+          :title="t('localAi.jumpToLatest')"
+          @click="forceScrollToBottom"
+        >
+          <Down theme="outline" size="16" />
+          <span>{{ t('localAi.jumpToLatest') }}</span>
+        </button>
         <form
           :class="[
             'chat-input-card',
@@ -555,12 +560,12 @@
                 </small>
               </span>
               <button
-                class="attachment-remove-btn"
+                class="ui-icon-button ui-icon-button--small ui-action--muted"
                 type="button"
                 :title="t('common.delete')"
                 @click="removeComposerAttachment(attachment.id)"
               >
-                <Delete theme="outline" size="12" />
+                <Delete theme="outline" size="14" />
               </button>
             </div>
           </div>
@@ -570,6 +575,7 @@
             class="chat-input"
             rows="1"
             :placeholder="t('localAi.chatPlaceholder')"
+            :aria-label="t('localAi.chatPlaceholder')"
             :readonly="promptEnhancing"
             :aria-busy="promptEnhancing"
             @keydown="handleComposerKeydown"
@@ -578,7 +584,7 @@
           <div class="input-toolbar">
             <div class="input-toolbar-left">
               <button
-                class="composer-tool-btn"
+                class="ui-icon-button ui-action--muted"
                 type="button"
                 :title="t('localAi.addAttachment')"
                 :disabled="attachmentPicking"
@@ -594,9 +600,8 @@
               </button>
               <button
                 :class="[
-                  'composer-tool-btn',
+                  'ui-action ui-action--muted',
                   'composer-tool-btn--wide',
-                  'composer-tool-btn--enhance',
                   promptEnhancing ? 'composer-tool-btn--active' : ''
                 ]"
                 type="button"
@@ -620,7 +625,7 @@
               <button
                 v-if="modelSupportsThinking"
                 :class="[
-                  'composer-tool-btn',
+                  'ui-action ui-action--muted',
                   'composer-tool-btn--wide',
                   thinkingEnabled ? 'composer-tool-btn--active' : ''
                 ]"
@@ -638,7 +643,7 @@
               </button>
             </div>
             <div class="input-toolbar-right">
-              <div class="model-select-shell">
+              <div class="model-select-shell" :title="currentModelDisplay">
                 <Cube theme="outline" size="14" />
                 <el-select
                   v-model="selectedChatModelPath"
@@ -646,7 +651,7 @@
                   size="small"
                   :disabled="sending || !availableChatModels.length"
                   :placeholder="currentModelDisplay"
-                  popper-class="chat-model-select-popper"
+                  popper-class="chat-model-select-popper ui-icon-scope"
                   @change="changeChatModel"
                 >
                   <el-option

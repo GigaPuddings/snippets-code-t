@@ -184,7 +184,7 @@
     },
     {
       "id": "local-ai",
-      "version": "2.1.2",
+      "version": "2.1.3",
       "name": {
         "i18nKey": "plugins.localAi.name",
         "fallback": "Local AI"
@@ -194,10 +194,10 @@
         "fallback": "Run local GGUF models with llama.cpp for AI chat, translation, and assistance."
       },
       "category": "automation",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai/archive/refs/tags/2.1.2.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai/archive/refs/tags/2.1.3.zip",
       "status": "available",
-      "sizeBytes": 373300,
-      "sha256": "084ed18a1e364c96f21b9d16a35d9afa1a0ca868251975b2015880484bbb7a21",
+      "sizeBytes": 373418,
+      "sha256": "1c772bd7cb92694a09fd8760d6b46c2684d970c4cd828dbc79e00a9019c660eb",
       "dependencies": [
         "local-ai-llama-runtime"
       ],
@@ -209,7 +209,7 @@
       "minAppVersion": "2.2.5",
       "compatibleAppVersion": ">=2.2.5",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai",
-      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai/releases/tag/2.1.2"
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-ai/releases/tag/2.1.3"
     },
     {
       "id": "local-ai-llama-runtime",

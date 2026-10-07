@@ -2,6 +2,7 @@ import { defineAsyncComponent } from 'vue';
 import { SettingTwo } from '@icon-park/vue-next';
 import type { PluginFrontendRuntimeContext } from '../runtime';
 import { localAiProvider } from '@/ai';
+import '@/styles/plugin-config.scss';
 
 export const activate = (context: PluginFrontendRuntimeContext): void => {
   context.ai.registerProvider(localAiProvider);
