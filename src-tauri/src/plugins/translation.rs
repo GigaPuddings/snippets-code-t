@@ -47,6 +47,12 @@ pub fn hotkey_selection_translate() {
     log::info!("[划词翻译] 最终获取的文本长度: {}", selected_text.len());
 
     if let Some(window) = app_handle.get_webview_window("translate") {
+        if !WindowManager::is_ready(&window) {
+            if !selected_text.trim().is_empty() {
+                open_translate_window(Some(selected_text));
+            }
+            return;
+        }
         let minimized = window.is_minimized().unwrap_or(false);
         if window.is_visible().unwrap_or(false) && !minimized {
             if !selected_text.trim().is_empty() {
@@ -77,7 +83,7 @@ pub fn hotkey_selection_translate() {
     }
 
     if !selected_text.trim().is_empty() {
-        open_translate_window(&app_handle, Some(selected_text));
+        open_translate_window(Some(selected_text));
     } else if let Some(window) = app_handle.get_webview_window("main") {
         let _ = window.emit(
             "notification",
@@ -118,6 +124,10 @@ pub fn hotkey_translate() {
     }
 
     if let Some(window) = app.get_webview_window("translate") {
+        if !WindowManager::is_ready(&window) {
+            let _ = WindowManager::restore_and_focus(&window);
+            return;
+        }
         if window.is_visible().unwrap_or(false) && !window.is_minimized().unwrap_or(false) {
             let _ = window.emit("reset-state", ());
             let _ = window.hide();
@@ -132,48 +142,19 @@ pub fn hotkey_translate() {
     let _ = WindowManager::get_or_create_with_behavior(&spec, WindowShowBehavior::AlwaysShow, None);
 }
 
-fn open_translate_window(app_handle: &AppHandle, text: Option<String>) {
-    if let Some(window) = app_handle.get_webview_window("translate") {
-        let _ = WindowManager::restore_and_focus(&window);
-
-        if let Some(text) = text {
-            let _ = window.emit("selection-text", serde_json::json!({ "text": text }));
-        }
-        return;
-    }
-
+fn open_translate_window(text: Option<String>) {
     let spec = translate_window_spec();
     let on_ready: Option<WindowReadyCallback> = text.map(|txt| {
         Box::new(move |window: &WebviewWindow| {
             info!("翻译窗口准备完成，发送选中文本，长度: {}", txt.len());
 
-            let window_clone = window.clone();
-            let text_clone = txt.clone();
-            tauri::async_runtime::spawn(async move {
-                tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
-                info!(
-                    "[延迟发送] 翻译窗口延迟发送选中文本，长度: {}",
-                    text_clone.len()
-                );
-                let emit_result =
-                    window_clone.emit("selection-text", serde_json::json!({ "text": text_clone }));
-                info!("发送 selection-text 事件结果: {:?}", emit_result);
-            });
-
-            let window_clone2 = window.clone();
-            let text_clone2 = txt.clone();
-            tauri::async_runtime::spawn(async move {
-                tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
-                info!("翻译窗口超时保护：尝试发送选中的文本");
-                let _ = window_clone2
-                    .emit("selection-text", serde_json::json!({ "text": text_clone2 }));
-            });
+            let _ = window.emit("selection-text", serde_json::json!({ "text": txt }));
         }) as WindowReadyCallback
     });
 
     let _ =
         WindowManager::get_or_create_with_behavior(&spec, WindowShowBehavior::AlwaysShow, on_ready);
-    info!("创建翻译窗口并立即显示");
+    info!("翻译窗口将在首屏和内容监听就绪后显示");
 }
 
 fn translate_window_spec() -> WindowSpec {

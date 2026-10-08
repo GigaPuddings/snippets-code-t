@@ -859,6 +859,19 @@ pub fn open_screen_recorder_window() {
     let x = monitor_x + (monitor_width - width) / 2.0;
     let y = monitor_y + (monitor_height - height) / 2.0;
 
+    // 先监听再创建，避免较快的 WebView 在 build 返回前发送 ready。
+    let frontend_ready = Arc::new(AtomicBool::new(false));
+    let frontend_ready_signal = Arc::clone(&frontend_ready);
+    let app_for_ready = app_handle.clone();
+    let ready_listener_id = app_handle.once("screen_recorder_ready", move |_| {
+        frontend_ready_signal.store(true, Ordering::Release);
+        if let Some(window) = app_for_ready.get_webview_window("screen_recorder") {
+            info!("[Plugin:screen-recorder] frontend ready; showing window");
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
+    });
+
     let builder = WebviewWindowBuilder::new(
         app_handle,
         "screen_recorder",
@@ -879,27 +892,31 @@ pub fn open_screen_recorder_window() {
     let window = match builder.build() {
         Ok(window) => window,
         Err(error) => {
+            app_handle.unlisten(ready_listener_id);
             warn!("[Plugin:screen-recorder] create window failed: {}", error);
             return;
         }
     };
     info!("[Plugin:screen-recorder] window created; waiting for frontend ready");
 
-    let frontend_ready = Arc::new(AtomicBool::new(false));
-    let window_ready = window.clone();
-    let frontend_ready_signal = Arc::clone(&frontend_ready);
-    window.once("screen_recorder_ready", move |_| {
-        frontend_ready_signal.store(true, Ordering::Release);
-        info!("[Plugin:screen-recorder] frontend ready; showing window");
-        let _ = window_ready.show();
-        let _ = window_ready.set_focus();
+    if frontend_ready.load(Ordering::Acquire) {
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+    let app_for_destroy = app_handle.clone();
+    window.on_window_event(move |event| {
+        if matches!(event, tauri::WindowEvent::Destroyed) {
+            app_for_destroy.unlisten(ready_listener_id);
+        }
     });
 
     let window_timeout = window.clone();
     let frontend_ready_timeout = Arc::clone(&frontend_ready);
+    let app_for_timeout = app_handle.clone();
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(tokio::time::Duration::from_secs(WINDOW_READY_TIMEOUT_SECS)).await;
         if !frontend_ready_timeout.load(Ordering::Acquire) {
+            app_for_timeout.unlisten(ready_listener_id);
             warn!(
                 "[Plugin:screen-recorder] frontend ready timeout after {}s; destroying window",
                 WINDOW_READY_TIMEOUT_SECS

@@ -1,5 +1,5 @@
 <template>
-  <main class="notification-container" :class="{ 'fade-in': state.show }">
+  <main class="notification-container">
     <ReminderContent
       :body="state.body"
       :reminderTime="state.reminderTime"
@@ -20,7 +20,6 @@ interface State {
   label: string;
   body: string;
   reminderTime: string;
-  show: boolean;
 }
 
 const appWindow = ref<Window | null>(null);
@@ -29,8 +28,7 @@ const route = useRoute();
 const state = reactive<State>({
   label: '',
   body: '',
-  reminderTime: '',
-  show: false
+  reminderTime: ''
 });
 
 const closeWindow = () => {
@@ -59,13 +57,8 @@ onMounted(async () => {
 
   appWindow.value = new Window(state.label);
 
-  // 添加淡入效果
-  setTimeout(() => {
-    state.show = true;
-  }, 100);
-
-  // 通知后端页面已准备好
-  await appWindow.value.emit('notification-ready');
+  // 首屏包含完整通知背景和内容，绘制后由原生窗口执行滑入动画。
+  await appWindow.value.emit('notification-ready', { label: state.label });
 });
 </script>
 
@@ -75,17 +68,11 @@ onMounted(async () => {
 
   background: linear-gradient(to bottom right, #fff, #f8f9fa);
   border: 1px solid rgb(229 231 235 / 50%);
-  opacity: 0;
-  transition: all 0.3s ease-in-out;
 
   .dark & {
     background: linear-gradient(to bottom right, #1a1a1a, #2d2d2d);
     border-color: rgb(75 85 99 / 30%);
   }
-}
-
-.fade-in {
-  opacity: 1;
 }
 
 .notification-header {

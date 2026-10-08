@@ -9,6 +9,13 @@ pub async fn hotkey_config_command() -> Result<(), String> {
     Ok(())
 }
 
+// 创建 WebView 必须通过异步命令离开 UI 线程，且搜索跳转只激活，不切换隐藏。
+#[tauri::command]
+pub async fn activate_config_window_command() -> Result<(), String> {
+    crate::window::activate_config_window();
+    Ok(())
+}
+
 // 前端创建 update 窗口
 #[tauri::command]
 pub async fn hotkey_update_command() -> Result<(), String> {

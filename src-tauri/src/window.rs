@@ -25,10 +25,45 @@ use tauri_plugin_dialog::DialogExt;
 // 用于跟踪 config 窗口是否已添加关闭清理监听器
 static CONFIG_CLEANUP_REGISTERED: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(false));
 
+#[derive(Default)]
+struct WindowReadyState {
+    ready: bool,
+    reveal_requested: bool,
+    callbacks: Vec<WindowReadyCallback>,
+    listener_id: Option<u32>,
+    reveal_position: Option<tauri::PhysicalPosition<i32>>,
+    generation: u64,
+}
+
+impl WindowReadyState {
+    fn defer_show(&mut self, callback: &mut Option<WindowReadyCallback>) -> Option<bool> {
+        if self.ready {
+            return None;
+        }
+        let needs_preload = !self.reveal_requested;
+        self.reveal_requested = true;
+        if let Some(callback) = callback.take() {
+            self.callbacks.push(callback);
+        }
+        Some(needs_preload)
+    }
+
+    fn mark_ready(&mut self) -> (bool, Vec<WindowReadyCallback>) {
+        self.ready = true;
+        self.listener_id = None;
+        (
+            std::mem::take(&mut self.reveal_requested),
+            std::mem::take(&mut self.callbacks),
+        )
+    }
+}
+
+static WINDOW_READY_STATES: LazyLock<Mutex<HashMap<String, WindowReadyState>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+static WINDOW_READY_GENERATION: AtomicU64 = AtomicU64::new(0);
+
 // 启动过渡耗时统计起点（loading 显示时记录）
 static STARTUP_TRANSITION_STARTED_AT: LazyLock<Mutex<Option<Instant>>> =
-    LazyLock::new(|| Mutex::new(None));
-static STARTUP_CONFIG_READY_LISTENER: LazyLock<Mutex<Option<u32>>> =
     LazyLock::new(|| Mutex::new(None));
 
 // 快速搜索和配置页运行在不同 WebView 中。首次创建配置窗口时，导航事件
@@ -439,11 +474,17 @@ pub enum WindowShowBehavior {
 pub struct WindowManager;
 
 impl WindowManager {
+    pub fn is_ready(window: &WebviewWindow) -> bool {
+        window_is_ready(window.label())
+    }
     /// 恢复一个可能被隐藏或最小化的可复用窗口，并将其置于前台。
     ///
     /// Windows 上仅调用 `show` 不会解除最小化。所有复用窗口统一走这里，
     /// 避免托盘、快捷键和页面跳转入口各自遗漏恢复步骤。
     pub fn restore_and_focus(window: &WebviewWindow) -> Result<(), String> {
+        if defer_window_show(window, &mut None)? {
+            return Ok(());
+        }
         if window.is_minimized().unwrap_or(false) {
             window.unminimize().map_err(|e| e.to_string())?;
         }
@@ -466,12 +507,18 @@ impl WindowManager {
     pub fn get_or_create_with_behavior(
         spec: &WindowSpec,
         behavior: WindowShowBehavior,
-        on_ready: Option<WindowReadyCallback>,
+        mut on_ready: Option<WindowReadyCallback>,
     ) -> Result<WebviewWindow, String> {
         let _app = APP.get().ok_or("无法获取应用句柄")?;
 
         // 获取或创建窗口
         let window = build_window(spec.label, spec.url, spec.to_window_config())?;
+
+        // 首次绘制前，屏幕外可见只用于解除 WebView2 的后台节流。
+        // 重复打开请求也必须等待，不能把预加载窗口当作已就绪窗口切换。
+        if defer_window_show(&window, &mut on_ready)? {
+            return Ok(window);
+        }
 
         // 根据行为处理窗口显示逻辑
         match behavior {
@@ -610,6 +657,8 @@ pub fn build_window(label: &str, url: &str, option: WindowConfig) -> Result<Webv
         None => {
             // info!("Create new window: {}", label);
 
+            register_window_ready_listener(app_handle, label)?;
+
             // config 窗口允许缩小到较小尺寸，以便前端折叠左侧面板的响应式逻辑生效
             let (min_w, min_h) = if label == "config" {
                 (720.0, 480.0)
@@ -626,7 +675,7 @@ pub fn build_window(label: &str, url: &str, option: WindowConfig) -> Result<Webv
                     .shadow(option.shadow)
                     .transparent(option.transparent)
                     .always_on_top(option.always_on_top)
-                    .focused(true)
+                    .focused(false)
                     .center()
                     .visible(false);
 
@@ -644,6 +693,7 @@ pub fn build_window(label: &str, url: &str, option: WindowConfig) -> Result<Webv
             }
 
             builder.build().map_err(|e| {
+                reset_window_ready_state(app_handle, label);
                 let msg = format!("build_window: 创建窗口失败 label={}, err={}", label, e);
                 error!("{}", msg);
                 msg
@@ -919,6 +969,15 @@ pub fn hotkey_search(context: Option<String>) {
         }
     };
     cancel_search_window_destroy();
+    if !window_is_ready("main")
+        && WINDOW_READY_STATES.lock().ok().is_some_and(|states| {
+            states
+                .get("main")
+                .is_some_and(|state| state.reveal_requested)
+        })
+    {
+        return;
+    }
     let is_visible = match window.is_visible() {
         Ok(v) => v,
         Err(e) => {
@@ -943,12 +1002,20 @@ pub fn hotkey_search(context: Option<String>) {
         hide_search_window_after_ipc_response(window);
     } else {
         position_search_window_near_top(&window);
-        let _ = window.show();
-        arm_search_focus_restore();
-        // A keyboard shortcut must make the search field ready immediately;
-        // pointer position must not decide whether the window receives focus.
-        let _ = window.set_focus();
-        let _ = window.emit("windowFocused", ());
+        let mut on_ready: Option<WindowReadyCallback> = Some(Box::new(|window| {
+            arm_search_focus_restore();
+            let _ = window.emit("windowFocused", ());
+        }));
+        match defer_window_show(&window, &mut on_ready) {
+            Ok(true) => {}
+            Ok(false) => {
+                let _ = WindowManager::restore_and_focus(&window);
+                if let Some(callback) = on_ready {
+                    callback(&window);
+                }
+            }
+            Err(error) => error!("hotkey_search: 等待首屏失败: {}", error),
+        }
     }
 }
 
@@ -1165,6 +1232,194 @@ fn position_window_outside_visible_desktop(window: &WebviewWindow) -> Result<(),
         .map_err(|error| format!("设置预加载窗口位置失败: {}", error))
 }
 
+fn reset_window_ready_state(app: &AppHandle, label: &str) {
+    let removed = WINDOW_READY_STATES
+        .lock()
+        .ok()
+        .and_then(|mut states| states.remove(label));
+    if let Some(listener_id) = removed.and_then(|state| state.listener_id) {
+        app.unlisten(listener_id);
+    }
+}
+
+fn window_is_ready(label: &str) -> bool {
+    WINDOW_READY_STATES
+        .lock()
+        .map(|states| states.get(label).is_none_or(|state| state.ready))
+        .unwrap_or(false)
+}
+
+fn register_window_ready_listener(app: &AppHandle, label: &str) -> Result<(), String> {
+    reset_window_ready_state(app, label);
+    let generation = WINDOW_READY_GENERATION.fetch_add(1, Ordering::Relaxed) + 1;
+    let mut states = WINDOW_READY_STATES.lock().map_err(|e| e.to_string())?;
+    states.insert(
+        label.to_string(),
+        WindowReadyState {
+            generation,
+            ..Default::default()
+        },
+    );
+    let app_for_ready = app.clone();
+    let label_for_ready = label.to_string();
+    let ready_event = if label == "config" {
+        "config_ready"
+    } else {
+        "window-first-paint"
+    };
+    // 按 label 隔离信号，监听早于 build；多个贴图/通知不会相互提前唤醒。
+    let listener_id = app.listen(ready_event, move |event| {
+        if label_for_ready != "config"
+            && serde_json::from_str::<serde_json::Value>(event.payload())
+                .ok()
+                .and_then(|payload| {
+                    payload
+                        .get("label")
+                        .and_then(|label| label.as_str())
+                        .map(str::to_owned)
+                })
+                .as_deref()
+                != Some(label_for_ready.as_str())
+        {
+            return;
+        }
+        let (reveal, callbacks, position, listener_id) = {
+            let Ok(mut states) = WINDOW_READY_STATES.lock() else {
+                return;
+            };
+            let Some(state) = states.get_mut(&label_for_ready) else {
+                return;
+            };
+            if state.generation != generation || state.ready {
+                return;
+            }
+            let listener_id = state.listener_id.take();
+            let (reveal, callbacks) = state.mark_ready();
+            (reveal, callbacks, state.reveal_position, listener_id)
+        };
+        if let Some(listener_id) = listener_id {
+            app_for_ready.unlisten(listener_id);
+        }
+        if let Some(window) = app_for_ready.get_webview_window(&label_for_ready) {
+            if reveal {
+                restore_preloaded_position(&window, position);
+                if let Err(error) = WindowManager::restore_and_focus(&window) {
+                    error!(
+                        "[Window] 首屏就绪后显示失败 label={}: {}",
+                        label_for_ready, error
+                    );
+                }
+                if label_for_ready == "config" {
+                    close_and_destroy_loading_window();
+                }
+            }
+            for callback in callbacks {
+                callback(&window);
+            }
+        }
+    });
+    states
+        .get_mut(label)
+        .expect("ready state inserted")
+        .listener_id = Some(listener_id);
+    drop(states);
+
+    let app_for_timeout = app.clone();
+    let label_for_timeout = label.to_string();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(Duration::from_secs(30)).await;
+        let timed_out = WINDOW_READY_STATES
+            .lock()
+            .map(|states| {
+                states
+                    .get(&label_for_timeout)
+                    .is_some_and(|state| state.generation == generation && !state.ready)
+            })
+            .unwrap_or(false);
+        if timed_out {
+            warn!(
+                "[Window] 首屏初始化超时，取消打开 label={}",
+                label_for_timeout
+            );
+            if let Some(window) = app_for_timeout.get_webview_window(&label_for_timeout) {
+                let _ = window.hide();
+                let _ = window.destroy();
+            }
+            reset_window_ready_state(&app_for_timeout, &label_for_timeout);
+            if label_for_timeout == "config" {
+                close_and_destroy_loading_window();
+            }
+        }
+    });
+    Ok(())
+}
+
+fn restore_preloaded_position(
+    window: &WebviewWindow,
+    position: Option<tauri::PhysicalPosition<i32>>,
+) {
+    if let Some(position) = position {
+        let _ = window.set_position(tauri::Position::Physical(position));
+    } else {
+        let _ = window.center();
+    }
+}
+
+fn defer_window_show(
+    window: &WebviewWindow,
+    callback: &mut Option<WindowReadyCallback>,
+) -> Result<bool, String> {
+    if window_is_ready(window.label()) {
+        return Ok(false);
+    }
+    // 原生窗口查询不能持有就绪状态锁，避免 UI 线程回调反向等待锁。
+    let position = if window.label() == "config" {
+        None
+    } else {
+        window.outer_position().ok()
+    };
+    let needs_preload = {
+        let mut states = WINDOW_READY_STATES.lock().map_err(|e| e.to_string())?;
+        let Some(state) = states.get_mut(window.label()) else {
+            return Ok(false);
+        };
+        let needs_preload = state.defer_show(callback);
+        if needs_preload == Some(true) {
+            state.reveal_position = position;
+        }
+        needs_preload
+    };
+    let Some(needs_preload) = needs_preload else {
+        return Ok(false);
+    };
+    if needs_preload {
+        if window.label() == "config" {
+            show_loading_window();
+        }
+        position_window_outside_visible_desktop(window)?;
+        window.show().map_err(|e| e.to_string())?;
+        if window.label() == "config" {
+            if let Some(loading) = APP.get().and_then(|app| app.get_webview_window("loading")) {
+                let _ = loading.set_focus();
+            }
+        }
+        // ready 可能在移动过程中到达。检查后恢复位置，避免已就绪窗口留在屏幕外。
+        if window_is_ready(window.label()) {
+            let position = WINDOW_READY_STATES
+                .lock()
+                .map_err(|e| e.to_string())?
+                .get(window.label())
+                .and_then(|state| state.reveal_position);
+            restore_preloaded_position(window, position);
+            WindowManager::restore_and_focus(window)?;
+            if window.label() == "config" {
+                close_and_destroy_loading_window();
+            }
+        }
+    }
+    Ok(true)
+}
+
 // 启动阶段：先显示 loading，在屏幕外预加载 config，待 config_ready 再切换
 pub async fn open_config_with_loading_transition() {
     WindowManager::close_search_window_if_visible();
@@ -1200,197 +1455,43 @@ pub async fn open_config_with_loading_transition() {
         ready_event: Some("config_ready"),
     };
 
-    // 必须在 build 前监听。生产环境 WebView2 偶尔会在 build 返回前完成首帧，
-    // 若之后才注册 window.once，会永久错过 config_ready 并留下 loading。
-    let Some(app_for_listener) = APP.get().cloned() else {
-        error!("[StartupTransition] app handle unavailable before config build");
-        close_and_destroy_loading_window();
-        return;
-    };
-    clear_startup_config_ready_listener();
-    let app_for_ready = app_for_listener.clone();
-    let listener_id = app_for_listener.once("config_ready", move |_| {
-        if let Ok(mut listener) = STARTUP_CONFIG_READY_LISTENER.lock() {
-            *listener = None;
-        }
-        let Some(started_at) = (match STARTUP_TRANSITION_STARTED_AT.lock() {
-            Ok(mut started) => started.take(),
-            Err(e) => {
-                error!(
-                    "open_config_with_loading_transition: 读取启动计时状态失败: {}",
-                    e
+    // 所有首次显示统一等待首屏，启动路径只补充过渡耗时统计。
+    let window = match WindowManager::get_or_create_with_behavior(
+        &spec,
+        WindowShowBehavior::AlwaysShow,
+        Some(Box::new(|_| {
+            if let Some(started_at) = STARTUP_TRANSITION_STARTED_AT
+                .lock()
+                .ok()
+                .and_then(|mut started| started.take())
+            {
+                info!(
+                    "[StartupTransition] config ready -> switch to config (loading_to_ready={}ms)",
+                    started_at.elapsed().as_millis()
                 );
-                None
             }
-        }) else {
-            info!("[StartupTransition] late config_ready ignored");
-            return;
-        };
-        let elapsed_ms = started_at.elapsed().as_millis();
-
-        info!(
-            "[StartupTransition] config ready -> switch to config (loading_to_ready={}ms)",
-            elapsed_ms
-        );
-        if let Some(window) = app_for_ready.get_webview_window("config") {
-            let _ = window.center();
-            let _ = WindowManager::restore_and_focus(&window);
-        }
-        close_and_destroy_loading_window();
-        info!(
-            "[StartupTransition] loading closed (normal path, total={}ms)",
-            elapsed_ms
-        );
-    });
-    if let Ok(mut listener) = STARTUP_CONFIG_READY_LISTENER.lock() {
-        *listener = Some(listener_id);
-    }
-
-    let window = match build_window(spec.label, spec.url, spec.to_window_config()) {
+        })),
+    ) {
         Ok(window) => window,
-        Err(e) => {
+        Err(error) => {
             error!(
                 "open_config_with_loading_transition: 创建 config 窗口失败: {}",
-                e
+                error
             );
             cancel_startup_transition_for_user_action("config_build_failed");
             return;
         }
     };
-    info!("[StartupTransition] config created and preloading under loading");
     ensure_config_cleanup_listener(&window);
-    let transition_active = match STARTUP_TRANSITION_STARTED_AT.lock() {
-        Ok(started) => started.is_some(),
-        Err(error) => {
-            error!(
-                "open_config_with_loading_transition: 读取启动过渡状态失败: {}",
-                error
-            );
-            false
-        }
-    };
-    let mut preload_offscreen = transition_active;
-    if preload_offscreen {
-        if let Err(error) = position_window_outside_visible_desktop(&window) {
-            warn!(
-                "[StartupTransition] config offscreen preload unavailable: {}",
-                error
-            );
-            preload_offscreen = false;
-        } else {
-            // ready 可能在 build 返回后立即到达。若移动期间已经切换完成，
-            // 再次居中，防止把已呈现的配置窗口留在屏幕外。
-            let still_active = STARTUP_TRANSITION_STARTED_AT
-                .lock()
-                .map(|started| started.is_some())
-                .unwrap_or(false);
-            if !still_active {
-                let _ = window.center();
-                preload_offscreen = false;
-            }
-        }
-    }
-
-    // 显示重试：保持 WebView 可见但置于屏幕外，避免首帧前后台节流。
-    let window_for_retry = window.clone();
-    tauri::async_runtime::spawn(async move {
-        let mut shown = false;
-        for attempt in 1..=20 {
-            if window_for_retry.is_visible().unwrap_or(false) {
-                shown = true;
-                break;
-            }
-            let _ = window_for_retry.unminimize();
-            let _ = window_for_retry.show();
-            if window_for_retry.is_visible().unwrap_or(false) {
-                shown = true;
-                info!(
-                    "[StartupTransition] config show success on attempt {}",
-                    attempt
-                );
-                if preload_offscreen {
-                    // show 会获取焦点；把焦点还给屏幕中的 loading 窗口。
-                    if let Some(loading) =
-                        APP.get().and_then(|app| app.get_webview_window("loading"))
-                    {
-                        let _ = loading.set_focus();
-                    }
-                } else {
-                    // 无法移到屏幕外时保留原有隐藏策略，避免覆盖 loading。
-                    let _ = window_for_retry.hide();
-                }
-                break;
-            }
-            tokio::time::sleep(tokio::time::Duration::from_millis(120)).await;
-        }
-
-        if !shown {
-            warn!("[StartupTransition] config show retry exhausted before config_ready");
-        }
-    });
-
-    // 超时兜底：避免异常情况下卡在 loading
-    tauri::async_runtime::spawn(async move {
-        tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
-
-        // 若正常路径已完成并清理了计时起点，则不再执行兜底逻辑
-        let Some(started_at) = (match STARTUP_TRANSITION_STARTED_AT.lock() {
-            Ok(mut started) => started.take(),
-            Err(e) => {
-                error!(
-                    "open_config_with_loading_transition: 读取启动计时状态失败: {}",
-                    e
-                );
-                None
-            }
-        }) else {
-            return;
-        };
-        let elapsed_ms = started_at.elapsed().as_millis();
-        clear_startup_config_ready_listener();
-
-        if let Some(app) = APP.get() {
-            if let Some(config_window) = app.get_webview_window("config") {
-                let config_visible = config_window.is_visible().unwrap_or(false);
-                warn!(
-                    "[StartupTransition] config_ready timeout (elapsed={}ms, config_exists=true, config_visible={})",
-                    elapsed_ms,
-                    config_visible
-                );
-                info!(
-                    "[StartupTransition] timeout fallback -> show config (elapsed={}ms)",
-                    elapsed_ms
-                );
-                let _ = config_window.center();
-                let _ = WindowManager::restore_and_focus(&config_window);
-            } else {
-                warn!(
-                    "[StartupTransition] config_ready timeout (elapsed={}ms, config_exists=false)",
-                    elapsed_ms
-                );
-            }
-        } else {
-            warn!(
-                "[StartupTransition] config_ready timeout (elapsed={}ms, app_handle=false)",
-                elapsed_ms
-            );
-        }
-        close_and_destroy_loading_window();
-
-        info!(
-            "[StartupTransition] loading closed (timeout fallback, total={}ms)",
-            elapsed_ms
-        );
-    });
+    info!("[StartupTransition] config created; waiting for first paint");
 }
-
 // 创建config窗口
 pub fn hotkey_config() {
     // 先关闭搜索窗口（与 open_config_settings 保持一致）
     WindowManager::close_search_window_if_visible();
     cancel_startup_transition_for_user_action("hotkey_config");
 
-    // 定义窗口规格 - 不等待 ready_event
+    // 首次显示由统一首屏就绪门禁处理。
     let spec = WindowSpec {
         label: "config",
         url: "/#/config/workbench",
@@ -1516,6 +1617,9 @@ fn open_dynamic_plugin_window(label: &str) -> Result<(), String> {
     };
 
     let window = build_window(label, &url, option)?;
+    if defer_window_show(&window, &mut None)? {
+        return Ok(());
+    }
     WindowManager::handle_smart_toggle(&window, None, None)
 }
 
@@ -1537,29 +1641,18 @@ pub fn show_loading_window() {
     let _ = WindowManager::get_or_create_with_behavior(&spec, WindowShowBehavior::AlwaysShow, None);
 }
 
-fn clear_startup_config_ready_listener() {
-    let listener_id = STARTUP_CONFIG_READY_LISTENER
-        .lock()
-        .ok()
-        .and_then(|mut listener| listener.take());
-    if let (Some(app), Some(listener_id)) = (APP.get(), listener_id) {
-        app.unlisten(listener_id);
-    }
-}
-
 fn cancel_startup_transition_for_user_action(reason: &str) {
     let was_active = STARTUP_TRANSITION_STARTED_AT
         .lock()
         .map(|mut started| started.take().is_some())
         .unwrap_or(false);
-    if was_active {
+    if was_active && window_is_ready("config") {
         if let Some(config_window) = APP.get().and_then(|app| app.get_webview_window("config")) {
-            // 恢复正常位置后再交给用户操作决定显示方式。
-            let _ = config_window.center();
+            // 先隐藏再恢复位置，避免未绘制的预加载窗口进入屏幕。
             let _ = config_window.hide();
+            let _ = config_window.center();
         }
     }
-    clear_startup_config_ready_listener();
     close_and_destroy_loading_window();
     if was_active {
         info!("[StartupTransition] cancelled by user action: {}", reason);
@@ -1730,7 +1823,8 @@ pub fn create_notification_window_unified(ntype: NotificationType) -> Option<Web
     );
 
     // 创建窗口
-    let window = WebviewWindowBuilder::new(app_handle, &label, WebviewUrl::App(url.into()))
+    register_window_ready_listener(app_handle, &label).ok()?;
+    let window = match WebviewWindowBuilder::new(app_handle, &label, WebviewUrl::App(url.into()))
         .title("提醒")
         .inner_size(window_width, window_height)
         .position(start_x, start_y)
@@ -1739,58 +1833,60 @@ pub fn create_notification_window_unified(ntype: NotificationType) -> Option<Web
         .resizable(false)
         .skip_taskbar(true)
         .transparent(true)
-        .focused(true)
+        .focused(false)
         .visible(false)
         .build()
-        .ok()?;
+    {
+        Ok(window) => window,
+        Err(_) => {
+            reset_window_ready_state(app_handle, &label);
+            return None;
+        }
+    };
 
     // 监听页面准备事件
-    let window_handle = window.clone();
     let target_x_anim = target_x;
     let target_y_anim = target_y;
     let start_x_anim = start_x;
 
-    window.listen("notification-ready", move |_| {
-        thread::sleep(Duration::from_millis(50));
+    let mut on_ready: Option<WindowReadyCallback> = Some(Box::new(move |window| {
+        let window_handle = window.clone();
+        std::thread::spawn(move || {
+            if with_animation {
+                // 滑入动画
+                let animation_duration = 300.0f64;
+                let frame_duration = 16.0f64;
+                let total_frames = (animation_duration / frame_duration).ceil() as i32;
+                let distance = start_x_anim - target_x_anim;
+                let step = distance / total_frames as f64;
 
-        let _ = window_handle.show();
+                let mut current_x = start_x_anim;
+                for _ in 0..total_frames {
+                    current_x -= step;
+                    let _ = window_handle.set_position(tauri::Position::Logical(
+                        tauri::LogicalPosition {
+                            x: current_x,
+                            y: target_y_anim,
+                        },
+                    ));
+                    thread::sleep(Duration::from_millis(frame_duration as u64));
+                }
 
-        if with_animation {
-            // 滑入动画
-            let animation_duration = 300.0f64;
-            let frame_duration = 16.0f64;
-            let total_frames = (animation_duration / frame_duration).ceil() as i32;
-            let distance = start_x_anim - target_x_anim;
-            let step = distance / total_frames as f64;
-
-            let mut current_x = start_x_anim;
-            for _ in 0..total_frames {
-                current_x -= step;
+                // 确保最终位置正确
                 let _ =
                     window_handle.set_position(tauri::Position::Logical(tauri::LogicalPosition {
-                        x: current_x,
+                        x: target_x_anim,
                         y: target_y_anim,
                     }));
-                thread::sleep(Duration::from_millis(frame_duration as u64));
             }
-
-            // 确保最终位置正确
-            let _ = window_handle.set_position(tauri::Position::Logical(tauri::LogicalPosition {
-                x: target_x_anim,
-                y: target_y_anim,
-            }));
+        });
+    }));
+    if !defer_window_show(&window, &mut on_ready).ok()? {
+        WindowManager::restore_and_focus(&window).ok()?;
+        if let Some(callback) = on_ready {
+            callback(&window);
         }
-    });
-
-    // 备用方案：1秒后强制显示
-    let window_fallback = window.clone();
-    std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_millis(1000));
-        if !window_fallback.is_visible().unwrap_or(true) {
-            info!("备用方案：强制显示通知窗口");
-            let _ = window_fallback.show();
-        }
-    });
+    }
 
     Some(window)
 }
@@ -1809,9 +1905,16 @@ pub fn handle_window_event(window: &Window, event: &WindowEvent) {
     // 前端卸载阶段的 invoke 在窗口被强制销毁时未必来得及送达；后端按窗口归属取消流式 AI 请求兜底。
     if matches!(event, WindowEvent::Destroyed) {
         crate::plugins::local_ai::cancel_streams_for_window(window.label());
+        if let Some(app) = APP.get() {
+            reset_window_ready_state(app, window.label());
+        }
     }
 
     if window.label() == "main" {
+        // 屏幕外首屏预加载期间，不触发失焦隐藏或输入聚焦事件。
+        if !window_is_ready("main") {
+            return;
+        }
         match event {
             WindowEvent::Focused(true) => {
                 // 重置失焦时间
@@ -3060,6 +3163,7 @@ pub async fn create_pin_window(
     let app_handle_clone = app_handle.clone();
 
     let mode_clone = mode.clone();
+    register_window_ready_listener(&app_handle, &window_label)?;
     // 在单独的任务中创建窗口，避免阻塞
     let result = tokio::task::spawn_blocking(move || {
         let is_ocr = mode_clone == "ocr";
@@ -3077,7 +3181,7 @@ pub async fn create_pin_window(
         .skip_taskbar(!is_ocr)
         .transparent(true)
         .shadow(is_ocr)
-        .focused(true)
+        .focused(false)
         .visible(false);
         builder.build()
     })
@@ -3089,6 +3193,7 @@ pub async fn create_pin_window(
             w
         }
         Ok(Err(e)) => {
+            reset_window_ready_state(&app_handle, &window_label);
             let error_msg = format!("创建贴图窗口失败: {}", e);
             error!("create_pin_window: {}", error_msg);
             // 创建失败时清理数据
@@ -3101,6 +3206,7 @@ pub async fn create_pin_window(
             return Err(error_msg);
         }
         Err(e) => {
+            reset_window_ready_state(&app_handle, &window_label);
             let error_msg = format!("窗口创建任务失败: {}", e);
             error!("create_pin_window: {}", error_msg);
             if let Err(lock_err) = PIN_IMAGE_DATA
@@ -3115,21 +3221,7 @@ pub async fn create_pin_window(
 
     info!("贴图窗口创建成功: {}", window_label);
 
-    let window_for_ready = window.clone();
-    window.once("pin-window-ready", move |_| {
-        let _ = window_for_ready.show();
-        let _ = window_for_ready.set_focus();
-    });
-
-    let window_for_timeout = window.clone();
-    tauri::async_runtime::spawn(async move {
-        tokio::time::sleep(tokio::time::Duration::from_millis(1800)).await;
-        if !window_for_timeout.is_visible().unwrap_or(false) {
-            info!("贴图窗口前端 ready 超时，执行显示兜底");
-            let _ = window_for_timeout.show();
-            let _ = window_for_timeout.set_focus();
-        }
-    });
+    WindowManager::restore_and_focus(&window)?;
 
     // 立即发送图片数据到窗口（不等待前端请求）
     let image_data = match PIN_IMAGE_DATA.lock() {
@@ -3714,5 +3806,55 @@ pub fn close_setup_window() {
             error!("延迟重启启动失败，回退到内置重启: {}", error);
             app.restart();
         }
+    }
+}
+
+#[cfg(test)]
+mod window_ready_tests {
+    use super::WindowReadyState;
+
+    #[test]
+    fn first_open_waits_for_ready_and_preloads_only_once() {
+        let mut state = WindowReadyState::default();
+        assert_eq!(state.defer_show(&mut None), Some(true));
+        assert_eq!(state.defer_show(&mut None), Some(false));
+        assert!(!state.ready);
+        assert!(state.mark_ready().0);
+        assert!(state.ready);
+        assert_eq!(state.defer_show(&mut None), None);
+    }
+
+    #[test]
+    fn navigation_callbacks_are_held_until_ready_and_drained_once() {
+        let mut state = WindowReadyState::default();
+        let mut callback: Option<super::WindowReadyCallback> = Some(Box::new(|_| {}));
+        state.defer_show(&mut callback);
+        assert!(callback.is_none());
+        assert_eq!(state.callbacks.len(), 1);
+        let (reveal, callbacks) = state.mark_ready();
+        assert!(reveal);
+        assert_eq!(callbacks.len(), 1);
+        let (reveal, callbacks) = state.mark_ready();
+        assert!(!reveal);
+        assert!(callbacks.is_empty());
+    }
+
+    #[test]
+    fn ready_before_open_keeps_immediate_navigation_callback() {
+        let mut state = WindowReadyState::default();
+        assert!(!state.mark_ready().0);
+        let mut callback: Option<super::WindowReadyCallback> = Some(Box::new(|_| {}));
+        assert_eq!(state.defer_show(&mut callback), None);
+        assert!(callback.is_some());
+        assert!(state.callbacks.is_empty());
+    }
+
+    #[test]
+    fn recreated_window_requires_a_new_ready_signal() {
+        let mut state = WindowReadyState::default();
+        state.mark_ready();
+        state = WindowReadyState::default();
+        assert_eq!(state.defer_show(&mut None), Some(true));
+        assert!(!state.ready);
     }
 }

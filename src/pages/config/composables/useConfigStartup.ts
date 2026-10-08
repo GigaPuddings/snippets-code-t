@@ -1,4 +1,4 @@
-import { nextTick } from 'vue';
+import { waitForFirstPaint } from '@/utils/window-readiness';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import {
   checkShouldInitialize as defaultCheckShouldInitialize,
@@ -54,7 +54,11 @@ export function useConfigStartup(deps: ConfigStartupDeps) {
   const getWindow = deps.getWindow ?? getCurrentWindow;
   const now = deps.now ?? Date.now;
   const measureNow = deps.measureNow ?? (() => performance.now());
-  const nextRender = deps.nextRender ?? nextTick;
+  const nextRender =
+    deps.nextRender ??
+    ((callback: () => void) => {
+      void waitForFirstPaint().then(callback);
+    });
   const checkShouldInitialize =
     deps.checkShouldInitialize ?? defaultCheckShouldInitialize;
   const initCleanupCache = deps.initCleanupCache ?? defaultInitCleanupCache;

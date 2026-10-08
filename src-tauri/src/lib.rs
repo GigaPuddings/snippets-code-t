@@ -534,6 +534,7 @@ pub fn run() {
             get_shortcuts,                    // 获取快捷键
             get_hotkey_config_map,            // 获取动态快捷键配置
             commands::hotkey_config_command,  // 快捷键配置
+            commands::activate_config_window_command,  // 激活配置窗口并等待首屏
             commands::hotkey_update_command,  // 快捷键更新
             plugins::local_launcher::open_app_command,                 // 打开应用
             plugins::local_launcher::open_app_as_admin_command,        // 以管理员身份打开应用

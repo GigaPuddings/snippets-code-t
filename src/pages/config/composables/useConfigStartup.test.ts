@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useConfigStartup } from './useConfigStartup';
 
 const uninstallCleanupPathReport = {
@@ -13,6 +13,7 @@ interface StartupOverrides {
   refreshError?: Error;
   shouldInit?: boolean;
   measureValues?: number[];
+  useDefaultNextRender?: boolean;
 }
 
 const createStartup = (overrides: StartupOverrides = {}) => {
@@ -35,9 +36,11 @@ const createStartup = (overrides: StartupOverrides = {}) => {
     getWindow: vi.fn(() => window),
     now: vi.fn(() => 1234),
     measureNow: vi.fn(() => measureValues.shift() ?? 160),
-    nextRender: vi.fn((callback: () => void) => {
-      callback();
-    }),
+    nextRender: overrides.useDefaultNextRender
+      ? undefined
+      : vi.fn((callback: () => void) => {
+          callback();
+        }),
     refreshUninstallCleanupPaths: vi.fn(() =>
       overrides.refreshError
         ? Promise.reject(overrides.refreshError)
@@ -54,7 +57,35 @@ const createStartup = (overrides: StartupOverrides = {}) => {
   };
 };
 
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 describe('useConfigStartup', () => {
+  it('waits for the first screen to paint before reporting readiness', async () => {
+    const frames: Array<() => void> = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: () => void) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    const { startup, deps, window } = createStartup({
+      useDefaultNextRender: true
+    });
+
+    await startup.start();
+    expect(window.emit).not.toHaveBeenCalled();
+    expect(deps.onReadyNavigationCheck).not.toHaveBeenCalled();
+
+    frames.shift()?.();
+    expect(window.emit).not.toHaveBeenCalled();
+
+    frames.shift()?.();
+    await vi.waitFor(() => {
+      expect(window.emit).toHaveBeenCalledExactlyOnceWith('config_ready');
+      expect(deps.onReadyNavigationCheck).toHaveBeenCalledOnce();
+    });
+  });
+
   it('emits config ready, initializes plugins, cleans cache, and reports shouldInit', async () => {
     const { startup, deps, window } = createStartup({
       shouldInit: true

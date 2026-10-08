@@ -5,11 +5,12 @@ import piniaPluginPersistedstate from 'pinia-plugin-persistedstate';
 import router from './router';
 import i18n from './i18n';
 import { setupGlobalDeveloperDiagnostics } from '@/utils/developer-diagnostics';
+import { prepareWindowReadiness } from '@/utils/window-readiness';
 
 setupGlobalDeveloperDiagnostics();
 
 // 异步初始化应用
-async function initApp() {
+async function initApp(): Promise<void> {
   // 创建Vue应用实例
   const app = createApp(App);
 
@@ -32,13 +33,15 @@ async function initApp() {
 
   try {
     await Promise.all(stylePromises);
-    initTheme();
-    app.mount('#app');
   } catch (error) {
     console.error('应用初始化失败:', error);
-    initTheme();
-    app.mount('#app');
   }
+  initTheme();
+  const reportReady = await prepareWindowReadiness(router);
+  app.mount('#app');
+  void reportReady().catch((error) => {
+    console.error('窗口首屏就绪通知失败:', error);
+  });
 }
 
 // 启动应用

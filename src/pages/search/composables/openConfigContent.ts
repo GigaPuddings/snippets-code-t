@@ -55,16 +55,8 @@ export async function openSearchResultInConfig({
     await closeSearchWindow();
     const configWindow = await WebviewWindow.getByLabel('config');
 
-    if (!configWindow) {
-      await invoke('hotkey_config_command');
-      return;
-    }
-
-    if (await configWindow.isMinimized()) {
-      await configWindow.unminimize();
-    }
-    await configWindow.show();
-    await configWindow.setFocus();
+    await invoke('activate_config_window_command');
+    if (!configWindow) return;
     await configWindow.emit('navigate-to-config-content', {
       fragmentId: item.id,
       categoryId: item.category_id,
