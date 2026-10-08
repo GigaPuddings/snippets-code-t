@@ -435,7 +435,13 @@ fn persist_update_available(app: &AppHandle, update: &Update) -> Result<(), Stri
     let update_info = UpdateInfo {
         version: update.version.clone(),
         notes: update.body.clone().unwrap_or_default(),
-        pub_date: update.date.map(|d| d.to_string()),
+        // OffsetDateTime 的 Display 格式不是 RFC 3339，不能直接交给 WebView 解析。
+        pub_date: update
+            .date
+            .and_then(|date| {
+                chrono::DateTime::from_timestamp(date.unix_timestamp(), date.nanosecond())
+            })
+            .map(|date| date.to_rfc3339()),
     };
 
     json_config::set_app_config_value(app, "update_available", true)?;

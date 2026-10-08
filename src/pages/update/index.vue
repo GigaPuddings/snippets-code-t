@@ -42,7 +42,7 @@
             {{ $t('update.newVersion') }}
             {{ formatVersionLabel(update.newVersion) }}
           </p>
-          <p class="release-date">
+          <p v-if="update.releaseDate" class="release-date">
             {{ $t('update.releaseDate') }}{{ update.releaseDate }}
           </p>
         </div>
@@ -300,16 +300,14 @@ import { listen, emit } from '@tauri-apps/api/event';
 import { useI18n } from 'vue-i18n';
 import { formatBytes, formatPercentage } from '@/utils/format';
 import { markdownToHtml } from '@/components/TipTapEditor/utils/markdown';
-import dayjs from 'dayjs';
-import utc from 'dayjs/plugin/utc';
-import timezone from 'dayjs/plugin/timezone';
+import { formatReleaseDate } from './format-release-date';
 import { logger } from '@/utils/logger';
 import { CustomButton } from '@/components/UI';
 
 interface UpdateInfo {
   version: string;
   notes: string;
-  pub_date: string;
+  pub_date?: string | null;
 }
 
 interface UpdateInstallerCacheStatus {
@@ -388,10 +386,6 @@ const readyText = computed<string>(() => {
 const progressFormat = (percentage: number): string => {
   return update.downloading ? formatPercentage(percentage) : '';
 };
-
-dayjs.extend(utc);
-dayjs.extend(timezone);
-dayjs.tz.setDefault('Asia/Shanghai');
 
 const loadCachedInstallerStatus = async (): Promise<void> => {
   try {
@@ -475,11 +469,7 @@ onMounted(async (): Promise<void> => {
   if (updateInfo) {
     update.newVersion = updateInfo.version;
     update.releaseNotes = markdownToHtml(updateInfo.notes);
-    update.releaseDate = updateInfo.pub_date
-      ? dayjs(updateInfo.pub_date.replace(' +00:00:00', 'Z').replace('.0', ''))
-          .tz()
-          .format('YYYY-MM-DD HH:mm:ss')
-      : 'Unknown';
+    update.releaseDate = formatReleaseDate(updateInfo.pub_date);
   }
 
   await loadCachedInstallerStatus();
