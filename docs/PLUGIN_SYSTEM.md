@@ -624,3 +624,13 @@ removed from the main app without changing the plugin protocol.
 3. Add long-running backend session support for plugins that need warm caches or
    streaming progress.
 4. Add signed plugin package metadata before enabling third-party marketplace installation.
+
+## Local AI reply capture
+
+Local AI can save a completed assistant reply as a normal workspace Markdown note.
+The plugin reuses host Markdown commands; stable document UUIDs and message origins
+support opening moved notes, reconciling deletions and deduplicating retries without
+overwriting user edits. Knowledge Q&A, note mentions, document analysis and knowledge
+Agents are outside the current scope and have no retained runtime path.
+See [AI reply capture architecture](AI_REPLY_CAPTURE.md) for the host data contract,
+compatibility boundary and independent plugin update requirements.

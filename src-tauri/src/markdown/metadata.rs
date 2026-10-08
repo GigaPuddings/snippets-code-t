@@ -2,6 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::io::BufRead;
 
 // workspace.json 的根结构（UI 状态和工作区配置）
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -129,6 +130,8 @@ impl Default for AttachmentSettings {
 // 用于存储笔记和代码片段的元数据
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct FrontMatter {
+    #[serde(rename = "aiSource", default, skip_serializing_if = "Option::is_none")]
+    pub ai_source: Option<AiNoteSource>,
     // 唯一标识符 (UUID v4)
     pub id: String,
     // 标题
@@ -157,6 +160,21 @@ pub struct FrontMatter {
     pub favorite: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct AiNoteSource {
+    pub version: u8,
+    pub conversation_id: String,
+    pub message_id: String,
+    pub generated_at: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_name: Option<String>,
+    pub question: String,
+    // Preserve old attribution fields without retaining a knowledge-Q&A schema.
+    #[serde(flatten)]
+    pub legacy_metadata: HashMap<String, serde_json::Value>,
+}
+
 /// 将 FrontMatter 序列化为 YAML 字符串（用于写入文件）
 pub fn serialize_frontmatter(metadata: &FrontMatter) -> Result<String, String> {
     serde_yaml::to_string(metadata).map_err(|e| format!("序列化 frontmatter 失败: {}", e))
@@ -175,6 +193,39 @@ pub fn try_parse_front_matter(content: &str) -> (Option<FrontMatter>, String) {
     match parse_front_matter(content) {
         Ok((m, body)) => (Some(m), body),
         Err(_) => (None, content.to_string()),
+    }
+}
+
+/// Read only the leading metadata block for lists, without loading the body.
+/// Use the existing parser so malformed / absent headers keep their fallback.
+pub fn read_front_matter_metadata(mut reader: impl BufRead) -> Result<Option<FrontMatter>, String> {
+    let mut header = String::new();
+    let mut line = String::new();
+    loop {
+        line.clear();
+        if reader
+            .read_line(&mut line)
+            .map_err(|error| format!("读取 Front Matter 失败: {error}"))?
+            == 0
+        {
+            return Ok(None);
+        }
+        let opening = header.is_empty();
+        if opening {
+            let trimmed = line.trim_start();
+            if trimmed.is_empty() {
+                continue;
+            }
+            if !trimmed.starts_with("---") {
+                return Ok(None);
+            }
+            header.push_str(trimmed);
+        } else {
+            header.push_str(&line);
+            if line.starts_with("---") {
+                return Ok(try_parse_front_matter(&header).0);
+            }
+        }
     }
 }
 
@@ -238,4 +289,63 @@ pub fn parse_front_matter(content: &str) -> Result<(FrontMatter, String), String
     };
 
     Ok((metadata, body))
+}
+
+#[cfg(test)]
+mod metadata_reader_tests {
+    use super::*;
+    use std::io::Cursor;
+
+    const HEADER: &str = "---\nid: note-id\ntitle: 架构文档\ncreated: '2026-10-07'\nmodified: '2026-10-07'\ntype: note\nfavorite: true\n---\n";
+
+    #[test]
+    fn saved_reply_attribution_preserves_opaque_legacy_fields() {
+        let current = serde_json::json!({
+            "version": 1, "conversationId": "chat", "messageId": "reply",
+            "generatedAt": "2026-10-07T00:00:00Z", "question": "Question"
+        });
+        let parsed: AiNoteSource = serde_json::from_value(current.clone()).unwrap();
+        assert_eq!(serde_json::to_value(&parsed).unwrap(), current);
+
+        let mut legacy = current;
+        legacy["sources"] = serde_json::json!([{
+            "filePath": "Doc/old.md", "content": "Original snapshot",
+            "startColumn": 2, "endColumn": 7
+        }]);
+        legacy["extraOrigin"] = serde_json::json!({"oldVersion": true});
+        let parsed: AiNoteSource = serde_json::from_value(legacy.clone()).unwrap();
+        let yaml = serde_yaml::to_string(&parsed).unwrap();
+        let restored: AiNoteSource = serde_yaml::from_str(&yaml).unwrap();
+        assert_eq!(serde_json::to_value(restored).unwrap(), legacy);
+    }
+
+    #[test]
+    fn metadata_reader_stops_before_a_large_body() {
+        let document = format!("{HEADER}{}", "正文 text\n".repeat(500_000));
+        let mut cursor = Cursor::new(document.as_bytes());
+        let metadata = read_front_matter_metadata(&mut cursor).unwrap().unwrap();
+        assert_eq!(metadata.title, "架构文档");
+        assert!(metadata.favorite);
+        assert_eq!(cursor.position() as usize, HEADER.len());
+    }
+
+    #[test]
+    fn metadata_reader_matches_parser_for_crlf_and_leading_whitespace() {
+        let document = format!(" \r\n  {}正文", HEADER.replace('\n', "\r\n"));
+        let streamed = read_front_matter_metadata(Cursor::new(document.as_bytes())).unwrap();
+        assert_eq!(streamed, try_parse_front_matter(&document).0);
+    }
+
+    #[test]
+    fn metadata_reader_preserves_missing_and_invalid_header_fallbacks() {
+        for document in [
+            "# Plain note\n正文",
+            "---\ntitle: broken\n---\n正文",
+            "---\nmissing closing delimiter",
+        ] {
+            assert!(read_front_matter_metadata(Cursor::new(document.as_bytes()))
+                .unwrap()
+                .is_none());
+        }
+    }
 }

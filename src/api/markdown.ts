@@ -15,12 +15,16 @@ import type { Category } from '@/types/database';
  */
 export async function createMarkdownFile(
   category: string | null,
-  metadata: Partial<MarkdownFile>
+  metadata: Partial<MarkdownFile>,
+  options?: { expectedWorkspaceRoot?: string }
 ): Promise<string> {
   try {
     const result = await invoke<string>('create_markdown_file', {
       category,
-      metadata
+      metadata,
+      ...(options?.expectedWorkspaceRoot
+        ? { expectedWorkspaceRoot: options.expectedWorkspaceRoot }
+        : {})
     });
     return result;
   } catch (error) {
@@ -34,10 +38,16 @@ export async function createMarkdownFile(
  * @returns Markdown 文件数据
  */
 export async function readMarkdownFile(
-  filePath: string
+  filePath: string,
+  options?: { expectedWorkspaceRoot?: string }
 ): Promise<MarkdownFile> {
   try {
-    return await invoke<MarkdownFile>('read_markdown_file', { filePath });
+    return await invoke<MarkdownFile>('read_markdown_file', {
+      filePath,
+      ...(options?.expectedWorkspaceRoot
+        ? { expectedWorkspaceRoot: options.expectedWorkspaceRoot }
+        : {})
+    });
   } catch (error) {
     throw new Error(`读取文件失败: ${error}`);
   }
@@ -304,10 +314,15 @@ export async function getFilesByCategory(
  * 获取所有文件
  * @returns 所有文件列表
  */
-export async function getAllFiles(): Promise<MarkdownFile[]> {
+export async function getAllFiles(options?: {
+  includeContent?: boolean;
+}): Promise<MarkdownFile[]> {
   try {
     const result = await invoke<MarkdownFile[]>('get_files_by_category', {
-      category: null
+      category: null,
+      ...(options?.includeContent !== undefined
+        ? { includeContent: options.includeContent }
+        : {})
     });
     return result;
   } catch (error) {

@@ -2260,6 +2260,20 @@ export default {
 
   localAi: {
     title: '本地 AI',
+    showEarlierMessages: '显示更早消息（还有 {count} 条）',
+    savedNotes: {
+      saveReply: '保存为笔记',
+      openSaved: '打开已存笔记',
+      savedReply: 'AI 回复',
+      inbox: 'AI 收集箱',
+      saved: '已保存到「{folder}」',
+      attribution: 'AI 生成 · {model} · {date}。请核实后使用。',
+      unknownModel: '未记录模型',
+      savedNoteMissing:
+        '已存笔记已删除或不可用，保存状态已重置。可再次保存，或在工作区回收站恢复原笔记。',
+      workspaceChanged: '工作区已切换，请回到已存笔记所在的工作区后重试。'
+    },
+    contextTooLarge: '当前消息超出模型上下文预算，请缩短消息或增大模型上下文。',
     settings: '设置',
     openChat: '打开聊天',
     chatTitle: 'AI 聊天',

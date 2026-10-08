@@ -3,7 +3,8 @@
 
 use crate::markdown::file_ops::FileNameGenerator;
 use crate::markdown::metadata::{
-    format_frontmatter_block, parse_front_matter, try_parse_front_matter, FrontMatter,
+    format_frontmatter_block, parse_front_matter, read_front_matter_metadata,
+    try_parse_front_matter, FrontMatter,
 };
 use log::debug;
 use std::fs;
@@ -229,6 +230,21 @@ impl FileSystemManager {
         Ok(content)
     }
 
+    pub fn read_markdown_file_metadata(
+        &self,
+        file_path: &Path,
+    ) -> Result<Option<FrontMatter>, String> {
+        let full_path = if file_path.is_absolute() {
+            file_path.to_path_buf()
+        } else {
+            self.workspace_root.join(file_path)
+        };
+        self.validate_path(&full_path)?;
+        let file = fs::File::open(&full_path)
+            .map_err(|error| map_io_error(&error, "读取文件", &full_path))?;
+        read_front_matter_metadata(io::BufReader::new(file))
+    }
+
     // 读取 Markdown 文件（兼容旧版本，支持 Front Matter）
     //
     // 此方法用于向后兼容，支持读取包含 Front Matter 的旧文件
@@ -272,6 +288,7 @@ impl FileSystemManager {
 
                 // 创建默认元数据（实际元数据应从 cache.json 读取）
                 let metadata = FrontMatter {
+                    ai_source: None,
                     id: uuid::Uuid::new_v4().to_string(),
                     title,
                     tags: Vec::new(),

@@ -3,7 +3,7 @@
 use crate::json_config::get_workspace_root;
 use crate::markdown::file_ops::{get_relative_path, FileNameGenerator};
 use crate::markdown::file_system_manager::FileSystemManager;
-use crate::markdown::metadata::{try_parse_front_matter, FileMetadata, FrontMatter};
+use crate::markdown::metadata::{try_parse_front_matter, AiNoteSource, FileMetadata, FrontMatter};
 use crate::markdown::trash::{self, DeletedNote};
 use crate::markdown::watcher::FileWatcher;
 use crate::markdown::CacheManager;
@@ -19,6 +19,10 @@ use tauri::{command, AppHandle, Manager, State};
 // Markdown 文件数据结构（与前端 MarkdownFile 接口匹配）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MarkdownFile {
+    #[serde(rename = "documentId", skip_serializing_if = "Option::is_none")]
+    pub document_id: Option<String>,
+    #[serde(rename = "aiSource", skip_serializing_if = "Option::is_none")]
+    pub ai_source: Option<AiNoteSource>,
     pub id: String,
     pub title: String,
     pub content: String,
@@ -62,6 +66,8 @@ impl MarkdownFile {
         let file_type = metadata.fragment_type;
 
         Self {
+            document_id: Some(metadata.id),
+            ai_source: metadata.ai_source,
             id: file_path.to_string_lossy().to_string(), // 使用文件路径作为 ID
             title: metadata.title,
             content,
@@ -183,14 +189,70 @@ pub fn get_markdown_categories(
 }
 
 // 创建新的 Markdown 文件
+// Serialize AI saves across windows so retries never overwrite or duplicate a note.
+static AI_NOTE_SAVE_LOCK: Mutex<()> = Mutex::new(());
+
+fn check_expected_workspace(root: &Path, expected: Option<&str>) -> Result<(), String> {
+    if let Some(expected) = expected {
+        if root != Path::new(expected) {
+            return Err("工作区已切换，请重新选择笔记或保存位置".to_string());
+        }
+    }
+    Ok(())
+}
+
+fn find_saved_ai_note(
+    manager: &FileSystemManager,
+    source: &AiNoteSource,
+) -> Result<Option<PathBuf>, String> {
+    for path in manager.list_markdown_files(None)? {
+        if let Some(previous) = manager
+            .read_markdown_file_metadata(&path)?
+            .filter(|fm| fm.fragment_type == "note")
+            .and_then(|fm| fm.ai_source)
+        {
+            if previous.conversation_id == source.conversation_id
+                && previous.message_id == source.message_id
+            {
+                return Ok(Some(path));
+            }
+        }
+    }
+    Ok(None)
+}
+
 #[command]
 pub async fn create_markdown_file(
     app_handle: AppHandle,
     category: Option<String>,
     metadata: serde_json::Value,
+    expected_workspace_root: Option<String>,
     index_manager: State<'_, Arc<RwLock<Option<IndexManager>>>>,
     cache_manager: State<'_, Arc<RwLock<CacheManager>>>,
 ) -> Result<String, String> {
+    let ai_source = metadata
+        .get("aiSource")
+        .filter(|value| !value.is_null())
+        .map(|value| serde_json::from_value::<AiNoteSource>(value.clone()))
+        .transpose()
+        .map_err(|error| format!("AI 来源数据无效: {}", error))?;
+    let _save_guard = if ai_source.is_some() {
+        Some(
+            AI_NOTE_SAVE_LOCK
+                .lock()
+                .map_err(|error| error.to_string())?,
+        )
+    } else {
+        None
+    };
+    let fs_manager = get_fs_manager(&app_handle)?;
+    let workspace_root = fs_manager.workspace_root().to_path_buf();
+    check_expected_workspace(&workspace_root, expected_workspace_root.as_deref())?;
+    if let Some(source) = &ai_source {
+        if let Some(path) = find_saved_ai_note(&fs_manager, source)? {
+            return Ok(path.to_string_lossy().to_string());
+        }
+    }
     // 解析元数据
     let title = metadata
         .get("title")
@@ -250,8 +312,9 @@ pub async fn create_markdown_file(
     let now = chrono::Utc::now();
     let now_timestamp = now.timestamp_millis();
 
-    // 创建 FrontMatter（用于兼容，但不会写入文件）
+    // Provenance lives in the note frontmatter and follows Git sync / rename.
     let front_matter = FrontMatter {
+        ai_source,
         id: id.clone(),
         title: title.clone(),
         tags: tags.clone(),
@@ -264,10 +327,7 @@ pub async fn create_markdown_file(
         favorite,
     };
 
-    let fs_manager = get_fs_manager(&app_handle)?;
-    let workspace_root = fs_manager.workspace_root().to_path_buf();
-
-    // 创建文件（只包含纯内容，不含 Front Matter）
+    // 创建文件（Front Matter 与正文）
     let file_path =
         fs_manager.create_markdown_file(category.as_deref(), &title, &content, &front_matter)?;
 
@@ -316,10 +376,12 @@ pub async fn create_markdown_file(
 pub fn read_markdown_file(
     app_handle: AppHandle,
     file_path: String,
+    expected_workspace_root: Option<String>,
     cache_manager: State<'_, Arc<RwLock<CacheManager>>>,
 ) -> Result<MarkdownFile, String> {
     let fs_manager = get_fs_manager(&app_handle)?;
     let workspace_root = fs_manager.workspace_root().to_path_buf();
+    check_expected_workspace(&workspace_root, expected_workspace_root.as_deref())?;
 
     let path = PathBuf::from(&file_path);
 
@@ -330,7 +392,20 @@ pub fn read_markdown_file(
     let relative_path = get_relative_path(&workspace_root, &path)?;
 
     // 尝试解析 Front Matter：有则优先使用；无则生成默认 Frontmatter 并写回文件（保证“默认值”持久化）
-    let (content, title, tags, created, modified, file_type, language, framework, kind, favorite) = {
+    let (
+        content,
+        title,
+        tags,
+        created,
+        modified,
+        file_type,
+        language,
+        framework,
+        kind,
+        favorite,
+        document_id,
+        ai_source,
+    ) = {
         let (frontmatter_opt, body) = try_parse_front_matter(&raw_content);
         if let Some(fm) = frontmatter_opt {
             (
@@ -344,6 +419,8 @@ pub fn read_markdown_file(
                 fm.framework,
                 fm.kind,
                 fm.favorite,
+                Some(fm.id),
+                fm.ai_source,
             )
         } else {
             // 无 Frontmatter：使用文件名作为标题，其余使用默认值，并写回 Frontmatter
@@ -388,7 +465,8 @@ pub fn read_markdown_file(
                 .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
 
             let fm = FrontMatter {
-                id,
+                ai_source: None,
+                id: id.clone(),
                 title: title.clone(),
                 tags: Vec::new(),
                 created: created_str.clone(),
@@ -416,6 +494,8 @@ pub fn read_markdown_file(
                 None,
                 None,
                 false,
+                Some(id),
+                None,
             )
         }
     };
@@ -428,6 +508,8 @@ pub fn read_markdown_file(
     let category_id = cache.get_category_id(&category_name).unwrap_or(0);
 
     Ok(MarkdownFile {
+        document_id,
+        ai_source,
         id: file_path.clone(),
         title,
         content,
@@ -572,7 +654,13 @@ pub async fn update_markdown_file(
             .map(|dt| dt.to_rfc3339())
             .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
         Some(FrontMatter {
-            id,
+            ai_source: current_frontmatter
+                .as_ref()
+                .and_then(|fm| fm.ai_source.clone()),
+            id: current_frontmatter
+                .as_ref()
+                .map(|fm| fm.id.clone())
+                .unwrap_or(id),
             title,
             tags: meta
                 .get("tags")
@@ -1080,12 +1168,27 @@ pub fn rename_category_folder(
 
 // 获取分类下的文件列表
 #[command]
-pub fn get_files_by_category(
+pub async fn get_files_by_category(
     app_handle: AppHandle,
     category: Option<i64>, // 改为接受分类 ID
+    include_content: Option<bool>,
     cache_manager: State<'_, Arc<RwLock<CacheManager>>>,
 ) -> Result<Vec<MarkdownFile>, String> {
-    let fs_manager = get_fs_manager(&app_handle)?;
+    let cache_manager = Arc::clone(cache_manager.inner());
+    tauri::async_runtime::spawn_blocking(move || {
+        list_files_by_category(&app_handle, category, include_content, cache_manager)
+    })
+    .await
+    .map_err(|error| format!("获取文件列表任务失败: {error}"))?
+}
+
+fn list_files_by_category(
+    app_handle: &AppHandle,
+    category: Option<i64>,
+    include_content: Option<bool>,
+    cache_manager: Arc<RwLock<CacheManager>>,
+) -> Result<Vec<MarkdownFile>, String> {
+    let fs_manager = get_fs_manager(app_handle)?;
     let workspace_root = fs_manager.workspace_root().to_path_buf();
 
     // 获取 cache 以查找分类名称
@@ -1123,15 +1226,20 @@ pub fn get_files_by_category(
 
     let mut files = Vec::new();
     for path in file_paths {
-        // 读取文件内容
-        match fs_manager.read_markdown_file_content(&path) {
-            Ok(raw_content) => {
+        let metadata_and_body = if include_content.unwrap_or(true) {
+            fs_manager
+                .read_markdown_file_content(&path)
+                .map(|raw| try_parse_front_matter(&raw))
+        } else {
+            fs_manager
+                .read_markdown_file_metadata(&path)
+                .map(|metadata| (metadata, String::new()))
+        };
+        match metadata_and_body {
+            Ok((frontmatter_opt, body)) => {
                 // 获取相对路径
                 match get_relative_path(&workspace_root, &path) {
                     Ok(relative_path) => {
-                        // 优先从 Front Matter 读取元数据（与 read_markdown_file 行为保持一致）
-                        let (frontmatter_opt, body) = try_parse_front_matter(&raw_content);
-
                         // 从 cache 提取分类信息（frontmatter 不存储分类信息）
                         let category_name = cache.extract_category_from_path(&relative_path);
                         let category_id = cache.get_category_id(&category_name).unwrap_or(0);
@@ -1139,9 +1247,19 @@ pub fn get_files_by_category(
                         if let Some(fm) = frontmatter_opt {
                             // 所有内容元数据来自 Frontmatter（唯一数据源）
                             files.push(MarkdownFile {
+                                document_id: Some(fm.id),
+                                ai_source: if include_content.unwrap_or(true) {
+                                    fm.ai_source
+                                } else {
+                                    None
+                                },
                                 id: path.to_string_lossy().to_string(),
                                 title: fm.title,
-                                content: body,
+                                content: if include_content.unwrap_or(true) {
+                                    body
+                                } else {
+                                    String::new()
+                                },
                                 category_id,
                                 category_name,
                                 tags: fm.tags,
@@ -1166,9 +1284,17 @@ pub fn get_files_by_category(
                                 .to_string();
                             let now = chrono::Utc::now().to_rfc3339();
                             files.push(MarkdownFile {
+                                document_id: cache
+                                    .get_file_metadata(&relative_path)
+                                    .map(|meta| meta.id.clone()),
+                                ai_source: None,
                                 id: path.to_string_lossy().to_string(),
                                 title,
-                                content: body,
+                                content: if include_content.unwrap_or(true) {
+                                    body
+                                } else {
+                                    String::new()
+                                },
                                 category_id,
                                 category_name,
                                 tags: vec![],
@@ -1294,6 +1420,7 @@ mod favorite_tests {
 
         fn write(&self, name: &str, file_type: &str, suffix: &str) -> PathBuf {
             let metadata = FrontMatter {
+                ai_source: None,
                 id: name.to_string(),
                 title: name.to_string(),
                 tags: vec!["keep".to_string()],
@@ -1394,6 +1521,104 @@ mod favorite_tests {
         )
         .is_err());
         assert!(workspace.cache.read().unwrap().get_all_files().is_empty());
+    }
+
+    #[test]
+    fn ai_provenance_survives_body_edits_favorites_and_moved_note_deduplication() {
+        let workspace = Workspace::new();
+        let path = workspace.write("Docs/answer.md", "note", "\n\n```ts\n42;\n```\n");
+        let (mut metadata, _) = workspace.fs.read_markdown_file(&path).unwrap();
+        let source = AiNoteSource {
+            version: 1,
+            conversation_id: "chat-1".to_string(),
+            message_id: "message-1".to_string(),
+            generated_at: "2026-10-07T00:00:00Z".to_string(),
+            model_name: Some("Test model".to_string()),
+            question: "Question".to_string(),
+            legacy_metadata: Default::default(),
+        };
+        metadata.ai_source = Some(source.clone());
+        workspace
+            .fs
+            .update_file_frontmatter(&path, &metadata)
+            .unwrap();
+        // User edits must be retained when a save is retried.
+        workspace
+            .fs
+            .update_markdown_file(&path, Some("User edited answer"), None)
+            .unwrap();
+        set_file_favorite(
+            &workspace.fs,
+            &path,
+            true,
+            &workspace.index,
+            &workspace.cache,
+        )
+        .unwrap();
+        let moved = workspace.root.join("Docs/moved.md");
+        std::fs::rename(&path, &moved).unwrap();
+        assert_eq!(
+            find_saved_ai_note(&workspace.fs, &source).unwrap(),
+            Some(moved.clone())
+        );
+        let (saved, body) = workspace.fs.read_markdown_file(&moved).unwrap();
+        assert_eq!(saved.ai_source, Some(source.clone()));
+        assert_eq!(saved.id, metadata.id);
+        assert!(saved.favorite);
+        assert_eq!(body, "User edited answer");
+        let mut different = source;
+        different.message_id = "message-2".to_string();
+        assert!(find_saved_ai_note(&workspace.fs, &different)
+            .unwrap()
+            .is_none());
+    }
+
+    #[test]
+    fn saved_reply_deduplication_does_not_reuse_a_converted_snippet() {
+        let workspace = Workspace::new();
+        let path = workspace.write("Docs/converted.md", "snippet", "Converted content");
+        let (mut metadata, _) = workspace.fs.read_markdown_file(&path).unwrap();
+        let source = AiNoteSource {
+            version: 1,
+            conversation_id: "chat-converted".to_string(),
+            message_id: "reply-converted".to_string(),
+            generated_at: "2026-10-07T00:00:00Z".to_string(),
+            model_name: None,
+            question: "Question".to_string(),
+            legacy_metadata: Default::default(),
+        };
+        metadata.ai_source = Some(source.clone());
+        workspace
+            .fs
+            .update_file_frontmatter(&path, &metadata)
+            .unwrap();
+        assert!(find_saved_ai_note(&workspace.fs, &source)
+            .unwrap()
+            .is_none());
+        metadata.fragment_type = "note".to_string();
+        workspace
+            .fs
+            .update_file_frontmatter(&path, &metadata)
+            .unwrap();
+        assert_eq!(
+            find_saved_ai_note(&workspace.fs, &source).unwrap(),
+            Some(path)
+        );
+    }
+
+    #[test]
+    fn old_notes_still_parse_and_expected_workspace_rejects_stale_requests() {
+        let workspace = Workspace::new();
+        let path = workspace.write("old.md", "note", "\n\nOld body\n");
+        let raw = std::fs::read_to_string(path).unwrap();
+        assert!(!raw.contains("aiSource"));
+        assert!(try_parse_front_matter(&raw).0.unwrap().ai_source.is_none());
+        assert!(
+            check_expected_workspace(&workspace.root, Some(&workspace.root.to_string_lossy()))
+                .is_ok()
+        );
+        assert!(check_expected_workspace(&workspace.root, Some("another-workspace")).is_err());
+        assert!(check_expected_workspace(&workspace.root, None).is_ok());
     }
 
     #[test]
@@ -1826,6 +2051,8 @@ pub async fn search_markdown_files_optimized(
             let category_id = cache.get_category_id(&category_name).unwrap_or(0);
 
             MarkdownFile {
+                document_id: None,
+                ai_source: None,
                 id: entry.id,
                 title: entry.title,
                 content: entry.full_content,

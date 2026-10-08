@@ -1,3 +1,5 @@
+import type { AiNoteSource } from './aiNote';
+
 /**
  * 核心数据模型类型定义
  */
@@ -159,6 +161,9 @@ export interface SyncResult {
  * Markdown 文件元数据
  */
 export interface MarkdownFile {
+  /** Stable frontmatter UUID, separate from the legacy path-based UI id. */
+  documentId?: string;
+  aiSource?: AiNoteSource;
   /** 唯一标识符 */
   id: string;
   /** 标题 */

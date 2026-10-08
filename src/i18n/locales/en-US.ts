@@ -2352,6 +2352,22 @@ export default {
 
   localAi: {
     title: 'Local AI',
+    showEarlierMessages: 'Show earlier messages ({count} remaining)',
+    savedNotes: {
+      saveReply: 'Save as note',
+      openSaved: 'Open saved note',
+      savedReply: 'AI answer',
+      inbox: 'AI Inbox',
+      saved: 'Saved to {folder}',
+      attribution: 'AI generated · {model} · {date}. Verify before use.',
+      unknownModel: 'Unknown model',
+      savedNoteMissing:
+        'The saved note is missing or unavailable. Its saved status has been reset. Save it again or restore it from the workspace trash.',
+      workspaceChanged:
+        'The workspace has changed. Return to the workspace containing the saved note and try again.'
+    },
+    contextTooLarge:
+      'The current message exceeds the model context budget. Shorten it or increase the model context.',
     settings: 'Settings',
     openChat: 'Open Chat',
     chatTitle: 'AI Chat',
