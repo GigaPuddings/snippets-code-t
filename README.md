@@ -10,7 +10,7 @@
 
 一个使用 Tauri 2 + Vue 3 + Rust 构建的本地优先代码片段与知识资产工作台，面向前端程序员和开发者设计。
 
-[功能特性](#功能特性) • [快速开始](#快速开始) • [技术栈](#技术栈) • [文档](#文档) • [产品优化建议](docs/FRONTEND_DEVELOPER_PRODUCT_REVIEW.md) • [贡献指南](#贡献指南)
+[功能特性](#功能特性) • [快速开始](#快速开始) • [技术栈](#技术栈) • [文档](#文档) • [工作台架构](docs/DEVELOPER_WORKBENCH.md) • [贡献指南](#贡献指南)
 
 </div>
 
@@ -120,7 +120,7 @@ pnpm tauri build
 - ✅ 支持 Git 版本控制
 - ✅ 更好的数据可移植性
 
-详细说明请查看 [Markdown 存储迁移指南](docs/MARKDOWN_STORAGE_USER_GUIDE.md)。
+详细说明请查看 [数据存储与管理](docs/DATA_MANAGEMENT.md)。
 
 ---
 
@@ -285,16 +285,20 @@ snippets-code/
 ## 文档
 
 ### 用户文档
-- [Markdown 存储迁移指南](docs/MARKDOWN_STORAGE_USER_GUIDE.md) - 完整的 Markdown 文件存储使用指南
-- [Markdown 存储快速入门](docs/MARKDOWN_STORAGE_QUICK_START.md) - 5 分钟快速上手
-- [Markdown 存储故障排除](docs/MARKDOWN_STORAGE_TROUBLESHOOTING.md) - 常见问题解决方案
-- [反向链接功能](docs/BACKLINKS_FEATURE.md) - Backlinks 功能使用说明
-- [反向链接使用指南](docs/BACKLINKS_USAGE.md) - 详细的使用教程
+
+- [数据存储与管理](docs/DATA_MANAGEMENT.md) - 工作区文件、持久状态、索引与清理边界
+- [跨设备数据同步](docs/DATA_SYNC.md) - Git 同步范围、新设备恢复与冲突处理
+- [AI 回复保存为笔记](docs/AI_REPLY_CAPTURE.md) - 保存来源、重复保存保护与主应用／插件更新边界
 
 ### 开发者文档
+
 - [架构文档](docs/ARCHITECTURE.md) - 详细的技术架构说明
+- [工作台架构](docs/DEVELOPER_WORKBENCH.md) - 工作区、统一搜索、插件平台与 AI 能力层
 - [编码规范](docs/CODING_STANDARDS.md) - 代码质量标准和最佳实践
-- [配置迁移指南](docs/CONFIG_MIGRATION_GUIDE.md) - 配置系统重构说明
+- [公共 UI 样式](docs/UI_STYLE_GUIDE.md) - 主题变量、公共组件与 Markdown 排版维护
+- [插件系统](docs/PLUGIN_SYSTEM.md) - 插件协议、权限、生命周期与依赖安装
+- [官方插件开发](docs/OFFICIAL_PLUGIN_DEVELOPMENT.md) - 构建、接入与独立发布流程
+- [原生窗口设计](docs/WINDOW_CONTENT_FIT_AND_PASSTHROUGH.md) - 内容贴合、透明区域与鼠标穿透
 
 ---
 

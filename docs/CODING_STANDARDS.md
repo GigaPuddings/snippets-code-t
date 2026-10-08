@@ -714,7 +714,7 @@ modal.error(t('common.saveFailed'));
 
 ### 4. 详细文档
 
-参见 [消息提示使用规范](./MESSAGE_NOTIFICATION_GUIDE.md) 了解更多详情。
+消息提示的公共样式入口与主题维护约束参见 [公共 UI 样式维护](./UI_STYLE_GUIDE.md)。
 
 ## 错误处理（续）
 

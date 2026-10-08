@@ -172,7 +172,7 @@ snippets-code/
 ├── .prettierrc.cjs               # Prettier 配置
 ├── .stylelintrc.cjs              # Stylelint 配置
 ├── README.md                     # 项目说明
-└── CONTRIBUTING.md               # 贡献指南
+└── AGENTS.md                     # 仓库开发约束
 ```
 
 
@@ -1252,7 +1252,7 @@ export default {
 ### 项目文档
 
 - [README.md](../README.md) - 项目说明
-- [CONTRIBUTING.md](../CONTRIBUTING.md) - 贡献指南
+- [贡献指南](../README.md#贡献指南) - 贡献流程
 - [CODING_STANDARDS.md](./CODING_STANDARDS.md) - 编码规范
 
 ### 相关规范
