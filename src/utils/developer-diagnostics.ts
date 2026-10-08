@@ -4,6 +4,11 @@ const DEVELOPER_MODE_KEY = 'snippets-code:developer-mode';
 const FRONTEND_LOG_KEY = 'snippets-code:frontend-diagnostics';
 const MAX_FRONTEND_ENTRIES = 240;
 const REDACTED_VALUE = '[REDACTED]';
+const MAX_DIAGNOSTIC_DEPTH = 5;
+const MAX_DIAGNOSTIC_ITEMS = 40;
+const MAX_DIAGNOSTIC_NODES = 240;
+const MAX_DIAGNOSTIC_TEXT = 2000;
+const MAX_DIAGNOSTIC_OUTPUT = 16000;
 
 const BENIGN_WARNING_PATTERNS = [
   /IPC custom protocol failed, Tauri will now use the postMessage interface instead/i,
@@ -68,33 +73,68 @@ export const stringifyDiagnosticValue = (
   value: unknown
 ): string | undefined => {
   if (value === undefined) return undefined;
-  if (typeof value === 'string') return redactDiagnosticText(value);
+  const boundedText = (text: string, limit = MAX_DIAGNOSTIC_TEXT): string => {
+    const redacted = redactDiagnosticText(text);
+    return redacted.length > limit
+      ? `${redacted.slice(0, limit)}… [Truncated]`
+      : redacted;
+  };
+  if (typeof value === 'string') return boundedText(value);
   const seen = new WeakSet<object>();
-  try {
-    return redactDiagnosticText(
-      JSON.stringify(
-        value,
-        (_key, nestedValue: unknown) => {
-          if (nestedValue instanceof Error) {
-            return {
-              name: nestedValue.name,
-              message: nestedValue.message,
-              stack: nestedValue.stack,
-              cause: nestedValue.cause
-            };
-          }
-          if (typeof nestedValue === 'bigint') return nestedValue.toString();
-          if (typeof nestedValue === 'object' && nestedValue !== null) {
-            if (seen.has(nestedValue)) return '[Circular]';
-            seen.add(nestedValue);
-          }
-          return nestedValue;
+  let remainingNodes = MAX_DIAGNOSTIC_NODES;
+  const snapshot = (nestedValue: unknown, depth: number): unknown => {
+    if (typeof nestedValue === 'string') return boundedText(nestedValue);
+    if (typeof nestedValue === 'bigint') return nestedValue.toString();
+    if (typeof nestedValue !== 'object' || nestedValue === null)
+      return nestedValue;
+    if (seen.has(nestedValue)) return '[Circular]';
+    if (depth >= MAX_DIAGNOSTIC_DEPTH || remainingNodes-- <= 0)
+      return '[Truncated]';
+    seen.add(nestedValue);
+    // Vue exposes this marker specifically for inspection. Enumerating its
+    // public instance walks component state and can itself produce warnings.
+    if ((nestedValue as { __isVue?: boolean }).__isVue === true)
+      return '[Vue Component]';
+    if (typeof Node !== 'undefined' && nestedValue instanceof Node)
+      return '[DOM Node]';
+    if (nestedValue instanceof Error) {
+      return snapshot(
+        {
+          name: nestedValue.name,
+          message: nestedValue.message,
+          stack: nestedValue.stack,
+          cause: nestedValue.cause
         },
-        2
-      )
-    );
+        depth + 1
+      );
+    }
+    if (nestedValue instanceof Date) return nestedValue.toJSON();
+    if (Array.isArray(nestedValue)) {
+      const items = nestedValue
+        .slice(0, MAX_DIAGNOSTIC_ITEMS)
+        .map((item) => snapshot(item, depth + 1));
+      if (nestedValue.length > MAX_DIAGNOSTIC_ITEMS) items.push('[Truncated]');
+      return items;
+    }
+    const result: Record<string, unknown> = Object.create(null);
+    const keys = Object.keys(nestedValue);
+    for (const key of keys.slice(0, MAX_DIAGNOSTIC_ITEMS)) {
+      const descriptor = Object.getOwnPropertyDescriptor(nestedValue, key);
+      // Logging should never execute application getters.
+      result[boundedText(key)] = descriptor?.get
+        ? '[Getter]'
+        : snapshot(descriptor?.value, depth + 1);
+    }
+    if (keys.length > MAX_DIAGNOSTIC_ITEMS) result['[Truncated]'] = true;
+    return result;
+  };
+  try {
+    const serialized = JSON.stringify(snapshot(value, 0), null, 2);
+    return serialized === undefined
+      ? undefined
+      : boundedText(serialized, MAX_DIAGNOSTIC_OUTPUT);
   } catch {
-    return redactDiagnosticText(String(value));
+    return '[Unserializable diagnostic value]';
   }
 };
 
@@ -292,16 +332,16 @@ export const setupGlobalDeveloperDiagnostics = (): void => {
     originalError(...args);
   };
   console.warn = (...args: unknown[]) => {
-    const warningText = args
-      .map((arg) =>
-        typeof arg === 'string'
-          ? arg
-          : (stringifyDiagnosticValue(arg) ?? String(arg))
-      )
-      .join(' ');
-    if (!isBenignDiagnosticWarning(warningText)) {
-      appendFrontendDiagnostic('warn', '[Console] warn', args);
-      forwardDiagnosticToBackend('warn', '[Console] warn', args);
+    if (isDeveloperModeEnabled()) {
+      // Warning classification needs only the message, never a traversal of
+      // Vue's component trace or the entire reactive application graph.
+      const warningText = args
+        .filter((arg): arg is string => typeof arg === 'string')
+        .join(' ');
+      if (!isBenignDiagnosticWarning(warningText)) {
+        appendFrontendDiagnostic('warn', '[Console] warn', args);
+        forwardDiagnosticToBackend('warn', '[Console] warn', args);
+      }
     }
     originalWarn(...args);
   };

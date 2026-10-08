@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   redactDiagnosticText,
   stringifyDiagnosticValue,
@@ -38,6 +38,58 @@ describe('stringifyDiagnosticValue', () => {
     expect(value).not.toContain('secret-value');
     expect(value).not.toContain('abc.def-123');
     expect(value).toContain('[REDACTED]');
+  });
+
+  it('does not enumerate Vue component instances or execute diagnostic getters', () => {
+    const ownKeys = vi.fn(() => {
+      throw new Error('component state must not be traversed');
+    });
+    const component = new Proxy({ __isVue: true }, { ownKeys });
+    const getter = vi.fn(() => 'expensive state');
+    const value = {
+      component,
+      get state() {
+        return getter();
+      }
+    };
+    expect(stringifyDiagnosticValue(value)).toContain('[Vue Component]');
+    expect(stringifyDiagnosticValue(value)).toContain('[Getter]');
+    expect(ownKeys).not.toHaveBeenCalled();
+    expect(getter).not.toHaveBeenCalled();
+  });
+
+  it('bounds long strings, arrays and deeply nested diagnostic objects', () => {
+    const value = stringifyDiagnosticValue({
+      text: 'x'.repeat(100_000),
+      list: Array.from({ length: 10_000 }, (_, i) => ({ id: i })),
+      deep: { a: { b: { c: { d: { e: { f: 'hidden' } } } } } }
+    })!;
+    expect(value.length).toBeLessThan(16_100);
+    expect(value).toContain('[Truncated]');
+    expect(value).not.toContain('hidden');
+    expect(value).not.toContain('"id": 9999');
+  });
+
+  it('skips warning object traversal when developer mode is disabled', async () => {
+    vi.resetModules();
+    const ownKeys = vi.fn(() => ['expensive']);
+    const data = new Proxy({ expensive: 'reactive graph' }, { ownKeys });
+    const originalWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.stubGlobal('window', { addEventListener: vi.fn() });
+    vi.stubGlobal('localStorage', { getItem: () => 'false' });
+    try {
+      const diagnostics = await import('./developer-diagnostics');
+      diagnostics.setupGlobalDeveloperDiagnostics();
+      console.warn('Failed to resolve component: CheckSmall', data);
+      expect(ownKeys).not.toHaveBeenCalled();
+      expect(originalWarn).toHaveBeenCalledWith(
+        'Failed to resolve component: CheckSmall',
+        data
+      );
+    } finally {
+      originalWarn.mockRestore();
+      vi.unstubAllGlobals();
+    }
   });
 });
 
