@@ -11,8 +11,8 @@ use std::sync::RwLock as StdRwLock;
 use std::sync::{Arc, Mutex};
 use tauri::{Emitter, Manager};
 
-mod application;
 mod account;
+mod application;
 mod auto_sync;
 mod command_runner;
 mod commands;
@@ -47,7 +47,7 @@ pub use types::{
 const MAIN_BRANCH: &str = "main";
 const AUTO_GENERATED_UNTRACKED_PULL_PATHS: &[&str] = &[".gitignore"];
 
+pub use account::*;
 pub use auto_sync::AutoSyncManager;
 pub use commands::*;
-pub use account::*;
 pub use conflict::{ConflictFileContent, ResolveConflictsResult};
