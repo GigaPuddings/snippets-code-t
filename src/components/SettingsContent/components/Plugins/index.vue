@@ -933,16 +933,9 @@ const canUpdateMarketplaceItem = (item: PluginMarketplaceItem): boolean => {
   );
 };
 
-const shouldInstallMarketplaceItem = (item: PluginMarketplaceItem): boolean =>
-  pluginStore.shouldInstallMarketplaceItem(item);
-
 const hasMissingMarketplaceDependencies = (
   item: PluginMarketplaceItem
-): boolean =>
-  getMarketplaceDependencies(item).some((dependencyId) => {
-    const dependency = getMarketplaceItemById(dependencyId);
-    return !dependency || shouldInstallMarketplaceItem(dependency);
-  });
+): boolean => pluginStore.hasMissingMarketplaceDependencies(item);
 
 const refreshMarketplace = async (
   notify = true,

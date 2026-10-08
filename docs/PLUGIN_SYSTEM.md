@@ -226,6 +226,13 @@ settings page installs missing dependencies first. This is used by
 runtime and model files live in `screenshot-rapidocr` and are installed
 automatically with the screenshot/OCR plugin.
 
+Dependencies currently contain plugin IDs, not version constraints. A newer
+marketplace version does not make an installed dependency missing. Dependency
+status follows the installed manifests, including nested resource dependencies.
+Updating a selected plugin installs its missing dependencies but preserves
+already installed dependency versions. Repairing dependencies installs missing
+nested resources without upgrading their installed parent plugins.
+
 Marketplace entries with `packageUrl` also declare `sizeBytes` and, for stable
 published packages, `sha256`. The settings page shows the package size before install and listens for
 `plugin-install-progress` events while downloading, extracting, and installing

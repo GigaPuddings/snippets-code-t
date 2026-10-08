@@ -86,7 +86,9 @@ const compareVersions = (left: string, right: string): number => {
 const isActiveInstallPhase = (phase?: string): boolean =>
   Boolean(phase && phase !== 'installed' && phase !== 'failed');
 
-const getMarketplaceDependencies = (item: PluginMarketplaceItem): string[] =>
+const getMarketplaceDependencies = (
+  item: Pick<PluginMarketplaceItem, 'dependencies'>
+): string[] =>
   Array.isArray(item.dependencies)
     ? item.dependencies.filter(
         (dependencyId) =>
@@ -622,6 +624,30 @@ export const usePluginStore = defineStore('plugins', {
       );
     },
 
+    hasMissingMarketplaceDependencies(
+      item: Pick<PluginMarketplaceItem, 'id' | 'dependencies'>,
+      visited = new Set<string>()
+    ): boolean {
+      if (visited.has(item.id)) return false;
+      visited.add(item.id);
+      const installedPlugin = this.installedPlugins.find(
+        (plugin) => plugin.id === item.id
+      );
+      // Dependencies contain IDs, not version constraints. An available update
+      // does not make an installed package missing or change its requirements.
+      return getMarketplaceDependencies(installedPlugin?.manifest ?? item).some(
+        (dependencyId) => {
+          const dependency = this.installedPlugins.find(
+            (plugin) => plugin.id === dependencyId
+          );
+          return (
+            !dependency ||
+            this.hasMissingMarketplaceDependencies(dependency.manifest, visited)
+          );
+        }
+      );
+    },
+
     async installMarketplaceItemWithDependencies(
       item: PluginMarketplaceItem,
       marketplaceItems: PluginMarketplaceItem[],
@@ -634,7 +660,8 @@ export const usePluginStore = defineStore('plugins', {
           item: PluginMarketplaceItem
         ) => string;
       } = {},
-      visited = new Set<string>()
+      visited = new Set<string>(),
+      isDependency = false
     ): Promise<void> {
       if (visited.has(item.id)) {
         throw new Error(
@@ -645,17 +672,40 @@ export const usePluginStore = defineStore('plugins', {
       visited.add(item.id);
 
       try {
-        for (const dependencyId of getMarketplaceDependencies(item)) {
-          const dependency = marketplaceItems.find(
-            (candidate) => candidate.id === dependencyId
+        const installedPlugin = this.installedPlugins.find(
+          (plugin) => plugin.id === item.id
+        );
+        const dependencies = getMarketplaceDependencies(
+          isDependency && installedPlugin ? installedPlugin.manifest : item
+        );
+        for (const dependencyId of dependencies) {
+          const installedDependency = this.installedPlugins.find(
+            (plugin) => plugin.id === dependencyId
           );
+          if (
+            installedDependency &&
+            (visited.has(dependencyId) ||
+              !this.hasMissingMarketplaceDependencies(
+                installedDependency.manifest
+              ))
+          ) {
+            continue;
+          }
+          const dependency =
+            marketplaceItems.find(
+              (candidate) => candidate.id === dependencyId
+            ) ?? installedDependency?.manifest;
           if (!dependency) {
             throw new Error(
               options.formatMissingDependencyError?.(dependencyId) ??
                 `Missing plugin dependency: ${dependencyId}`
             );
           }
-          if (options.isCompatible && !options.isCompatible(dependency)) {
+          if (
+            !installedDependency &&
+            options.isCompatible &&
+            !options.isCompatible(dependency)
+          ) {
             const label =
               dependency.name?.fallback ||
               dependency.name?.i18nKey ||
@@ -665,17 +715,20 @@ export const usePluginStore = defineStore('plugins', {
                 `Incompatible plugin dependency: ${label}`
             );
           }
-          if (this.shouldInstallMarketplaceItem(dependency)) {
-            await this.installMarketplaceItemWithDependencies(
-              dependency,
-              marketplaceItems,
-              options,
-              visited
-            );
-          }
+          await this.installMarketplaceItemWithDependencies(
+            dependency,
+            marketplaceItems,
+            options,
+            visited,
+            true
+          );
         }
 
-        if (item.packageUrl && this.shouldInstallMarketplaceItem(item)) {
+        if (
+          item.packageUrl &&
+          (!isDependency || !installedPlugin) &&
+          this.shouldInstallMarketplaceItem(item)
+        ) {
           options.onInstallingPackage?.(item);
           // 使用显式 mirrorUrls，或自动从 packageUrl 生成镜像地址
           const mirrorUrls =
