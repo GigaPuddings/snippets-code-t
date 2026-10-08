@@ -195,12 +195,20 @@ async function handlePrimaryAction(item: ContentType) {
   await resultListRef.value?.runPrimaryAction(item);
 }
 
+async function runSelectedPrimaryAction(): Promise<void> {
+  const item = selectedItem.value;
+  if (item) {
+    await handlePrimaryAction(item);
+  }
+}
+
 function handlePreviewToggle(): void {
   inlinePreviewRef.value?.togglePreview();
 }
 
 defineExpose({
   switchTab: (tab: SummarizeType) => switchTab(tab),
+  runSelectedPrimaryAction,
   enterListMode: (selectLast = false) =>
     resultListRef.value?.enterListMode(selectLast),
   enterTabMode: () => resultListRef.value?.enterTabMode(),

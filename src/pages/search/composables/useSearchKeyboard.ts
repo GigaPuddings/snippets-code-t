@@ -15,6 +15,7 @@ export interface SearchKeyboardOptions {
   resultRef: Ref<{
     enterListMode: (selectLast?: boolean) => void;
     enterTabMode: () => void;
+    runSelectedPrimaryAction: () => Promise<void>;
   } | null>;
   /** 是否处于搜索模式 */
   isSearchMode: Ref<boolean>;
@@ -38,7 +39,7 @@ export interface SearchKeyboardReturn {
  * 搜索键盘导航 Hook
  *
  * 提供搜索页面的键盘导航功能，包括：
- * - Enter: 执行搜索或进入列表模式
+ * - Enter: 执行当前选中结果，无结果时执行搜索
  * - ArrowDown: 进入列表模式并选中第一项
  * - ArrowUp: 进入列表模式并选中最后一项
  * - ArrowLeft/Right: 在边界时切换到分类标签
@@ -87,16 +88,18 @@ export function useSearchKeyboard(
 
     switch (e.code) {
       case 'Enter':
+      case 'NumpadEnter':
         if (!e.isComposing) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (e.repeat) break;
+
           // 如果没有搜索结果，执行搜索
           if (searchResultsLength.value === 0) {
             await handleEnterSearch();
           } else {
-            // 如果有搜索结果，进入列表模式
-            e.preventDefault();
-            e.stopPropagation();
-            input.blur(); // 让输入框失焦
-            resultRef.value?.enterListMode();
+            // 首条结果已经自动选中，直接执行，避免再次按 Enter。
+            await resultRef.value?.runSelectedPrimaryAction();
           }
         }
         break;
