@@ -7,6 +7,8 @@ import {
   estimateTokens,
   mergeChatStreamStats,
   resolveRequestMaxTokens,
+  resolveRequestContextBudget,
+  markAssistantMessageFailed,
   mergeSystemMessages
 } from './chatContext';
 
@@ -48,10 +50,50 @@ describe('local AI chat context helpers', () => {
     expect(runtime.content).toContain('Current local date:');
     expect(runtime.content).toContain('Current timezone:');
   });
+  it('can reuse a captured local date instead of taking a new clock reading', () => {
+    const runtime = createRuntimeContextMessage(
+      new Date(2026, 9, 7, 19, 30, 12)
+    );
+    expect(runtime.content).toContain('Current local date: 2026-10-07');
+    expect(runtime.content).toContain('Current local time: 19:30:12');
+  });
 
   it('keeps zero max tokens unlimited instead of deriving a context cap', () => {
     expect(resolveRequestMaxTokens(0)).toBeUndefined();
     expect(resolveRequestMaxTokens(2048)).toBe(2048);
+  });
+
+  it('reserves reply capacity at the default 4096-token context', () => {
+    expect(resolveRequestContextBudget(4096, 0)).toBe(2048);
+    expect(resolveRequestContextBudget(2048, 0)).toBe(1024);
+    expect(resolveRequestContextBudget(8192, 0)).toBe(4096);
+    expect(resolveRequestContextBudget(16384, 0)).toBe(8192);
+    expect(resolveRequestContextBudget(4096, 1024)).toBe(3072);
+    expect(resolveRequestMaxTokens(0)).toBeUndefined();
+  });
+
+  it('records a local failure without inventing an assistant answer', () => {
+    const message = {
+      id: 'answer',
+      role: 'assistant' as const,
+      createdAt: '',
+      content: '',
+      streaming: true
+    };
+    markAssistantMessageFailed(message, 'Request failed');
+    expect(message).toMatchObject({
+      content: '',
+      error: 'Request failed',
+      streaming: false,
+      interrupted: false
+    });
+    message.content = 'A partial answer';
+    markAssistantMessageFailed(message, 'Stream interrupted');
+    expect(message).toMatchObject({
+      content: 'A partial answer',
+      error: 'Stream interrupted',
+      interrupted: true
+    });
   });
 
   it('preserves a stream finish reason when later stats omit it', () => {

@@ -5,6 +5,7 @@ import {
   deleteMessageBranch,
   getDisplayMessages,
   getVisibleMessages,
+  findLeafNodeId,
   normalizeMessagesToTree
 } from './messageTree';
 import type { ChatHistoryView, ChatMessage } from './types';
@@ -43,6 +44,48 @@ describe('local AI chat message tree', () => {
 });
 
 describe('local AI chat message branches', () => {
+  it('does not repeatedly scan the complete tree for every visible sibling', () => {
+    let idReads = 0;
+    const messages: ChatMessage[] = Array.from({ length: 1000 }, (_, i) => ({
+      ...message(
+        String(i),
+        i === 0 ? 'system' : i % 2 ? 'user' : 'assistant',
+        'text'
+      ),
+      get id() {
+        idReads++;
+        return String(i);
+      },
+      type: i === 0 ? 'root' : 'text',
+      parentId: i ? String(i - 1) : null,
+      childIds: i < 999 ? [String(i + 1)] : []
+    }));
+    const history: ChatHistoryView = {
+      id: 'long',
+      title: '',
+      createdAt: '',
+      updatedAt: '',
+      updatedAtLabel: '',
+      currentNodeId: '999',
+      messages
+    };
+    const visible = getDisplayMessages(history);
+    expect(visible).toHaveLength(999);
+    expect(visible[0].siblingLeafNodeIds).toEqual(['999']);
+    expect(visible.at(-1)?.message.id).toBe('999');
+    expect(idReads).toBeLessThan(20_000);
+  });
+  it('retains dangling-child and cycle fallbacks without looping', () => {
+    const nodes: ChatMessage[] = [
+      { ...message('a', 'assistant', ''), childIds: ['b'] },
+      { ...message('b', 'assistant', ''), childIds: ['a'] },
+      { ...message('dangling', 'assistant', ''), childIds: ['missing'] }
+    ];
+    expect(findLeafNodeId(nodes, 'a')).toBe('a');
+    expect(findLeafNodeId(nodes, 'b')).toBe('b');
+    expect(findLeafNodeId(nodes, 'dangling')).toBeNull();
+    expect(findLeafNodeId(nodes, null)).toBeNull();
+  });
   it('keeps sibling assistant versions addressable from the visible branch', () => {
     const history: ChatHistoryView = {
       id: 'chat-1',

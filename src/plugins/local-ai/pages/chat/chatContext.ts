@@ -33,6 +33,29 @@ export const resolveRequestMaxTokens = (
     ? Math.floor(configuredMaxTokens)
     : undefined;
 
+export const resolveRequestContextBudget = (
+  contextLimit: number,
+  configuredMaxTokens: number
+): number => {
+  const responseReserve =
+    configuredMaxTokens > 0
+      ? Math.max(configuredMaxTokens, 512)
+      : Math.max(512, Math.floor(contextLimit * 0.5));
+  return Math.max(
+    512,
+    contextLimit - Math.min(responseReserve, Math.max(512, contextLimit - 512))
+  );
+};
+
+export const markAssistantMessageFailed = (
+  message: ChatMessage,
+  error: string
+): void => {
+  message.streaming = false;
+  message.error = error;
+  message.interrupted = Boolean(message.content.trim());
+};
+
 export const mergeChatStreamStats = (
   current: LocalAiChatStreamStats | undefined,
   incoming: Partial<{
@@ -127,8 +150,10 @@ const localDateParts = (
   return { isoDate, localTime, timeZone, weekday };
 };
 
-export const createRuntimeContextMessage = (): LocalAiMessage => {
-  const { isoDate, localTime, timeZone, weekday } = localDateParts();
+export const createRuntimeContextMessage = (
+  date = new Date()
+): LocalAiMessage => {
+  const { isoDate, localTime, timeZone, weekday } = localDateParts(date);
   return {
     role: 'system',
     content: [

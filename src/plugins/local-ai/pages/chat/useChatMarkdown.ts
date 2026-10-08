@@ -4,8 +4,9 @@ import { sanitizeHtml } from '@/utils/html-sanitize';
 import modal from '@/utils/modal';
 import type { ChatMessage } from './types';
 
-const MARKDOWN_CACHE_LIMIT = 24;
-const MARKDOWN_CODE_CACHE_LIMIT = 120;
+const MARKDOWN_CACHE_LIMIT = 64;
+// Approximate UTF-16 storage for source keys and HTML; bound long replies too.
+const MARKDOWN_CACHE_BYTES = 4 * 1024 * 1024;
 const STREAM_RENDER_INTERVAL_MS = 420;
 const STREAM_LONG_RENDER_INTERVAL_MS = 1200;
 const STREAM_LONG_CONTENT_CHARS = 24000;
@@ -25,7 +26,7 @@ interface StreamingMarkdownSnapshot {
 
 interface MarkdownState {
   htmlCache: Map<string, string>;
-  codeCache: Map<string, string>;
+  cacheBytes: number;
   streamingSnapshots: Map<string, StreamingMarkdownSnapshot>;
 }
 
@@ -59,41 +60,14 @@ export const splitReasoning = (
   };
 };
 
-const codeBlockId = (code: string): string => {
-  let hash = 0;
-  for (let index = 0; index < code.length; index += 1) {
-    hash = (hash * 31 + code.charCodeAt(index)) >>> 0;
-  }
-  return `code-${code.length}-${hash.toString(16)}`;
-};
-
-const trimOldestEntry = <Key, Value>(
-  cache: Map<Key, Value>,
-  limit: number
-): void => {
-  if (cache.size <= limit) return;
-  const firstKey = cache.keys().next().value;
-  if (firstKey !== undefined) cache.delete(firstKey);
-};
-
-const enhanceCodeBlocks = (
-  html: string,
-  state: MarkdownState,
-  t: ComposerTranslation
-): string => {
+const enhanceCodeBlocks = (html: string, t: ComposerTranslation): string => {
   if (!html.includes('<pre>')) return html;
   return html.replace(
     /<pre><code(?: class="([^"]*)")?>([\s\S]*?)<\/code><\/pre>/g,
     (_match, className: string | undefined, codeHtml: string) => {
-      const template = document.createElement('textarea');
-      template.innerHTML = codeHtml;
-      const code = template.value;
-      const id = codeBlockId(code);
-      state.codeCache.set(id, code);
-      trimOldestEntry(state.codeCache, MARKDOWN_CODE_CACHE_LIMIT);
       const codeClass = className ? ` class="${className}"` : '';
       const copyLabel = t('common.copy');
-      return `<div class="code-block-shell"><button type="button" class="code-copy-btn" data-code-id="${id}" title="${copyLabel}">${copyLabel}</button><pre><code${codeClass}>${codeHtml}</code></pre></div>`;
+      return `<div class="code-block-shell"><button type="button" class="code-copy-btn" title="${copyLabel}">${copyLabel}</button><pre><code${codeClass}>${codeHtml}</code></pre></div>`;
     }
   );
 };
@@ -102,21 +76,37 @@ const renderMarkdown = (
   value: string,
   state: MarkdownState,
   t: ComposerTranslation,
-  options: { cache?: boolean; enhanceCodeBlocks?: boolean } = {}
+  options: {
+    cache?: boolean;
+    enhanceCodeBlocks?: boolean;
+  } = {}
 ): string => {
   const shouldCache = options.cache !== false;
   const cacheKey = `${t('common.copy')}\u0000${value}`;
   const cached = shouldCache ? state.htmlCache.get(cacheKey) : undefined;
-  if (cached) return cached;
+  if (cached !== undefined) {
+    state.htmlCache.delete(cacheKey);
+    state.htmlCache.set(cacheKey, cached);
+    return cached;
+  }
 
   const parsed = sanitizeHtml(marked.parse(value, { async: false }) as string);
   const html =
-    options.enhanceCodeBlocks === false
-      ? parsed
-      : enhanceCodeBlocks(parsed, state, t);
+    options.enhanceCodeBlocks === false ? parsed : enhanceCodeBlocks(parsed, t);
   if (!shouldCache) return html;
+  const bytes = (cacheKey.length + html.length) * 2;
+  if (bytes > MARKDOWN_CACHE_BYTES) return html;
   state.htmlCache.set(cacheKey, html);
-  trimOldestEntry(state.htmlCache, MARKDOWN_CACHE_LIMIT);
+  state.cacheBytes += bytes;
+  while (
+    state.htmlCache.size > MARKDOWN_CACHE_LIMIT ||
+    state.cacheBytes > MARKDOWN_CACHE_BYTES
+  ) {
+    const oldest = state.htmlCache.entries().next().value;
+    if (!oldest) break;
+    state.cacheBytes -= (oldest[0].length + oldest[1].length) * 2;
+    state.htmlCache.delete(oldest[0]);
+  }
   return html;
 };
 
@@ -193,15 +183,15 @@ const renderMessageMarkdown = (
 
 const handleMarkdownClick = async (
   event: MouseEvent,
-  state: MarkdownState,
   t: ComposerTranslation
 ): Promise<void> => {
   const target = event.target as HTMLElement | null;
   const button = target?.closest<HTMLButtonElement>('.code-copy-btn');
-  const code = button?.dataset.codeId
-    ? state.codeCache.get(button.dataset.codeId)
-    : undefined;
-  if (!code) return;
+  // Read the displayed code: it survives HTML cache eviction and history switches.
+  const code = button
+    ?.closest('.code-block-shell')
+    ?.querySelector('pre code')?.textContent;
+  if (code === null || code === undefined) return;
   try {
     await navigator.clipboard.writeText(code);
     modal.msg(t('localAi.codeCopied'));
@@ -224,7 +214,7 @@ export const useChatMarkdown = (): ChatMarkdownController => {
   const { t } = useI18n();
   const state: MarkdownState = {
     htmlCache: new Map<string, string>(),
-    codeCache: new Map<string, string>(),
+    cacheBytes: 0,
     streamingSnapshots: new Map<string, StreamingMarkdownSnapshot>()
   };
 
@@ -234,7 +224,7 @@ export const useChatMarkdown = (): ChatMarkdownController => {
       section: MarkdownSection
     ): string => renderMessageMarkdown(message, section, state, t),
     handleMarkdownClick: (event: MouseEvent): Promise<void> =>
-      handleMarkdownClick(event, state, t),
+      handleMarkdownClick(event, t),
     messageReasoning: (value: string): string =>
       splitReasoning(value).reasoning,
     messageAnswer: (value: string): string => splitReasoning(value).answer,
@@ -244,7 +234,7 @@ export const useChatMarkdown = (): ChatMarkdownController => {
     },
     clearMarkdownState: (): void => {
       state.htmlCache.clear();
-      state.codeCache.clear();
+      state.cacheBytes = 0;
       state.streamingSnapshots.clear();
     }
   };

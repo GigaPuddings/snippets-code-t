@@ -1,3 +1,5 @@
+@use '@/styles/markdown';
+
 .local-ai-chat-shell {
   // Chat-only aliases keep semantic status colors while sharing shell surfaces.
   --chat-readable-width: 880px;
@@ -14,8 +16,6 @@
   --chat-text-tertiary: var(--workspace-nav-muted);
   --chat-muted: var(--workspace-nav-muted);
   --chat-user-bubble-bg: var(--app-ui-card-bg);
-  --chat-code-bg: var(--app-ui-card-bg);
-  --chat-code-block-bg: var(--app-ui-card-soft-bg);
   --chat-inset-bg: var(--app-ui-card-soft-bg);
   --chat-attachment-bg: var(--app-ui-card-soft-bg);
   --chat-input-bg: var(--settings-surface);
@@ -27,7 +27,7 @@
   --chat-send-disabled-bg: var(--app-ui-card-bg);
   --chat-send-disabled-text: var(--workspace-nav-muted);
 
-  @apply grid w-full h-full min-h-0 min-w-0 overflow-hidden text-chat bg-chat-bg;
+  @apply grid grid-rows-1 w-full h-full min-h-0 min-w-0 overflow-hidden text-chat bg-chat-bg;
 
   grid-template-columns: var(--chat-sidebar-width) minmax(0, 1fr);
   gap: 0;
@@ -290,6 +290,11 @@
   scrollbar-gutter: stable;
 }
 
+.message-list-content {
+  // Include margins and late Markdown layout in the observed scroll content.
+  @apply flow-root min-h-full;
+}
+
 .date-divider {
   @apply text-center text-ui-caption text-ui-muted;
 
@@ -474,7 +479,7 @@
 .assistant-response {
   @apply max-w-full min-w-0 text-chat-body text-ui;
 
-  line-height: 1.75;
+  line-height: var(--markdown-body-line-height);
 }
 
 .message-content {
@@ -526,74 +531,14 @@
   line-height: 1.75;
 }
 
-.markdown-body {
-  @apply max-w-full;
+:deep(.markdown-body) {
+  @include markdown.typography;
 
-  color: inherit;
-  overflow-wrap: anywhere;
-}
+  max-width: 100%;
 
-.markdown-body :deep(p) {
-  @apply mb-3;
-
-  overflow-wrap: anywhere;
-}
-
-.markdown-body :deep(p:last-child),
-.markdown-body :deep(ul:last-child),
-.markdown-body :deep(ol:last-child),
-.markdown-body :deep(pre:last-child) {
-  @apply mb-0;
-}
-
-.markdown-body :deep(h1),
-.markdown-body :deep(h2),
-.markdown-body :deep(h3),
-.markdown-body :deep(h4) {
-  @apply mt-5 mb-2 font-semibold text-ui-heading;
-
-  line-height: 1.5;
-}
-
-.markdown-body :deep(h1) {
-  @apply text-ui-title;
-}
-
-.markdown-body :deep(h2) {
-  @apply text-lg;
-}
-
-.markdown-body :deep(h3) {
-  @apply text-base;
-}
-
-.markdown-body :deep(a) {
-  @apply text-primary underline underline-offset-2;
-}
-
-.markdown-body :deep(hr) {
-  @apply my-4 border-chat;
-}
-
-.markdown-body :deep(ul),
-.markdown-body :deep(ol) {
-  @apply my-2 mb-3;
-
-  padding-left: 22px;
-}
-
-.markdown-body :deep(li + li) {
-  @apply mt-1;
-}
-
-.markdown-body :deep(li) {
-  overflow-wrap: anywhere;
-}
-
-.markdown-body :deep(code) {
-  @apply rounded-ui bg-chat-code text-chat-strong text-[0.9em];
-
-  padding: 2px 4px;
+  a {
+    @apply text-primary underline underline-offset-2;
+  }
 }
 
 .markdown-body :deep(pre) {
@@ -601,10 +546,12 @@
 }
 
 .markdown-body :deep(.code-block-shell) {
-  @apply relative max-w-full overflow-x-auto overflow-y-hidden bg-chat-code-block border border-chat rounded-ui-lg;
+  @apply relative max-w-full overflow-x-auto overflow-y-hidden rounded-ui-lg;
 
-  padding: 12px;
-  margin: 12px 0;
+  padding: var(--markdown-block-gap);
+  margin: var(--markdown-block-gap) 0;
+  background: var(--code-block-bg);
+  border: 1px solid var(--code-block-border);
 }
 
 .markdown-body :deep(.code-copy-btn) {
@@ -626,39 +573,33 @@
 }
 
 .markdown-body :deep(pre code) {
-  @apply block text-chat-strong text-[13px] bg-transparent border-0;
+  @apply block font-mono bg-transparent border-0;
 
   width: max-content;
   min-width: 100%;
   padding: 24px 0 0;
-  line-height: 1.65;
+  font-size: var(--markdown-code-size);
+  line-height: var(--markdown-code-line-height);
+  color: var(--markdown-text);
   white-space: pre;
-}
-
-.markdown-body :deep(blockquote) {
-  @apply text-chat-secondary;
-
-  padding: 4px 0 4px 12px;
-  margin: 12px 0;
-  border-left: 3px solid var(--chat-border);
 }
 
 .markdown-body :deep(table) {
   @apply block max-w-full w-full overflow-x-auto;
 
-  margin: 12px 0;
+  margin: var(--markdown-block-gap) 0;
   border-collapse: collapse;
 }
 
 .markdown-body :deep(th),
 .markdown-body :deep(td) {
-  @apply border border-chat;
-
   padding: 7px 9px;
+  border: 1px solid var(--markdown-heading-border);
 }
 
 .markdown-body :deep(th) {
-  @apply bg-chat-pill;
+  font-weight: var(--markdown-heading-weight);
+  background: var(--markdown-table-header);
 }
 
 .message-actions {

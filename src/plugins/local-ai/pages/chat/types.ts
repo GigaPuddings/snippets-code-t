@@ -1,7 +1,10 @@
 import type { LocalAiChatHistory, LocalAiChatStreamStats } from '@/api/localAi';
 import type { LocalAiAttachment } from '@/utils/localAiAttachments';
+import type { SavedNoteReference } from '@/types/aiNote';
 
 export interface ChatMessage {
+  savedNote?: SavedNoteReference;
+  modelName?: string;
   id: string;
   role: 'system' | 'user' | 'assistant';
   type?: 'root' | 'text';

@@ -15,21 +15,36 @@ export const findRootMessage = (
   messages: ChatMessage[]
 ): ChatMessage | undefined => messages.find(isRootMessage);
 
-export const findLeafNodeId = (
-  messages: ChatMessage[],
-  nodeId: string | null | undefined
+const findLeafInNodes = (
+  nodes: Map<string, ChatMessage>,
+  nodeId: string | null | undefined,
+  leaves = new Map<string, string | null>()
 ): string | null => {
   if (!nodeId) return null;
-  const nodes = messageNodeMap(messages);
+  if (leaves.has(nodeId)) return leaves.get(nodeId) ?? null;
   let current = nodes.get(nodeId);
   const visited = new Set<string>();
   while (current?.childIds?.length) {
-    if (visited.has(current.id)) break;
+    // Preserve the original cycle fallback without caching a start-dependent leaf.
+    if (visited.has(current.id)) return current.id;
+    if (leaves.has(current.id)) {
+      const leaf = leaves.get(current.id) ?? null;
+      for (const id of visited) leaves.set(id, leaf);
+      return leaf;
+    }
     visited.add(current.id);
     current = nodes.get(current.childIds[current.childIds.length - 1]);
   }
-  return current?.id ?? null;
+  const leaf = current?.id ?? null;
+  for (const id of visited) leaves.set(id, leaf);
+  leaves.set(nodeId, leaf);
+  return leaf;
 };
+
+export const findLeafNodeId = (
+  messages: ChatMessage[],
+  nodeId: string | null | undefined
+): string | null => findLeafInNodes(messageNodeMap(messages), nodeId);
 
 export const normalizeMessagesToTree = (
   messages: ChatMessage[],
@@ -77,33 +92,45 @@ export const normalizeMessagesToTree = (
   return { messages: normalized, currentNodeId: parentId };
 };
 
-export const getPathToNode = (
-  messages: ChatMessage[],
+const pathFromNodes = (
+  nodes: Map<string, ChatMessage>,
   nodeId: string | null | undefined
 ): ChatMessage[] => {
   if (!nodeId) return [];
-  const nodes = messageNodeMap(messages);
   const path: ChatMessage[] = [];
   const visited = new Set<string>();
   let current = nodes.get(nodeId);
   while (current && !visited.has(current.id)) {
     visited.add(current.id);
-    path.unshift(current);
+    path.push(current);
     current = current.parentId ? nodes.get(current.parentId) : undefined;
   }
-  return path;
+  return path.reverse();
+};
+
+export const getPathToNode = (
+  messages: ChatMessage[],
+  nodeId: string | null | undefined
+): ChatMessage[] => pathFromNodes(messageNodeMap(messages), nodeId);
+
+const visibleFromNodes = (
+  history: ChatHistoryView,
+  nodes: Map<string, ChatMessage>,
+  leaves?: Map<string, string | null>
+): ChatMessage[] => {
+  const leafId =
+    history.currentNodeId ??
+    findLeafInNodes(nodes, findRootMessage(history.messages)?.id, leaves);
+  return pathFromNodes(nodes, leafId).filter(
+    (message) => !isRootMessage(message)
+  );
 };
 
 export const getVisibleMessages = (
   history: ChatHistoryView | null
 ): ChatMessage[] => {
   if (!history) return [];
-  const leafId =
-    history.currentNodeId ??
-    findLeafNodeId(history.messages, findRootMessage(history.messages)?.id);
-  return getPathToNode(history.messages, leafId).filter(
-    (message) => !isRootMessage(message)
-  );
+  return visibleFromNodes(history, messageNodeMap(history.messages));
 };
 
 export const getDisplayMessages = (
@@ -111,9 +138,10 @@ export const getDisplayMessages = (
 ): ChatDisplayMessage[] => {
   if (!history) return [];
   const nodes = messageNodeMap(history.messages);
+  const leaves = new Map<string, string | null>();
   const findLeaf = (nodeId: string): string =>
-    findLeafNodeId(history.messages, nodeId) ?? nodeId;
-  return getVisibleMessages(history).map((message) => {
+    findLeafInNodes(nodes, nodeId, leaves) ?? nodeId;
+  return visibleFromNodes(history, nodes, leaves).map((message) => {
     const parent = message.parentId ? nodes.get(message.parentId) : undefined;
     const siblingIds = parent?.childIds ?? [message.id];
     return {

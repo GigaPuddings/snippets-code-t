@@ -190,6 +190,8 @@
       <div
         ref="messageListRef"
         class="message-list"
+        tabindex="0"
+        @keydown="handleMessageKeydown"
         @scroll="handleMessageScroll"
         @wheel.passive="handleMessageWheel"
         @pointerdown="handleMessagePointerDown"
@@ -197,314 +199,398 @@
         @touchmove.passive="handleMessageTouchMove"
         @touchend="handleMessageTouchEnd"
       >
-        <section v-if="!activeMessages.length" class="empty-state">
-          <div class="empty-hero">
-            <div class="empty-hero-mark">
-              <RobotOne theme="outline" size="30" />
+        <div ref="messageContentRef" class="message-list-content">
+          <section v-if="!activeMessages.length" class="empty-state">
+            <div class="empty-hero">
+              <div class="empty-hero-mark">
+                <RobotOne theme="outline" size="30" />
+              </div>
+              <span class="empty-eyebrow">
+                <i></i>
+                {{ t('localAi.privateWorkspace') }}
+              </span>
+              <h2>{{ t('localAi.chatWelcomeTitle') }}</h2>
+              <p>{{ t('localAi.chatWelcomeDesc') }}</p>
             </div>
-            <span class="empty-eyebrow">
-              <i></i>
-              {{ t('localAi.privateWorkspace') }}
-            </span>
-            <h2>{{ t('localAi.chatWelcomeTitle') }}</h2>
-            <p>{{ t('localAi.chatWelcomeDesc') }}</p>
-          </div>
-          <div class="quick-prompt-section">
-            <div class="quick-prompt-heading">
-              <span>{{ t('localAi.quickStart') }}</span>
-              <small>{{ t('localAi.quickStartHint') }}</small>
+            <div class="quick-prompt-section">
+              <div class="quick-prompt-heading">
+                <span>{{ t('localAi.quickStart') }}</span>
+                <small>{{ t('localAi.quickStartHint') }}</small>
+              </div>
+              <div class="quick-prompt-grid">
+                <button
+                  v-for="item in quickPrompts"
+                  :key="item.title"
+                  class="ui-card quick-prompt-card"
+                  type="button"
+                  @click="applyQuickPrompt(item.title)"
+                >
+                  <span class="quick-prompt-icon">
+                    <component :is="item.icon" theme="outline" size="17" />
+                  </span>
+                  <span class="quick-prompt-copy">
+                    <strong>{{ t(item.title) }}</strong>
+                    <small>{{ t(item.description) }}</small>
+                  </span>
+                  <Right theme="outline" size="14" />
+                </button>
+              </div>
             </div>
-            <div class="quick-prompt-grid">
-              <button
-                v-for="item in quickPrompts"
-                :key="item.title"
-                class="ui-card quick-prompt-card"
-                type="button"
-                @click="applyQuickPrompt(item.title)"
-              >
-                <span class="quick-prompt-icon">
-                  <component :is="item.icon" theme="outline" size="17" />
-                </span>
-                <span class="quick-prompt-copy">
-                  <strong>{{ t(item.title) }}</strong>
-                  <small>{{ t(item.description) }}</small>
-                </span>
-                <Right theme="outline" size="14" />
-              </button>
-            </div>
-          </div>
-        </section>
+          </section>
 
-        <template
-          v-for="(display, displayIndex) in displayMessages"
-          :key="display.message.id"
-        >
-          <div v-if="shouldShowDateDivider(displayIndex)" class="date-divider">
-            <span>{{ messageDateDivider(display.message) }}</span>
+          <div v-if="earlierMessageCount" class="mb-5 flex justify-center">
+            <button
+              class="ui-action ui-action--muted"
+              type="button"
+              :disabled="loadingEarlierMessages"
+              @click="loadEarlierMessages"
+            >
+              {{
+                t('localAi.showEarlierMessages', { count: earlierMessageCount })
+              }}
+            </button>
           </div>
 
-          <article
-            :class="['message-row', `message-row--${display.message.role}`]"
+          <template
+            v-for="(display, displayIndex) in displayMessages"
+            :key="display.message.id"
           >
-            <div class="message-body">
-              <template v-if="display.message.role === 'user'">
-                <div class="user-bubble">
-                  <div v-if="display.message.content" class="user-message-text">
-                    {{ display.message.content }}
-                  </div>
-                  <div
-                    v-if="display.message.attachments?.length"
-                    class="message-attachment-list"
-                  >
+            <div
+              v-if="shouldShowDateDivider(displayIndex)"
+              class="date-divider"
+            >
+              <span>{{ messageDateDivider(display.message) }}</span>
+            </div>
+
+            <article
+              :class="['message-row', `message-row--${display.message.role}`]"
+            >
+              <div class="message-body">
+                <template v-if="display.message.role === 'user'">
+                  <div class="user-bubble">
                     <div
-                      v-for="attachment in display.message.attachments"
-                      :key="attachment.id"
-                      :class="[
-                        'message-attachment-chip',
-                        attachment.type === 'image' && attachment.dataUrl
-                          ? 'message-attachment-chip--image'
-                          : ''
-                      ]"
+                      v-if="display.message.content"
+                      class="user-message-text"
                     >
-                      <button
-                        v-if="attachment.type === 'image' && attachment.dataUrl"
-                        class="attachment-image-preview-btn"
-                        type="button"
-                        :title="attachment.name"
-                        :aria-label="t('localAi.previewAttachment')"
-                        @click="openAttachmentPreview(attachment)"
+                      {{ display.message.content }}
+                    </div>
+                    <div
+                      v-if="display.message.attachments?.length"
+                      class="message-attachment-list"
+                    >
+                      <div
+                        v-for="attachment in display.message.attachments"
+                        :key="attachment.id"
+                        :class="[
+                          'message-attachment-chip',
+                          attachment.type === 'image' && attachment.dataUrl
+                            ? 'message-attachment-chip--image'
+                            : ''
+                        ]"
                       >
-                        <img :src="attachment.dataUrl" :alt="attachment.name" />
-                      </button>
-                      <span v-else class="attachment-file-icon">
-                        {{ attachment.type === 'text' ? 'TXT' : 'FILE' }}
-                      </span>
-                      <span
-                        v-if="
-                          !(attachment.type === 'image' && attachment.dataUrl)
-                        "
-                      >
-                        {{ attachment.name }}
-                      </span>
+                        <button
+                          v-if="
+                            attachment.type === 'image' && attachment.dataUrl
+                          "
+                          class="attachment-image-preview-btn"
+                          type="button"
+                          :title="attachment.name"
+                          :aria-label="t('localAi.previewAttachment')"
+                          @click="openAttachmentPreview(attachment)"
+                        >
+                          <img
+                            :src="attachment.dataUrl"
+                            :alt="attachment.name"
+                          />
+                        </button>
+                        <span v-else class="attachment-file-icon">
+                          {{ attachment.type === 'text' ? 'TXT' : 'FILE' }}
+                        </span>
+                        <span
+                          v-if="
+                            !(attachment.type === 'image' && attachment.dataUrl)
+                          "
+                        >
+                          {{ attachment.name }}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div v-if="!display.message.streaming" class="message-actions">
-                  <button
-                    class="ui-icon-button ui-icon-button--small ui-action--muted"
-                    type="button"
-                    :title="t('common.copy')"
-                    @click="copyMessage(display.message)"
-                  >
-                    <Copy theme="outline" size="16" />
-                  </button>
-                  <button
-                    class="ui-icon-button ui-icon-button--small ui-action--muted"
-                    type="button"
-                    :title="t('common.edit')"
-                    @click="editMessage(display.message)"
-                  >
-                    <Edit theme="outline" size="16" />
-                  </button>
-                  <button
-                    class="ui-icon-button ui-icon-button--small ui-action--muted"
-                    type="button"
-                    :title="t('common.delete')"
-                    @click="deleteMessage(display.message.id)"
-                  >
-                    <Delete theme="outline" size="16" />
-                  </button>
-                </div>
-              </template>
-
-              <template v-else>
-                <div class="assistant-head">
-                  <span
-                    class="assistant-model-name"
-                    :title="currentModelDisplay"
-                  >
-                    {{ currentModelDisplay }}
-                  </span>
-                  <small v-if="display.message.streaming">
-                    {{ messageActivityLabel(display.message) }}
-                  </small>
-                </div>
-                <!-- Keep the streaming marker used by the resize observer. -->
-                <div
-                  class="assistant-response"
-                  :class="{
-                    'assistant-card--streaming': display.message.streaming
-                  }"
-                >
                   <div
-                    v-if="display.message.content"
-                    class="assistant-content-stack"
-                  >
-                    <details
-                      v-if="
-                        display.message.allowThinking &&
-                        messageReasoning(display.message.content)
-                      "
-                      class="reasoning-panel"
-                      :open="
-                        display.message.streaming &&
-                        isReasoningActive(display.message)
-                      "
-                    >
-                      <summary>
-                        <span class="reasoning-summary-title">
-                          <Brain theme="outline" size="14" />
-                          {{ messageReasoningLabel(display.message) }}
-                        </span>
-                        <small v-if="display.message.streaming">
-                          {{
-                            isReasoningActive(display.message)
-                              ? t('localAi.thinking')
-                              : t('localAi.generating')
-                          }}
-                        </small>
-                      </summary>
-                      <div
-                        class="message-content markdown-body"
-                        @click="handleMarkdownClick"
-                        v-html="
-                          renderMessageMarkdown(display.message, 'reasoning')
-                        "
-                      ></div>
-                    </details>
-                    <template v-if="messageAnswer(display.message.content)">
-                      <div
-                        class="message-content markdown-body"
-                        @click="handleMarkdownClick"
-                        v-html="
-                          renderMessageMarkdown(display.message, 'answer')
-                        "
-                      ></div>
-                    </template>
-                  </div>
-                  <div
-                    v-else
-                    :class="[
-                      'message-content',
-                      display.message.stopped ? '' : 'loading-text'
-                    ]"
-                  >
-                    {{
-                      display.message.stopped
-                        ? t('localAi.generationStopped')
-                        : assistantMessagePendingText(display.message)
-                    }}
-                  </div>
-                </div>
-                <div v-if="display.message.content" class="message-stats">
-                  <span>
-                    {{ t('localAi.contextLabel') }}:
-                    {{ messageStats(display.message).context }}/{{
-                      messageStats(display.message).contextMax
-                    }}
-                    ({{ messageStats(display.message).contextPercent }}%)
-                  </span>
-                  <span>
-                    {{ t('localAi.outputLabel') }}:
-                    {{ messageStats(display.message).output }}/{{
-                      messageStats(display.message).outputMax
-                    }}
-                  </span>
-                  <span>{{ messageStats(display.message).seconds }}s</span>
-                  <span>{{ messageStats(display.message).speed }} t/s</span>
-                  <span
                     v-if="!display.message.streaming"
-                    class="message-stats-time"
-                  >
-                    {{ messageTime(display.message) }}
-                  </span>
-                </div>
-                <div
-                  v-if="messageWarningText(display.message)"
-                  class="message-warning"
-                >
-                  {{ messageWarningText(display.message) }}
-                </div>
-                <div v-if="!display.message.streaming" class="message-actions">
-                  <div
-                    v-if="display.siblingLeafNodeIds.length > 1"
-                    class="message-version-switcher"
-                    :title="messageVersionLabel(display)"
-                    :aria-label="messageVersionLabel(display)"
+                    class="message-actions"
                   >
                     <button
-                      class="ui-icon-button ui-action--muted"
+                      class="ui-icon-button ui-icon-button--small ui-action--muted"
                       type="button"
-                      :disabled="display.siblingCurrentIndex <= 0"
-                      :title="t('localAi.previousVersion')"
-                      @click="changeMessageVersion(display, -1)"
+                      :title="t('common.copy')"
+                      @click="copyMessage(display.message)"
                     >
-                      ‹
+                      <Copy theme="outline" size="16" />
                     </button>
-                    <span>
-                      {{ display.siblingCurrentIndex + 1 }} /
-                      {{ display.siblingLeafNodeIds.length }}
-                    </span>
                     <button
-                      class="ui-icon-button ui-action--muted"
+                      class="ui-icon-button ui-icon-button--small ui-action--muted"
                       type="button"
-                      :disabled="
-                        display.siblingCurrentIndex >=
-                        display.siblingLeafNodeIds.length - 1
-                      "
-                      :title="t('localAi.nextVersion')"
-                      @click="changeMessageVersion(display, 1)"
+                      :title="t('common.edit')"
+                      @click="editMessage(display.message)"
                     >
-                      ›
+                      <Edit theme="outline" size="16" />
+                    </button>
+                    <button
+                      class="ui-icon-button ui-icon-button--small ui-action--muted"
+                      type="button"
+                      :title="t('common.delete')"
+                      @click="deleteMessage(display.message.id)"
+                    >
+                      <Delete theme="outline" size="16" />
                     </button>
                   </div>
-                  <button
-                    class="ui-icon-button ui-icon-button--small ui-action--muted"
-                    type="button"
-                    :title="t('common.copy')"
-                    @click="copyMessage(display.message)"
+                </template>
+
+                <template v-else>
+                  <div class="assistant-head">
+                    <span
+                      class="assistant-model-name"
+                      :title="display.message.modelName || currentModelDisplay"
+                    >
+                      {{ display.message.modelName || currentModelDisplay }}
+                    </span>
+                    <small v-if="display.message.streaming">
+                      {{ messageActivityLabel(display.message) }}
+                    </small>
+                  </div>
+                  <div class="assistant-response">
+                    <div
+                      v-if="
+                        display.message.content &&
+                        display.message.content !== display.message.error
+                      "
+                      class="assistant-content-stack"
+                    >
+                      <details
+                        v-if="
+                          display.message.allowThinking &&
+                          messageReasoning(display.message.content)
+                        "
+                        class="reasoning-panel"
+                        :open="
+                          display.message.streaming &&
+                          isReasoningActive(display.message)
+                        "
+                        @toggle="toggleReasoning(display.message.id, $event)"
+                      >
+                        <summary>
+                          <span class="reasoning-summary-title">
+                            <Brain theme="outline" size="14" />
+                            {{ messageReasoningLabel(display.message) }}
+                          </span>
+                          <small v-if="display.message.streaming">
+                            {{
+                              isReasoningActive(display.message)
+                                ? t('localAi.thinking')
+                                : t('localAi.generating')
+                            }}
+                          </small>
+                        </summary>
+                        <div
+                          v-if="
+                            expandedReasoning.has(display.message.id) ||
+                            (display.message.streaming &&
+                              isReasoningActive(display.message))
+                          "
+                          class="message-content markdown-body"
+                          @click="handleMarkdownClick"
+                          v-html="
+                            renderMessageMarkdown(display.message, 'reasoning')
+                          "
+                        ></div>
+                      </details>
+                      <template v-if="messageAnswer(display.message.content)">
+                        <div
+                          class="message-content markdown-body"
+                          @click="handleMarkdownClick"
+                          v-html="
+                            renderMessageMarkdown(display.message, 'answer')
+                          "
+                        ></div>
+                      </template>
+                    </div>
+                    <div
+                      v-else-if="!display.message.error"
+                      :class="[
+                        'message-content',
+                        display.message.stopped ? '' : 'loading-text'
+                      ]"
+                    >
+                      {{
+                        display.message.stopped
+                          ? t('localAi.generationStopped')
+                          : assistantMessagePendingText(display.message)
+                      }}
+                    </div>
+                  </div>
+                  <div
+                    v-if="display.message.error"
+                    role="alert"
+                    class="mt-3 rounded-ui border border-chat-error bg-chat-error p-3 text-ui-caption text-chat-error"
                   >
-                    <Copy theme="outline" size="16" />
-                  </button>
-                  <button
-                    v-if="display.message.role === 'assistant'"
-                    class="ui-icon-button ui-icon-button--small ui-action--muted"
-                    type="button"
-                    :title="t('localAi.regenerate')"
-                    @click="regenerateMessage(display.message.id)"
+                    {{ t('localAi.chatFailed') }}: {{ display.message.error }}
+                  </div>
+                  <div
+                    v-if="
+                      display.message.content &&
+                      display.message.content !== display.message.error
+                    "
+                    class="message-stats"
                   >
-                    <Refresh theme="outline" size="16" />
-                  </button>
-                  <button
-                    v-if="display.message.role === 'assistant'"
-                    class="ui-icon-button ui-icon-button--small ui-action--muted"
-                    type="button"
-                    :title="t('localAi.branchChat')"
-                    @click="forkFromMessage(display.message.id)"
+                    <span>
+                      {{ t('localAi.contextLabel') }}:
+                      {{ messageStats(display.message).context }}/{{
+                        messageStats(display.message).contextMax
+                      }}
+                      ({{ messageStats(display.message).contextPercent }}%)
+                    </span>
+                    <span>
+                      {{ t('localAi.outputLabel') }}:
+                      {{ messageStats(display.message).output }}/{{
+                        messageStats(display.message).outputMax
+                      }}
+                    </span>
+                    <span>{{ messageStats(display.message).seconds }}s</span>
+                    <span>{{ messageStats(display.message).speed }} t/s</span>
+                    <span
+                      v-if="!display.message.streaming"
+                      class="message-stats-time"
+                    >
+                      {{ messageTime(display.message) }}
+                    </span>
+                  </div>
+                  <div
+                    v-if="messageWarningText(display.message)"
+                    class="message-warning"
                   >
-                    <Fork theme="outline" size="16" />
-                  </button>
-                  <button
-                    class="ui-icon-button ui-icon-button--small ui-action--muted"
-                    type="button"
-                    :title="t('common.edit')"
-                    @click="editMessage(display.message)"
+                    {{ messageWarningText(display.message) }}
+                  </div>
+                  <div
+                    v-if="!display.message.streaming"
+                    class="message-actions"
                   >
-                    <Edit theme="outline" size="16" />
-                  </button>
-                  <button
-                    class="ui-icon-button ui-icon-button--small ui-action--muted"
-                    type="button"
-                    :title="t('common.delete')"
-                    @click="deleteMessage(display.message.id)"
-                  >
-                    <Delete theme="outline" size="16" />
-                  </button>
-                </div>
-              </template>
-            </div>
-          </article>
-        </template>
+                    <div
+                      v-if="display.siblingLeafNodeIds.length > 1"
+                      class="message-version-switcher"
+                      :title="messageVersionLabel(display)"
+                      :aria-label="messageVersionLabel(display)"
+                    >
+                      <button
+                        class="ui-icon-button ui-action--muted"
+                        type="button"
+                        :disabled="display.siblingCurrentIndex <= 0"
+                        :title="t('localAi.previousVersion')"
+                        @click="changeMessageVersion(display, -1)"
+                      >
+                        ‹
+                      </button>
+                      <span>
+                        {{ display.siblingCurrentIndex + 1 }} /
+                        {{ display.siblingLeafNodeIds.length }}
+                      </span>
+                      <button
+                        class="ui-icon-button ui-action--muted"
+                        type="button"
+                        :disabled="
+                          display.siblingCurrentIndex >=
+                          display.siblingLeafNodeIds.length - 1
+                        "
+                        :title="t('localAi.nextVersion')"
+                        @click="changeMessageVersion(display, 1)"
+                      >
+                        ›
+                      </button>
+                    </div>
+                    <button
+                      v-if="
+                        display.message.content &&
+                        display.message.content !== display.message.error
+                      "
+                      class="ui-icon-button ui-icon-button--small ui-action--muted"
+                      type="button"
+                      :title="t('common.copy')"
+                      @click="copyMessage(display.message)"
+                    >
+                      <Copy theme="outline" size="16" />
+                    </button>
+                    <button
+                      v-if="!display.message.error"
+                      class="ui-icon-button ui-icon-button--small ui-action--muted"
+                      type="button"
+                      :title="
+                        t(
+                          display.message.savedNote
+                            ? 'localAi.savedNotes.openSaved'
+                            : 'localAi.savedNotes.saveReply'
+                        )
+                      "
+                      :aria-label="
+                        t(
+                          display.message.savedNote
+                            ? 'localAi.savedNotes.openSaved'
+                            : 'localAi.savedNotes.saveReply'
+                        )
+                      "
+                      :disabled="
+                        navigationLocked ||
+                        savingIds.has(display.message.id) ||
+                        !messageAnswer(display.message.content).trim()
+                      "
+                      @click="saveReply(display.message)"
+                    >
+                      <FileSuccess
+                        v-if="display.message.savedNote"
+                        theme="outline"
+                        size="16"
+                      />
+                      <FileText v-else theme="outline" size="16" />
+                    </button>
+                    <button
+                      v-if="display.message.role === 'assistant'"
+                      class="ui-icon-button ui-icon-button--small ui-action--muted"
+                      type="button"
+                      :title="t('localAi.regenerate')"
+                      @click="regenerateMessage(display.message.id)"
+                    >
+                      <Refresh theme="outline" size="16" />
+                    </button>
+                    <button
+                      v-if="display.message.role === 'assistant'"
+                      class="ui-icon-button ui-icon-button--small ui-action--muted"
+                      type="button"
+                      :title="t('localAi.branchChat')"
+                      @click="forkFromMessage(display.message.id)"
+                    >
+                      <Fork theme="outline" size="16" />
+                    </button>
+                    <button
+                      class="ui-icon-button ui-icon-button--small ui-action--muted"
+                      type="button"
+                      :title="t('common.edit')"
+                      @click="editMessage(display.message)"
+                    >
+                      <Edit theme="outline" size="16" />
+                    </button>
+                    <button
+                      class="ui-icon-button ui-icon-button--small ui-action--muted"
+                      type="button"
+                      :title="t('common.delete')"
+                      @click="deleteMessage(display.message.id)"
+                    >
+                      <Delete theme="outline" size="16" />
+                    </button>
+                  </div>
+                </template>
+              </div>
+            </article>
+          </template>
+        </div>
       </div>
 
       <div class="composer-dock">
@@ -744,6 +830,7 @@
 import type { ObjectDirective } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { invoke } from '@tauri-apps/api/core';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import {
   Brain,
   Copy,
@@ -766,6 +853,7 @@ import {
   FileText,
   Translate,
   Code,
+  FileSuccess,
   CheckSmall
 } from '@icon-park/vue-next';
 import {
@@ -807,6 +895,8 @@ import {
   estimateTokens,
   mergeChatStreamStats,
   resolveRequestMaxTokens,
+  resolveRequestContextBudget,
+  markAssistantMessageFailed,
   mergeSystemMessages
 } from './chatContext';
 import {
@@ -828,7 +918,10 @@ import type {
   PersistedChatHistory
 } from './types';
 import { useChatAttachments } from './useChatAttachments';
+import { useChatScroll } from './useChatScroll';
+import { useChatMessageWindow } from './useChatMessageWindow';
 import { useChatMarkdown } from './useChatMarkdown';
+import { useChatSavedNotes } from './useChatSavedNotes';
 import AttachmentPreviewDialog from './AttachmentPreviewDialog.vue';
 import {
   buildPromptEnhancementRequest,
@@ -880,8 +973,6 @@ const clearHistoryDialogVisible = ref(false);
 const stopRequested = ref(false);
 const thinkingEnabled = ref(false);
 const composerFocused = ref(false);
-const autoFollowMessages = ref(true);
-const showJumpToBottom = ref(false);
 const currentStreamRequestId = ref<string | null>(null);
 const currentStreamingMessage = shallowRef<ChatMessage | null>(null);
 let promptTransferReady = false;
@@ -894,6 +985,31 @@ const modelScan = ref<LocalAiModelScan | null>(null);
 const selectedChatModelPath = ref('');
 const serviceStatus = ref<LocalAiServiceStatus | null>(null);
 const messageListRef = ref<HTMLElement | null>(null);
+const messageContentRef = ref<HTMLElement | null>(null);
+const {
+  showJumpToBottom,
+  scrollToBottom,
+  forceScrollToBottom,
+  preserveScrollPosition,
+  handleMessageScroll,
+  handleMessageWheel,
+  handleMessagePointerDown,
+  handleMessageTouchStart,
+  handleMessageTouchMove,
+  handleMessageTouchEnd,
+  handleMessageKeydown
+} = useChatScroll(messageListRef, messageContentRef);
+watch(activeHistoryId, forceScrollToBottom, { flush: 'post' });
+const expandedReasoning = ref(new Set<string>());
+watch(activeHistoryId, () => {
+  expandedReasoning.value = new Set();
+});
+const toggleReasoning = (id: string, event: Event): void => {
+  const next = new Set(expandedReasoning.value);
+  if ((event.target as HTMLDetailsElement).open) next.add(id);
+  else next.delete(id);
+  expandedReasoning.value = next;
+};
 const previewedAttachment = ref<LocalAiAttachment | null>(null);
 const attachmentPreviewVisible = computed({
   get: () => Boolean(previewedAttachment.value),
@@ -904,15 +1020,6 @@ const attachmentPreviewVisible = computed({
 const statsTick = ref(Date.now());
 let statusTimer: ReturnType<typeof setInterval> | null = null;
 let statsTimer: ReturnType<typeof setInterval> | null = null;
-let scrollFrameId: number | null = null;
-let scrollFrameForce = false;
-let streamingResizeObserver: ResizeObserver | null = null;
-let observedStreamingCard: Element | null = null;
-let scrollbarPointerActive = false;
-let lastMessageScrollTop = 0;
-let lastMessageTouchY: number | null = null;
-const MESSAGE_BOTTOM_THRESHOLD = 96;
-const MIN_RESPONSE_RESERVE_TOKENS = 4096;
 const STREAM_PUMP_INTERVAL_MS = 90;
 const STREAM_STATS_TICK_MS = 1000;
 const titleResizeObservers = new WeakMap<HTMLElement, ResizeObserver>();
@@ -994,11 +1101,49 @@ const activeHistory = computed(
   () =>
     histories.value.find((item) => item.id === activeHistoryId.value) ?? null
 );
+const { savingIds, syncSavedNotes, saveReply } = useChatSavedNotes({
+  history: activeHistory,
+  persist: (history) => persistHistory(history),
+  answer: (message) => messageAnswer(message.content)
+});
+let savedNoteSyncTimer: ReturnType<typeof setTimeout> | null = null;
+let savedNoteSyncActive = false;
+const savedNoteUnlisteners: UnlistenFn[] = [];
+const scheduleSavedNoteSync = (): void => {
+  if (!savedNoteSyncActive) return;
+  if (savedNoteSyncTimer) clearTimeout(savedNoteSyncTimer);
+  savedNoteSyncTimer = setTimeout(() => {
+    savedNoteSyncTimer = null;
+    void syncSavedNotes().catch((error) =>
+      logger.warn('[LocalAI] saved note sync failed', error)
+    );
+  }, 120);
+};
+watch([activeHistory, () => savingIds.value.size], scheduleSavedNoteSync);
 const activeHistoryTitle = computed(
   () => activeHistory.value?.title || t('localAi.newChatTitle')
 );
-const activeMessages = computed(() => getVisibleMessages(activeHistory.value));
-const displayMessages = computed(() => getDisplayMessages(activeHistory.value));
+const allDisplayMessages = computed(() =>
+  getDisplayMessages(activeHistory.value)
+);
+const {
+  messages: displayMessages,
+  earlierCount: earlierMessageCount,
+  showEarlier
+} = useChatMessageWindow(allDisplayMessages, activeHistoryId);
+const activeMessages = computed(() =>
+  allDisplayMessages.value.map(({ message }) => message)
+);
+const loadingEarlierMessages = ref(false);
+const loadEarlierMessages = async (): Promise<void> => {
+  if (loadingEarlierMessages.value) return;
+  loadingEarlierMessages.value = true;
+  try {
+    await preserveScrollPosition(showEarlier);
+  } finally {
+    loadingEarlierMessages.value = false;
+  }
+};
 const fileName = (path?: string | null): string => {
   if (!path) return '';
   return path.split(/[\\/]+/).pop() ?? path;
@@ -1026,22 +1171,11 @@ const visionAvailable = computed(() => Boolean(config.value?.mmprojPath));
 const effectiveContextLimit = computed(
   () => config.value?.ctxSize ?? serviceStatus.value?.ctxSize ?? 4096
 );
-const responseReserveTokens = computed(() => {
-  const contextLimit = effectiveContextLimit.value;
-  const configuredMaxTokens = config.value?.maxTokens ?? 0;
-  if (configuredMaxTokens > 0) {
-    return Math.min(
-      Math.max(configuredMaxTokens, 512),
-      Math.max(512, contextLimit - 512)
-    );
-  }
-  return Math.min(
-    Math.max(MIN_RESPONSE_RESERVE_TOKENS, Math.floor(contextLimit * 0.5)),
-    Math.max(512, contextLimit - 512)
-  );
-});
 const requestContextBudget = computed(() =>
-  Math.max(512, effectiveContextLimit.value - responseReserveTokens.value)
+  resolveRequestContextBudget(
+    effectiveContextLimit.value,
+    config.value?.maxTokens ?? 0
+  )
 );
 const modelSupportsThinking = computed(() => {
   const name = currentModelDisplay.value.toLowerCase();
@@ -1294,109 +1428,6 @@ const createHistory = (): ChatHistoryView => {
     messages: [root]
   };
 };
-const isMessageListNearBottom = (): boolean => {
-  const list = messageListRef.value;
-  if (!list) return true;
-  return (
-    list.scrollHeight - list.scrollTop - list.clientHeight <=
-    MESSAGE_BOTTOM_THRESHOLD
-  );
-};
-const syncMessageScrollState = (): void => {
-  const nearBottom = isMessageListNearBottom();
-  if (nearBottom) autoFollowMessages.value = true;
-  showJumpToBottom.value = !nearBottom && !autoFollowMessages.value;
-};
-const cancelPendingAutoScroll = (): void => {
-  if (scrollFrameId === null || scrollFrameForce) return;
-  window.cancelAnimationFrame(scrollFrameId);
-  scrollFrameId = null;
-};
-const pauseAutoFollow = (): void => {
-  autoFollowMessages.value = false;
-  showJumpToBottom.value = !isMessageListNearBottom();
-  cancelPendingAutoScroll();
-};
-const handleMessageScroll = (): void => {
-  const list = messageListRef.value;
-  if (list) {
-    if (scrollbarPointerActive && list.scrollTop < lastMessageScrollTop - 1) {
-      pauseAutoFollow();
-    }
-    lastMessageScrollTop = list.scrollTop;
-  }
-  syncMessageScrollState();
-};
-const handleMessageWheel = (event: WheelEvent): void => {
-  if (event.deltaY >= 0) return;
-  pauseAutoFollow();
-  window.requestAnimationFrame(syncMessageScrollState);
-};
-const handleMessagePointerDown = (event: PointerEvent): void => {
-  const list = messageListRef.value;
-  if (!list) return;
-  const bounds = list.getBoundingClientRect();
-  const scrollbarWidth = Math.max(12, list.offsetWidth - list.clientWidth);
-  if (event.clientX < bounds.right - scrollbarWidth) return;
-  scrollbarPointerActive = true;
-  lastMessageScrollTop = list.scrollTop;
-  cancelPendingAutoScroll();
-};
-const finishMessagePointerScroll = (): void => {
-  scrollbarPointerActive = false;
-  syncMessageScrollState();
-};
-const handleMessageTouchStart = (event: TouchEvent): void => {
-  lastMessageTouchY = event.touches[0]?.clientY ?? null;
-};
-const handleMessageTouchMove = (event: TouchEvent): void => {
-  const nextY = event.touches[0]?.clientY;
-  if (nextY === undefined || lastMessageTouchY === null) return;
-  if (nextY > lastMessageTouchY) pauseAutoFollow();
-  lastMessageTouchY = nextY;
-};
-const handleMessageTouchEnd = (): void => {
-  lastMessageTouchY = null;
-  syncMessageScrollState();
-};
-const syncStreamingResizeTarget = (): void => {
-  if (!streamingResizeObserver) return;
-  const nextCard =
-    messageListRef.value?.querySelector('.assistant-card--streaming') ?? null;
-  if (nextCard === observedStreamingCard) return;
-  if (observedStreamingCard) {
-    streamingResizeObserver.unobserve(observedStreamingCard);
-  }
-  observedStreamingCard = nextCard;
-  if (observedStreamingCard) {
-    streamingResizeObserver.observe(observedStreamingCard);
-  }
-};
-const scrollToBottom = async (options: { force?: boolean } = {}) => {
-  await nextTick();
-  syncStreamingResizeTarget();
-  const list = messageListRef.value;
-  if (!list || (!options.force && !autoFollowMessages.value)) return;
-  scrollFrameForce = scrollFrameForce || options.force === true;
-  if (scrollFrameId !== null) return;
-
-  scrollFrameId = window.requestAnimationFrame(() => {
-    scrollFrameId = null;
-    const target = messageListRef.value;
-    const force = scrollFrameForce;
-    scrollFrameForce = false;
-    if (!target || (!force && !autoFollowMessages.value)) return;
-    const nextTop = Math.max(0, target.scrollHeight - target.clientHeight);
-    if (Math.abs(target.scrollTop - nextTop) > 1) {
-      target.scrollTop = nextTop;
-    }
-    syncMessageScrollState();
-  });
-};
-const forceScrollToBottom = () => {
-  autoFollowMessages.value = true;
-  void scrollToBottom({ force: true });
-};
 const refreshConfig = async () => {
   try {
     config.value = await getLocalAiConfig();
@@ -1505,6 +1536,7 @@ const openHistory = (id: string) => {
     attachments.value = [];
     closeAttachmentPreview();
   }
+  const changingHistory = activeHistoryId.value !== id;
   activeHistoryId.value = id;
   const current = activeHistory.value;
   if (current && !current.currentNodeId) {
@@ -1512,8 +1544,8 @@ const openHistory = (id: string) => {
       findLeafNodeId(current.messages, findRootMessage(current.messages)?.id) ??
       null;
   }
-  autoFollowMessages.value = true;
-  scrollToBottom({ force: true });
+  // The history watcher already scrolls a newly selected conversation.
+  if (!changingHistory) forceScrollToBottom();
 };
 const deleteHistoryItem = async (id: string) => {
   if (navigationLocked.value) return;
@@ -1655,20 +1687,23 @@ const toApiMessages = (
   const runtimeContext = createRuntimeContextMessage();
   const runtimeTokens = estimateChatTokens([runtimeContext]);
   const messageBudget = Math.max(
-    512,
+    64,
     requestContextBudget.value - runtimeTokens
   );
   return [
     runtimeContext,
     ...compactMessagesForBudget(
       getVisibleMessages(history)
-        .filter((message) => !message.streaming && message.role !== 'system')
+        .filter(
+          (message) =>
+            !message.streaming && !message.error && message.role !== 'system'
+        )
         .map((message) => ({
           role: message.role as 'user' | 'assistant',
           content:
             message.role === 'user'
               ? apiUserMessageContent(message)
-              : message.content
+              : messageAnswer(message.content)
         })),
       messageBudget,
       t('localAi.previousAnswerTail')
@@ -1751,7 +1786,7 @@ const messageWarningText = (message: ChatMessage): string => {
   return '';
 };
 const formatChatError = (error: unknown): string => {
-  const message = String(error);
+  const message = error instanceof Error ? error.message : String(error);
   if (/exceeds the available context size|exceed_context_size/i.test(message)) {
     return t('localAi.contextExceeded');
   }
@@ -1829,7 +1864,10 @@ const streamAssistantMessage = async (
   requestId: string
 ) => {
   const startedAt = performance.now();
+  assistantMessage.modelName = currentModelDisplay.value;
   let messages = toApiMessages(history);
+  if (estimateChatTokens(messages) > requestContextBudget.value)
+    throw new Error(t('localAi.contextTooLarge'));
   let queuedContent = '';
   let pumpTimer: number | null = null;
   let drainResolver: (() => void) | null = null;
@@ -1880,7 +1918,8 @@ const streamAssistantMessage = async (
         logger.warn('[LocalAI] repetition stop failed', error)
       );
     }
-    await scrollToBottom();
+    // A hidden window can suspend animation frames; keep draining model output.
+    void scrollToBottom();
     if (!queuedContent) {
       pumpTimer = null;
       drainResolver?.();
@@ -1955,7 +1994,7 @@ const streamAssistantMessage = async (
   }
 
   await waitForPumpDrain();
-
+  assistantMessage.modelName = response.modelName || assistantMessage.modelName;
   if (
     !stopRequested.value &&
     response.content &&
@@ -2074,9 +2113,7 @@ const sendMessage = async () => {
       attachments.value = submittedAttachments;
       const chatError = formatChatError(error);
       modal.msg(`${t('localAi.chatFailed')}: ${chatError}`, 'error');
-      assistantMessage.error = chatError;
-      assistantMessage.interrupted = Boolean(assistantMessage.content.trim());
-      if (!assistantMessage.interrupted) assistantMessage.content = chatError;
+      markAssistantMessageFailed(assistantMessage, chatError);
       if (current) {
         current.title =
           current.title === t('localAi.newChatTitle')
@@ -2218,7 +2255,6 @@ const changeMessageVersion = (display: ChatDisplayMessage, delta: number) => {
   const nextLeafId = display.siblingLeafNodeIds[nextIndex];
   if (!nextLeafId) return;
   current.currentNodeId = nextLeafId;
-  autoFollowMessages.value = true;
   void scrollToBottom({ force: true });
 };
 const forkFromMessage = async (messageId: string) => {
@@ -2264,7 +2300,6 @@ const forkFromMessage = async (messageId: string) => {
   activeHistoryId.value = forked.id;
   draft.value = '';
   attachments.value = [];
-  autoFollowMessages.value = true;
   await persistHistory(forked);
   await scrollToBottom({ force: true });
   modal.msg(t('localAi.branchCreated'));
@@ -2298,9 +2333,7 @@ const regenerateMessage = async (messageId: string) => {
     if (!stopRequested.value) {
       const chatError = formatChatError(error);
       modal.msg(`${t('localAi.chatFailed')}: ${chatError}`, 'error');
-      assistantMessage.error = chatError;
-      assistantMessage.interrupted = Boolean(assistantMessage.content.trim());
-      if (!assistantMessage.interrupted) assistantMessage.content = chatError;
+      markAssistantMessageFailed(assistantMessage, chatError);
       current.updatedAt = new Date().toISOString();
       current.updatedAtLabel = new Date(current.updatedAt).toLocaleString();
       await persistHistory(current);
@@ -2321,6 +2354,22 @@ const regenerateMessage = async (messageId: string) => {
 };
 
 onMounted(async () => {
+  savedNoteSyncActive = true;
+  window.addEventListener('refresh-data', scheduleSavedNoteSync);
+  window.addEventListener('refresh-categories', scheduleSavedNoteSync);
+  window.addEventListener('focus', scheduleSavedNoteSync);
+  // Listen directly as well: filesystem changes must sync even when the
+  // Git plugin that normally bridges these events is disabled.
+  for (const event of ['files-changed-batch', 'dirs-changed-batch']) {
+    void listen(event, scheduleSavedNoteSync)
+      .then((unlisten) => {
+        if (savedNoteSyncActive) savedNoteUnlisteners.push(unlisten);
+        else unlisten();
+      })
+      .catch((error) =>
+        logger.warn('[LocalAI] workspace listener failed', error)
+      );
+  }
   window.addEventListener('local-ai-prompt-ready', handlePendingPromptEvent);
   window.addEventListener(
     'local-ai-new-chat-requested',
@@ -2331,13 +2380,6 @@ onMounted(async () => {
     pendingLocalAiPromptRequiresNewChat(localStorage)
   );
   resizeComposerInput();
-  if (typeof ResizeObserver !== 'undefined') {
-    streamingResizeObserver = new ResizeObserver(() => {
-      if (autoFollowMessages.value) void scrollToBottom();
-    });
-  }
-  window.addEventListener('pointerup', finishMessagePointerScroll);
-  window.addEventListener('pointercancel', finishMessagePointerScroll);
   window.addEventListener('keydown', handleGlobalKeydown);
   try {
     await refreshAll();
@@ -2377,6 +2419,12 @@ watch(modelSupportsThinking, (supported) => {
   if (!supported) thinkingEnabled.value = false;
 });
 onUnmounted(() => {
+  savedNoteSyncActive = false;
+  if (savedNoteSyncTimer) clearTimeout(savedNoteSyncTimer);
+  window.removeEventListener('refresh-data', scheduleSavedNoteSync);
+  window.removeEventListener('refresh-categories', scheduleSavedNoteSync);
+  window.removeEventListener('focus', scheduleSavedNoteSync);
+  savedNoteUnlisteners.splice(0).forEach((unlisten) => unlisten());
   promptTransferReady = false;
   queuedTransferredPrompt = null;
   queuedPromptFromSearch = false;
@@ -2388,15 +2436,6 @@ onUnmounted(() => {
     handleNewChatRequestEvent
   );
   if (statusTimer) clearInterval(statusTimer);
-  if (scrollFrameId !== null) {
-    window.cancelAnimationFrame(scrollFrameId);
-    scrollFrameId = null;
-  }
-  streamingResizeObserver?.disconnect();
-  streamingResizeObserver = null;
-  observedStreamingCard = null;
-  window.removeEventListener('pointerup', finishMessagePointerScroll);
-  window.removeEventListener('pointercancel', finishMessagePointerScroll);
   window.removeEventListener('keydown', handleGlobalKeydown);
   if (currentStreamRequestId.value) {
     void cancelAiChatStream(currentStreamRequestId.value, {
