@@ -14,6 +14,50 @@ export const MARKDOWN_EDITOR_PARSE_OPTIONS = {
 // 连续空行会在解析前临时展开为此标记，旧文件中的标记也仍然可以正常读取。
 const EMPTY_PARAGRAPH_MARKDOWN = '<p></p>';
 
+/** Preserve fenced code before applying editor-specific prose normalizations. */
+function transformOutsideFencedCode(
+  markdown: string,
+  transform: (text: string) => string
+): string {
+  const blocks: string[] = [];
+  let lines: string[] = [];
+  let fence: { character: string; length: number } | null = null;
+  const flush = (isCode: boolean): void => {
+    if (lines.length) {
+      const text = lines.join('\n');
+      blocks.push(isCode ? text : transform(text));
+      lines = [];
+    }
+  };
+
+  for (const line of markdown.replace(/\r\n?/g, '\n').split('\n')) {
+    if (fence) {
+      lines.push(line);
+      const closing = line.match(/^[ \t]*(?:>[ \t]*)*(`{3,}|~{3,})[ \t]*$/);
+      if (
+        closing?.[1][0] === fence.character &&
+        closing[1].length >= fence.length
+      ) {
+        flush(true);
+        fence = null;
+      }
+      continue;
+    }
+
+    // List continuations can indent fences beyond three spaces; quotes can nest.
+    const opening = line.match(
+      /^[ \t]*(?:>[ \t]*)*(?:(?:[-+*]|\d+[.)])[ \t]+)?(`{3,}|~{3,})(.*)$/
+    );
+    if (opening && !(opening[1][0] === '`' && opening[2].includes('`'))) {
+      flush(false);
+      fence = { character: opening[1][0], length: opening[1].length };
+    }
+    lines.push(line);
+  }
+  flush(Boolean(fence));
+  return blocks.join('\n');
+}
+
 /**
  * marked 会在 raw HTML 块前后保留 Markdown 分隔换行。在编辑器使用
  * preserveWhitespace: 'full' 解析时，这些换行会变成额外的空段落；旧版标记里的
@@ -38,8 +82,6 @@ function expandSourceEmptyParagraphs(markdown: string): string {
 
   const expanded: string[] = [];
   let pendingBlankLines = 0;
-  let fenceCharacter = '';
-  let fenceLength = 0;
 
   const flushBlankLines = () => {
     if (pendingBlankLines === 0) return;
@@ -52,18 +94,6 @@ function expandSourceEmptyParagraphs(markdown: string): string {
   };
 
   lines.forEach((line) => {
-    if (fenceCharacter) {
-      expanded.push(line);
-      const closingFence = new RegExp(
-        `^ {0,3}${fenceCharacter}{${fenceLength},}[ \\t]*$`
-      );
-      if (closingFence.test(line)) {
-        fenceCharacter = '';
-        fenceLength = 0;
-      }
-      return;
-    }
-
     if (line.length === 0) {
       pendingBlankLines += 1;
       return;
@@ -71,12 +101,6 @@ function expandSourceEmptyParagraphs(markdown: string): string {
 
     flushBlankLines();
     expanded.push(line);
-
-    const openingFence = line.match(/^ {0,3}(`{3,}|~{3,})/);
-    if (openingFence) {
-      fenceCharacter = openingFence[1][0];
-      fenceLength = openingFence[1].length;
-    }
   });
 
   flushBlankLines();
@@ -241,33 +265,9 @@ function protectIndentedParagraphBlocks(markdown: string): string {
   const lines = markdown.replace(/\r\n?/g, '\n').split('\n');
   let protectCurrentBlock = false;
   let atBlockStart = true;
-  let fenceCharacter = '';
-  let fenceLength = 0;
 
   return lines
     .map((line) => {
-      if (fenceCharacter) {
-        const closingFence = new RegExp(
-          `^ {0,3}${fenceCharacter}{${fenceLength},}[ \\t]*$`
-        );
-        if (closingFence.test(line)) {
-          fenceCharacter = '';
-          fenceLength = 0;
-          protectCurrentBlock = false;
-          atBlockStart = true;
-        }
-        return line;
-      }
-
-      const openingFence = line.match(/^ {0,3}(`{3,}|~{3,})/);
-      if (openingFence) {
-        fenceCharacter = openingFence[1][0];
-        fenceLength = openingFence[1].length;
-        protectCurrentBlock = false;
-        atBlockStart = false;
-        return line;
-      }
-
       if (!line.trim()) {
         protectCurrentBlock = false;
         atBlockStart = true;
@@ -291,9 +291,11 @@ function protectIndentedParagraphBlocks(markdown: string): string {
 }
 
 function normalizeMarkdownBeforeParse(markdown: string): string {
-  return fixPunctuationBeforeStrong(
-    normalizeLooseInlineMarkdown(
-      protectIndentedParagraphBlocks(expandSourceEmptyParagraphs(markdown))
+  return transformOutsideFencedCode(markdown, (text) =>
+    fixPunctuationBeforeStrong(
+      normalizeLooseInlineMarkdown(
+        protectIndentedParagraphBlocks(expandSourceEmptyParagraphs(text))
+      )
     )
   );
 }
@@ -536,14 +538,23 @@ function renderUnparsedLabelStrong(html: string): string {
     /<(p|li|h[1-6]|blockquote|td|th)>([\s\S]*?)<\/\1>/g,
     (_match, tag: string, content: string) => {
       const fixedContent = content
-        .replace(
-          /\*\*([^*<\r\n]*?[^\s*<\r\n])\s*\*\*/g,
-          (_m, label: string) => `<strong>${escapeHtml(label.trim())}</strong>`
+        .split(/(<pre\b[^>]*>[\s\S]*?<\/pre>|<code\b[^>]*>[\s\S]*?<\/code>)/gi)
+        .map((part) =>
+          /^<(?:pre|code)\b/i.test(part)
+            ? part
+            : part
+                .replace(
+                  /\*\*([^*<\r\n]*?[^\s*<\r\n])\s*\*\*/g,
+                  (_m, label: string) =>
+                    `<strong>${escapeHtml(label.trim())}</strong>`
+                )
+                .replace(
+                  /__([^_<\r\n]*?[^\s_<\r\n])\s*__/g,
+                  (_m, label: string) =>
+                    `<strong>${escapeHtml(label.trim())}</strong>`
+                )
         )
-        .replace(
-          /__([^_<\r\n]*?[^\s_<\r\n])\s*__/g,
-          (_m, label: string) => `<strong>${escapeHtml(label.trim())}</strong>`
-        );
+        .join('');
 
       // 结构化处理仅用于段落（AI 输出的标签+正文混合场景），
       // 避免在列表项、标题等元素中产生意外的标签拆分。

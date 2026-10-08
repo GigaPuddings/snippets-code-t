@@ -262,18 +262,14 @@ const copyCode = async () => {
   --shiki-green: #116329;
   --shiki-orange: #953800;
 
-  margin: 0.6em 0 0.72em;
+  margin: var(--markdown-block-gap) 0;
   background: var(--code-block-bg, var(--editor-hover-bg));
   border: 1px solid var(--code-block-border, var(--editor-border));
-  border-radius: 7px;
-  box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
-  transition:
-    border-color 0.18s ease,
-    box-shadow 0.18s ease;
+  border-radius: var(--app-ui-radius-lg);
+  transition: border-color 0.18s ease;
 
   &:hover {
     border-color: var(--code-block-hover-border, var(--editor-border));
-    box-shadow: 0 3px 10px rgb(15 23 42 / 6%);
   }
 
   &:focus-within {
@@ -359,12 +355,12 @@ const copyCode = async () => {
 .code-block-pre {
   @apply box-border w-full min-w-0 max-w-full overflow-x-auto;
 
-  padding: 12px 14px;
+  padding: var(--markdown-block-gap);
   margin: 0 !important;
   font-family: ui-monospace, 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono',
     Consolas, 'Courier New', monospace;
-  font-size: 13px;
-  line-height: 1.6;
+  font-size: var(--markdown-code-size);
+  line-height: var(--markdown-code-line-height);
   background: transparent;
 
   &::-webkit-scrollbar {
@@ -402,7 +398,7 @@ const copyCode = async () => {
   font-family: inherit;
   font-size: inherit;
   line-height: inherit;
-  color: var(--panel-text, inherit);
+  color: var(--markdown-text);
   word-break: normal;
   tab-size: 2;
   white-space: pre-wrap !important;

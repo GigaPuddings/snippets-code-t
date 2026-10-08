@@ -1,0 +1,143 @@
+// Shared by the TipTap document and the AI plugin's rendered Markdown.
+// Keep editor node views and chat actions in their respective components.
+@mixin typography {
+  font-family: var(--app-document-font-family);
+  font-size: var(--markdown-body-size);
+  line-height: var(--markdown-line-height, var(--markdown-body-line-height));
+  color: var(--markdown-text);
+  overflow-wrap: anywhere;
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    margin: var(--markdown-heading-gap) 0 var(--markdown-heading-bottom-gap);
+    font-weight: var(--markdown-heading-weight);
+    line-height: 1.5;
+    color: var(--markdown-heading);
+    overflow-wrap: anywhere;
+  }
+
+  h1 {
+    font-size: var(--markdown-h1-size);
+  }
+
+  h2 {
+    font-size: var(--markdown-h2-size);
+  }
+
+  h3 {
+    font-size: var(--markdown-h3-size);
+  }
+
+  h4,
+  h5,
+  h6 {
+    font-size: var(--markdown-body-size);
+  }
+
+  h6 {
+    color: var(--markdown-muted);
+  }
+
+  > :first-child {
+    margin-top: 0;
+  }
+
+  p {
+    margin: 0 0 var(--markdown-block-gap);
+  }
+
+  strong {
+    font-weight: var(--markdown-heading-weight);
+  }
+
+  em {
+    @apply italic;
+  }
+
+  s {
+    @apply line-through;
+  }
+
+  ul:not([data-type='taskList'], .task-list),
+  ol {
+    padding-left: var(--markdown-list-indent);
+    margin: var(--markdown-heading-bottom-gap) 0 var(--markdown-block-gap);
+    list-style-position: outside;
+
+    > li {
+      display: list-item;
+      list-style: inherit;
+
+      &::marker {
+        font-weight: 400;
+        color: var(--markdown-muted);
+      }
+    }
+
+    > li + li {
+      margin-top: var(--markdown-list-item-gap);
+    }
+  }
+
+  ul:not([data-type='taskList'], .task-list) {
+    list-style-type: disc;
+  }
+
+  ol {
+    list-style-type: decimal;
+  }
+
+  li > p {
+    margin-bottom: var(--markdown-list-item-gap);
+  }
+
+  li > p:last-child {
+    margin-bottom: 0;
+  }
+
+  code {
+    @apply font-mono;
+
+    padding: 2px 4px;
+    font-size: 0.9em;
+    color: var(--markdown-inline-code-text);
+    background: var(--markdown-inline-code-bg);
+    border: 0;
+    border-radius: var(--app-ui-radius);
+  }
+
+  pre code {
+    padding: 0;
+    font-size: var(--markdown-code-size);
+    line-height: var(--markdown-code-line-height);
+    color: inherit;
+    background: transparent;
+    border-radius: 0;
+  }
+
+  blockquote {
+    padding: 4px 0 4px var(--markdown-block-gap);
+    margin: var(--markdown-block-gap) 0;
+    color: var(--markdown-muted);
+    border-left: 3px solid var(--markdown-quote-border);
+
+    p:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  hr {
+    height: 0;
+    margin: 16px 0;
+    border: 0;
+    border-top: 1px solid var(--markdown-heading-border);
+  }
+
+  > :last-child {
+    margin-bottom: 0;
+  }
+}

@@ -731,6 +731,60 @@ describe('markdownToHtml', () => {
     expect(html).toContain('<table>');
   });
 
+  it.each(['```', '~~~~'])(
+    'keeps a list-nested %s code block intact across empty lines',
+    (fence) => {
+      const html = markdownToHtml(
+        [
+          '1.  **确保引入**：安装依赖。',
+          '2.  **配置文件** (`vite.config.ts`):',
+          `    ${fence}typescript`,
+          "    import { defineConfig } from 'vite';",
+          '',
+          '',
+          '    export default defineConfig({',
+          '      plugins: [vue()],',
+          '    });',
+          `    ${fence}`,
+          '',
+          '3.  **构建后**：检查输出。'
+        ].join('\n')
+      );
+      const code = html.match(
+        /<pre><code class="language-typescript">([\s\S]*?)<\/code><\/pre>/
+      )?.[1];
+
+      expect(code).toContain(
+        '\n\n\nexport default defineConfig({\n  plugins: [vue()],\n});\n'
+      );
+      expect(code).not.toContain('&amp;#32;');
+      expect(code).not.toContain('&lt;p&gt;');
+      expect(html.match(/<pre>/g)).toHaveLength(1);
+      expect(html).toContain('<strong>构建后</strong>');
+    }
+  );
+
+  it('keeps code inside nested quotes verbatim instead of applying prose formatting', () => {
+    const html = markdownToHtml(
+      [
+        '> > ```text',
+        '> > **label: **literal text',
+        '> >',
+        '> >',
+        '> >     indented code',
+        '> > ```',
+        '',
+        'After the code block.'
+      ].join('\n')
+    );
+    const code = html.match(
+      /<pre><code class="language-text">([\s\S]*?)<\/code><\/pre>/
+    )?.[1];
+
+    expect(code).toBe('**label: **literal text\n\n\n    indented code\n');
+    expect(html).toContain('<p>After the code block.</p>');
+  });
+
   it('renders bold when Chinese full-width parenthesis precedes the closing delimiter', () => {
     // CommonMark 的右侧重边距判定：）是 Unicode 标点，当 ** 后面紧跟非标点字符时，
     // ** 不会被识别为结束分隔符。预处理阶段在标点与 ** 之间插入零宽空格来修复。

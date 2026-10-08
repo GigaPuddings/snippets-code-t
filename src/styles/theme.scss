@@ -5,8 +5,7 @@
   // Desktop UI scale inferred from the supplied Codex screenshot at 150% DPI.
   --app-ui-font-family: 'Segoe UI Variable', 'Segoe UI', 'Microsoft YaHei UI',
     'Microsoft YaHei', sans-serif;
-  --app-document-font-family: 'Helvetica Neue', helvetica, 'PingFang SC',
-    'Hiragino Sans GB', 'Microsoft YaHei', '微软雅黑', arial, sans-serif;
+  --app-document-font-family: var(--app-ui-font-family);
   --app-ui-font-size: 14px;
   --app-ui-line-height: 20px;
   --app-ui-caption-size: 12px;
@@ -19,6 +18,20 @@
   --app-ui-radius: 8px;
   --app-ui-radius-lg: 12px;
   --app-ui-row-gap: 2px;
+  // One Markdown scale for workspace documents and AI replies.
+  --markdown-body-size: var(--app-ui-font-size);
+  --markdown-body-line-height: 1.75;
+  --markdown-h1-size: var(--app-ui-title-size);
+  --markdown-h2-size: 18px;
+  --markdown-h3-size: 16px;
+  --markdown-heading-weight: 600;
+  --markdown-heading-gap: 20px;
+  --markdown-heading-bottom-gap: 8px;
+  --markdown-block-gap: 12px;
+  --markdown-list-indent: 22px;
+  --markdown-list-item-gap: 4px;
+  --markdown-code-size: 13px;
+  --markdown-code-line-height: 1.65;
   // Shared interaction surfaces; pages retain only their layout differences.
   --app-ui-hover-bg: var(--workspace-nav-selected);
   --app-ui-selected-bg: var(--workspace-nav-selected);
@@ -106,24 +119,24 @@
   --editor-text-secondary: #6b7280;
   --editor-hover-bg: #f3f7ff;
   --editor-scrollbar-thumb: var(--app-scrollbar-thumb);
-  --code-block-bg: #f3f6fb;
-  --code-block-border: #d8e1ed;
-  --code-block-hover-border: #bdc9da;
-  --code-block-toolbar-bg: rgb(255 255 255 / 88%);
-  --code-block-toolbar-border: #d5deea;
+  --code-block-bg: var(--app-ui-card-soft-bg);
+  --code-block-border: var(--settings-border);
+  --code-block-hover-border: var(--settings-divider);
+  --code-block-toolbar-bg: var(--settings-surface);
+  --code-block-toolbar-border: var(--settings-border);
   --code-block-selection: rgb(95 116 243 / 18%);
   --fragment-drag-shadow: 0 18px 46px rgb(39 76 119 / 20%),
     0 4px 14px rgb(26 43 63 / 12%);
   --fragment-drop-shadow: 0 6px 18px rgb(79 96 229 / 14%);
-  --markdown-heading: #172033;
-  --markdown-heading-border: #e2e8f1;
-  --markdown-muted: #667085;
-  --markdown-inline-code-bg: #eef2f8;
-  --markdown-inline-code-text: #344054;
-  --markdown-quote-bg: #f5f7ff;
-  --markdown-quote-border: #8b9cf8;
-  --markdown-table-header: #f6f8fc;
-  --markdown-table-row-hover: #f8faff;
+  --markdown-text: var(--workspace-nav-text);
+  --markdown-heading: var(--workspace-nav-heading);
+  --markdown-heading-border: var(--settings-border);
+  --markdown-muted: var(--workspace-nav-muted);
+  --markdown-inline-code-bg: var(--app-ui-card-bg);
+  --markdown-inline-code-text: var(--workspace-nav-heading);
+  --markdown-quote-border: var(--settings-divider);
+  --markdown-table-header: var(--app-ui-card-bg);
+  --markdown-table-row-hover: var(--app-ui-card-soft-bg);
 
   // ==================== 状态栏主题变量 ====================
   --statusbar-bg: #f9fafc;
@@ -314,24 +327,24 @@ html.dark {
   --editor-text-secondary: #9ca3af;
   --editor-hover-bg: #2a2a2a;
   --editor-scrollbar-thumb: var(--app-scrollbar-thumb);
-  --code-block-bg: #24272c;
-  --code-block-border: #343a43;
-  --code-block-hover-border: #4b5563;
-  --code-block-toolbar-bg: rgb(30 32 36 / 88%);
-  --code-block-toolbar-border: #414854;
+  --code-block-bg: var(--app-ui-card-soft-bg);
+  --code-block-border: var(--settings-border);
+  --code-block-hover-border: var(--settings-divider);
+  --code-block-toolbar-bg: var(--settings-surface);
+  --code-block-toolbar-border: var(--settings-border);
   --code-block-selection: rgb(93 109 253 / 28%);
   --fragment-drag-shadow: 0 22px 52px rgb(0 0 0 / 48%),
     0 5px 16px rgb(0 0 0 / 30%);
   --fragment-drop-shadow: 0 6px 20px rgb(0 0 0 / 28%);
-  --markdown-heading: #f0f3f8;
-  --markdown-heading-border: #343a43;
-  --markdown-muted: #9ca3af;
-  --markdown-inline-code-bg: #292d34;
-  --markdown-inline-code-text: #d7dce5;
-  --markdown-quote-bg: #242735;
-  --markdown-quote-border: #7d91f6;
-  --markdown-table-header: #272a30;
-  --markdown-table-row-hover: #25282e;
+  --markdown-text: var(--workspace-nav-text);
+  --markdown-heading: var(--workspace-nav-heading);
+  --markdown-heading-border: var(--settings-border);
+  --markdown-muted: var(--workspace-nav-muted);
+  --markdown-inline-code-bg: var(--app-ui-card-bg);
+  --markdown-inline-code-text: var(--workspace-nav-heading);
+  --markdown-quote-border: var(--settings-divider);
+  --markdown-table-header: var(--app-ui-card-bg);
+  --markdown-table-row-hover: var(--app-ui-card-soft-bg);
 
   // ==================== 状态栏深色主题变量 ====================
   --statusbar-bg: #1e1e1e;

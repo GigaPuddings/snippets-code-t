@@ -524,9 +524,9 @@ watch(
   .content-page {
     @apply overflow-hidden min-w-0;
 
-    // The editor retains its existing typography while the application UI changes.
+    // Document typography is shared with AI replies through Markdown tokens.
     font-family: var(--app-document-font-family);
-    font-size: 16px;
+    font-size: var(--markdown-body-size);
   }
 }
 

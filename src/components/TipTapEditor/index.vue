@@ -1342,10 +1342,13 @@ defineExpose({
 </script>
 
 <style lang="scss" scoped>
+@use '@/styles/markdown';
+
 .editor-container {
   @apply relative overflow-hidden flex h-full;
 
   --editor-line-height: var(--editor-line-height-value, 1.6);
+  --markdown-line-height: var(--editor-line-height);
 
   background-color: var(--editor-bg);
   transition:
@@ -1397,15 +1400,14 @@ defineExpose({
   @apply box-border h-auto min-h-full max-w-full whitespace-pre-wrap overflow-y-visible min-w-0 outline-none;
 
   width: min(100%, 1080px);
-  padding: 28px 0 0;
+  padding: 16px 0 0;
   margin: 0 auto;
-  font-size: 17px;
-  line-height: var(--editor-line-height);
-  color: var(--editor-text);
   background-color: var(--editor-bg);
   transition:
     background-color 0.3s ease,
     color 0.3s ease;
+
+  @include markdown.typography;
 
   > * {
     @apply box-border min-w-0 max-w-full;
@@ -1434,33 +1436,15 @@ defineExpose({
   }
 
   &.dark {
-    color: var(--editor-text);
+    color: var(--markdown-text);
     background-color: var(--editor-bg);
-
-    h1,
-    h2,
-    h3,
-    h4,
-    h5,
-    h6 {
-      color: var(--editor-text);
-      transition: color 0.3s ease;
-    }
-
-    code {
-      color: var(--markdown-inline-code-text);
-      background-color: var(--markdown-inline-code-bg);
-      transition:
-        background-color 0.3s ease,
-        color 0.3s ease;
-    }
 
     // 代码块内的 code 不应用内联样式
     pre code {
       @apply bg-transparent text-inherit p-0 rounded-none;
     }
 
-    // 代码块样式已移至 CodeBlockComponent.vue
+    // 代码块样式由 CodeBlockHighlightComponent.vue 维护
     pre {
       @apply mb-3;
     }
@@ -1486,20 +1470,6 @@ defineExpose({
     .code-block-wrapper .hljs-comment {
       font-style: italic !important;
       color: #9ca3af !important;
-    }
-
-    blockquote {
-      color: var(--editor-text);
-      border-left-color: var(--markdown-quote-border);
-      transition:
-        border-color 0.3s ease,
-        color 0.3s ease;
-    }
-
-    hr {
-      @apply border-[#727377];
-
-      transition: border-color 0.3s ease;
     }
 
     a {
@@ -1636,81 +1606,8 @@ defineExpose({
     }
   }
 
-  h1 {
-    padding-bottom: 0.28em;
-    margin-top: 1.25em;
-    margin-bottom: 0.48em;
-    font-size: 1.82em;
-    font-weight: 750;
-    line-height: 1.22;
-    color: var(--markdown-heading);
-    letter-spacing: -0.025em;
-    border-bottom: 1px solid var(--markdown-heading-border);
-    transition: color 0.3s ease;
-  }
-
-  h2 {
-    margin-top: 1.1em;
-    margin-bottom: 0.42em;
-    font-size: 1.42em;
-    font-weight: 720;
-    line-height: 1.28;
-    color: var(--markdown-heading);
-    letter-spacing: -0.018em;
-    transition: color 0.3s ease;
-  }
-
-  h3 {
-    margin-top: 1em;
-    margin-bottom: 0.38em;
-    font-size: 1.22em;
-    font-weight: 700;
-    line-height: 1.35;
-    color: var(--markdown-heading);
-    transition: color 0.3s ease;
-  }
-
-  h4 {
-    margin-top: 0.9em;
-    margin-bottom: 0.34em;
-    font-size: 1.12em;
-    font-weight: 680;
-    line-height: 1.4;
-    color: var(--markdown-heading);
-    transition: color 0.3s ease;
-  }
-
-  h5 {
-    margin-top: 0.82em;
-    margin-bottom: 0.3em;
-    font-size: 1em;
-    font-weight: 680;
-    line-height: 1.4;
-    color: var(--markdown-heading);
-    transition: color 0.3s ease;
-  }
-
-  h6 {
-    margin-top: 0.78em;
-    margin-bottom: 0.3em;
-    font-size: 0.95em;
-    font-weight: 680;
-    line-height: 1.4;
-    color: var(--markdown-muted);
-    letter-spacing: 0.01em;
-    transition: color 0.3s ease;
-  }
-
-  > h1:first-child,
-  > h2:first-child,
-  > h3:first-child,
-  > h4:first-child {
-    margin-top: 0;
-  }
-
   p {
     min-height: calc(var(--editor-line-height) * 1em);
-    margin: 0 0 0.5em;
     line-height: var(--editor-line-height);
     transition: color 0.3s ease;
   }
@@ -1731,41 +1628,6 @@ defineExpose({
     margin-top: 0.48em;
   }
 
-  li > p {
-    margin-bottom: 0.18em;
-  }
-
-  li > p:last-child {
-    margin-bottom: 0;
-  }
-
-  strong {
-    @apply font-bold;
-  }
-
-  em {
-    @apply italic;
-  }
-
-  s {
-    @apply line-through;
-  }
-
-  code {
-    @apply font-mono;
-
-    padding: 0.16em 0.38em;
-    font-size: 0.88em;
-    color: var(--markdown-inline-code-text);
-    background-color: var(--markdown-inline-code-bg);
-    border: 1px solid
-      color-mix(in srgb, var(--markdown-heading-border) 74%, transparent);
-    border-radius: 5px;
-    transition:
-      background-color 0.3s ease,
-      color 0.3s ease;
-  }
-
   // 代码块内的 code 不应用内联样式
   pre code {
     @apply bg-transparent text-inherit p-0 rounded-none;
@@ -1775,7 +1637,7 @@ defineExpose({
     display: none;
   }
 
-  // 代码块样式已移至 CodeBlockComponent.vue
+  // 代码块样式由 CodeBlockHighlightComponent.vue 维护
   pre {
     @apply mb-3;
   }
@@ -1801,47 +1663,6 @@ defineExpose({
   .code-block-wrapper .hljs-comment {
     font-style: italic !important;
     color: #6b7280 !important;
-  }
-
-  ul:not([data-type='taskList']) {
-    padding-left: 1.5rem !important;
-    margin: 0.25em 0 0.65em;
-    list-style: disc !important;
-    list-style-position: outside !important;
-
-    li {
-      display: list-item !important;
-      margin-bottom: 0.2em;
-      line-height: var(--editor-line-height);
-      list-style: inherit !important;
-      transition: color 0.3s ease;
-    }
-
-    > li::marker {
-      font-weight: 700;
-      color: var(--search-result-accent);
-      content: '-  ';
-    }
-  }
-
-  ol {
-    padding-left: 1.6rem !important;
-    margin: 0.25em 0 0.65em;
-    list-style: decimal !important;
-    list-style-position: outside !important;
-
-    li {
-      display: list-item !important;
-      margin-bottom: 0.2em;
-      line-height: var(--editor-line-height);
-      list-style: inherit !important;
-      transition: color 0.3s ease;
-    }
-
-    > li::marker {
-      font-weight: 650;
-      color: var(--search-result-accent);
-    }
   }
 
   .task-list {
@@ -1931,44 +1752,6 @@ defineExpose({
         }
       }
     }
-  }
-
-  blockquote {
-    padding: 0.62em 0.9em 0.62em 1em;
-    margin: 0.85em 0;
-    font-style: normal;
-    line-height: var(--editor-line-height);
-    color: var(--editor-text);
-    background: var(--markdown-quote-bg);
-    border: 1px solid
-      color-mix(
-        in srgb,
-        var(--markdown-quote-border) 24%,
-        var(--markdown-heading-border)
-      );
-    border-left: 4px solid var(--markdown-quote-border);
-    border-radius: 0 9px 9px 0;
-    transition:
-      border-color 0.3s ease,
-      color 0.3s ease;
-
-    p:last-child {
-      margin-bottom: 0;
-    }
-  }
-
-  hr {
-    height: 1px;
-    margin: 1.7em 0;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      var(--markdown-heading-border) 12%,
-      var(--markdown-heading-border) 88%,
-      transparent
-    );
-    border: 0;
-    transition: border-color 0.3s ease;
   }
 
   a {
@@ -2089,7 +1872,7 @@ defineExpose({
     }
 
     th {
-      font-weight: 650;
+      font-weight: var(--markdown-heading-weight);
       color: var(--markdown-heading);
       background: var(--markdown-table-header);
     }

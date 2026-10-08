@@ -9,6 +9,7 @@
 | 构建配置 | `postcss.config.js` | 按配置文件自身的位置加载 Tailwind，避免受启动目录影响 |
 | 公共外观 | `src/styles/components.scss` | 操作按钮、菜单项、卡片、列表行、设置卡片及悬浮菜单 |
 | 插件页面外观 | `src/styles/plugin-config.scss` | 插件页面布局及中性表单控件，同时供主应用和独立插件包编译 |
+| Markdown 排版 | `src/styles/markdown.scss` | 正文、标题、列表、引用、表格与代码块的共享 mixin |
 | 样式入口 | `src/styles/index.scss` | 加载主题与公共规则，处理第三方组件覆盖、提示和弹窗 |
 | 页面与组件 | 对应 Vue 文件 | 业务排列、私有响应式规则及必要的编辑器/拖放样式 |
 
@@ -83,6 +84,13 @@
 启动器、搜索引擎、待办使用 `plugin-config-page` 和已有 `ui-*` 类。插件页内的 Element Plus 输入框与选择器通过公共规则统一尺寸、描边和焦点；表格列宽、虚拟列表行高及提醒的过期/紧急状态属于各插件。`plugin-config.scss` 由主应用公共样式加载，也由这三个插件的 `runtime-entry.ts` 导入，让独立插件更新携带页面样式。样式源码只维护一份，更新后重新构建对应插件。
 
 Local AI 对话页采用独立的双栏布局，标题、图标按钮、列表操作和快捷提示卡片复用同一套公共类；其 `runtime-entry.ts` 同样导入 `plugin-config.scss`。`chat.scss` 仅维护聊天布局、Markdown、输入框和响应式规则，聊天背景与文字通过页面内变量引用公共主题 token，服务状态和警告继续使用聊天语义色。正文 14px、辅助信息 12px，消息与输入框共享最大阅读宽度；模型选择的悬浮菜单直接使用全局主题变量，避免 teleport 后丢失页面变量。
+
+## Markdown 排版维护
+
+- `theme.scss` 中的 `--markdown-*` 变量定义字号、字重、段间距、列表缩进、代码字号与浅色／深色颜色。
+- TipTap 正文使用 `markdown.typography` mixin；代码块 node view 复用同一组变量。编辑器行距仍由用户配置覆盖。
+- 聊天插件可在独立更新时接入同一 mixin；代码复制按钮、消息布局、编辑器 node view 等交互仍由各自组件维护。
+- 修改共享样式后验证工作区正文与代码块，不要重新复制一套页面私有标题、列表和引用规则。
 
 ## 修改后的验证
 
