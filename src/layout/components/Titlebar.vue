@@ -89,11 +89,6 @@
           @mousedown.stop
         >
           <span>{{ t('titlebar.about') }}</span>
-          <span
-            v-if="hasUpdate"
-            class="h-1.5 w-1.5 rounded-full bg-workbench-warning"
-            :title="t('titlebar.updateAvailable')"
-          ></span>
         </button>
         <template #dropdown>
           <el-dropdown-menu>
