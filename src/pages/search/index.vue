@@ -191,7 +191,7 @@ onUnmounted(() => {
 <template>
   <main ref="searchRef" data-tauri-drag-region class="main">
     <section class="search-command-surface">
-      <section class="search transparent-input">
+      <section class="search">
         <el-input
           ref="searchInputRef"
           class="input"
@@ -252,13 +252,8 @@ onUnmounted(() => {
 </template>
 
 <style lang="scss" scoped>
-:deep(.el-input__wrapper) {
-  background-color: var(--search-input-bg);
-  box-shadow: none;
-
-  &.is-focus {
-    box-shadow: 0 0 0 1px var(--categories-text-color-active);
-  }
+.search .input :deep(.el-input__wrapper) {
+  @apply bg-transparent shadow-none;
 }
 
 :deep(.el-input__inner) {
