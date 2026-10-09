@@ -3,6 +3,19 @@ import { CoordinateSystem } from './CoordinateSystem';
 import { Point, Rect, OperationType, ToolType } from './types';
 import { distance, getRectCenter } from '../utils/geometry';
 import { isValidPoint } from '../utils/validation';
+import { RectangleAnnotation } from '../annotations/RectangleAnnotation';
+
+export const canInteractWithAnnotations = (tool: ToolType): boolean =>
+  [
+    ToolType.Select,
+    ToolType.Rectangle,
+    ToolType.Ellipse,
+    ToolType.Line,
+    ToolType.Arrow,
+    ToolType.Pen,
+    ToolType.Text,
+    ToolType.Marker
+  ].includes(tool);
 
 // 事件处理器 - 统一管理鼠标事件和交互逻辑
 export class EventHandler {
@@ -46,6 +59,22 @@ export class EventHandler {
     // 检查是否在标注上
     const annotationAtPoint = this.getAnnotationAtPoint(mousePos, annotations);
 
+    // An existing object takes priority over drawing, even when a shape tool is active.
+    // Color picking and mosaic brushes retain their own behavior over annotations.
+    if (
+      canInteractWithAnnotations(currentTool) &&
+      annotationAtPoint &&
+      annotationAtPoint.getData().type !== ToolType.Mosaic
+    ) {
+      const controlPointOperation = this.getAnnotationControlPointOperation(
+        mousePos,
+        annotationAtPoint
+      );
+      return controlPointOperation !== OperationType.None
+        ? controlPointOperation
+        : OperationType.MovingAnnotation;
+    }
+
     // 如果不是选择工具，根据工具类型返回对应操作
     if (currentTool !== ToolType.Select) {
       if (!selectionRect) return OperationType.Drawing;
@@ -61,26 +90,6 @@ export class EventHandler {
       }
 
       return OperationType.None;
-    }
-
-    // 选择工具逻辑
-    if (annotationAtPoint) {
-      // 马赛克标注不允许编辑
-      if (annotationAtPoint.getData().type === ToolType.Mosaic) {
-        return OperationType.None;
-      }
-
-      // 检查是否点击在控制点上
-      const controlPointOperation = this.getAnnotationControlPointOperation(
-        mousePos,
-        annotationAtPoint
-      );
-      if (controlPointOperation !== OperationType.None) {
-        return controlPointOperation;
-      }
-
-      // 默认为移动操作（包括文字标注）
-      return OperationType.MovingAnnotation;
     }
 
     if (!selectionRect) return OperationType.Drawing;
@@ -186,6 +195,19 @@ export class EventHandler {
     mousePos: Point,
     annotations: BaseAnnotation[]
   ): BaseAnnotation | null {
+    // Handles can lie outside the outline (notably the rotation handle).
+    const selectedHandle = annotations.find((annotation) => {
+      if (annotation instanceof RectangleAnnotation)
+        return annotation.getControlPointAtPosition(mousePos) !== null;
+      const data = annotation.getData();
+      return (
+        data.selected &&
+        [ToolType.Ellipse, ToolType.Line, ToolType.Arrow].includes(data.type) &&
+        this.getAnnotationControlPointOperation(mousePos, annotation) !==
+          OperationType.None
+      );
+    });
+    if (selectedHandle) return selectedHandle;
     // 从后往前检查（后绘制的优先）
     for (let i = annotations.length - 1; i >= 0; i--) {
       const annotation = annotations[i];
@@ -207,6 +229,12 @@ export class EventHandler {
     }
 
     const data = annotation.getData();
+
+    if (annotation instanceof RectangleAnnotation) {
+      return annotation.getControlPointAtPosition(mousePos) !== null
+        ? OperationType.TransformingAnnotation
+        : OperationType.None;
+    }
 
     // 马赛克不需要编辑
     if (data.type === ToolType.Mosaic) {

@@ -1,7 +1,12 @@
 import { BaseAnnotation } from './BaseAnnotation';
 import { DrawingEngine } from './DrawingEngine';
 import { CoordinateSystem } from './CoordinateSystem';
-import { EventHandler } from './EventHandler';
+import { EventHandler, canInteractWithAnnotations } from './EventHandler';
+import {
+  RectangleAnnotation,
+  RECTANGLE_ROTATION_HANDLE
+} from '../annotations/RectangleAnnotation';
+import { loadToolPreferences, saveToolPreferences } from './toolPreferences';
 import { AnnotationFactory } from './AnnotationFactory';
 import { CanvasPool } from './CanvasPool';
 import { LazyLoader } from './LazyLoader';
@@ -97,7 +102,6 @@ export class ScreenshotManager {
   private annotations: BaseAnnotation[] = [];
   private currentAnnotation: BaseAnnotation | null = null;
   private selectedAnnotation: BaseAnnotation | null = null;
-  private hoveredAnnotation: BaseAnnotation | null = null;
 
   // 拖拽状态
   private draggedAnnotation: BaseAnnotation | null = null;
@@ -110,6 +114,8 @@ export class ScreenshotManager {
     height: number;
   } | null = null;
   private resizeOperation: OperationType | null = null;
+  private rectangleHandle: number | null = null;
+  private resizeStartData: AnnotationData | null = null;
 
   // 编辑状态
   private editingAnnotation: BaseAnnotation | null = null;
@@ -131,6 +137,7 @@ export class ScreenshotManager {
   private mosaicSize = 8;
   private selectionCornerRadius = 0;
   private showGuides = true;
+  private toolCursor = 'default';
 
   // 取色器状态
   private colorPickerState: ColorPickerState = {
@@ -249,6 +256,12 @@ export class ScreenshotManager {
     this.onTextInputRequest = onTextInputRequest;
     this.onColorPicked = onColorPicked;
 
+    const preferences = loadToolPreferences();
+    this.currentStyle = preferences.currentStyle;
+    this.textSize = preferences.textSize;
+    this.mosaicSize = preferences.mosaicSize;
+    this.selectionCornerRadius = preferences.selectionCornerRadius;
+
     this.coordinateSystem = new CoordinateSystem(canvas);
     this.drawingEngine = new DrawingEngine(canvas, this.coordinateSystem);
     this.eventHandler = new EventHandler(canvas, this.coordinateSystem);
@@ -304,9 +317,12 @@ export class ScreenshotManager {
       );
 
     this.selectedAnnotation = null;
-    this.hoveredAnnotation = null;
     this.draggedAnnotation = null;
     this.resizingAnnotation = null;
+    this.rectangleHandle = null;
+    this.resizeStartData = null;
+    this.resizeStartBounds = null;
+    this.resizeOperation = null;
     this.editingAnnotation = null;
 
     if (snapshot.selectedAnnotationId) {
@@ -1273,6 +1289,7 @@ export class ScreenshotManager {
 
         case OperationType.ResizingAnnotationNW:
         case OperationType.ResizingAnnotationSE:
+        case OperationType.TransformingAnnotation:
           this.startAnnotationResize(mousePos, operationType);
           break;
 
@@ -1370,8 +1387,8 @@ export class ScreenshotManager {
         }
       }
 
-      // 更新悬停状态
-      this.updateHoverState(mousePos);
+      // 悬停只切换光标，不高亮或重绘已有对象。
+      this.updateCursorForPosition(mousePos);
 
       // 如果在取色模式下，更新鼠标位置并实时获取颜色预览
       if (this.currentTool === ToolType.ColorPicker && this.selectionRect) {
@@ -1409,10 +1426,15 @@ export class ScreenshotManager {
   }
 
   // 鼠标抬起处理
-  private handleMouseUp(_event: MouseEvent): void {
+  private handleMouseUp(event: MouseEvent): void {
     const drawingState = this.eventHandler.getDrawingState();
 
     if (drawingState.isDrawing) {
+      const mousePos = this.coordinateSystem.getCanvasPosition(event);
+      this.lastPointerPosition = mousePos;
+      // A fast release can precede the final mousemove event.
+      if (this.draggedAnnotation) this.updateAnnotationDrag(mousePos);
+      if (this.resizingAnnotation) this.updateAnnotationResize(mousePos);
       // 结束绘制状态
       this.eventHandler.stopDrawing();
 
@@ -1440,6 +1462,8 @@ export class ScreenshotManager {
 
       // 完成标注缩放
       this.finishAnnotationResize();
+      if (this.lastPointerPosition)
+        this.updateCursorForPosition(this.lastPointerPosition);
 
       // 如果选择区域太小，清除选择
       if (
@@ -1610,6 +1634,7 @@ export class ScreenshotManager {
       this.draggedAnnotation = annotationAtPoint;
       this.dragStartPoint = mousePos;
       this.pendingDragSnapshot = this.createHistorySnapshot();
+      this.updateCursor('move');
 
       // 确保标注被选中
       if (this.selectedAnnotation !== annotationAtPoint) {
@@ -1678,6 +1703,23 @@ export class ScreenshotManager {
       this.resizingAnnotation = annotationAtPoint;
       this.resizeOperation = operation;
       this.pendingResizeSnapshot = this.createHistorySnapshot();
+      this.resizeStartData = this.cloneAnnotationData(
+        annotationAtPoint.getData()
+      );
+      this.rectangleHandle =
+        annotationAtPoint instanceof RectangleAnnotation
+          ? annotationAtPoint.getControlPointAtPosition(mousePos)
+          : null;
+      if (
+        annotationAtPoint instanceof RectangleAnnotation &&
+        this.rectangleHandle !== null
+      ) {
+        this.updateCursor(
+          this.rectangleHandle === RECTANGLE_ROTATION_HANDLE
+            ? 'grabbing'
+            : annotationAtPoint.getControlPointCursor(this.rectangleHandle)
+        );
+      }
 
       const bounds = annotationAtPoint.getBounds();
       if (bounds) {
@@ -1706,6 +1748,21 @@ export class ScreenshotManager {
 
     const data = this.resizingAnnotation.getData();
     if (data.points.length < 2) return;
+
+    if (
+      this.resizingAnnotation instanceof RectangleAnnotation &&
+      this.rectangleHandle !== null &&
+      this.resizeStartData
+    ) {
+      this.resizingAnnotation.updateControlPoint(
+        this.rectangleHandle,
+        mousePos,
+        this.resizeStartData,
+        this.isShiftPressed
+      );
+      this.constrainAnnotationToBounds(this.resizingAnnotation);
+      return;
+    }
 
     const startPoint = data.points[0];
 
@@ -1742,7 +1799,10 @@ export class ScreenshotManager {
         );
         const hasResized = previousData
           ? JSON.stringify(previousData.points) !==
-            JSON.stringify(currentData.points)
+              JSON.stringify(currentData.points) ||
+            Math.abs(
+              (previousData.rotation ?? 0) - (currentData.rotation ?? 0)
+            ) > 0.000001
           : false;
 
         if (hasResized) {
@@ -1755,12 +1815,19 @@ export class ScreenshotManager {
       this.resizingAnnotation = null;
       this.resizeStartBounds = null;
       this.resizeOperation = null;
+      this.rectangleHandle = null;
+      this.resizeStartData = null;
     }
   }
 
   // 边界约束：确保标注不超出选择框
   private constrainAnnotationToBounds(annotation: BaseAnnotation): void {
     if (!this.selectionRect) return;
+
+    if (annotation instanceof RectangleAnnotation) {
+      annotation.constrainToBounds(this.selectionRect);
+      return;
+    }
 
     const bounds = annotation.getBounds();
     if (!bounds) return;
@@ -1826,47 +1893,10 @@ export class ScreenshotManager {
     }
   }
 
-  // 更新悬停状态
-  private updateHoverState(mousePos: Point): void {
-    if (this.currentTool !== ToolType.Select) {
-      // 为不同工具设置不同的光标
-      this.updateToolCursor();
-      return;
-    }
-
-    const annotationAtPoint = this.eventHandler.getAnnotationAtPoint(
-      mousePos,
-      this.annotations
-    );
-
-    if (annotationAtPoint !== this.hoveredAnnotation) {
-      // 清除之前的悬停状态
-      if (this.hoveredAnnotation) {
-        this.hoveredAnnotation.updateData({ hovered: false });
-      }
-
-      // 设置新的悬停状态（马赛克除外）
-      this.hoveredAnnotation =
-        annotationAtPoint &&
-        annotationAtPoint.getData().type !== ToolType.Mosaic
-          ? annotationAtPoint
-          : null;
-
-      if (this.hoveredAnnotation) {
-        this.hoveredAnnotation.updateData({ hovered: true });
-      }
-
-      this.draw();
-    }
-
-    // 更新鼠标样式
-    this.updateCursorForPosition(mousePos);
-  }
-
   // 更新鼠标样式
   private updateCursorForPosition(mousePos: Point): void {
-    if (this.currentTool !== ToolType.Select) {
-      this.updateToolCursor();
+    if (!canInteractWithAnnotations(this.currentTool)) {
+      this.updateToolCursor(false);
       return;
     }
 
@@ -1881,6 +1911,29 @@ export class ScreenshotManager {
       this.selectionRect,
       this.annotations
     );
+
+    if (operationType === OperationType.TransformingAnnotation) {
+      const annotation = this.eventHandler.getAnnotationAtPoint(
+        mousePos,
+        this.annotations
+      );
+      if (annotation instanceof RectangleAnnotation) {
+        const handle = annotation.getControlPointAtPosition(mousePos);
+        if (handle !== null) {
+          this.updateCursor(annotation.getControlPointCursor(handle));
+          return;
+        }
+      }
+    }
+    if (
+      this.currentTool !== ToolType.Select &&
+      operationType !== OperationType.MovingAnnotation &&
+      operationType !== OperationType.ResizingAnnotationNW &&
+      operationType !== OperationType.ResizingAnnotationSE
+    ) {
+      this.updateToolCursor(false);
+      return;
+    }
 
     const cursorMap: Record<string, string> = {
       [OperationType.Moving]: 'move',
@@ -1911,7 +1964,11 @@ export class ScreenshotManager {
   }
 
   // 根据当前工具更新光标样式
-  private updateToolCursor(): void {
+  private updateToolCursor(refresh = true): void {
+    if (!refresh) {
+      this.updateCursor(this.toolCursor);
+      return;
+    }
     switch (this.currentTool) {
       case ToolType.Pen:
         this.updateCursor(this.createPenCursor(this.currentStyle.color));
@@ -1932,15 +1989,19 @@ export class ScreenshotManager {
       case ToolType.Ellipse:
       case ToolType.Line:
       case ToolType.Arrow:
-      case ToolType.Text:
       case ToolType.Marker:
         // 其他绘图工具：使用十字光标
         this.updateCursor('crosshair');
         break;
 
+      case ToolType.Text:
+        this.updateCursor('text');
+        break;
+
       default:
         this.updateCursor('default');
     }
+    this.toolCursor = this.canvas.style.cursor;
   }
 
   // 创建圆形光标（用于画笔和马赛克）
@@ -2973,12 +3034,6 @@ export class ScreenshotManager {
       this.clearTranslationOverlay();
     }
 
-    // 清除悬停状态
-    if (tool !== ToolType.Select && this.hoveredAnnotation) {
-      this.hoveredAnnotation.updateData({ hovered: false });
-      this.hoveredAnnotation = null;
-    }
-
     // 重置窗口吸附状态
     this.snappedWindow = null;
     this.snappedElement = null;
@@ -3038,6 +3093,7 @@ export class ScreenshotManager {
         mosaicSize: this.mosaicSize
       }
     );
+    this.clearSelection();
   }
 
   private getNextMarkerNumber(): number {
@@ -3225,7 +3281,6 @@ export class ScreenshotManager {
       annotation.updateData({ selected: false, hovered: false });
     });
     this.selectedAnnotation = null;
-    this.hoveredAnnotation = null;
   }
 
   // 创建文字标注
@@ -3592,9 +3647,22 @@ export class ScreenshotManager {
     return this.eventHandler.getDrawingState().isDrawing;
   }
 
+  private persistToolPreferences(): void {
+    saveToolPreferences({
+      currentStyle: {
+        ...this.currentStyle,
+        opacity: this.currentStyle.opacity ?? 1
+      },
+      textSize: this.textSize,
+      mosaicSize: this.mosaicSize,
+      selectionCornerRadius: this.selectionCornerRadius
+    });
+  }
+
   // 更新样式
   updateStyle(updates: Partial<AnnotationStyle>): void {
     this.currentStyle = { ...this.currentStyle, ...updates };
+    this.persistToolPreferences();
     // 如果当前工具是画笔且更新了颜色或线宽，需要更新光标
     if (
       this.currentTool === ToolType.Pen &&
@@ -3608,12 +3676,14 @@ export class ScreenshotManager {
   // 更新文字大小
   updateTextSize(size: number): void {
     this.textSize = size;
+    this.persistToolPreferences();
     this.onStateChange?.();
   }
 
   // 更新马赛克大小
   updateMosaicSize(size: number): void {
     this.mosaicSize = size;
+    this.persistToolPreferences();
     // 如果当前工具是马赛克，需要更新光标
     if (this.currentTool === ToolType.Mosaic) {
       this.updateToolCursor();
@@ -3624,6 +3694,7 @@ export class ScreenshotManager {
   updateSelectionCornerRadius(radius: number): void {
     if (!Number.isFinite(radius)) return;
     this.selectionCornerRadius = Math.max(0, Math.min(120, radius));
+    this.persistToolPreferences();
     this.draw();
     this.onStateChange?.();
   }
@@ -4911,7 +4982,6 @@ export class ScreenshotManager {
     this.pendingResizeSnapshot = null;
     this.currentAnnotation = null;
     this.selectedAnnotation = null;
-    this.hoveredAnnotation = null;
     this.draggedAnnotation = null;
     this.resizingAnnotation = null;
     this.editingAnnotation = null;

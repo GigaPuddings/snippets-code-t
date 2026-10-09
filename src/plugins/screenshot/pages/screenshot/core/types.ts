@@ -39,6 +39,7 @@ export enum OperationType {
   MovingAnnotation = 'moving-annotation',
   ResizingAnnotationNW = 'resizing-annotation-nw',
   ResizingAnnotationSE = 'resizing-annotation-se',
+  TransformingAnnotation = 'transforming-annotation',
   DrawingText = 'drawing-text',
   DrawingMarker = 'drawing-marker',
   DrawingMosaic = 'drawing-mosaic',
@@ -118,6 +119,8 @@ export interface AnnotationData {
   markerNumber?: number;
   mosaicSize?: number;
   mosaicColor?: string;
+  /** Clockwise rotation in radians, around the rectangle center. */
+  rotation?: number;
 }
 
 export interface DrawingContext {

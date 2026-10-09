@@ -87,7 +87,8 @@ export class AnnotationFactory {
       annotation.updateData({
         id: data.id,
         selected: data.selected,
-        hovered: data.hovered
+        hovered: data.hovered,
+        rotation: data.rotation
       });
     }
 

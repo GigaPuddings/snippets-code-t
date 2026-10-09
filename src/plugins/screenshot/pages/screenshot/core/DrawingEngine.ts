@@ -163,11 +163,6 @@ export class DrawingEngine {
     annotations.forEach((annotation) => {
       const data = annotation.getData();
 
-      // 绘制悬停效果
-      if (data.hovered) {
-        annotation.drawHover(context);
-      }
-
       // 绘制标注本体
       annotation.draw(context);
 
@@ -176,7 +171,7 @@ export class DrawingEngine {
         annotation.drawSelection(context);
 
         // 为两点图形标注绘制控制点
-        if (['rectangle', 'ellipse', 'line', 'arrow'].includes(data.type)) {
+        if (['ellipse', 'line', 'arrow'].includes(data.type)) {
           this.drawAnnotationHandles(annotation);
         }
       }

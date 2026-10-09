@@ -698,6 +698,7 @@ onMounted(async () => {
     startTextInput,
     handleColorPicked
   );
+  handleStateChange();
 
   // 添加键盘事件监听
   document.addEventListener('keydown', handleKeydown);

@@ -259,7 +259,7 @@ import Round from '~icons/lucide/circle';
 import Minus from '~icons/lucide/minus';
 import ArrowRightUp from '~icons/lucide/arrow-up-right';
 import Write from '~icons/lucide/pencil';
-import Mosaic from '~icons/lucide/grid-2x2';
+import Mosaic from '~icons/lucide/grid-3x3';
 import FontSize from '~icons/lucide/type';
 import Return from '~icons/lucide/undo-2';
 import GoOn from '~icons/lucide/redo-2';

@@ -13,6 +13,8 @@ export const getTextOrigin = (position: Point): Point => ({
 });
 
 export class TextAnnotation extends BaseAnnotation {
+  private measuredTextKey = '';
+  private measuredTextWidth = 0;
   constructor(
     position: Point,
     text: string,
@@ -83,26 +85,13 @@ export class TextAnnotation extends BaseAnnotation {
   }
 
   hitTest(point: Point, tolerance: number = 8): boolean {
-    if (!this.data.text || this.data.points.length === 0) return false;
-
-    const position = this.data.points[0];
-    const fontSize = this.data.fontSize || 16;
-
-    const tempCanvas = document.createElement('canvas');
-    const tempCtx = tempCanvas.getContext('2d');
-    if (!tempCtx) return false;
-
-    tempCtx.font = `${fontSize}px ${TEXT_FONT_FAMILY}`;
-    const textMetrics = tempCtx.measureText(this.data.text);
-    const textWidth = textMetrics.width;
-
-    const { x: textX, y: textY } = getTextOrigin(position);
-
+    const bounds = this.getBounds();
     return (
-      point.x >= textX - tolerance &&
-      point.x <= textX + textWidth + tolerance &&
-      point.y >= textY - tolerance &&
-      point.y <= textY + fontSize + tolerance
+      !!bounds &&
+      point.x >= bounds.x - tolerance &&
+      point.x <= bounds.x + bounds.width + tolerance &&
+      point.y >= bounds.y - tolerance &&
+      point.y <= bounds.y + bounds.height + tolerance
     );
   }
 
@@ -112,21 +101,22 @@ export class TextAnnotation extends BaseAnnotation {
     const position = this.data.points[0];
     const fontSize = this.data.fontSize || 16;
 
-    // 创建临时canvas来计算文字宽度
-    const tempCanvas = document.createElement('canvas');
-    const tempCtx = tempCanvas.getContext('2d');
-    if (!tempCtx) return null;
-
-    tempCtx.font = `${fontSize}px ${TEXT_FONT_FAMILY}`;
-    const textMetrics = tempCtx.measureText(this.data.text);
-    const textWidth = textMetrics.width;
+    // Measure once per text/font change rather than allocating a canvas on every hover.
+    const key = `${fontSize}:${this.data.text}`;
+    if (key !== this.measuredTextKey) {
+      const tempCtx = document.createElement('canvas').getContext('2d');
+      if (!tempCtx) return null;
+      tempCtx.font = `${fontSize}px ${TEXT_FONT_FAMILY}`;
+      this.measuredTextWidth = tempCtx.measureText(this.data.text).width;
+      this.measuredTextKey = key;
+    }
 
     const { x: textX, y: textY } = getTextOrigin(position);
 
     return {
       x: textX,
       y: textY,
-      width: textWidth,
+      width: this.measuredTextWidth,
       height: fontSize
     };
   }

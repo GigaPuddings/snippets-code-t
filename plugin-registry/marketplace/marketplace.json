@@ -5,7 +5,7 @@
   "plugins": [
     {
       "id": "screenshot",
-      "version": "2.0.64",
+      "version": "2.0.65",
       "name": {
         "i18nKey": "plugins.screenshot.name",
         "fallback": "Screenshot, OCR, and Pins"
@@ -15,11 +15,11 @@
         "fallback": "Screenshot annotation, color picker, pin windows, OCR, and screenshot translation."
       },
       "category": "capture",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/archive/refs/tags/2.0.64.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/archive/refs/tags/2.0.65.zip",
       "builtinPluginId": "screenshot",
       "status": "included",
-      "sizeBytes": 382798,
-      "sha256": "dfff647324dea4298c3af83474d15324536c9c9beeb3413a74efea846427d14b",
+      "sizeBytes": 385298,
+      "sha256": "78de2d5be34afc748363a29fb7042756997aacb417f062724bce458298ccd50c",
       "dependencies": [
         "screenshot-rapidocr",
         "translation",
@@ -33,7 +33,7 @@
       "minAppVersion": "2.2.7",
       "compatibleAppVersion": ">=2.2.7",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot",
-      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/releases/tag/2.0.64"
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/releases/tag/2.0.65"
     },
     {
       "id": "screenshot-rapidocr",
