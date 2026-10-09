@@ -32,6 +32,11 @@
   --markdown-list-item-gap: 4px;
   --markdown-code-size: 13px;
   --markdown-code-line-height: 1.65;
+  // Shared insets for document, Markdown source and snippet editors.
+  --editor-content-padding-inline: 24px;
+  --editor-content-padding-top: 16px;
+  --editor-content-padding-bottom: 32px;
+  --editor-status-gap: 8px;
   // Shared interaction surfaces; pages retain only their layout differences.
   --app-ui-hover-bg: var(--workspace-nav-selected);
   --app-ui-selected-bg: var(--workspace-nav-selected);

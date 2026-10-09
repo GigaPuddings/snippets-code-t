@@ -159,13 +159,15 @@ const handleCommand = (command: ViewMode): void => {
 
 <style lang="scss" scoped>
 .editor-status {
-  @apply relative z-10 flex h-7 min-w-0 flex-none justify-end overflow-hidden rounded-b-[var(--workspace-panel-radius)] bg-transparent font-ui text-ui-caption;
+  @apply relative z-10 flex min-w-0 flex-none justify-end overflow-hidden bg-transparent font-ui text-ui-caption;
 
+  height: calc(var(--app-ui-icon-control-sm-height) + var(--editor-status-gap));
+  padding: 0 var(--editor-content-padding-inline) var(--editor-status-gap);
   color: var(--statusbar-text);
 }
 
 .editor-status-summary {
-  @apply flex h-full min-w-0 max-w-full items-center gap-1 overflow-x-auto whitespace-nowrap rounded-tl-lg px-2;
+  @apply flex h-full min-w-0 max-w-full items-center gap-1 overflow-x-auto whitespace-nowrap rounded-lg px-2;
 
   background: var(--editor-status-surface, var(--statusbar-bg));
   scrollbar-width: none;

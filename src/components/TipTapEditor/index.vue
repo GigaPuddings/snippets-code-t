@@ -1368,7 +1368,6 @@ defineExpose({
   position: relative;
   display: flex;
   min-height: 0;
-  padding-bottom: 0;
   background-color: var(--editor-bg);
   transition: background-color 0.3s ease;
 }
@@ -1399,8 +1398,11 @@ defineExpose({
 :deep(.tiptap-editor) {
   @apply box-border h-auto min-h-full max-w-full whitespace-pre-wrap overflow-y-visible min-w-0 outline-none;
 
+  --editor-bg: var(--editor-surface-bg);
+
   width: min(100%, 1080px);
-  padding: 16px 0 0;
+  padding: var(--editor-content-padding-top)
+    var(--editor-content-padding-inline) var(--editor-content-padding-bottom);
   margin: 0 auto;
   background-color: var(--editor-bg);
   transition:

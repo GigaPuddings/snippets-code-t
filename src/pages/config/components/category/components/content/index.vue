@@ -2408,11 +2408,12 @@ onMounted(async () => {
 
 <style scoped lang="scss">
 .content-container {
-  @apply h-full w-full min-w-0 max-w-full overflow-hidden bg-panel text-xs;
+  @apply h-full w-full min-w-0 max-w-full overflow-hidden text-xs;
 
   display: grid;
   grid-template-rows: auto 1fr;
   grid-template-columns: minmax(0, 1fr);
+  background: var(--editor-surface-bg);
 
   .content-header {
     @apply mx-auto min-w-0 w-full max-w-[1120px] overflow-hidden px-8 pt-0;
@@ -2429,8 +2430,8 @@ onMounted(async () => {
         min-width: 0;
 
         :deep(.el-input__wrapper) {
-          padding-right: 3px;
-          padding-left: 3px;
+          padding-right: var(--editor-content-padding-inline);
+          padding-left: var(--editor-content-padding-inline);
         }
       }
 
@@ -2448,6 +2449,9 @@ onMounted(async () => {
     .content-tags {
       @apply flex min-w-0 items-start gap-3 py-2;
 
+      padding-right: var(--editor-content-padding-inline);
+      padding-left: var(--editor-content-padding-inline);
+
       .content-tags-input {
         @apply min-w-0 flex-1;
       }
@@ -2458,24 +2462,14 @@ onMounted(async () => {
 .editor-stage {
   @apply relative mx-auto h-full min-h-0 min-w-0 w-full max-w-[1120px] overflow-hidden px-8;
 
-  background: var(--categories-panel-bg);
+  background: var(--editor-surface-bg);
 }
 
 .content-container--note {
-  background: var(--editor-surface-bg);
-
   .content-header {
-    @apply pt-0;
-
     .content-tags {
       @apply border-0 py-1;
     }
-  }
-
-  .editor-stage {
-    @apply mx-auto w-full max-w-[1120px] px-8;
-
-    background: var(--editor-surface-bg);
   }
 
   .editor-stage:has(.backlink-sidebar.is-visible) {
@@ -2485,24 +2479,16 @@ onMounted(async () => {
       @apply pr-8;
     }
   }
-
-  .editor-surface {
-    @apply rounded-none border-0;
-  }
-
-  .editor-surface :deep(.tiptap-editor) {
-    padding-top: 12px;
-  }
 }
 
 .editor-surface {
-  @apply h-full min-h-0 min-w-0 overflow-hidden rounded-lg border border-editor;
+  @apply h-full min-h-0 min-w-0 overflow-hidden;
+
+  --editor-bg: var(--editor-surface-bg);
 
   box-sizing: border-box;
   background: var(--editor-surface-bg);
-  transition:
-    border-color 0.2s ease,
-    background-color 0.2s ease;
+  transition: background-color 0.2s ease;
 }
 
 .editor-surface--loading {
@@ -2513,7 +2499,7 @@ onMounted(async () => {
   @apply absolute inset-0 z-20 flex flex-col items-center justify-center;
 
   color: var(--panel-text);
-  background: var(--categories-panel-bg);
+  background: var(--editor-surface-bg);
 }
 
 .snippet-loader {

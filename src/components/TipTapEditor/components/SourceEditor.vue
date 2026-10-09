@@ -326,10 +326,14 @@ defineExpose({
 }
 
 .source-textarea {
-  @apply h-full flex-1 px-0.5 py-3 outline-none resize-none font-mono text-sm;
+  @apply box-border h-full flex-1 outline-none resize-none font-mono;
+
+  --editor-bg: var(--editor-surface-bg);
 
   min-width: 0;
-  padding-bottom: 28px;
+  padding: var(--editor-content-padding-top)
+    var(--editor-content-padding-inline) var(--editor-content-padding-bottom);
+  font-size: var(--markdown-code-size);
   line-height: var(--editor-source-line-height, 1.6);
   color: var(--editor-text);
   background-color: var(--editor-bg);

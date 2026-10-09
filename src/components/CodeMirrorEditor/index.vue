@@ -192,11 +192,12 @@ const customTheme = computed(() => {
     EditorView.theme({
       '&': {
         height: '100%',
-        fontSize: '14px'
+        fontSize: 'var(--markdown-code-size)'
       },
       '.cm-content': {
         caretColor: settings.caret || '#000000',
-        fontFamily: 'monospace'
+        paddingTop: 'var(--editor-content-padding-top)',
+        paddingBottom: 'var(--editor-content-padding-bottom)'
       },
       '.cm-cursor': {
         borderLeftColor: settings.caret || '#000000'
@@ -221,6 +222,7 @@ const hasCodeSelection = ref(false);
 const languageCompartment = new Compartment();
 const tabSizeCompartment = new Compartment();
 const keymapCompartment = new Compartment();
+const themeCompartment = new Compartment();
 
 // 更新状态栏信息
 function updateStatusInfo(state: EditorState) {
@@ -307,7 +309,7 @@ const getExtensions = (): Extension[] => {
   const extensions = [
     lineNumbers(),
     EditorView.lineWrapping,
-    customTheme.value,
+    themeCompartment.of(customTheme.value),
     languageCompartment.of(getLanguageExtension(detectedLanguage.value)),
     history(),
     keymapCompartment.of(
@@ -683,6 +685,12 @@ watch(detectedLanguage, (language) => {
   });
 });
 
+watch(customTheme, (theme) => {
+  editorViewRef.value?.dispatch({
+    effects: themeCompartment.reconfigure(theme)
+  });
+});
+
 watch(
   () => props.tabSize,
   (tabSize) => {
@@ -747,17 +755,27 @@ defineExpose({
 }
 
 .editor-content {
-  @apply flex-1 overflow-auto;
+  @apply flex-1 overflow-hidden;
 
   height: 0;
   min-height: 0;
 }
 
 :deep(.cm-editor) {
-  @apply outline-none border border-transparent h-full;
+  @apply outline-none h-full;
+
+  .cm-scroller {
+    @apply overflow-auto font-mono;
+
+    line-height: var(--markdown-code-line-height);
+  }
 
   .cm-gutterElement {
-    @apply px-2 flex items-center justify-center;
+    @apply flex items-center justify-center;
+
+    padding-right: 8px;
+    padding-left: 0;
+    font-size: var(--app-ui-caption-size);
   }
 
   &.cm-focused {
@@ -765,7 +783,8 @@ defineExpose({
   }
 
   .cm-gutters {
-    @apply border-r;
+    padding-left: var(--editor-content-padding-inline);
+    border: 0;
   }
 
   &.cm-focused .cm-cursor {
@@ -773,7 +792,7 @@ defineExpose({
   }
 
   .cm-line {
-    @apply px-2;
+    padding: 0 var(--editor-content-padding-inline) 0 12px;
   }
 }
 </style>
