@@ -242,17 +242,25 @@
         class="titlebar-divider titlebar-divider--thick"
       ></div>
 
-      <div
+      <button
+        type="button"
         class="ui-icon-button titlebar-button titlebar-button--window"
         @click="handleTitlebar('minimize')"
+        @mousedown.stop
+        :disabled="!isMinimizable || isChangingState"
         :title="$t('titlebar.minimize')"
         :aria-label="$t('titlebar.minimize')"
       >
         <minus class="icon" width="18" height="18" />
-      </div>
-      <div
+      </button>
+      <button
+        ref="maximizeButton"
+        type="button"
         class="ui-icon-button titlebar-button titlebar-button--window"
+        :class="{ 'bg-ui-hover': maximizeHovered }"
         @click="handleTitlebar('maximize')"
+        @mousedown.stop
+        :disabled="!isMaximizable || isChangingState"
         :title="title"
         :aria-label="title"
       >
@@ -262,15 +270,17 @@
           width="18"
           height="18"
         />
-      </div>
-      <div
+      </button>
+      <button
+        type="button"
         class="ui-icon-button titlebar-button titlebar-button--close"
         @click="handleTitlebar('close')"
+        @mousedown.stop
         :title="$t('titlebar.close')"
         :aria-label="$t('titlebar.close')"
       >
         <close-small class="icon" width="18" height="18" />
-      </div>
+      </button>
     </div>
   </main>
   <ConfigQuickSearch
@@ -316,7 +326,7 @@ import ArrowRight from '~icons/lucide/arrow-right';
 import LeftBar from '~icons/lucide/panel-left';
 import Info from '~icons/lucide/info';
 import Logout from '~icons/lucide/log-out';
-import { appName, appVersion, getAppWindow, initEnv } from '@/utils/env';
+import { appName, appVersion, initEnv } from '@/utils/env';
 import { invoke } from '@tauri-apps/api/core';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
@@ -324,6 +334,11 @@ import ConfigQuickSearch from '@/components/ConfigQuickSearch/index.vue';
 import { CommonDialog } from '@/components/UI';
 import { useConfigQuickSearch } from '@/composables/useConfigQuickSearch';
 import { useUpdateAvailability } from '@/composables/useUpdateAvailability';
+import {
+  useWindowControls,
+  type WindowAction
+} from '@/composables/useWindowControls';
+import { useTitlebarSnap } from '@/composables/useTitlebarSnap';
 import { useLayoutStore, usePluginStore } from '@/store';
 import {
   configNavigationTabs,
@@ -367,10 +382,19 @@ defineOptions({
 });
 
 const router = useRouter();
-const isMaximized = ref(false);
-type WindowAction = 'isAlwaysOnTop' | 'minimize' | 'maximize' | 'close';
-
-const isAlwaysOnTop = ref<boolean>(false);
+const {
+  isMaximized,
+  isMaximizable,
+  isMinimizable,
+  isAlwaysOnTop,
+  isChangingState,
+  performAction
+} = useWindowControls();
+const maximizeButton = ref<HTMLElement | null>(null);
+const { hovered: maximizeHovered } = useTitlebarSnap(
+  maximizeButton,
+  isMaximizable
+);
 
 const state = reactive({
   appName: '',
@@ -449,27 +473,9 @@ const title = computed(() => {
   return isMaximized.value ? t('titlebar.restore') : t('titlebar.maximize');
 });
 
-const appWindow = getAppWindow('config');
-
-// 操作映射对象
-const actionHandlers: Record<WindowAction, () => Promise<void>> = {
-  isAlwaysOnTop: async () => {
-    const next = !isAlwaysOnTop.value;
-    await appWindow.setAlwaysOnTop(next);
-    isAlwaysOnTop.value = next;
-  },
-  minimize: async () => appWindow.minimize(),
-  maximize: async () => {
-    const maximized = await appWindow.isMaximized();
-    isMaximized.value = !maximized;
-    maximized ? appWindow.unmaximize() : appWindow.maximize();
-  },
-  close: async () => appWindow.close()
-};
-
 const handleTitlebar = async (type: WindowAction) => {
   try {
-    await actionHandlers[type]?.();
+    await performAction(type);
   } catch (error) {
     console.error('Window operation failed:', error);
   }
@@ -510,10 +516,7 @@ onMounted(async () => {
       state.appName = appName;
       state.appVersion = appVersion;
     }),
-    pluginStore.initialize(),
-    appWindow.isAlwaysOnTop().then((value) => {
-      isAlwaysOnTop.value = value;
-    })
+    pluginStore.initialize()
   ]);
   for (const result of results) {
     if (result.status === 'rejected') {

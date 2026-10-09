@@ -24,6 +24,7 @@ mod tray;
 mod uninstall;
 mod update;
 mod window;
+mod window_caption;
 
 use crate::config::{
     exit_application, get_auto_update_check, get_language, get_offline_model_activated,
@@ -540,6 +541,7 @@ pub fn run() {
             plugins::local_launcher::open_app_as_admin_command,        // 以管理员身份打开应用
             plugins::local_launcher::open_app_file_location_command,    // 打开应用文件位置
             show_hide_window_command,         // 显示隐藏窗口
+            window_caption::set_titlebar_maximize_bounds, // Windows 自定义标题栏贴靠布局
             window::take_pending_local_ai_prompt, // 领取快速搜索传入的 AI 提示词
             window::take_pending_local_ai_new_chat, // 领取 AI 聊天新建对话请求
             plugins::shared::open_url,        // 打开书签或搜索 URL

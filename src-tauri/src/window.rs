@@ -659,9 +659,9 @@ pub fn build_window(label: &str, url: &str, option: WindowConfig) -> Result<Webv
 
             register_window_ready_listener(app_handle, label)?;
 
-            // config 窗口允许缩小到较小尺寸，以便前端折叠左侧面板的响应式逻辑生效
+            // 允许进入 Windows 贴靠布局的窄分屏区域，前端会自动折叠侧边栏。
             let (min_w, min_h) = if label == "config" {
-                (720.0, 480.0)
+                (480.0, 360.0)
             } else {
                 (option.width, option.height)
             };
