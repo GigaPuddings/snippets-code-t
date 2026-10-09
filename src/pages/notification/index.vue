@@ -130,7 +130,7 @@ onMounted(async () => {
 }
 
 :deep(.remind-btn) {
-  .icon-park-icon {
+  .app-icon {
     @apply mr-2;
   }
 }

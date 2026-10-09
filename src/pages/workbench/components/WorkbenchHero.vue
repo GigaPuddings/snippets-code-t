@@ -15,7 +15,7 @@
         <span class="truncate">
           {{ workspaceRoot || t('workbenchHome.workspaceNotSet') }}
         </span>
-        <RightSmall class="shrink-0" theme="outline" size="16" />
+        <RightSmall class="shrink-0" width="16" height="16" />
       </button>
     </div>
     <button
@@ -27,8 +27,8 @@
       @click="emit('refresh')"
     >
       <Refresh
-        theme="outline"
-        size="16"
+        width="16"
+        height="16"
         :class="{ 'animate-spin [animation-duration:800ms]': loading }"
       />
     </button>
@@ -36,7 +36,8 @@
 </template>
 
 <script setup lang="ts">
-import { Refresh, RightSmall } from '@icon-park/vue-next';
+import Refresh from '~icons/lucide/refresh-cw';
+import RightSmall from '~icons/lucide/chevron-right';
 import { useI18n } from 'vue-i18n';
 
 defineProps<{

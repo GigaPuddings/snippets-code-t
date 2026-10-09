@@ -24,11 +24,8 @@
               <component
                 class="menu-item-icon"
                 :is="item.icon"
-                theme="outline"
-                size="18"
-                :strokeWidth="3"
-                strokeLinejoin="miter"
-                strokeLinecap="butt"
+                width="18"
+                height="18"
               />
               <div class="menu-item-label">{{ item.label }}</div>
             </div>

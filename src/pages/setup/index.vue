@@ -238,7 +238,7 @@
           </section>
 
           <div class="path-tip">
-            <Info theme="outline" size="16" />
+            <Info width="16" height="16" />
             <span>{{ $t('setup.pathTip') }}</span>
           </div>
         </div>
@@ -325,7 +325,11 @@
         <!-- 完成 -->
         <div v-if="step === 4" class="step-page complete-page">
           <div class="complete-icon">
-            <CheckOne theme="filled" size="48" fill="#10b981" />
+            <CheckOne
+              width="48"
+              height="48"
+              class="text-[var(--el-color-success)]"
+            />
           </div>
           <h2 class="step-title">{{ $t('setup.completeTitle') }}</h2>
           <p class="step-desc compact">{{ $t('setup.completeDesc') }}</p>
@@ -389,7 +393,8 @@ import { emit } from '@tauri-apps/api/event';
 import { getVersion } from '@tauri-apps/api/app';
 import { open } from '@tauri-apps/plugin-dialog';
 import { CustomButton } from '@/components/UI';
-import { Info, CheckOne } from '@icon-park/vue-next';
+import Info from '~icons/lucide/info';
+import CheckOne from '~icons/lucide/circle-check';
 import { useConfigurationStore } from '@/store';
 import { setLocale, type LocaleType } from '@/i18n';
 import modal from '@/utils/modal';

@@ -3,18 +3,16 @@
     <div class="notification-header">
       <div class="header-left">
         <div class="icon-wrapper">
-          <BellRing theme="filled" size="20" fill="#5d6dfd" :strokeWidth="2" />
+          <BellRing
+            width="20"
+            height="20"
+            class="text-[var(--el-color-primary)]"
+          />
         </div>
         <h2 class="title">{{ $t('notification.title') }}</h2>
       </div>
       <div class="titlebar-button" @click="$emit('close')">
-        <CloseSmall
-          class="close-icon"
-          theme="outline"
-          size="20"
-          :strokeWidth="2"
-          strokeLinecap="butt"
-        />
+        <CloseSmall class="close-icon" width="20" height="20" />
       </div>
     </div>
     <div class="notification-body">{{ body }}</div>
@@ -25,7 +23,7 @@
     </CustomButton>
     <CustomButton v-if="reminderTime" size="small" @click="$emit('remind')">
       <template #icon>
-        <AlarmClock theme="outline" size="16" :strokeWidth="3" />
+        <AlarmClock width="16" height="16" />
       </template>
       {{ $t('notification.remindLater', { minutes: reminderTime }) }}
     </CustomButton>
@@ -33,7 +31,9 @@
 </template>
 
 <script setup lang="ts">
-import { CloseSmall, BellRing, AlarmClock } from '@icon-park/vue-next';
+import CloseSmall from '~icons/lucide/x';
+import BellRing from '~icons/lucide/bell-ring';
+import AlarmClock from '~icons/lucide/alarm-clock';
 import { CustomButton } from '@/components/UI';
 
 defineProps<{

@@ -1,5 +1,5 @@
 <template>
-  <div class="config ui-icon-scope font-ui text-ui">
+  <div class="config font-ui text-ui">
     <GlobalNavigationRail />
     <Transition name="config-startup">
       <div v-if="isStarting" class="config-startup" aria-live="polite">

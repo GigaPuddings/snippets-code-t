@@ -1,5 +1,5 @@
 import { defineAsyncComponent, type Component } from 'vue';
-import { FolderOpen } from '@icon-park/vue-next';
+import FileImage from '~icons/lucide/file-image';
 
 export interface PluginSettingsMenuItem {
   id: string;
@@ -10,7 +10,7 @@ export interface PluginSettingsMenuItem {
 }
 
 export const pluginSettingsMenuItems: PluginSettingsMenuItem[] = [
-  { id: 'attachment', labelKey: 'settings.attachment.menu', icon: FolderOpen }
+  { id: 'attachment', labelKey: 'settings.attachment.menu', icon: FileImage }
 ];
 
 export const pluginSettingsComponents: Record<string, Component> = {

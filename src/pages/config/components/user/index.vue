@@ -67,7 +67,7 @@
       <!-- Git 插件不可用时给出明确引导，避免必要配置静默消失 -->
       <div v-if="!isGitSyncEnabled" class="git-plugin-guide-card">
         <div class="git-plugin-guide-icon">
-          <Github theme="outline" size="24" :strokeWidth="3" />
+          <Github width="24" height="24" />
         </div>
         <div class="git-plugin-guide-content">
           <h4 class="git-plugin-guide-title">
@@ -88,7 +88,7 @@
         class="workspace-guide-card"
       >
         <div class="workspace-guide-icon">
-          <FolderOpen theme="outline" size="24" :strokeWidth="3" />
+          <FolderOpen width="24" height="24" />
         </div>
         <div class="workspace-guide-content">
           <h4 class="workspace-guide-title">
@@ -155,7 +155,7 @@
         class="tip-card"
       >
         <div class="tip-icon">
-          <Github theme="outline" size="24" :strokeWidth="3" />
+          <Github width="24" height="24" />
         </div>
         <div class="tip-content">
           <h4 class="tip-title">{{ $t('userCenter.gitSyncTitle') }}</h4>
@@ -171,22 +171,12 @@
         <h4 class="section-title">{{ $t('userCenter.quickActions') }}</h4>
         <div class="action-buttons">
           <CustomButton @click="openDataDir">
-            <FolderOpen
-              theme="outline"
-              size="16"
-              :strokeWidth="3"
-              class="mr-1"
-            />
+            <FolderOpen width="16" height="16" class="mr-1" />
             {{ $t('userCenter.openDataDir') }}
           </CustomButton>
 
           <CustomButton @click="goToSettings">
-            <SettingTwo
-              theme="outline"
-              size="16"
-              :strokeWidth="3"
-              class="mr-1"
-            />
+            <SettingTwo width="16" height="16" class="mr-1" />
             {{ $t('userCenter.openSettings') }}
           </CustomButton>
         </div>
@@ -216,7 +206,9 @@
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { CustomButton } from '@/components/UI';
-import { Github, FolderOpen, SettingTwo } from '@icon-park/vue-next';
+import Github from '~icons/simple-icons/github';
+import FolderOpen from '~icons/lucide/folder-open';
+import SettingTwo from '~icons/lucide/settings';
 import { open as openUrl } from '@tauri-apps/plugin-shell';
 import { invoke } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';

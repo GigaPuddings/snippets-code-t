@@ -17,15 +17,15 @@
         <component
           :is="metricIcons[metric.id] || FileText"
           class="shrink-0 text-[var(--workspace-nav-text)]"
-          theme="outline"
-          size="16"
+          width="16"
+          height="16"
           aria-hidden="true"
         />
         <span class="truncate">{{ metric.label }}</span>
         <RightSmall
           class="ml-auto shrink-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
-          theme="outline"
-          size="16"
+          width="16"
+          height="16"
           aria-hidden="true"
         />
       </span>
@@ -46,7 +46,11 @@
 </template>
 
 <script setup lang="ts">
-import { Brain, Cube, FileText, RightSmall, Search } from '@icon-park/vue-next';
+import Brain from '~icons/lucide/brain';
+import Puzzle from '~icons/lucide/puzzle';
+import FileText from '~icons/lucide/file-text';
+import RightSmall from '~icons/lucide/chevron-right';
+import Search from '~icons/lucide/search';
 import { useI18n } from 'vue-i18n';
 import type { Component } from 'vue';
 import type { WorkbenchMetric } from '@/workbench/viewModel';
@@ -62,7 +66,7 @@ const emit = defineEmits<{
 const { t } = useI18n();
 const metricIcons: Record<string, Component> = {
   content: FileText,
-  plugins: Cube,
+  plugins: Puzzle,
   search: Search,
   ai: Brain
 };

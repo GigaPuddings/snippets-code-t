@@ -4,7 +4,7 @@
       <h3 class="panel-title">{{ t('plugins.title') }}</h3>
       <div class="plugins-actions">
         <CustomButton size="small" :loading="installing" @click="handleInstall">
-          <FolderOpen theme="outline" size="14" class="button-icon" />
+          <FolderOpen width="14" height="14" class="button-icon" />
           {{ t('plugins.installLocal') }}
         </CustomButton>
         <CustomButton
@@ -12,11 +12,11 @@
           :loading="installing"
           @click="handleInstallZip"
         >
-          <FileZip theme="outline" size="14" class="button-icon" />
+          <FileZip width="14" height="14" class="button-icon" />
           {{ t('plugins.installZip') }}
         </CustomButton>
         <CustomButton size="small" plain @click="handleRefresh">
-          <Refresh theme="outline" size="14" class="button-icon" />
+          <Refresh width="14" height="14" class="button-icon" />
           {{ t('plugins.refresh') }}
         </CustomButton>
       </div>
@@ -27,7 +27,7 @@
         <div class="plugins-intro-title">{{ t('plugins.builtinTitle') }}</div>
         <div class="plugins-intro-desc">{{ t('plugins.builtinDesc') }}</div>
         <div class="plugins-security-note">
-          <Info theme="outline" size="14" />
+          <Info width="14" height="14" />
           <span>{{ t('plugins.securityNotice') }}</span>
         </div>
       </section>
@@ -36,12 +36,7 @@
         v-if="!isGitSyncInstalled || !gitSyncConfigured"
         class="git-sync-onboarding"
       >
-        <Github
-          class="git-sync-onboarding-icon"
-          theme="outline"
-          size="22"
-          :strokeWidth="3"
-        />
+        <Github class="git-sync-onboarding-icon" width="22" height="22" />
         <div class="git-sync-onboarding-content">
           <div class="git-sync-onboarding-title">
             {{
@@ -102,7 +97,7 @@
             :loading="pluginInstallDirLoading"
             @click="handleChoosePluginInstallDir"
           >
-            <FolderOpen theme="outline" size="14" class="button-icon" />
+            <FolderOpen width="14" height="14" class="button-icon" />
             {{ t('plugins.chooseInstallLocation') }}
           </CustomButton>
           <CustomButton
@@ -126,7 +121,7 @@
       <section class="marketplace-panel">
         <div class="marketplace-toolbar">
           <div class="marketplace-search">
-            <Search theme="outline" size="15" />
+            <Search width="15" height="15" />
             <input
               v-model="marketplaceQuery"
               class="marketplace-input"
@@ -139,7 +134,7 @@
             :loading="marketplaceLoading"
             @click="handleRefreshMarketplace"
           >
-            <Refresh theme="outline" size="14" class="button-icon" />
+            <Refresh width="14" height="14" class="button-icon" />
             {{ t('plugins.marketplaceRefresh') }}
           </CustomButton>
         </div>
@@ -227,7 +222,7 @@
                 :loading="isMarketplaceItemInstalling(item)"
                 @click="handleInstallMarketplace(item, true)"
               >
-                <Refresh theme="outline" size="14" />
+                <Refresh width="14" height="14" />
               </CustomButton>
               <CustomButton
                 v-if="canInstallMarketplaceItem(item)"
@@ -240,7 +235,7 @@
                 :loading="isMarketplaceItemInstalling(item)"
                 @click="handleInstallMarketplace(item, false)"
               >
-                <Download theme="outline" size="14" />
+                <Download width="14" height="14" />
               </CustomButton>
             </div>
             <div
@@ -307,7 +302,7 @@
                     :loading="isMarketplaceItemInstalling(resource)"
                     @click="handleInstallMarketplace(resource, true)"
                   >
-                    <Refresh theme="outline" size="14" />
+                    <Refresh width="14" height="14" />
                   </CustomButton>
                   <CustomButton
                     v-if="canInstallMarketplaceItem(resource)"
@@ -316,7 +311,7 @@
                     :loading="isMarketplaceItemInstalling(resource)"
                     @click="handleInstallMarketplace(resource, false)"
                   >
-                    <Download theme="outline" size="14" />
+                    <Download width="14" height="14" />
                   </CustomButton>
                 </div>
               </div>
@@ -423,7 +418,7 @@
               requestUninstall(plugin.id, pluginText(plugin.manifest.name))
             "
           >
-            <Delete theme="outline" size="14" />
+            <Delete width="14" height="14" />
           </CustomButton>
           <CustomSwitch
             :model-value="pluginStore.isEnabled(plugin.id)"
@@ -498,7 +493,7 @@
                   )
                 "
               >
-                <Delete theme="outline" size="14" />
+                <Delete width="14" height="14" />
               </CustomButton>
               <CustomSwitch
                 :model-value="pluginStore.isEnabled(resource.id)"
@@ -554,16 +549,14 @@ import { useRouter } from 'vue-router';
 import { getVersion } from '@tauri-apps/api/app';
 import { open } from '@tauri-apps/plugin-dialog';
 import { unregister } from '@tauri-apps/plugin-global-shortcut';
-import {
-  Delete,
-  Download,
-  FileZip,
-  FolderOpen,
-  Github,
-  Info,
-  Refresh,
-  Search
-} from '@icon-park/vue-next';
+import Delete from '~icons/lucide/trash-2';
+import Download from '~icons/lucide/download';
+import FileZip from '~icons/lucide/file-archive';
+import FolderOpen from '~icons/lucide/folder-open';
+import Github from '~icons/simple-icons/github';
+import Info from '~icons/lucide/info';
+import Refresh from '~icons/lucide/refresh-cw';
+import Search from '~icons/lucide/search';
 import { getGitSettings } from '@/api/appConfig';
 import {
   DEFAULT_PLUGIN_MARKETPLACE_URL,

@@ -180,7 +180,9 @@
 </template>
 
 <script setup lang="ts">
-import { SunOne, Moon, Computer } from '@icon-park/vue-next';
+import SunOne from '~icons/lucide/sun';
+import Moon from '~icons/lucide/moon';
+import Computer from '~icons/lucide/monitor';
 import { useI18n } from 'vue-i18n';
 import { useConfigurationStore, useThemeStore } from '@/store';
 import { broadcastThemeChanged } from '@/utils/theme-sync';

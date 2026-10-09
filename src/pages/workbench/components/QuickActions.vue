@@ -16,8 +16,8 @@
       >
         <component
           :is="action.icon"
-          theme="outline"
-          size="20"
+          width="20"
+          height="20"
           aria-hidden="true"
         />
         <span class="flex min-w-0 flex-col gap-0.5">
@@ -32,8 +32,8 @@
         </span>
         <RightSmall
           class="text-[var(--workspace-nav-muted)]"
-          theme="outline"
-          size="16"
+          width="16"
+          height="16"
           aria-hidden="true"
         />
       </button>
@@ -42,7 +42,7 @@
 </template>
 
 <script setup lang="ts">
-import { RightSmall } from '@icon-park/vue-next';
+import RightSmall from '~icons/lucide/chevron-right';
 import { useI18n } from 'vue-i18n';
 import type { ConfigNavigationTab } from '@/plugins/navigation';
 

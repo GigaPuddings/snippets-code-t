@@ -26,12 +26,7 @@
         <article v-for="layer in layers" :key="layer.id" class="layer-card">
           <div class="layer-card__header">
             <div class="layer-card__title">
-              <component
-                :is="layer.icon"
-                theme="outline"
-                size="18"
-                :strokeWidth="3"
-              />
+              <component :is="layer.icon" width="18" height="18" />
               <strong>{{ layer.label }}</strong>
             </div>
             <span class="status-chip" :class="statusChipClass(layer.status)">

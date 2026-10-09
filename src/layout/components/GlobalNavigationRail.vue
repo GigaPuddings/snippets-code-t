@@ -27,11 +27,7 @@
         :aria-label="t(tab.labelKey)"
         :aria-current="isActive(tab.path) ? 'page' : undefined"
       >
-        <component
-          :is="tab.id === 'workspace' ? FolderOne : tab.icon"
-          theme="outline"
-          size="20"
-        />
+        <component :is="tab.icon" width="20" height="20" />
       </router-link>
     </div>
 
@@ -84,15 +80,15 @@
           </div>
           <el-dropdown-menu>
             <el-dropdown-item command="userCenter">
-              <Me size="18" />
+              <Me width="18" height="18" />
               <span>{{ t('titlebar.userCenter') }}</span>
             </el-dropdown-item>
             <el-dropdown-item command="search">
-              <Search size="18" />
+              <Search width="18" height="18" />
               <span>{{ t('titlebar.quickSearch') }}</span>
             </el-dropdown-item>
             <el-dropdown-item command="settings">
-              <SettingTwo size="18" />
+              <SettingTwo width="18" height="18" />
               <span>{{ t('titlebar.settings') }}</span>
             </el-dropdown-item>
           </el-dropdown-menu>
@@ -103,7 +99,9 @@
 </template>
 
 <script setup lang="ts">
-import { FolderOne, Me, Search, SettingTwo } from '@icon-park/vue-next';
+import Me from '~icons/lucide/circle-user-round';
+import Search from '~icons/lucide/search';
+import SettingTwo from '~icons/lucide/settings';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { useI18n } from 'vue-i18n';

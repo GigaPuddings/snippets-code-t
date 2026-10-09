@@ -10,7 +10,7 @@
         @click="emit('manage')"
       >
         {{ t('workbenchHome.manage') }}
-        <ArrowRight theme="outline" size="14" aria-hidden="true" />
+        <ArrowRight width="14" height="14" aria-hidden="true" />
       </button>
     </header>
     <div class="space-y-1">
@@ -22,12 +22,7 @@
         :title="layer.label"
         @click="layer.actions[0] && emit('navigateAction', layer.actions[0])"
       >
-        <component
-          :is="layer.icon"
-          theme="outline"
-          size="18"
-          aria-hidden="true"
-        />
+        <component :is="layer.icon" width="18" height="18" aria-hidden="true" />
         <span class="truncate text-ui">{{ layer.label }}</span>
         <span
           class="flex items-center gap-2 whitespace-nowrap text-ui-caption text-[var(--workspace-nav-muted)]"
@@ -45,7 +40,7 @@
 </template>
 
 <script setup lang="ts">
-import { ArrowRight } from '@icon-park/vue-next';
+import ArrowRight from '~icons/lucide/arrow-right';
 import { useI18n } from 'vue-i18n';
 import type {
   WorkbenchAction,

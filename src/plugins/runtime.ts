@@ -1,6 +1,6 @@
 import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 import { listen, emit, type UnlistenFn } from '@tauri-apps/api/event';
-import { SettingTwo } from '@icon-park/vue-next';
+import SettingTwo from '~icons/lucide/settings';
 import {
   defineAsyncComponent,
   defineComponent,

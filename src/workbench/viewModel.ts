@@ -1,10 +1,8 @@
 import type { Component, ComputedRef, Ref } from 'vue';
-import {
-  Application,
-  BookOpen,
-  MessageSearch,
-  Robot
-} from '@icon-park/vue-next';
+import Application from '~icons/lucide/puzzle';
+import Library from '~icons/lucide/library';
+import MessageSearch from '~icons/lucide/search';
+import Robot from '~icons/lucide/bot';
 import { AI_PROVIDER_CAPABILITIES } from '@/ai';
 import { DEFAULT_SEARCH_PROVIDER_TIMEOUT_MS } from '@/search/sourceCatalog';
 import type { MarkdownFile } from '@/types';
@@ -181,7 +179,7 @@ const buildWorkspaceLayer = (
 ): WorkbenchLayer => ({
   id: 'workspace',
   label: input.t('settings.workbench.layers.workspace'),
-  icon: BookOpen,
+  icon: Library,
   status: workspaceStatus(input.workspaceRoot),
   stats: [
     {

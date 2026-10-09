@@ -1,7 +1,7 @@
 <template>
   <main
     data-tauri-drag-region
-    class="titlebar ui-icon-scope"
+    class="titlebar"
     :class="{ 'titlebar--config': isConfigRoute }"
   >
     <nav
@@ -18,7 +18,7 @@
         :disabled="!canGoBack"
         @click="router.back()"
       >
-        <ArrowLeft theme="outline" size="18" />
+        <ArrowLeft width="18" height="18" />
       </button>
       <button
         type="button"
@@ -28,7 +28,7 @@
         :disabled="!canGoForward"
         @click="router.forward()"
       >
-        <ArrowRight theme="outline" size="18" />
+        <ArrowRight width="18" height="18" />
       </button>
       <button
         v-if="showSidebarToggle"
@@ -47,7 +47,7 @@
         :aria-expanded="!sidebarCollapsed"
         @click="toggleSidebar"
       >
-        <LeftBar theme="outline" size="18" />
+        <LeftBar width="18" height="18" />
       </button>
     </nav>
     <!-- 搜索窗口品牌 -->
@@ -98,11 +98,11 @@
         <template #dropdown>
           <el-dropdown-menu>
             <el-dropdown-item command="aboutApp">
-              <Info theme="outline" size="17" />
+              <Info width="17" height="17" />
               <span>{{ t('titlebar.aboutApp') }}</span>
             </el-dropdown-item>
             <el-dropdown-item command="checkUpdate">
-              <UpdateRotation theme="outline" size="17" />
+              <UpdateRotation width="17" height="17" />
               <span>{{ t('titlebar.checkUpdateMenu') }}</span>
               <span
                 v-if="hasUpdate"
@@ -110,7 +110,7 @@
               ></span>
             </el-dropdown-item>
             <el-dropdown-item command="exitApp" divided>
-              <Logout theme="outline" size="17" />
+              <Logout width="17" height="17" />
               <span>{{ t('titlebar.exitApp') }}</span>
             </el-dropdown-item>
           </el-dropdown-menu>
@@ -136,7 +136,7 @@
         @mousedown.stop
         @click.stop="openConfigQuickSearch"
       >
-        <search class="quick-search-icon" theme="outline" size="15" />
+        <search class="quick-search-icon" width="15" height="15" />
         <span class="quick-search-placeholder">
           {{ $t('titlebar.quickSearchPlaceholder') }}
         </span>
@@ -164,13 +164,14 @@
           "
           :aria-pressed="isAlwaysOnTop"
         >
-          <component
-            :is="isAlwaysOnTop ? Pushpin : Pin"
+          <Pushpin
             class="icon"
-            :class="{ 'icon-active': isAlwaysOnTop }"
-            size="18"
-            theme="outline"
-            strokeLinecap="butt"
+            :class="{
+              'icon-active': isAlwaysOnTop,
+              'app-icon--filled': isAlwaysOnTop
+            }"
+            width="18"
+            height="18"
           />
         </button>
       </template>
@@ -190,7 +191,7 @@
           :title="$t('titlebar.more')"
           :aria-label="$t('titlebar.more')"
         >
-          <more-one class="icon" theme="outline" size="18" />
+          <more-one class="icon" width="18" height="18" />
           <span v-if="hasUpdate" class="update-dot"></span>
         </button>
         <template #dropdown>
@@ -201,29 +202,29 @@
                 :key="tab.id"
                 :command="`navigate:${tab.id}`"
               >
-                <component :is="tab.icon" theme="outline" size="16" />
+                <component :is="tab.icon" width="16" height="16" />
                 <span class="ml-2">{{ tab.label }}</span>
               </el-dropdown-item>
             </template>
             <el-dropdown-item v-if="hideQuickSearch" command="search">
-              <Search theme="outline" size="16" />
+              <Search width="16" height="16" />
               <span class="ml-2">{{ $t('titlebar.quickSearch') }}</span>
             </el-dropdown-item>
             <el-dropdown-item command="userCenter">
-              <me theme="outline" size="16" class="align-middle" />
+              <me width="16" height="16" class="align-middle" />
               <span class="ml-2">{{ $t('titlebar.userCenter') }}</span>
             </el-dropdown-item>
             <el-dropdown-item command="checkUpdate">
-              <update-rotation theme="outline" size="16" class="align-middle" />
+              <update-rotation width="16" height="16" class="align-middle" />
               <span class="ml-2">{{ $t('titlebar.checkUpdate') }}</span>
               <span v-if="hasUpdate" class="update-dot-inline"></span>
             </el-dropdown-item>
             <el-dropdown-item v-if="isNarrow" command="pinWindow">
-              <component
-                :is="isAlwaysOnTop ? Pushpin : Pin"
-                theme="outline"
-                size="16"
+              <Pushpin
+                width="16"
+                height="16"
                 class="align-middle"
+                :class="{ 'app-icon--filled': isAlwaysOnTop }"
               />
               <span class="ml-2">
                 {{
@@ -234,7 +235,7 @@
               </span>
             </el-dropdown-item>
             <el-dropdown-item command="settings">
-              <setting-two theme="outline" size="16" class="align-middle" />
+              <setting-two width="16" height="16" class="align-middle" />
               <span class="ml-2">{{ $t('titlebar.settings') }}</span>
             </el-dropdown-item>
           </el-dropdown-menu>
@@ -252,12 +253,7 @@
         :title="$t('titlebar.minimize')"
         :aria-label="$t('titlebar.minimize')"
       >
-        <minus
-          class="icon !p-[2px]"
-          theme="outline"
-          size="20"
-          strokeLinecap="butt"
-        />
+        <minus class="icon" width="18" height="18" />
       </div>
       <div
         class="ui-icon-button titlebar-button titlebar-button--window"
@@ -265,11 +261,11 @@
         :title="title"
         :aria-label="title"
       >
-        <square-small
+        <component
+          :is="isMaximized ? RestoreWindow : SquareSmall"
           class="icon"
-          theme="outline"
-          size="18"
-          strokeLinecap="butt"
+          width="18"
+          height="18"
         />
       </div>
       <div
@@ -278,12 +274,7 @@
         :title="$t('titlebar.close')"
         :aria-label="$t('titlebar.close')"
       >
-        <close-small
-          class="icon"
-          theme="outline"
-          size="18"
-          strokeLinecap="butt"
-        />
+        <close-small class="icon" width="18" height="18" />
       </div>
     </div>
   </main>
@@ -315,23 +306,21 @@
 </template>
 
 <script setup lang="ts">
-import {
-  Pushpin,
-  Pin,
-  Minus,
-  SquareSmall,
-  CloseSmall,
-  UpdateRotation,
-  SettingTwo,
-  Me,
-  MoreOne,
-  Search,
-  ArrowLeft,
-  ArrowRight,
-  LeftBar,
-  Info,
-  Logout
-} from '@icon-park/vue-next';
+import Pushpin from '~icons/lucide/pin';
+import Minus from '~icons/lucide/minus';
+import SquareSmall from '~icons/lucide/square';
+import RestoreWindow from '~icons/lucide/copy';
+import CloseSmall from '~icons/lucide/x';
+import UpdateRotation from '~icons/lucide/refresh-cw';
+import SettingTwo from '~icons/lucide/settings';
+import Me from '~icons/lucide/circle-user-round';
+import MoreOne from '~icons/lucide/ellipsis';
+import Search from '~icons/lucide/search';
+import ArrowLeft from '~icons/lucide/arrow-left';
+import ArrowRight from '~icons/lucide/arrow-right';
+import LeftBar from '~icons/lucide/panel-left';
+import Info from '~icons/lucide/info';
+import Logout from '~icons/lucide/log-out';
 import { appName, appVersion, getAppWindow, initEnv } from '@/utils/env';
 import { invoke } from '@tauri-apps/api/core';
 import { useRouter } from 'vue-router';
@@ -709,7 +698,7 @@ onUnmounted(() => {
 }
 
 .icon {
-  @apply flex min-h-ui-control min-w-ui-control items-center justify-center p-1.5;
+  @apply shrink-0;
 
   color: var(--workspace-nav-text);
 

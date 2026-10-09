@@ -10,7 +10,7 @@
         @click="emit('viewAll')"
       >
         {{ t('workbenchHome.viewAll') }}
-        <ArrowRight theme="outline" size="14" aria-hidden="true" />
+        <ArrowRight width="14" height="14" aria-hidden="true" />
       </button>
     </header>
     <ul v-if="items.length" class="m-0 space-y-1 list-none p-0">
@@ -22,12 +22,8 @@
           @click="emit('open', item.path)"
         >
           <span class="text-[var(--workspace-nav-text)]" aria-hidden="true">
-            <FileCodeOne
-              v-if="item.type === 'code'"
-              theme="outline"
-              size="18"
-            />
-            <Notebook v-else theme="outline" size="18" />
+            <FileCodeOne v-if="item.type === 'code'" width="18" height="18" />
+            <Notebook v-else width="18" height="18" />
           </span>
           <span class="flex min-w-0 flex-col gap-0.5">
             <span
@@ -49,8 +45,8 @@
           </time>
           <ArrowRight
             class="text-[var(--workspace-nav-muted)] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
-            theme="outline"
-            size="16"
+            width="16"
+            height="16"
             aria-hidden="true"
           />
         </button>
@@ -60,7 +56,7 @@
       v-else
       class="flex min-h-48 flex-col items-center justify-center gap-3 rounded-lg bg-[var(--workspace-nav-bg)] dark:bg-[var(--categories-content-bg)] px-4 py-6 text-center text-[var(--workspace-nav-muted)]"
     >
-      <FolderOpen theme="outline" size="24" aria-hidden="true" />
+      <FolderOpen width="24" height="24" aria-hidden="true" />
       <p class="m-0 text-ui">
         {{
           workspaceRoot
@@ -80,12 +76,10 @@
 </template>
 
 <script setup lang="ts">
-import {
-  ArrowRight,
-  FileCodeOne,
-  Notebook,
-  FolderOpen
-} from '@icon-park/vue-next';
+import ArrowRight from '~icons/lucide/arrow-right';
+import FileCodeOne from '~icons/lucide/file-code';
+import Notebook from '~icons/lucide/notebook';
+import FolderOpen from '~icons/lucide/folder-open';
 import { useI18n } from 'vue-i18n';
 import type { WorkbenchRecentItem } from '@/workbench/viewModel';
 

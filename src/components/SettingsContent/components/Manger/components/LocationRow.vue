@@ -17,8 +17,8 @@
         <span class="min-w-0 flex-1 truncate">{{ path || placeholder }}</span>
         <FolderOpen
           v-if="path"
-          theme="outline"
-          size="16"
+          width="16"
+          height="16"
           class="shrink-0 text-content"
         />
       </button>
@@ -37,7 +37,7 @@
 </template>
 
 <script setup lang="ts">
-import { FolderOpen } from '@icon-park/vue-next';
+import FolderOpen from '~icons/lucide/folder-open';
 import { useI18n } from 'vue-i18n';
 import { CustomButton } from '@/components/UI';
 

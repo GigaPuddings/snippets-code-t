@@ -35,8 +35,8 @@
             <component
               :is="item.icon"
               class="shrink-0"
-              theme="outline"
-              size="18"
+              width="18"
+              height="18"
             />
             <span class="settings-menu-label" :title="item.label">
               {{ item.label }}
@@ -67,12 +67,13 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
-import {
-  Data,
-  EnterTheKeyboard,
-  SettingTwo,
-  Workbench as WorkbenchIcon
-} from '@icon-park/vue-next';
+import Data from '~icons/lucide/database';
+import EnterTheKeyboard from '~icons/lucide/keyboard';
+import SettingTwo from '~icons/lucide/settings';
+import Brain from '~icons/lucide/brain';
+import Puzzle from '~icons/lucide/puzzle';
+import Terminal from '~icons/lucide/square-terminal';
+import WorkbenchIcon from '~icons/lucide/layout-dashboard';
 import {
   pluginSettingsComponents,
   pluginSettingsMenuItems,
@@ -96,11 +97,11 @@ const canShowGitSyncTab = computed(() => pluginStore.isEnabled('git-sync'));
 const coreMenuItems: PluginSettingsMenuItem[] = [
   { id: 'workbench', labelKey: 'settings.workbench.menu', icon: WorkbenchIcon },
   { id: 'general', labelKey: 'settings.general', icon: SettingTwo },
-  { id: 'ai', labelKey: 'settings.ai.menu', icon: SettingTwo },
-  { id: 'plugins', labelKey: 'plugins.title', icon: Data },
+  { id: 'ai', labelKey: 'settings.ai.menu', icon: Brain },
+  { id: 'plugins', labelKey: 'plugins.title', icon: Puzzle },
   { id: 'shortcut', labelKey: 'shortcut.title', icon: EnterTheKeyboard },
   { id: 'data', labelKey: 'dataManager.title', icon: Data },
-  { id: 'developer', labelKey: 'settings.developer.menu', icon: SettingTwo }
+  { id: 'developer', labelKey: 'settings.developer.menu', icon: Terminal }
 ];
 
 const menuItems = computed(() => {

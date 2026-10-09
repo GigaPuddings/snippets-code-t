@@ -24,7 +24,7 @@
           <span
             class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-active/10 text-primary"
           >
-            <Loading theme="outline" size="18" :stroke-width="3" spin />
+            <Loading width="18" height="18" class="animate-spin" />
           </span>
           <div class="min-w-0 flex-1">
             <div class="flex min-w-0 items-center gap-2">
@@ -120,7 +120,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
-import { Loading } from '@icon-park/vue-next';
+import Loading from '~icons/lucide/loader-circle';
 import { CustomButton } from '@/components/UI';
 import type { BackgroundIndexTask } from './useIndexMaintenance';
 

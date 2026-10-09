@@ -1,11 +1,9 @@
-import {
-  Application,
-  BookOpen,
-  MessageSearch,
-  Notepad,
-  Robot,
-  Workbench
-} from '@icon-park/vue-next';
+import Application from '~icons/lucide/app-window';
+import Library from '~icons/lucide/library';
+import MessageSearch from '~icons/lucide/globe';
+import Notepad from '~icons/lucide/list-todo';
+import Robot from '~icons/lucide/bot';
+import Workbench from '~icons/lucide/layout-dashboard';
 import type { Component } from 'vue';
 import type { PluginId } from './types';
 
@@ -32,7 +30,7 @@ export const configNavigationTabs: ConfigNavigationTab[] = [
   {
     id: 'workspace',
     labelKey: 'nav.workspace',
-    icon: BookOpen,
+    icon: Library,
     path: '/config/category/contentList'
   },
   {

@@ -13,20 +13,7 @@
         aria-label="Close"
         @click="handleCancel"
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <path d="M18 6 6 18" />
-          <path d="m6 6 12 12" />
-        </svg>
+        <UiX width="20" height="20" />
       </CustomButton>
     </div>
 
@@ -52,36 +39,8 @@
           class="status-banner"
           :class="{ error: update.error }"
         >
-          <svg
-            v-if="!update.error"
-            xmlns="http://www.w3.org/2000/svg"
-            width="22"
-            height="22"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M20 6 9 17l-5-5" />
-          </svg>
-          <svg
-            v-else
-            xmlns="http://www.w3.org/2000/svg"
-            width="22"
-            height="22"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <circle cx="12" cy="12" r="10" />
-            <path d="M12 8v4" />
-            <path d="M12 16h.01" />
-          </svg>
+          <UiCheck v-if="!update.error" width="22" height="22" />
+          <UiCircleAlert v-else width="22" height="22" />
           <span>
             {{ update.error || readyText }}
           </span>
@@ -99,55 +58,19 @@
                 error: update.error
               }"
             >
-              <svg
+              <UiDownload
                 v-if="!update.error && update.progress < 100"
                 class="download-icon"
-                xmlns="http://www.w3.org/2000/svg"
                 width="22"
                 height="22"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
-              <svg
+              />
+              <UiCheck
                 v-else-if="!update.error"
                 class="check-icon"
-                xmlns="http://www.w3.org/2000/svg"
                 width="22"
                 height="22"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M20 6 9 17l-5-5" />
-              </svg>
-              <svg
-                v-else
-                class="error-icon"
-                xmlns="http://www.w3.org/2000/svg"
-                width="22"
-                height="22"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <circle cx="12" cy="12" r="10" />
-                <line x1="12" y1="8" x2="12" y2="12" />
-                <line x1="12" y1="16" x2="12.01" y2="16" />
-              </svg>
+              />
+              <UiCircleAlert v-else class="error-icon" width="22" height="22" />
             </div>
             <div class="status-text-container">
               <span class="status-text" :class="{ error: update.error }">
@@ -173,21 +96,7 @@
           </div>
           <div v-else-if="update.error" class="error-message">
             <div class="error-title">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <circle cx="12" cy="12" r="10" />
-                <line x1="15" y1="9" x2="9" y2="15" />
-                <line x1="9" y1="9" x2="15" y2="15" />
-              </svg>
+              <UiCircleX width="20" height="20" />
               <span>{{ $t('update.installFailed') }}</span>
             </div>
             <pre class="error-content">{{ update.error }}</pre>
@@ -237,21 +146,7 @@
           @click="handleInstallNow"
           class="action-button update-button"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-            <polyline points="7 10 12 15 17 10" />
-            <line x1="12" y1="15" x2="12" y2="3" />
-          </svg>
+          <UiDownload width="18" height="18" />
           {{
             update.error ? $t('update.retryInstall') : $t('update.installNow')
           }}
@@ -266,22 +161,7 @@
           @click="handleDownload"
           class="action-button update-button"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
-            <path d="M3 21v-5h5" />
-            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
-            <path d="M16 8h5V3" />
-          </svg>
+          <UiRefreshCw width="18" height="18" />
           {{
             update.error
               ? $t('update.retryDownload')
@@ -294,6 +174,12 @@
 </template>
 
 <script setup lang="ts">
+import UiRefreshCw from '~icons/lucide/refresh-cw';
+import UiDownload from '~icons/lucide/download';
+import UiCircleX from '~icons/lucide/circle-x';
+import UiCircleAlert from '~icons/lucide/circle-alert';
+import UiCheck from '~icons/lucide/check';
+import UiX from '~icons/lucide/x';
 import { appVersion, initEnv, getAppWindow } from '@/utils/env';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, emit } from '@tauri-apps/api/event';
