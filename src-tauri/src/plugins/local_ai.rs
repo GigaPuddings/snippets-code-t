@@ -177,6 +177,59 @@ pub struct LocalAiMessage {
     pub content: Value,
 }
 
+// Keep the native transport compatible with previously installed plugin bundles,
+// whose frontend may prepend context as a second system message.
+fn normalize_system_messages(messages: Vec<LocalAiMessage>) -> Vec<LocalAiMessage> {
+    let system_count = messages
+        .iter()
+        .filter(|message| message.role == "system")
+        .count();
+    if system_count == 0
+        || (system_count == 1
+            && messages
+                .first()
+                .is_some_and(|message| message.role == "system"))
+    {
+        return messages;
+    }
+
+    let (system, mut conversation): (Vec<_>, Vec<_>) = messages
+        .into_iter()
+        .partition(|message| message.role == "system");
+    let content = if system.iter().all(|message| message.content.is_string()) {
+        Value::String(
+            system
+                .iter()
+                .filter_map(|message| message.content.as_str())
+                .collect::<Vec<_>>()
+                .join("\n\n"),
+        )
+    } else {
+        let mut parts = Vec::new();
+        for (index, message) in system.into_iter().enumerate() {
+            if index > 0 {
+                parts.push(serde_json::json!({ "type": "text", "text": "\n\n" }));
+            }
+            match message.content {
+                Value::String(text) => {
+                    parts.push(serde_json::json!({ "type": "text", "text": text }))
+                }
+                Value::Array(content) => parts.extend(content),
+                content => parts.push(content),
+            }
+        }
+        Value::Array(parts)
+    };
+    conversation.insert(
+        0,
+        LocalAiMessage {
+            role: "system".to_string(),
+            content,
+        },
+    );
+    conversation
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LocalAiChatTurn {
@@ -1090,7 +1143,7 @@ async fn chat_completion(
     let url = format!("{}/v1/chat/completions", base_url(&config));
     let body = serde_json::json!({
         "model": "local-ai",
-        "messages": messages,
+        "messages": normalize_system_messages(messages),
         "temperature": temperature.unwrap_or(config.temperature),
         "top_p": config.top_p,
         "top_k": config.top_k,
@@ -1322,7 +1375,7 @@ async fn chat_completion_stream(
     let url = format!("{}/v1/chat/completions", base_url(&config));
     let body = serde_json::json!({
         "model": "local-ai",
-        "messages": messages,
+        "messages": normalize_system_messages(messages),
         "temperature": temperature.unwrap_or(config.temperature),
         "top_p": config.top_p,
         "top_k": config.top_k,
@@ -1935,5 +1988,80 @@ pub fn stop_service_now() {
     match SERVICE_STATE.lock() {
         Ok(mut state) => stop_child_locked(&mut state),
         Err(error) => warn!("[Plugin:local-ai] stop service lock failed: {}", error),
+    }
+}
+
+#[cfg(test)]
+mod message_tests {
+    use super::{normalize_system_messages, LocalAiMessage};
+    use serde_json::{json, Value};
+
+    fn message(role: &str, content: Value) -> LocalAiMessage {
+        LocalAiMessage {
+            role: role.to_string(),
+            content,
+        }
+    }
+
+    #[test]
+    fn merges_legacy_plugin_context_and_enhancement_instructions_at_the_beginning() {
+        let normalized = normalize_system_messages(vec![
+            message("system", json!("Selection context")),
+            message("system", json!("Enhance the prompt")),
+            message("user", json!("Question")),
+        ]);
+        assert_eq!(normalized.len(), 2);
+        assert_eq!(normalized[0].role, "system");
+        assert_eq!(
+            normalized[0].content,
+            json!("Selection context\n\nEnhance the prompt")
+        );
+        assert_eq!(normalized[1].role, "user");
+        assert_eq!(normalized[1].content, json!("Question"));
+    }
+
+    #[test]
+    fn moves_misplaced_system_messages_without_losing_content_parts_or_conversation_order() {
+        let user_content = json!([{ "type": "text", "text": "Question" }, { "type": "image_url", "image_url": { "url": "data:image/png;base64,test" } }]);
+        let normalized = normalize_system_messages(vec![
+            message("user", user_content.clone()),
+            message("system", json!("Instructions")),
+            message("assistant", json!("Previous answer")),
+            message(
+                "system",
+                json!([{ "type": "text", "text": "Additional instructions" }]),
+            ),
+        ]);
+        assert_eq!(normalized.len(), 3);
+        assert_eq!(
+            normalized[0].content,
+            json!([
+                { "type": "text", "text": "Instructions" },
+                { "type": "text", "text": "\n\n" },
+                { "type": "text", "text": "Additional instructions" },
+            ])
+        );
+        assert_eq!(normalized[1].role, "user");
+        assert_eq!(normalized[1].content, user_content);
+        assert_eq!(normalized[2].role, "assistant");
+    }
+
+    #[test]
+    fn leaves_already_normalized_messages_and_empty_inputs_unchanged() {
+        for messages in [
+            vec![],
+            vec![message("user", json!("Question"))],
+            vec![
+                message(
+                    "system",
+                    json!([{ "type": "text", "text": "Instructions" }]),
+                ),
+                message("user", json!("Question")),
+            ],
+        ] {
+            let before = serde_json::to_value(&messages).unwrap();
+            let normalized = normalize_system_messages(messages);
+            assert_eq!(serde_json::to_value(&normalized).unwrap(), before);
+        }
     }
 }

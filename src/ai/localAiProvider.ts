@@ -68,10 +68,28 @@ const localAiContextMessage = (
 
 const withContextMessage = (request: AiChatRequest): LocalAiChatRequest => {
   const contextMessage = localAiContextMessage(request.context);
+  // Local model templates often allow exactly one system message, at index 0.
+  // Keep caller instructions before collected context and preserve all content parts.
+  const systemContents = request.messages
+    .filter((message) => message.role === 'system')
+    .map((message) => message.content);
+  if (contextMessage) systemContents.push(contextMessage.content);
+  const messages = request.messages.filter(
+    (message) => message.role !== 'system'
+  );
+  if (systemContents.length) {
+    const content = systemContents.every((part) => typeof part === 'string')
+      ? systemContents.join('\n\n')
+      : systemContents.flatMap((part, index) => [
+          ...(index ? [{ type: 'text' as const, text: '\n\n' }] : []),
+          ...(typeof part === 'string'
+            ? [{ type: 'text' as const, text: part }]
+            : part)
+        ]);
+    messages.unshift({ role: 'system', content });
+  }
   const localRequest: LocalAiChatRequest = {
-    messages: contextMessage
-      ? [contextMessage, ...request.messages]
-      : request.messages
+    messages
   };
   if (request.temperature !== undefined) {
     localRequest.temperature = request.temperature;

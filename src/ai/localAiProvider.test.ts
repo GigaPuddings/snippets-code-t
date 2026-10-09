@@ -157,6 +157,75 @@ it('uses contextual chat for translation requests with context', async () => {
   });
 });
 
+it('combines prompt enhancement instructions and selection context into one leading system message', async () => {
+  vi.mocked(chatWithLocalAi).mockResolvedValue({ content: 'enhanced prompt' });
+  const messages = [
+    {
+      role: 'system' as const,
+      content: 'Improve the prompt. Return Chinese only.'
+    },
+    { role: 'user' as const, content: '分析代码' }
+  ];
+  await localAiProvider.chat({
+    messages,
+    context: createSelectionAiContext('分析代码', {
+      source: 'local-ai.prompt-enhancement'
+    }),
+    temperature: 0.1,
+    enableThinking: false,
+    maxTokens: 256
+  });
+  const request = vi.mocked(chatWithLocalAi).mock.calls[0][0];
+  expect(request.messages).toHaveLength(2);
+  expect(request.messages[0]).toEqual({
+    role: 'system',
+    content: expect.stringMatching(
+      /^Improve the prompt\. Return Chinese only\.[\s\S]*local-ai\.prompt-enhancement/
+    )
+  });
+  expect(request).toMatchObject({
+    temperature: 0.1,
+    enableThinking: false,
+    maxTokens: 256
+  });
+  expect(messages[0].content).toBe('Improve the prompt. Return Chinese only.');
+});
+
+it('normalizes misplaced system messages for streaming without losing multimodal content or conversation order', async () => {
+  vi.mocked(streamChatWithLocalAi).mockResolvedValue({ content: 'answer' });
+  const image = {
+    type: 'image_url' as const,
+    image_url: { url: 'data:image/png;base64,test' }
+  };
+  await localAiProvider.streamChat?.(
+    {
+      messages: [
+        { role: 'user', content: [{ type: 'text', text: 'Question' }, image] },
+        { role: 'system', content: 'Instructions' },
+        { role: 'assistant', content: 'Previous answer' },
+        {
+          role: 'system',
+          content: [{ type: 'text', text: 'Additional instructions' }]
+        }
+      ]
+    },
+    vi.fn()
+  );
+  const request = vi.mocked(streamChatWithLocalAi).mock.calls[0][0];
+  expect(request.messages).toEqual([
+    {
+      role: 'system',
+      content: [
+        { type: 'text', text: 'Instructions' },
+        { type: 'text', text: '\n\n' },
+        { type: 'text', text: 'Additional instructions' }
+      ]
+    },
+    { role: 'user', content: [{ type: 'text', text: 'Question' }, image] },
+    { role: 'assistant', content: 'Previous answer' }
+  ]);
+});
+
 it('streams chat requests through the local AI stream API', async () => {
   vi.mocked(streamChatWithLocalAi).mockImplementation(
     async (_request, onDelta, options) => {
