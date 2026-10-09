@@ -875,6 +875,7 @@ export default {
     recentlyDeleted: 'Recently Deleted',
     recentDocuments: 'Recent Documents',
     newNote: 'New Note',
+    resizeSidebar: 'Drag to resize the sidebar; double-click to reset',
     restore: 'Restore',
     restoreConflict: 'A file already exists at the original location',
     deletedEmpty: 'No recently deleted items',

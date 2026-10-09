@@ -1,169 +1,191 @@
 <template>
-  <main class="category-container" :style="gridStyle">
-    <section
-      class="category-page"
-      :class="{
-        'category-page--collapsed':
-          layoutStore.effectiveCategoryCollapsed || isSettingsRoute
-      }"
+  <main class="category-container">
+    <Splitter
+      :model-value="layoutStore.effectiveCategoryPanelWidth"
+      :default-size="CATEGORY_PANEL_DEFAULT_WIDTH"
+      :min-size="CATEGORY_PANEL_MIN_WIDTH"
+      :max-size="CATEGORY_PANEL_MAX_WIDTH"
+      :min-second-size="360"
+      :first-collapsed="
+        layoutStore.effectiveCategoryCollapsed || isSettingsRoute
+      "
+      :label="t('nav.resizeSidebar')"
+      @resize-end="layoutStore.setCategoryPanelWidth"
     >
-      <!-- 折叠态不显示边条/箭头；展开态仅显示内容，无折叠把手 -->
-      <div
-        v-if="!layoutStore.effectiveCategoryCollapsed && !isSettingsRoute"
-        class="category-page__content"
-      >
-        <div
-          class="flex h-12 shrink-0 items-center justify-between gap-1 pl-4 pr-3"
-        >
-          <strong
-            class="min-w-0 truncate text-ui-title font-semibold tracking-[-0.4px] text-[var(--workspace-nav-heading)]"
+      <template #first>
+        <section class="category-page">
+          <div
+            v-if="!layoutStore.effectiveCategoryCollapsed && !isSettingsRoute"
+            class="category-page__content"
           >
-            snippets-code
-          </strong>
-          <div class="flex shrink-0 items-center gap-1">
-            <el-tooltip effect="light" placement="bottom-end" :show-after="350">
-              <template #content>
-                <div class="max-w-64 font-ui">
-                  <div class="text-ui font-medium">
-                    {{ t('titlebar.quickSearch') }} · Ctrl K
-                  </div>
-                  <div class="mt-1 text-ui-caption text-content">
-                    {{ t('titlebar.quickSearchPlaceholder') }}
-                  </div>
-                </div>
-              </template>
+            <div
+              class="flex h-12 shrink-0 items-center justify-between gap-1 pl-4 pr-3"
+            >
+              <strong
+                class="min-w-0 truncate text-ui-title font-semibold tracking-[-0.4px] text-[var(--workspace-nav-heading)]"
+              >
+                snippets-code
+              </strong>
+              <div class="flex shrink-0 items-center gap-1">
+                <el-tooltip
+                  effect="light"
+                  placement="bottom-end"
+                  :show-after="350"
+                >
+                  <template #content>
+                    <div class="max-w-64 font-ui">
+                      <div class="text-ui font-medium">
+                        {{ t('titlebar.quickSearch') }} · Ctrl K
+                      </div>
+                      <div class="mt-1 text-ui-caption text-content">
+                        {{ t('titlebar.quickSearchPlaceholder') }}
+                      </div>
+                    </div>
+                  </template>
+                  <button
+                    type="button"
+                    class="ui-action gap-1 px-1.5"
+                    :aria-label="`${t('titlebar.quickSearch')} (Ctrl K)`"
+                    aria-keyshortcuts="Control+K Meta+K"
+                    @click="openConfigQuickSearch"
+                  >
+                    <Search width="16" height="16" />
+                    <kbd class="font-ui text-ui-caption text-content">
+                      Ctrl K
+                    </kbd>
+                  </button>
+                </el-tooltip>
+                <GitContributionMiniEntry />
+              </div>
+            </div>
+            <div class="mx-2 mb-2 flex shrink-0 items-center gap-0.5">
               <button
                 type="button"
-                class="ui-action gap-1 px-1.5"
-                :aria-label="`${t('titlebar.quickSearch')} (Ctrl K)`"
-                aria-keyshortcuts="Control+K Meta+K"
-                @click="openConfigQuickSearch"
+                class="ui-action min-w-0 flex-1 justify-start gap-2 px-3 font-normal"
+                :title="
+                  t('fragmentType.createIn', { folder: creationFolderName })
+                "
+                @click="createContent('note')"
               >
-                <Search width="16" height="16" />
-                <kbd class="font-ui text-ui-caption text-content">Ctrl K</kbd>
+                <EditTwo width="16" height="16" class="shrink-0" />
+                <span class="shrink-0">{{ t('nav.newNote') }}</span>
+                <span
+                  class="ml-auto max-w-24 truncate text-ui-caption text-content"
+                >
+                  {{ creationFolderName }}
+                </span>
               </button>
-            </el-tooltip>
-            <GitContributionMiniEntry />
-          </div>
-        </div>
-        <div class="mx-2 mb-2 flex shrink-0 items-center gap-0.5">
-          <button
-            type="button"
-            class="ui-action min-w-0 flex-1 justify-start gap-2 px-3 font-normal"
-            :title="t('fragmentType.createIn', { folder: creationFolderName })"
-            @click="createContent('note')"
-          >
-            <EditTwo width="16" height="16" class="shrink-0" />
-            <span class="shrink-0">{{ t('nav.newNote') }}</span>
-            <span
-              class="ml-auto max-w-24 truncate text-ui-caption text-content"
-            >
-              {{ creationFolderName }}
-            </span>
-          </button>
-          <el-dropdown trigger="click" @command="createContent($event)">
-            <button
-              type="button"
-              class="ui-icon-button"
-              :aria-label="t('fragmentType.selectType')"
-            >
-              <Down width="14" height="14" />
-            </button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="note" :icon="Notebook">
-                  {{ t('nav.newNote') }}
-                </el-dropdown-item>
-                <el-dropdown-item command="code" :icon="FileCodeOne">
-                  {{ t('fragmentType.newSnippet') }}
-                </el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-        </div>
-        <QuickNav
-          :active-view="sidebarMode"
-          :favorite-count="store.favoriteCount"
-          @open="sidebarMode = $event"
-        />
-        <CategoryHeader
-          :sort-order="categorySort"
-          :view-label="sidebarMode === 'folders' ? undefined : sidebarViewLabel"
-          @sort="handleSort"
-          @add="openAddCategoryDialog"
-          @back="showFolders"
-        />
-        <div
-          class="category-page__browse"
-          :class="{
-            'category-page__browse--results': sidebarMode !== 'folders'
-          }"
-        >
-          <div v-if="sidebarMode === 'folders'" class="category-page__list">
-            <CategoryListView
-              :categories="categories"
-              :edit-category-id="store.editCategoryId"
-              :active-category-id="selectedContentCategoryId"
-              @move-content="handleMoveContent"
-              @select-category="selectFolder"
-              @create-content="createContent($event.type, $event.categoryId)"
+              <el-dropdown trigger="click" @command="createContent($event)">
+                <button
+                  type="button"
+                  class="ui-icon-button"
+                  :aria-label="t('fragmentType.selectType')"
+                >
+                  <Down width="14" height="14" />
+                </button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item command="note" :icon="Notebook">
+                      {{ t('nav.newNote') }}
+                    </el-dropdown-item>
+                    <el-dropdown-item command="code" :icon="FileCodeOne">
+                      {{ t('fragmentType.newSnippet') }}
+                    </el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+            </div>
+            <QuickNav
+              :active-view="sidebarMode"
+              :favorite-count="store.favoriteCount"
+              @open="sidebarMode = $event"
             />
-          </div>
-          <div
-            id="category-side-results"
-            class="min-h-0 flex-1 overflow-hidden px-2"
-            :class="sidebarMode === 'folders' ? 'hidden' : 'flex flex-col'"
-          ></div>
-          <details
-            v-if="sidebarMode === 'folders'"
-            open
-            class="recent-documents px-2 pb-3 pt-2"
-          >
-            <summary
-              class="ui-section-heading mb-1 cursor-pointer list-none px-3"
-            >
-              {{ t('nav.recentDocuments') }}
-            </summary>
-            <router-link
-              v-for="item in recentDocuments"
-              :key="String(item.id)"
-              :to="`/config/category/contentList/content/${encodeURIComponent(String(item.id))}`"
-              class="ui-menu-item mb-ui-row-gap h-ui-row px-3"
+            <CategoryHeader
+              :sort-order="categorySort"
+              :view-label="
+                sidebarMode === 'folders' ? undefined : sidebarViewLabel
+              "
+              @sort="handleSort"
+              @add="openAddCategoryDialog"
+              @back="showFolders"
+            />
+            <div
+              class="category-page__browse"
               :class="{
-                active:
-                  selectedContentId === String(item.id).replace(/\\/g, '/')
+                'category-page__browse--results': sidebarMode !== 'folders'
               }"
-              :title="item.title"
             >
-              <component
-                :is="item.type === 'note' ? Notebook : FileCodeOne"
-                width="16"
-                height="16"
-                class="shrink-0"
-              />
-              <span class="min-w-0 flex-1 truncate">{{ item.title }}</span>
-              <Star
-                v-if="item.favorite"
-                width="13"
-                height="13"
-                class="app-icon--filled shrink-0 text-[var(--workspace-nav-muted)]"
-                :title="t('nav.favorited')"
-                :aria-label="t('nav.favorited')"
-              />
-            </router-link>
-          </details>
-        </div>
-        <div class="shrink-0 px-2 pb-2 pt-1">
-          <CategorySyncStatus />
-        </div>
-      </div>
-    </section>
+              <div v-if="sidebarMode === 'folders'" class="category-page__list">
+                <CategoryListView
+                  :categories="categories"
+                  :edit-category-id="store.editCategoryId"
+                  :active-category-id="selectedContentCategoryId"
+                  @move-content="handleMoveContent"
+                  @select-category="selectFolder"
+                  @create-content="
+                    createContent($event.type, $event.categoryId)
+                  "
+                />
+              </div>
+              <div
+                id="category-side-results"
+                class="min-h-0 flex-1 overflow-hidden px-2"
+                :class="sidebarMode === 'folders' ? 'hidden' : 'flex flex-col'"
+              ></div>
+              <details
+                v-if="sidebarMode === 'folders'"
+                open
+                class="recent-documents px-2 pb-3 pt-2"
+              >
+                <summary
+                  class="ui-section-heading mb-1 cursor-pointer list-none px-3"
+                >
+                  {{ t('nav.recentDocuments') }}
+                </summary>
+                <router-link
+                  v-for="item in recentDocuments"
+                  :key="String(item.id)"
+                  :to="`/config/category/contentList/content/${encodeURIComponent(String(item.id))}`"
+                  class="ui-menu-item mb-ui-row-gap h-ui-row px-3"
+                  :class="{
+                    active:
+                      selectedContentId === String(item.id).replace(/\\/g, '/')
+                  }"
+                  :title="item.title"
+                >
+                  <component
+                    :is="item.type === 'note' ? Notebook : FileCodeOne"
+                    width="16"
+                    height="16"
+                    class="shrink-0"
+                  />
+                  <span class="min-w-0 flex-1 truncate">{{ item.title }}</span>
+                  <Star
+                    v-if="item.favorite"
+                    width="13"
+                    height="13"
+                    class="app-icon--filled shrink-0 text-[var(--workspace-nav-muted)]"
+                    :title="t('nav.favorited')"
+                    :aria-label="t('nav.favorited')"
+                  />
+                </router-link>
+              </details>
+            </div>
+            <div class="shrink-0 px-2 pb-2 pt-1">
+              <CategorySyncStatus />
+            </div>
+          </div>
+        </section>
+      </template>
 
-    <section class="content-page">
-      <div class="h-full min-h-0 overflow-hidden">
-        <router-view />
-      </div>
-    </section>
+      <template #second>
+        <section class="content-page">
+          <div class="h-full min-h-0 overflow-hidden">
+            <router-view />
+          </div>
+        </section>
+      </template>
+    </Splitter>
 
     <PromptDialog
       v-model="showAddCategoryDialog"
@@ -186,6 +208,12 @@
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { useConfigurationStore, useLayoutStore } from '@/store';
+import {
+  CATEGORY_PANEL_DEFAULT_WIDTH,
+  CATEGORY_PANEL_MIN_WIDTH,
+  CATEGORY_PANEL_MAX_WIDTH
+} from '@/store/layout';
+import Splitter from '@/components/Splitter/index.vue';
 import { useCategoryManagement } from './composables/useCategoryManagement';
 import CategoryHeader from './components/CategoryHeader.vue';
 import CategoryListView from './components/CategoryListView.vue';
@@ -329,13 +357,6 @@ const showFolders = () => {
   }
 };
 
-const gridStyle = computed(() => ({
-  gridTemplateColumns:
-    layoutStore.effectiveCategoryCollapsed || isSettingsRoute.value
-      ? '0px 1fr'
-      : 'var(--workspace-sidebar-width) minmax(0, 1fr)'
-}));
-
 defineOptions({
   name: 'Category'
 });
@@ -471,13 +492,8 @@ watch(
 .category-container {
   @apply w-full h-full overflow-hidden;
 
-  display: grid;
-  grid-template-rows: 1fr;
-  grid-template-columns: var(--workspace-sidebar-width) minmax(0, 1fr);
-  transition: grid-template-columns 0.2s ease;
-
   .category-page {
-    @apply relative bg-panel text-ui overflow-hidden flex;
+    @apply relative h-full bg-panel text-ui overflow-hidden flex;
 
     --categories-panel-bg: var(--workspace-nav-bg);
     --categories-panel-bg-hover: var(--workspace-nav-selected);
@@ -489,11 +505,6 @@ watch(
     --search-result-accent: var(--workspace-nav-accent);
 
     color: var(--workspace-nav-text);
-    transition: min-width 0.2s ease;
-
-    &.category-page--collapsed {
-      @apply p-0;
-    }
   }
 
   .category-page__content {
@@ -520,7 +531,7 @@ watch(
   }
 
   .content-page {
-    @apply overflow-hidden min-w-0;
+    @apply h-full overflow-hidden min-w-0;
 
     // Document typography is shared with AI replies through Markdown tokens.
     font-family: var(--app-document-font-family);

@@ -852,6 +852,7 @@ export default {
     recentlyDeleted: '最近删除',
     recentDocuments: '最近文档',
     newNote: '新建笔记',
+    resizeSidebar: '拖动调整侧栏宽度，双击恢复默认宽度',
     restore: '恢复',
     restoreConflict: '原位置已有同名文件，请先处理该文件',
     deletedEmpty: '最近删除中没有内容',

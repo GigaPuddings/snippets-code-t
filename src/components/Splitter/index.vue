@@ -1,5 +1,9 @@
 <template>
-  <main ref="splitterRef" class="splitter-container">
+  <main
+    ref="splitterRef"
+    class="splitter-container"
+    :class="{ 'cursor-col-resize select-none': isResizing }"
+  >
     <div
       class="splitter-panel first-panel"
       :style="{ width: effectiveFirstWidth, minWidth: effectiveFirstWidth }"
@@ -12,7 +16,17 @@
       :style="{ left: effectiveFirstWidth }"
       role="separator"
       aria-orientation="vertical"
-      @mousedown="startResize"
+      :aria-label="label"
+      :aria-valuemin="bounds.min"
+      :aria-valuemax="bounds.max"
+      :aria-valuenow="Math.round(firstWidthPixels)"
+      :title="label"
+      tabindex="0"
+      :class="{ 'splitter-divider--resizing': isResizing }"
+      @pointerdown="startResize"
+      @lostpointercapture="stopResize"
+      @keydown="handleKeydown"
+      @dblclick="resetSize"
     >
       <div class="splitter-divider-line"></div>
     </div>
@@ -23,130 +37,42 @@
 </template>
 
 <script setup lang="ts">
-defineOptions({
-  name: 'Splitter'
-});
+import { useSplitter, type SplitterOptions } from './useSplitter';
 
-interface Props {
-  defaultSize?: number | string;
-  minSize?: number | string;
-  maxSize?: number | string;
-  /** 为 true 时第一栏固定为 48px，隐藏分隔条，用于折叠片段列表 */
-  firstCollapsed?: boolean;
-  /** 为 true 时第二栏完全隐藏，第一栏占满可用宽度 */
-  secondCollapsed?: boolean;
-}
+defineOptions({ name: 'Splitter' });
 
-const props = withDefaults(defineProps<Props>(), {
-  defaultSize: '0%',
-  minSize: '0%',
-  maxSize: '100%',
-  firstCollapsed: false,
-  secondCollapsed: false
-});
-
-const splitterRef = ref<HTMLElement | null>(null);
-
-// 判断是否为百分比值
-const isPercentageValue = (value: number | string): boolean => {
-  return typeof value === 'string' && value.includes('%');
-};
-
-// 转换输入值为数字（去除百分比符号）
-const parseValue = (value: number | string): number => {
-  if (typeof value === 'string') {
-    return parseFloat(value.replace('%', ''));
+const props = withDefaults(
+  defineProps<Partial<SplitterOptions> & { label?: string }>(),
+  {
+    defaultSize: '0%',
+    minSize: '0%',
+    maxSize: '100%',
+    minSecondSize: 0,
+    firstCollapsed: false,
+    secondCollapsed: false
   }
-  return value;
-};
+);
 
-const firstPanelWidth = ref(parseValue(props.defaultSize));
-const isPercentage = computed(() => isPercentageValue(props.defaultSize));
-
-// 计算最终显示的宽度值
-const computedWidth = computed(() => {
-  return isPercentage.value
-    ? `${firstPanelWidth.value}%`
-    : `${firstPanelWidth.value}px`;
-});
-
-// 折叠时第一栏宽度为 0，不再显示边条/箭头
-const effectiveFirstWidth = computed(() => {
-  if (props.firstCollapsed) return '0px';
-  if (props.secondCollapsed) return '100%';
-  return computedWidth.value;
-});
-
-let isResizing = false;
-let startX = 0;
-let startWidth = 0;
-
-const getContainerWidth = (): number => {
-  return splitterRef.value?.offsetWidth || 0;
-};
-
-const convertPixelToPercentage = (pixels: number): number => {
-  const containerWidth = getContainerWidth();
-  return (pixels / containerWidth) * 100;
-};
-
-const convertPercentageToPixel = (percentage: number): number => {
-  const containerWidth = getContainerWidth();
-  return (percentage * containerWidth) / 100;
-};
-
-const startResize = (e: MouseEvent) => {
-  e.preventDefault();
-  e.stopPropagation();
-  if (!splitterRef.value || props.firstCollapsed || props.secondCollapsed)
-    return;
-
-  isResizing = true;
-  startX = e.clientX;
-  startWidth = isPercentage.value
-    ? convertPercentageToPixel(firstPanelWidth.value)
-    : firstPanelWidth.value;
-
-  document.addEventListener('mousemove', handleMouseMove);
-  document.addEventListener('mouseup', stopResize);
-};
-
-const handleMouseMove = (e: MouseEvent) => {
-  e.preventDefault();
-  e.stopPropagation();
-  if (!isResizing || !splitterRef.value) return;
-
-  const diff = e.clientX - startX;
-  let newWidth = startWidth + diff;
-
-  // 转换最小和最大值为像素
-  const minPixels = isPercentage.value
-    ? convertPercentageToPixel(parseValue(props.minSize))
-    : parseValue(props.minSize);
-
-  const maxPixels = isPercentage.value
-    ? convertPercentageToPixel(parseValue(props.maxSize))
-    : parseValue(props.maxSize);
-
-  // 限制拖动范围
-  newWidth = Math.max(minPixels, Math.min(maxPixels, newWidth));
-
-  // 如果使用百分比，转换像素为百分比
-  firstPanelWidth.value = isPercentage.value
-    ? convertPixelToPercentage(newWidth)
-    : newWidth;
-};
-
-const stopResize = () => {
-  isResizing = false;
-  document.removeEventListener('mousemove', handleMouseMove);
-  document.removeEventListener('mouseup', stopResize);
-};
-
-onUnmounted(() => {
-  document.removeEventListener('mousemove', handleMouseMove);
-  document.removeEventListener('mouseup', stopResize);
-});
+const emit = defineEmits<{
+  'update:modelValue': [size: number | string];
+  /** 拖拽结束、键盘调整或重置时触发，适合保存宽度偏好。 */
+  'resize-end': [size: number | string];
+}>();
+const {
+  splitterRef,
+  isResizing,
+  bounds,
+  firstWidthPixels,
+  effectiveFirstWidth,
+  startResize,
+  stopResize,
+  handleKeydown,
+  resetSize
+} = useSplitter(
+  props,
+  (size) => emit('update:modelValue', size),
+  (size) => emit('resize-end', size)
+);
 </script>
 
 <style scoped>
@@ -155,7 +81,7 @@ onUnmounted(() => {
 }
 
 .splitter-panel {
-  @apply h-full min-w-0 max-w-full overflow-hidden transition-[width,min-width] duration-200 ease-out;
+  @apply h-full min-w-0 max-w-full overflow-hidden;
 }
 
 .first-panel {
@@ -167,10 +93,16 @@ onUnmounted(() => {
 }
 
 .splitter-divider {
-  @apply absolute w-[1px] h-[98%] top-[6px] bg-panel cursor-col-resize z-10 hover:bg-blue-200;
+  @apply absolute inset-y-0 z-10 w-2 -translate-x-1/2 cursor-col-resize touch-none outline-none;
 }
 
 .splitter-divider-line {
-  @apply absolute top-1/2 -translate-y-1/2 -translate-x-1/2 left-[1px] w-[2px] h-4 bg-panel cursor-col-resize z-10 hover:bg-blue-200;
+  @apply pointer-events-none mx-auto h-full w-px bg-[var(--workspace-nav-accent)] opacity-0 transition-opacity;
+}
+
+.splitter-divider:hover .splitter-divider-line,
+.splitter-divider:focus-visible .splitter-divider-line,
+.splitter-divider--resizing .splitter-divider-line {
+  @apply opacity-40;
 }
 </style>
