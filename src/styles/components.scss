@@ -232,6 +232,10 @@
   }
 }
 
+.account-menu-popper.el-popper {
+  @apply p-2;
+}
+
 @media (width <= 720px) {
   .settings-content
     .settings-card

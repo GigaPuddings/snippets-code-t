@@ -68,15 +68,15 @@
           </span>
         </button>
         <template #dropdown>
-          <div v-if="profile" class="max-w-64 px-4 py-3 text-ui">
+          <div
+            v-if="profile"
+            class="mb-1 max-w-64 border-b border-[var(--settings-border)] px-3 py-2.5 text-ui"
+          >
             <strong
               class="block truncate font-medium text-[var(--workspace-nav-heading)]"
             >
               {{ profile.name || profile.login }}
             </strong>
-            <span class="text-ui-caption text-[var(--workspace-nav-muted)]">
-              @{{ profile.login }}
-            </span>
           </div>
           <el-dropdown-menu>
             <el-dropdown-item command="userCenter">
