@@ -11,15 +11,7 @@
       class="image-path"
       @click.stop="openFileLocation"
     >
-      <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
-        <path
-          d="M3.5 6.5h6l2 2h9v9a2 2 0 0 1-2 2h-15v-13Z"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.7"
-          stroke-linejoin="round"
-        />
-      </svg>
+      <UiFolder width="14" height="14" aria-hidden="true" />
       <span class="path-text">{{ originalPath }}</span>
     </span>
 
@@ -56,43 +48,17 @@
           @click="openFileLocation"
         >
           <span class="menu-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="17" height="17">
-              <path
-                d="M3.5 6.5h6l2 2h9v9a2 2 0 0 1-2 2h-15v-13Z"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.7"
-                stroke-linejoin="round"
-              />
-              <path
-                d="m13.5 12.5 2-2 2 2m-2-2v5"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.7"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
+            <UiFolderOpen width="17" height="17" />
           </span>
           <span class="menu-item-label">
             {{ t('settings.attachment.openImageLocation') }}
           </span>
-          <svg
+          <UiChevronRight
             class="menu-item-arrow"
-            viewBox="0 0 20 20"
             width="14"
             height="14"
             aria-hidden="true"
-          >
-            <path
-              d="m8 5 5 5-5 5"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.7"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
+          />
         </button>
 
         <div class="menu-divider"></div>
@@ -136,16 +102,7 @@
         <div class="menu-divider"></div>
         <button class="menu-item danger" type="button" @click="deleteImage">
           <span class="menu-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="17" height="17">
-              <path
-                d="M5 7h14M9 7V4h6v3m2 0-1 13H8L7 7m4 4v6m3-6v6"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.7"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
+            <UiTrash2 width="17" height="17" />
           </span>
           <span class="menu-item-label">
             {{ t('settings.attachment.deleteImage') }}
@@ -157,6 +114,10 @@
 </template>
 
 <script setup lang="ts">
+import UiTrash2 from '~icons/lucide/trash-2';
+import UiChevronRight from '~icons/lucide/chevron-right';
+import UiFolderOpen from '~icons/lucide/folder-open';
+import UiFolder from '~icons/lucide/folder';
 import { NodeViewWrapper } from '@tiptap/vue-3';
 import type { NodeViewProps } from '@tiptap/core';
 import type { CSSProperties } from 'vue';

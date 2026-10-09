@@ -20,24 +20,14 @@
 
       <!-- 新增链接（内部链接） -->
       <div class="menu-item" @click="handleAddLink">
-        <svg class="menu-icon" viewBox="0 0 24 24">
-          <path
-            fill="currentColor"
-            d="M10.59,13.41C11,13.8 11,14.44 10.59,14.83C10.2,15.22 9.56,15.22 9.17,14.83C7.22,12.88 7.22,9.71 9.17,7.76V7.76L12.71,4.22C14.66,2.27 17.83,2.27 19.78,4.22C21.73,6.17 21.73,9.34 19.78,11.29L18.29,12.78C18.3,11.96 18.17,11.14 17.89,10.36L18.36,9.88C19.54,8.71 19.54,6.81 18.36,5.64C17.19,4.46 15.29,4.46 14.12,5.64L10.59,9.17C9.41,10.34 9.41,12.24 10.59,13.41M13.41,9.17C13.8,8.78 14.44,8.78 14.83,9.17C16.78,11.12 16.78,14.29 14.83,16.24V16.24L11.29,19.78C9.34,21.73 6.17,21.73 4.22,19.78C2.27,17.83 2.27,14.66 4.22,12.71L5.71,11.22C5.7,12.04 5.83,12.86 6.11,13.65L5.64,14.12C4.46,15.29 4.46,17.19 5.64,18.36C6.81,19.54 8.71,19.54 9.88,18.36L13.41,14.83C14.59,13.66 14.59,11.76 13.41,10.59C13,10.2 13,9.56 13.41,9.17Z"
-          />
-        </svg>
+        <UiLink class="menu-icon" />
         <span>{{ $t('contextMenu.addLink') }}</span>
         <span class="menu-shortcut">[[]]</span>
       </div>
 
       <!-- 新增外部链接 -->
       <div class="menu-item" @click="handleAddExternalLink">
-        <svg class="menu-icon" viewBox="0 0 24 24">
-          <path
-            fill="currentColor"
-            d="M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z"
-          />
-        </svg>
+        <UiExternalLink class="menu-icon" />
         <span>{{ $t('contextMenu.addExternalLink') }}</span>
         <span class="menu-shortcut">[]()</span>
       </div>
@@ -51,19 +41,9 @@
         @mouseenter="showSubmenu('textFormat', $event)"
         @mouseleave="handleMenuMouseLeave"
       >
-        <svg class="menu-icon" viewBox="0 0 24 24">
-          <path
-            fill="currentColor"
-            d="M9.6,14L12,7.7L14.4,14M11,5L5.5,19H7.7L8.8,16H15.2L16.3,19H18.5L13,5H11Z"
-          />
-        </svg>
+        <UiType class="menu-icon" />
         <span>{{ $t('contextMenu.textFormat') }}</span>
-        <svg class="menu-arrow" viewBox="0 0 24 24">
-          <path
-            fill="currentColor"
-            d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z"
-          />
-        </svg>
+        <UiChevronRight class="menu-arrow" />
       </div>
 
       <!-- 段落设置子菜单 -->
@@ -73,19 +53,9 @@
         @mouseenter="showSubmenu('paragraphSettings', $event)"
         @mouseleave="handleMenuMouseLeave"
       >
-        <svg class="menu-icon" viewBox="0 0 24 24">
-          <path
-            fill="currentColor"
-            d="M13,4A4,4 0 0,1 17,8A4,4 0 0,1 13,12H11V18H9V4H13M13,10A2,2 0 0,0 15,8A2,2 0 0,0 13,6H11V10H13Z"
-          />
-        </svg>
+        <UiPilcrow class="menu-icon" />
         <span>{{ $t('contextMenu.paragraphSettings') }}</span>
-        <svg class="menu-arrow" viewBox="0 0 24 24">
-          <path
-            fill="currentColor"
-            d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z"
-          />
-        </svg>
+        <UiChevronRight class="menu-arrow" />
       </div>
 
       <!-- 插入子菜单 -->
@@ -95,71 +65,36 @@
         @mouseenter="showSubmenu('insert', $event)"
         @mouseleave="handleMenuMouseLeave"
       >
-        <svg class="menu-icon" viewBox="0 0 24 24">
-          <path
-            fill="currentColor"
-            d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"
-          />
-        </svg>
+        <UiPlus class="menu-icon" />
         <span>{{ $t('contextMenu.insert') }}</span>
-        <svg class="menu-arrow" viewBox="0 0 24 24">
-          <path
-            fill="currentColor"
-            d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z"
-          />
-        </svg>
+        <UiChevronRight class="menu-arrow" />
       </div>
 
       <div class="menu-divider"></div>
 
       <!-- 剪贴板操作 -->
       <div class="menu-item disabled">
-        <svg class="menu-icon" viewBox="0 0 24 24">
-          <path
-            fill="currentColor"
-            d="M19,3L13,9L15,11L22,4V3M12,12.5A0.5,0.5 0 0,1 11.5,12A0.5,0.5 0 0,1 12,11.5A0.5,0.5 0 0,1 12.5,12A0.5,0.5 0 0,1 12,12.5M6,20A2,2 0 0,1 4,18C4,16.89 4.9,16 6,16A2,2 0 0,1 8,18C8,19.11 7.1,20 6,20M6,8A2,2 0 0,1 4,6C4,4.89 4.9,4 6,4A2,2 0 0,1 8,6C8,7.11 7.1,8 6,8M9.64,7.64C9.87,7.14 10,6.59 10,6A4,4 0 0,0 6,2A4,4 0 0,0 2,6A4,4 0 0,0 6,10C6.59,10 7.14,9.87 7.64,9.64L10,12L7.64,14.36C7.14,14.13 6.59,14 6,14A4,4 0 0,0 2,18A4,4 0 0,0 6,22A4,4 0 0,0 10,18C10,17.41 9.87,16.86 9.64,16.36L12,14L19,21H22V20L9.64,7.64Z"
-          />
-        </svg>
+        <UiScissors class="menu-icon" />
         <span>{{ $t('contextMenu.cut') }}</span>
       </div>
 
       <div class="menu-item disabled">
-        <svg class="menu-icon" viewBox="0 0 24 24">
-          <path
-            fill="currentColor"
-            d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"
-          />
-        </svg>
+        <UiCopy class="menu-icon" />
         <span>{{ $t('contextMenu.copy') }}</span>
       </div>
 
       <div class="menu-item" @click="handlePaste">
-        <svg class="menu-icon" viewBox="0 0 24 24">
-          <path
-            fill="currentColor"
-            d="M19,20H5V4H7V7H17V4H19M12,2A1,1 0 0,1 13,3A1,1 0 0,1 12,4A1,1 0 0,1 11,3A1,1 0 0,1 12,2M19,2H14.82C14.4,0.84 13.3,0 12,0C10.7,0 9.6,0.84 9.18,2H5A2,2 0 0,0 3,4V20A2,2 0 0,0 5,22H19A2,2 0 0,0 21,20V4A2,2 0 0,0 19,2Z"
-          />
-        </svg>
+        <UiClipboardPaste class="menu-icon" />
         <span>{{ $t('contextMenu.paste') }}</span>
       </div>
 
       <div class="menu-item" @click="handlePasteAsPlainText">
-        <svg class="menu-icon" viewBox="0 0 24 24">
-          <path
-            fill="currentColor"
-            d="M19,20H5V4H7V7H17V4H19M12,2A1,1 0 0,1 13,3A1,1 0 0,1 12,4A1,1 0 0,1 11,3A1,1 0 0,1 12,2M19,2H14.82C14.4,0.84 13.3,0 12,0C10.7,0 9.6,0.84 9.18,2H5A2,2 0 0,0 3,4V20A2,2 0 0,0 5,22H19A2,2 0 0,0 21,20V4A2,2 0 0,0 19,2Z"
-          />
-        </svg>
+        <UiClipboardType class="menu-icon" />
         <span>{{ $t('contextMenu.pasteAsPlainText') }}</span>
       </div>
 
       <div class="menu-item" @click="handleSelectAll">
-        <svg class="menu-icon" viewBox="0 0 24 24">
-          <path
-            fill="currentColor"
-            d="M9,9H15V15H9M7,17H17V7H7M15,5H17V3H15M15,21H17V19H15M19,17H21V15H19M19,9H21V7H19M19,21A2,2 0 0,0 21,19H19M19,13H21V11H19M11,21H13V19H11M9,3H7V5H9M3,17H5V15H3M5,21V19H3A2,2 0 0,0 5,21M19,3V5H21A2,2 0 0,0 19,3M13,3H11V5H13M3,9H5V7H3M7,21H9V19H7M3,13H5V11H3M3,5H5V3A2,2 0 0,0 3,5Z"
-          />
-        </svg>
+        <UiSquareDashed class="menu-icon" />
         <span>{{ $t('contextMenu.selectAll') }}</span>
       </div>
 
@@ -339,18 +274,12 @@
               @click="setParagraph"
             >
               <span>≡ {{ $t('contextMenu.paragraph') }}</span>
-              <svg
+              <UiCheck
                 v-if="editor?.isActive('paragraph')"
                 class="check-mark"
-                viewBox="0 0 24 24"
                 width="16"
                 height="16"
-              >
-                <path
-                  fill="currentColor"
-                  d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"
-                />
-              </svg>
+              />
             </div>
             <div class="menu-divider"></div>
             <div
@@ -399,6 +328,18 @@
 </template>
 
 <script setup lang="ts">
+import UiCheck from '~icons/lucide/check';
+import UiSquareDashed from '~icons/lucide/square-dashed';
+import UiClipboardType from '~icons/lucide/clipboard-type';
+import UiClipboardPaste from '~icons/lucide/clipboard-paste';
+import UiCopy from '~icons/lucide/copy';
+import UiScissors from '~icons/lucide/scissors';
+import UiChevronRight from '~icons/lucide/chevron-right';
+import UiPlus from '~icons/lucide/plus';
+import UiPilcrow from '~icons/lucide/pilcrow';
+import UiType from '~icons/lucide/type';
+import UiExternalLink from '~icons/lucide/external-link';
+import UiLink from '~icons/lucide/link';
 import type { Editor } from '@tiptap/vue-3';
 import { useI18n } from 'vue-i18n';
 import modal from '@/utils/modal';

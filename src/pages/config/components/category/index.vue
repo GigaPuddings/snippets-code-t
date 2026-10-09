@@ -39,7 +39,7 @@
                 aria-keyshortcuts="Control+K Meta+K"
                 @click="openConfigQuickSearch"
               >
-                <Search theme="outline" size="16" />
+                <Search width="16" height="16" />
                 <kbd class="font-ui text-ui-caption text-content">Ctrl K</kbd>
               </button>
             </el-tooltip>
@@ -53,7 +53,7 @@
             :title="t('fragmentType.createIn', { folder: creationFolderName })"
             @click="createContent('note')"
           >
-            <EditTwo theme="outline" size="16" class="shrink-0" />
+            <EditTwo width="16" height="16" class="shrink-0" />
             <span class="shrink-0">{{ t('nav.newNote') }}</span>
             <span
               class="ml-auto max-w-24 truncate text-ui-caption text-content"
@@ -67,7 +67,7 @@
               class="ui-icon-button"
               :aria-label="t('fragmentType.selectType')"
             >
-              <Down theme="outline" size="14" />
+              <Down width="14" height="14" />
             </button>
             <template #dropdown>
               <el-dropdown-menu>
@@ -137,16 +137,16 @@
             >
               <component
                 :is="item.type === 'note' ? Notebook : FileCodeOne"
-                theme="outline"
-                size="16"
+                width="16"
+                height="16"
                 class="shrink-0"
               />
               <span class="min-w-0 flex-1 truncate">{{ item.title }}</span>
               <Star
                 v-if="item.favorite"
-                theme="filled"
-                size="13"
-                class="shrink-0 text-[var(--workspace-nav-muted)]"
+                width="13"
+                height="13"
+                class="app-icon--filled shrink-0 text-[var(--workspace-nav-muted)]"
                 :title="t('nav.favorited')"
                 :aria-label="t('nav.favorited')"
               />
@@ -201,14 +201,12 @@ import {
 import modal from '@/utils/modal';
 import { requestOpenFragmentCategoryMove } from '@/utils/fragmentCategoryMove';
 import { useConfigQuickSearch } from '@/composables/useConfigQuickSearch';
-import {
-  Down,
-  EditTwo,
-  FileCodeOne,
-  Notebook,
-  Search,
-  Star
-} from '@icon-park/vue-next';
+import Down from '~icons/lucide/chevron-down';
+import EditTwo from '~icons/lucide/square-pen';
+import FileCodeOne from '~icons/lucide/file-code';
+import Notebook from '~icons/lucide/notebook';
+import Search from '~icons/lucide/search';
+import Star from '~icons/lucide/star';
 
 const store = useConfigurationStore();
 const layoutStore = useLayoutStore();

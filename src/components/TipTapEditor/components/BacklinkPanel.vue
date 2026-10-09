@@ -18,7 +18,7 @@
           :aria-label="t('noteEditor.search')"
           :aria-pressed="showSearch"
         >
-          <Search theme="outline" size="16" />
+          <Search width="16" height="16" />
         </button>
         <button
           class="ui-icon-button ui-icon-button--small shrink-0"
@@ -27,14 +27,14 @@
           :title="t('common.close')"
           :aria-label="t('common.close')"
         >
-          <CloseSmall theme="outline" size="18" />
+          <CloseSmall width="18" height="18" />
         </button>
       </div>
     </div>
 
     <!-- 搜索框 -->
     <div v-show="showSearch" class="backlink-search-box">
-      <Search class="search-icon" theme="outline" size="16" />
+      <Search class="search-icon" width="16" height="16" />
       <input
         ref="searchInputRef"
         v-model="searchQuery"
@@ -50,7 +50,7 @@
         :aria-label="t('common.clear')"
         @click="clearSearch"
       >
-        <CloseSmall theme="outline" size="16" />
+        <CloseSmall width="16" height="16" />
       </button>
     </div>
 
@@ -167,7 +167,8 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
-import { CloseSmall, Search } from '@icon-park/vue-next';
+import CloseSmall from '~icons/lucide/x';
+import Search from '~icons/lucide/search';
 import { findBacklinks, findUnlinkedMentions } from '@/utils/wikilink-updater';
 
 interface BacklinkItem {

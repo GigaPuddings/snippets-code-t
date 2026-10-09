@@ -10,7 +10,7 @@
       @click="$emit('open', 'all')"
     >
       <div class="quick-nav-item">
-        <AllApplication class="quick-nav-item-icon" theme="outline" size="16" />
+        <AllApplication class="quick-nav-item-icon" width="16" height="16" />
         <div class="quick-nav-item-title">{{ $t('nav.allSnippets') }}</div>
       </div>
     </router-link>
@@ -23,7 +23,7 @@
       @click="$emit('open', 'uncategorized')"
     >
       <div class="quick-nav-item">
-        <FileCodeOne class="quick-nav-item-icon" theme="outline" size="16" />
+        <Inbox class="quick-nav-item-icon" width="16" height="16" />
         <div class="quick-nav-item-title">{{ $t('nav.uncategorized') }}</div>
       </div>
     </router-link>
@@ -36,7 +36,7 @@
       @click="$emit('open', 'favorites')"
     >
       <div class="quick-nav-item">
-        <Star class="quick-nav-item-icon" theme="outline" size="16" />
+        <Star class="quick-nav-item-icon" width="16" height="16" />
         <div class="quick-nav-item-title">{{ $t('nav.favorites') }}</div>
         <span
           v-if="
@@ -58,7 +58,7 @@
       @click="$emit('open', 'trash')"
     >
       <div class="quick-nav-item">
-        <DeleteFour class="quick-nav-item-icon" theme="outline" size="16" />
+        <DeleteFour class="quick-nav-item-icon" width="16" height="16" />
         <div class="quick-nav-item-title">{{ $t('nav.recentlyDeleted') }}</div>
       </div>
     </router-link>
@@ -66,12 +66,10 @@
 </template>
 
 <script setup lang="ts">
-import {
-  AllApplication,
-  FileCodeOne,
-  Star,
-  DeleteFour
-} from '@icon-park/vue-next';
+import AllApplication from '~icons/lucide/layout-grid';
+import Inbox from '~icons/lucide/inbox';
+import Star from '~icons/lucide/star';
+import DeleteFour from '~icons/lucide/trash-2';
 defineOptions({
   name: 'QuickNav'
 });

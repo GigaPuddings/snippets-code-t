@@ -16,7 +16,7 @@
           :aria-label="$t('category.backToFolders')"
           @click="$emit('back')"
         >
-          <ArrowLeft theme="outline" size="16" />
+          <ArrowLeft width="16" height="16" />
         </button>
       </el-tooltip>
       <template v-else>
@@ -31,7 +31,7 @@
             :aria-label="$t('category.newFolder')"
             @click="handleAdd"
           >
-            <Add theme="outline" size="16" />
+            <Add width="16" height="16" />
           </button>
         </el-tooltip>
         <el-tooltip
@@ -55,8 +55,8 @@
           >
             <component
               :is="sortOrder === 'asc' ? SortAmountUp : SortAmountDown"
-              theme="outline"
-              size="16"
+              width="16"
+              height="16"
             />
           </button>
         </el-tooltip>
@@ -66,12 +66,10 @@
 </template>
 
 <script setup lang="ts">
-import {
-  SortAmountUp,
-  SortAmountDown,
-  Add,
-  ArrowLeft
-} from '@icon-park/vue-next';
+import SortAmountUp from '~icons/lucide/arrow-up-narrow-wide';
+import SortAmountDown from '~icons/lucide/arrow-down-wide-narrow';
+import Add from '~icons/lucide/plus';
+import ArrowLeft from '~icons/lucide/arrow-left';
 
 /**
  * CategoryHeader 组件 Props

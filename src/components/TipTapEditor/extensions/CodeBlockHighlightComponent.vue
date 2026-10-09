@@ -21,49 +21,20 @@
         :aria-label="copied ? '已复制' : `复制 ${displayLanguage} 代码`"
         type="button"
       >
-        <svg
+        <UiCopy
           v-if="!copied"
-          viewBox="0 0 24 24"
           width="14"
           height="14"
           class="copy-icon"
           aria-hidden="true"
-        >
-          <rect
-            x="9"
-            y="9"
-            width="10"
-            height="10"
-            rx="2"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.8"
-          />
-          <path
-            d="M15 9V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.8"
-            stroke-linecap="round"
-          />
-        </svg>
-        <svg
+        />
+        <UiCheck
           v-else
-          viewBox="0 0 24 24"
           width="14"
           height="14"
           class="check-icon"
           aria-hidden="true"
-        >
-          <path
-            d="m5 12 4 4L19 6"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
+        />
       </button>
     </div>
     <pre
@@ -87,6 +58,8 @@
 </template>
 
 <script setup lang="ts">
+import UiCheck from '~icons/lucide/check';
+import UiCopy from '~icons/lucide/copy';
 import { NodeViewWrapper, NodeViewContent, nodeViewProps } from '@tiptap/vue-3';
 import { useI18n } from 'vue-i18n';
 import modal from '@/utils/modal';

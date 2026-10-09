@@ -17,7 +17,7 @@
         :key="note.id"
         class="flex items-center gap-2 border-b border-panel py-2"
       >
-        <FileText theme="outline" :size="16" class="shrink-0 text-content" />
+        <FileText :width="16" :height="16" class="shrink-0 text-content" />
         <div class="min-w-0 flex-1">
           <div class="truncate text-sm font-medium">{{ note.title }}</div>
         </div>
@@ -35,7 +35,7 @@
 </template>
 
 <script setup lang="ts">
-import { FileText } from '@icon-park/vue-next';
+import FileText from '~icons/lucide/file-text';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import {

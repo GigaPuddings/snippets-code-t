@@ -34,15 +34,15 @@
           <div class="category-label">
             <Right
               class="category-chevron"
-              theme="outline"
-              size="10"
+              width="10"
+              height="10"
               :class="{ 'rotate-90 !opacity-100': expanded }"
             />
             <span class="category-folder-icon">
               <component
                 :is="expanded ? FolderOpen : FolderClose"
-                theme="outline"
-                size="16"
+                width="16"
+                height="16"
               />
             </span>
             <div class="truncate">{{ category.name }}</div>
@@ -97,15 +97,13 @@
 </template>
 
 <script setup lang="ts">
-import {
-  FolderClose,
-  FolderOpen,
-  Right,
-  Notebook,
-  FileCodeOne,
-  EditTwo,
-  DeleteFour
-} from '@icon-park/vue-next';
+import FolderClose from '~icons/lucide/folder';
+import FolderOpen from '~icons/lucide/folder-open';
+import Right from '~icons/lucide/chevron-right';
+import Notebook from '~icons/lucide/notebook';
+import FileCodeOne from '~icons/lucide/file-code';
+import EditTwo from '~icons/lucide/square-pen';
+import DeleteFour from '~icons/lucide/trash-2';
 import ContentItem from '@/components/ContentItem/index.vue';
 import { useConfigurationStore } from '@/store';
 import { useI18n } from 'vue-i18n';
@@ -624,7 +622,6 @@ const confirmDelete = async () => {
 }
 
 .active {
-  :deep(.i-icon),
   svg {
     color: var(--search-result-accent);
   }

@@ -62,8 +62,8 @@
                   ? Code
                   : EditTwo
             "
-            theme="outline"
-            size="16"
+            width="16"
+            height="16"
           />
         </button>
         <template #dropdown>
@@ -74,12 +74,12 @@
               :command="mode.value"
               :class="{ 'is-active': viewMode === mode.value }"
             >
-              <component :is="mode.icon" theme="outline" size="16" />
+              <component :is="mode.icon" width="16" height="16" />
               <span>{{ mode.label }}</span>
               <Check
                 v-if="viewMode === mode.value"
-                theme="outline"
-                size="16"
+                width="16"
+                height="16"
                 class="ml-auto text-primary"
               />
             </el-dropdown-item>
@@ -105,13 +105,10 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import {
-  BookOpen,
-  Check,
-  Code,
-  EditTwo,
-  PreviewOpen
-} from '@icon-park/vue-next';
+import BookOpen from '~icons/lucide/book-open';
+import Check from '~icons/lucide/check';
+import Code from '~icons/lucide/code';
+import EditTwo from '~icons/lucide/square-pen';
 
 type ViewMode = 'reading' | 'preview' | 'source';
 interface Props {
@@ -148,7 +145,7 @@ const viewModes = computed(() => [
   {
     value: 'preview' as const,
     label: t('noteEditor.livePreview'),
-    icon: PreviewOpen
+    icon: EditTwo
   }
 ]);
 const viewModeText = computed(

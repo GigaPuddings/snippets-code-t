@@ -22,7 +22,7 @@
           class="ui-card ui-card--soft flex flex-col items-start gap-2 rounded-ui-lg p-4 text-ui text-ui-main"
           @click="action.run()"
         >
-          <component :is="action.icon" theme="outline" size="22" />
+          <component :is="action.icon" width="22" height="22" />
           <strong class="font-medium">{{ action.label }}</strong>
           <span class="text-ui-caption text-content">
             {{ action.description }}
@@ -57,8 +57,8 @@
             >
               <component
                 :is="item.type === 'note' ? Notebook : FileCodeOne"
-                theme="outline"
-                size="18"
+                width="18"
+                height="18"
                 class="shrink-0"
               />
               <span class="min-w-0 flex-1">
@@ -70,8 +70,8 @@
                 </span>
               </span>
               <ArrowRight
-                theme="outline"
-                size="16"
+                width="16"
+                height="16"
                 class="shrink-0 text-content"
               />
             </button>
@@ -89,13 +89,11 @@
 </template>
 
 <script setup lang="ts">
-import {
-  ArrowRight,
-  EditTwo,
-  FileCodeOne,
-  Notebook,
-  Search
-} from '@icon-park/vue-next';
+import ArrowRight from '~icons/lucide/arrow-right';
+import EditTwo from '~icons/lucide/square-pen';
+import FileCodeOne from '~icons/lucide/file-code';
+import Notebook from '~icons/lucide/notebook';
+import Search from '~icons/lucide/search';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { useConfigQuickSearch } from '@/composables/useConfigQuickSearch';

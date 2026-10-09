@@ -16,48 +16,7 @@
           :title="t('contextMenu.resizeTable')"
           @click="toggleGridPicker"
         >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <rect
-              x="4"
-              y="4"
-              width="7"
-              height="7"
-              rx="1"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.8"
-            />
-            <rect
-              x="13"
-              y="4"
-              width="7"
-              height="7"
-              rx="1"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.8"
-            />
-            <rect
-              x="4"
-              y="13"
-              width="7"
-              height="7"
-              rx="1"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.8"
-            />
-            <rect
-              x="13"
-              y="13"
-              width="7"
-              height="7"
-              rx="1"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.8"
-            />
-          </svg>
+          <UiTable2 aria-hidden="true" />
         </button>
         <TableGridPicker
           v-if="gridPickerVisible && tableInfo"
@@ -75,9 +34,7 @@
           :title="t(alignment.label)"
           @click="setAlignment(alignment.value)"
         >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path fill="currentColor" :d="alignment.path" />
-          </svg>
+          <component :is="alignment.icon" aria-hidden="true" />
         </button>
       </div>
 
@@ -89,12 +46,7 @@
           :title="t('contextMenu.moreTableActions')"
           @click="toggleMoreMenu"
         >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path
-              fill="currentColor"
-              d="M12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4m0 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4m0 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z"
-            />
-          </svg>
+          <UiEllipsisVertical aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -102,16 +54,7 @@
           :title="t('contextMenu.deleteTable')"
           @click="deleteTable"
         >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path
-              d="M5 7h14M9 7V4h6v3m2 0-1 13H8L7 7m4 4v6m3-6v6"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.8"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
+          <UiTrash2 aria-hidden="true" />
         </button>
 
         <div v-if="moreVisible" class="table-controls__menu">
@@ -146,6 +89,12 @@
 </template>
 
 <script setup lang="ts">
+import UiAlignRight from '~icons/lucide/align-right';
+import UiAlignCenter from '~icons/lucide/align-center';
+import UiAlignLeft from '~icons/lucide/align-left';
+import UiTrash2 from '~icons/lucide/trash-2';
+import UiEllipsisVertical from '~icons/lucide/ellipsis-vertical';
+import UiTable2 from '~icons/lucide/table-2';
 import type { Editor } from '@tiptap/core';
 import { useI18n } from 'vue-i18n';
 import TableGridPicker from './TableGridPicker.vue';
@@ -194,17 +143,17 @@ const alignments = [
   {
     value: 'left' as const,
     label: 'contextMenu.alignLeft',
-    path: 'M3 4h14v2H3V4m0 4h10v2H3V8m0 4h14v2H3v-2m0 4h10v2H3v-2m0 4h14v2H3v-2Z'
+    icon: markRaw(UiAlignLeft)
   },
   {
     value: 'center' as const,
     label: 'contextMenu.alignCenter',
-    path: 'M5 4h14v2H5V4m2 4h10v2H7V8m-2 4h14v2H5v-2m2 4h10v2H7v-2m-2 4h14v2H5v-2Z'
+    icon: markRaw(UiAlignCenter)
   },
   {
     value: 'right' as const,
     label: 'contextMenu.alignRight',
-    path: 'M7 4h14v2H7V4m4 4h10v2H11V8m-4 4h14v2H7v-2m4 4h10v2H11v-2m-4 4h14v2H7v-2Z'
+    icon: markRaw(UiAlignRight)
   }
 ];
 

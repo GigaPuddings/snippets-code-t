@@ -9,12 +9,7 @@
           :title="$t('noteEditor.search')"
           :class="{ 'is-active': showSearch }"
         >
-          <svg viewBox="0 0 24 24" width="14" height="14">
-            <path
-              fill="currentColor"
-              d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z"
-            />
-          </svg>
+          <UiSearch width="14" height="14" />
         </button>
         <!-- 折叠/展开切换按钮 -->
         <button
@@ -26,18 +21,8 @@
               : $t('noteEditor.collapseAll')
           "
         >
-          <svg v-if="isAllCollapsed" viewBox="0 0 24 24" width="14" height="14">
-            <path
-              fill="currentColor"
-              d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"
-            />
-          </svg>
-          <svg v-else viewBox="0 0 24 24" width="14" height="14">
-            <path
-              fill="currentColor"
-              d="M7.41,15.41L12,10.83L16.59,15.41L18,14L12,8L6,14L7.41,15.41Z"
-            />
-          </svg>
+          <UiChevronDown v-if="isAllCollapsed" width="14" height="14" />
+          <UiChevronUp v-else width="14" height="14" />
         </button>
         <!-- 定位当前章节按钮 -->
         <button
@@ -45,32 +30,17 @@
           @click="scrollToActive"
           :title="$t('noteEditor.scrollToActive')"
         >
-          <svg viewBox="0 0 24 24" width="14" height="14">
-            <path
-              fill="currentColor"
-              d="M12,8L7,13L8.41,14.41L11,11.83V20H13V11.83L15.59,14.41L17,13L12,8M5,3H19A2,2 0 0,1 21,5V9H19V5H5V19H9V21H5A2,2 0 0,1 3,19V5A2,2 0 0,1 5,3Z"
-            />
-          </svg>
+          <UiArrowUpToLine width="14" height="14" />
         </button>
         <button class="outline-sidebar-close" @click="handleClose">
-          <svg viewBox="0 0 24 24" width="16" height="16">
-            <path
-              fill="currentColor"
-              d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"
-            />
-          </svg>
+          <UiX width="16" height="16" />
         </button>
       </div>
     </div>
 
     <!-- 搜索框 - 固定显示 -->
     <div v-show="showSearch" class="outline-search-box">
-      <svg viewBox="0 0 24 24" width="14" height="14" class="search-icon">
-        <path
-          fill="currentColor"
-          d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z"
-        />
-      </svg>
+      <UiSearch width="14" height="14" class="search-icon" />
       <input
         ref="searchInputRef"
         v-model="searchQuery"
@@ -80,12 +50,7 @@
         @input="handleSearch"
       />
       <button v-if="searchQuery" class="clear-search-btn" @click="clearSearch">
-        <svg viewBox="0 0 24 24" width="14" height="14">
-          <path
-            fill="currentColor"
-            d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"
-          />
-        </svg>
+        <UiX width="14" height="14" />
       </button>
     </div>
 
@@ -127,12 +92,7 @@
           class="collapse-btn"
           @click.stop="toggleCollapse(heading.originalIndex)"
         >
-          <svg viewBox="0 0 24 24" width="12" height="12" class="collapse-icon">
-            <path
-              fill="currentColor"
-              d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z"
-            />
-          </svg>
+          <UiChevronRight width="12" height="12" class="collapse-icon" />
         </button>
         <span v-else class="collapse-placeholder"></span>
 
@@ -147,6 +107,12 @@
 </template>
 
 <script setup lang="ts">
+import UiChevronRight from '~icons/lucide/chevron-right';
+import UiX from '~icons/lucide/x';
+import UiSearch from '~icons/lucide/search';
+import UiArrowUpToLine from '~icons/lucide/arrow-up-to-line';
+import UiChevronUp from '~icons/lucide/chevron-up';
+import UiChevronDown from '~icons/lucide/chevron-down';
 interface Heading {
   level: number;
   text: string;

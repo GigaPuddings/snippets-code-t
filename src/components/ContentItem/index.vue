@@ -17,8 +17,8 @@
       <main class="compact-content-item">
         <component
           :is="content.type === 'note' ? Notebook : FileCodeOne"
-          theme="outline"
-          size="16"
+          width="16"
+          height="16"
           class="shrink-0"
           :title="fragmentTypeLabel"
         />
@@ -27,9 +27,9 @@
         </span>
         <Star
           v-if="content.favorite"
-          theme="filled"
-          size="13"
-          class="shrink-0 text-[var(--workspace-nav-muted)]"
+          width="13"
+          height="13"
+          class="app-icon--filled shrink-0 text-[var(--workspace-nav-muted)]"
           :title="t('nav.favorited')"
           :aria-label="t('nav.favorited')"
         />
@@ -39,16 +39,14 @@
 </template>
 
 <script setup lang="ts">
-import {
-  EditTwo,
-  DeleteFour,
-  CategoryManagement,
-  Notebook,
-  FileCodeOne,
-  FolderOpen,
-  FileConversion,
-  Star
-} from '@icon-park/vue-next';
+import EditTwo from '~icons/lucide/square-pen';
+import DeleteFour from '~icons/lucide/trash-2';
+import CategoryManagement from '~icons/lucide/folder-input';
+import Notebook from '~icons/lucide/notebook';
+import FileCodeOne from '~icons/lucide/file-code';
+import FolderOpen from '~icons/lucide/folder-open';
+import FileConversion from '~icons/lucide/replace';
+import Star from '~icons/lucide/star';
 import type { Component } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
@@ -158,15 +156,17 @@ const fragmentTypeLabel = computed(() => {
   return type === 'note' ? t('contentItem.note') : t('contentItem.codeSnippet');
 });
 
-const createDragPreview = (): HTMLElement => {
+const createDragPreview = (source: HTMLElement): HTMLElement => {
   const preview = document.createElement('div');
   preview.className = 'fragment-drag-preview';
 
   const icon = document.createElement('span');
   icon.className = 'fragment-drag-preview__icon';
   icon.setAttribute('aria-hidden', 'true');
-  icon.innerHTML =
-    '<svg viewBox="0 0 24 24"><path d="M6 3.75h7.5L18 8.25v12H6v-16.5Z"/><path d="M13.5 3.75v4.5H18M9 12h6M9 15.5h6"/></svg>';
+  // Reuse the rendered type icon so drag images share the list's local SVG.
+  // Raw virtual imports are treated as assets by Vite's development server.
+  const typeIcon = source.querySelector('.compact-content-item > svg');
+  if (typeIcon) icon.appendChild(typeIcon.cloneNode(true));
 
   const title = document.createElement('strong');
   title.className = 'fragment-drag-preview__title';
@@ -213,7 +213,9 @@ const handleClick = (): void => {
 };
 
 const handleDragStart = (event: DragEvent): void => {
-  if (!event.dataTransfer) return;
+  if (!event.dataTransfer || !(event.currentTarget instanceof HTMLElement)) {
+    return;
+  }
 
   const payload = {
     id: content.value.id,
@@ -231,7 +233,7 @@ const handleDragStart = (event: DragEvent): void => {
   // WebView2 需要一个常规文本类型，才能稳定启动跨容器的 HTML5 拖拽会话。
   event.dataTransfer.setData('text/plain', String(content.value.title));
 
-  const dragPreview = createDragPreview();
+  const dragPreview = createDragPreview(event.currentTarget);
   // 将鼠标热点放在浮层左侧外部，避免浮层遮住当前分类目标。
   event.dataTransfer.setDragImage(dragPreview, -12, -8);
   requestAnimationFrame(() => dragPreview.remove());
@@ -379,7 +381,6 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
   stroke: currentcolor;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 1.7;
 }
 
 :global(.fragment-drag-preview__title) {

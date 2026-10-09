@@ -43,8 +43,9 @@
             @click="toggleContentFavorite(state.currentContent)"
           >
             <Star
-              :theme="isCurrentFavorite ? 'filled' : 'outline'"
-              size="18"
+              :class="{ 'app-icon--filled': isCurrentFavorite }"
+              width="18"
+              height="18"
               aria-hidden="true"
             />
           </button>
@@ -59,7 +60,7 @@
               :title="$t('noteEditor.toggleReading')"
               :aria-label="$t('noteEditor.toggleReading')"
             >
-              <BookOpen theme="outline" size="18" aria-hidden="true" />
+              <BookOpen width="18" height="18" aria-hidden="true" />
             </button>
 
             <button
@@ -70,7 +71,7 @@
               :title="$t('noteEditor.toggleEditing')"
               :aria-label="$t('noteEditor.toggleEditing')"
             >
-              <EditTwo theme="outline" size="18" aria-hidden="true" />
+              <EditTwo width="18" height="18" aria-hidden="true" />
             </button>
           </div>
           <el-dropdown
@@ -84,17 +85,7 @@
               :title="t('common.more')"
               :aria-label="t('common.more')"
             >
-              <svg
-                viewBox="0 0 24 24"
-                width="18"
-                height="18"
-                aria-hidden="true"
-              >
-                <path
-                  fill="currentColor"
-                  d="M12,8A2,2 0 1,0 12,4A2,2 0 0,0 12,8M12,10A2,2 0 1,0 12,14A2,2 0 0,0 12,10M12,16A2,2 0 1,0 12,20A2,2 0 0,0 12,16Z"
-                />
-              </svg>
+              <UiEllipsisVertical width="18" height="18" aria-hidden="true" />
             </button>
             <template #dropdown>
               <el-dropdown-menu>
@@ -331,7 +322,10 @@
 </template>
 
 <script setup lang="ts">
-import { BookOpen, EditTwo, Star } from '@icon-park/vue-next';
+import UiEllipsisVertical from '~icons/lucide/ellipsis-vertical';
+import BookOpen from '~icons/lucide/book-open';
+import EditTwo from '~icons/lucide/square-pen';
+import Star from '~icons/lucide/star';
 import {
   useContentFavorites,
   applyFavoriteChange,
