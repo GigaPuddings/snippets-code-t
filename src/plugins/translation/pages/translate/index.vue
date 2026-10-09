@@ -362,7 +362,7 @@ const translateWithEngine = async (engine: string, generation: number) => {
         const cached = await isModelCached();
         if (cached) {
           logger.info('[翻译窗口] 离线翻译懒加载：开始加载模型...');
-          await warmupOfflineTranslator();
+          await warmupOfflineTranslator({ localFilesOnly: true });
           logger.info('[翻译窗口] 离线翻译懒加载：模型加载完成');
         } else {
           result.text = t('translate.offlineModelUnavailable');

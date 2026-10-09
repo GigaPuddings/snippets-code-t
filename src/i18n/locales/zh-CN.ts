@@ -2233,6 +2233,8 @@ export default {
     deleteModel: '删除模型',
     modelLoadSuccess: '离线翻译模型加载成功',
     modelLoadFailed: '模型加载失败，请重试',
+    modelCacheIncomplete:
+      '模型未完整保存到本地缓存，请检查可用磁盘空间及浏览器存储权限后重试',
     modelDeleted: '离线翻译模型已删除',
     modelDeleteFailed: '删除模型失败',
     modelInfo: '模型信息',
@@ -2245,7 +2247,7 @@ export default {
     indexedDBLocation: '浏览器 IndexedDB（应用数据目录）',
     usage: '使用说明',
     usageDesc: '离线翻译功能使用提示',
-    usageTip1: '首次加载需要下载约300MB模型文件',
+    usageTip1: '首次加载需要下载约120MB模型文件（另需安装运行时资源）',
     usageTip2: '模型下载后会缓存到本地，后续使用无需重新下载',
     usageTip3: '离线翻译仅支持英译中，其他语言请使用在线翻译',
     usageTip4: '使用离线翻译前需要先激活模型',

@@ -206,7 +206,7 @@
                   {{ $t('translation.modelSize') }}
                 </span>
                 <span class="info-value">
-                  {{ modelCacheInfo.estimatedSize || '~300MB' }}
+                  {{ modelCacheInfo.estimatedSize || '~120MB' }}
                 </span>
               </div>
               <div class="info-item">
@@ -360,11 +360,14 @@ const updateFileStatus = (
   progress: number,
   status: FileDownloadStatus['status']
 ) => {
+  if (!fileName) return;
   const file = fileStatuses.value.find(
     (f) => fileName.includes(f.file) || f.file.includes(fileName)
   );
   if (file) {
-    file.progress = progress;
+    file.progress = Number.isFinite(progress)
+      ? Math.max(0, Math.min(100, progress))
+      : 0;
     file.status = status;
   }
 };
@@ -495,16 +498,16 @@ const saveDefaultEngine = async (value: string) => {
 
 // 加载模型（下载）
 const loadModel = async () => {
+  if (isLoading.value || isDeleting.value || isInstallingRuntime.value) return;
+  isLoading.value = true;
   logger.info('[翻译设置] 开始下载离线模型...');
-  if (!(await refreshRuntimeAvailability())) {
-    modal.msg(t('translation.runtimeMissingInstallFirst'), 'error');
-    return;
-  }
-
   try {
-    await installTranslationOfflineRuntimeResources();
-    await refreshRuntimeAvailability();
+    if (!(await refreshRuntimeAvailability())) {
+      throw new Error(t('translation.runtimeMissingInstallFirst'));
+    }
+    await verifyOfflineTranslatorRuntime();
   } catch (error) {
+    isLoading.value = false;
     logger.error('[翻译设置] 修复离线翻译运行时失败:', error);
     modal.msg(
       error instanceof Error && error.message
@@ -515,7 +518,6 @@ const loadModel = async () => {
     return;
   }
 
-  isLoading.value = true;
   initFileStatuses();
 
   // 设置进度回调
@@ -535,17 +537,21 @@ const loadModel = async () => {
 
   try {
     await warmupOfflineTranslator();
+    modelCacheInfo.value = await getModelCacheInfo();
+    if (!modelCacheInfo.value.isCached) {
+      await disposeOfflineTranslator();
+      throw new Error(t('translation.modelCacheIncomplete'));
+    }
     // 标记所有文件为完成
     fileStatuses.value.forEach((f) => {
       if (f.status !== 'done') f.status = 'done';
       f.progress = 100;
     });
     modelLoaded.value = true;
-    backendActivated.value = true;
-    modelCacheInfo.value = await getModelCacheInfo();
     // 下载完成后自动激活（因为 Transformers.js 下载和加载是一体的）
     logger.info('[翻译设置] 模型下载并加载成功，更新后端激活状态为 true');
     await invoke('set_offline_model_activated', { activated: true });
+    backendActivated.value = true;
     modal.msg(t('translation.modelLoadSuccess'));
   } catch (error) {
     logger.error('[翻译设置] 模型下载失败:', error);
@@ -576,16 +582,16 @@ const loadModel = async () => {
 
 // 激活模型（从缓存加载到内存）
 const activateModel = async () => {
+  if (isLoading.value || isDeleting.value || isInstallingRuntime.value) return;
+  isLoading.value = true;
   logger.info('[翻译设置] 开始激活离线模型...');
-  if (!(await refreshRuntimeAvailability())) {
-    modal.msg(t('translation.runtimeMissingInstallFirst'), 'error');
-    return;
-  }
-
   try {
-    await installTranslationOfflineRuntimeResources();
-    await refreshRuntimeAvailability();
+    if (!(await refreshRuntimeAvailability())) {
+      throw new Error(t('translation.runtimeMissingInstallFirst'));
+    }
+    await verifyOfflineTranslatorRuntime();
   } catch (error) {
+    isLoading.value = false;
     logger.error('[翻译设置] 修复离线翻译运行时失败:', error);
     modal.msg(
       error instanceof Error && error.message
@@ -596,14 +602,12 @@ const activateModel = async () => {
     return;
   }
 
-  isLoading.value = true;
-
   try {
-    await warmupOfflineTranslator();
+    await warmupOfflineTranslator({ localFilesOnly: true });
     modelLoaded.value = true;
-    backendActivated.value = true;
     logger.info('[翻译设置] 模型激活成功，更新后端激活状态为 true');
     await invoke('set_offline_model_activated', { activated: true });
+    backendActivated.value = true;
     modal.msg(t('translation.modelLoadSuccess'));
   } catch (error) {
     logger.error('[翻译设置] 模型激活失败:', error);
@@ -682,7 +686,7 @@ onMounted(async () => {
     backendActivated.value = activated;
 
     // 后端已激活但缓存不存在 → 重置后端状态（模型被手动删除了）
-    if (activated && !modelCacheInfo.value.isCached) {
+    if (activated && !modelCacheInfo.value.isCached && !memoryLoaded) {
       logger.info('[翻译设置] 后端已激活但缓存不存在，重置后端状态');
       await invoke('set_offline_model_activated', { activated: false });
       backendActivated.value = false;
@@ -696,6 +700,17 @@ onMounted(async () => {
     }
   } catch (error) {
     logger.error('[翻译设置] 处理激活状态失败:', error);
+  }
+  if (initializing) {
+    try {
+      await warmupOfflineTranslator({ localFilesOnly: true });
+    } catch (error) {
+      logger.error('[翻译设置] 等待已有模型加载失败:', error);
+    } finally {
+      isLoading.value = false;
+      modelLoaded.value = isOfflineTranslatorReady();
+      modelCacheInfo.value = await getModelCacheInfo();
+    }
   }
 });
 </script>

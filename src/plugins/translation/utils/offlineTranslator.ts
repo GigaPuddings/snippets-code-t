@@ -2,7 +2,10 @@ import { convertFileSrc } from '@tauri-apps/api/core';
 import { getLocalPluginResourcePath } from '@/api/plugins';
 import { logger } from '@/utils/logger';
 
-type TranslationPipeline = (text: string) => Promise<unknown>;
+interface TranslationPipeline {
+  (text: string): Promise<unknown>;
+  dispose?: () => Promise<void>;
+}
 
 interface TransformersModule {
   pipeline: (
@@ -193,7 +196,7 @@ async function loadTransformersModule(): Promise<TransformersModule> {
   return transformersModulePromise;
 }
 
-/** 安装完成后仅验证运行时模块，不触发约 300MB 的模型下载。 */
+/** 安装完成后仅验证运行时模块，不触发模型下载。 */
 export async function verifyOfflineTranslatorRuntime(): Promise<void> {
   await loadTransformersModule();
 }
@@ -202,6 +205,7 @@ export async function verifyOfflineTranslatorRuntime(): Promise<void> {
 let translatorEnZh: TranslationPipeline | null = null;
 let isInitializing = false;
 let initPromise: Promise<TranslationPipeline> | null = null;
+let initializationGeneration = 0;
 
 // 取消控制
 let abortController: AbortController | null = null;
@@ -226,16 +230,22 @@ export interface FileDownloadStatus {
 
 // 模型配置 - 使用更小的模型
 const MODEL_EN_ZH = 'Xenova/opus-mt-en-zh';
+const MODEL_CACHE_NAME = 'transformers-cache';
+const MODEL_URL_PREFIX = `${TRANSFORMERS_REMOTE_HOST}${MODEL_EN_ZH}/resolve/main/`;
 
 // 模型文件列表（按下载顺序）
 const MODEL_FILES = [
   { name: 'tokenizer_config.json', size: '~1KB' },
   { name: 'config.json', size: '~1KB' },
-  { name: 'tokenizer.json', size: '~2MB' },
+  { name: 'tokenizer.json', size: '~6.4MB' },
   { name: 'generation_config.json', size: '~1KB' },
-  { name: 'onnx/encoder_model_quantized.onnx', size: '~75MB' },
-  { name: 'onnx/decoder_model_merged_quantized.onnx', size: '~220MB' }
+  { name: 'onnx/encoder_model_quantized.onnx', size: '~53MB' },
+  { name: 'onnx/decoder_model_merged_quantized.onnx', size: '~60MB' }
 ];
+// Transformers.js treats generation_config.json as optional.
+const REQUIRED_MODEL_FILES = MODEL_FILES.filter(
+  (file) => file.name !== 'generation_config.json'
+);
 
 // 模型加载超时时间（毫秒）
 const MODEL_LOAD_TIMEOUT = 300000; // 5分钟，大文件需要更长时间
@@ -259,42 +269,55 @@ export function getModelFiles(): typeof MODEL_FILES {
 /**
  * 带超时的 Promise
  */
-function withTimeout<T>(
+async function withTimeout<T>(
   promise: Promise<T>,
   ms: number,
   message: string
 ): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error(message)), ms)
-    )
-  ]);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), ms);
+      })
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /**
  * 初始化英译中翻译器
  */
-async function getTranslator(): Promise<TranslationPipeline> {
+async function getTranslator(
+  localFilesOnly = false
+): Promise<TranslationPipeline> {
   if (translatorEnZh) return translatorEnZh;
   if (initPromise) return initPromise;
 
   isInitializing = true;
+  const generation = initializationGeneration;
   logger.info('[离线翻译] 正在加载翻译模型...');
 
   initPromise = (async () => {
     try {
       // loadTransformersModule 内部已调用 configureTransformersEnvironment(env, runtimeUrl)
       // 完成 wasmPaths 等全部环境配置，此处无需重复调用
-      const { pipeline } = await loadTransformersModule();
+      const { pipeline, env } = await loadTransformersModule();
+      // v2 requires allowLocalModels=true with local_files_only. Cache lookup
+      // runs first; the disabled local path cannot trigger a remote download.
+      env.allowLocalModels = localFilesOnly;
+      env.allowRemoteModels = !localFilesOnly;
 
       let lastLoggedFile = '';
 
-      const loadPromise = pipeline('translation', MODEL_EN_ZH, {
+      const translator = await pipeline('translation', MODEL_EN_ZH, {
+        quantized: true,
         dtype: 'q8',
         device: 'wasm',
         revision: 'main',
-        local_files_only: false,
+        local_files_only: localFilesOnly,
         progress_callback: (progress: {
           status: string;
           progress?: number;
@@ -320,13 +343,11 @@ async function getTranslator(): Promise<TranslationPipeline> {
         }
       });
 
-      const translator = await withTimeout(
-        loadPromise,
-        MODEL_LOAD_TIMEOUT,
-        '模型加载超时，请检查网络连接后重试'
-      );
-
-      translatorEnZh = translator as TranslationPipeline;
+      if (generation !== initializationGeneration) {
+        await translator.dispose?.();
+        throw new Error('模型加载已取消');
+      }
+      translatorEnZh = translator;
       logger.info('[离线翻译] 翻译模型加载完成');
       isInitializing = false;
       return translatorEnZh;
@@ -354,7 +375,11 @@ export async function translateOffline(text: string): Promise<string> {
   const signal = abortController.signal;
 
   try {
-    const translator = await getTranslator();
+    const translator = await withTimeout(
+      getTranslator(true),
+      MODEL_LOAD_TIMEOUT,
+      '模型加载超时，当前加载仍在进行，请稍后重试'
+    );
 
     // 检查是否已取消
     if (signal.aborted) {
@@ -436,8 +461,16 @@ export function isTranslationInProgress(): boolean {
  * 预热翻译器（用于提前加载模型）
  * @throws 如果加载失败会抛出异常
  */
-export async function warmupOfflineTranslator(): Promise<void> {
-  await getTranslator();
+export async function warmupOfflineTranslator(
+  options: { localFilesOnly?: boolean } = {}
+): Promise<void> {
+  // A caller timeout must not release the lock on the actual pipeline task:
+  // Transformers.js v2 cannot abort it, so retries must reuse that task.
+  await withTimeout(
+    getTranslator(options.localFilesOnly),
+    MODEL_LOAD_TIMEOUT,
+    '模型加载超时，当前下载或加载仍在进行，请稍后重试'
+  );
 }
 
 /**
@@ -469,68 +502,31 @@ export interface ModelCacheInfo {
  */
 export async function getModelCacheInfo(): Promise<ModelCacheInfo> {
   try {
-    // 检查 Cache Storage（Transformers.js 主要使用这个）
-    if ('caches' in window) {
-      const cacheNames = await caches.keys();
-      logger.info(
-        `[离线翻译] Cache Storage 列表: ${JSON.stringify(cacheNames)}`
-      );
-
-      for (const name of cacheNames) {
-        // Transformers.js 使用 'transformers-cache' 或类似名称
-        if (name.includes('transformers') || name.includes('huggingface')) {
-          const cache = await caches.open(name);
-          const keys = await cache.keys();
-          logger.info(`[离线翻译] Cache "${name}" 包含 ${keys.length} 个文件`);
-
-          // 检查是否有 opus-mt-en-zh 模型文件
-          const hasModel = keys.some(
-            (req) =>
-              req.url.includes('opus-mt-en-zh') || req.url.includes('Xenova')
-          );
-          if (hasModel) {
-            // 检查是否包含关键的 onnx 文件
-            const hasOnnx = keys.some((req) => req.url.includes('.onnx'));
-            logger.info(`[离线翻译] 找到模型缓存，包含 ONNX: ${hasOnnx}`);
-            if (hasOnnx) {
-              return {
-                isCached: true,
-                cacheType: 'cache-storage',
-                cacheName: name,
-                estimatedSize: '~300MB'
-              };
-            }
-          }
-        }
-      }
+    if (typeof caches === 'undefined')
+      return { isCached: false, cacheType: 'none' };
+    if (!(await caches.keys()).includes(MODEL_CACHE_NAME)) {
+      return { isCached: false, cacheType: 'none' };
     }
-
-    // 检查 IndexedDB
-    const databases = await indexedDB.databases();
-    logger.info(
-      `[离线翻译] IndexedDB 列表: ${JSON.stringify(databases.map((d) => d.name))}`
+    const cache = await caches.open(MODEL_CACHE_NAME);
+    const responses = await Promise.all(
+      REQUIRED_MODEL_FILES.map((file) =>
+        cache.match(`${MODEL_URL_PREFIX}${file.name}`)
+      )
     );
-
-    for (const db of databases) {
-      if (
-        db.name &&
-        (db.name.includes('transformers') ||
-          db.name.includes('huggingface') ||
-          db.name.includes('onnx') ||
-          db.name.includes('localforage'))
-      ) {
-        logger.info(`[离线翻译] 找到 IndexedDB 缓存: ${db.name}`);
-        return {
+    // A database name, an unrelated model or a single ONNX file is insufficient.
+    const complete = responses.every(
+      (response) =>
+        response?.status === 200 &&
+        response.headers.get('content-length') !== '0'
+    );
+    return complete
+      ? {
           isCached: true,
-          cacheType: 'indexeddb',
-          cacheName: db.name,
-          estimatedSize: '~300MB'
-        };
-      }
-    }
-
-    logger.info('[离线翻译] 未找到模型缓存');
-    return { isCached: false, cacheType: 'none' };
+          cacheType: 'cache-storage',
+          cacheName: MODEL_CACHE_NAME,
+          estimatedSize: '~120MB'
+        }
+      : { isCached: false, cacheType: 'none' };
   } catch (error) {
     logger.warn('[离线翻译] 检查缓存失败:', error);
     return { isCached: false, cacheType: 'none' };
@@ -557,10 +553,11 @@ export function canUseOfflineTranslation(): boolean {
  * 释放翻译器资源
  */
 export async function disposeOfflineTranslator(): Promise<void> {
+  initializationGeneration += 1;
   // 清除内存中的翻译器实例
   if (translatorEnZh) {
     try {
-      await (translatorEnZh as any).dispose?.();
+      await translatorEnZh.dispose?.();
     } catch (e) {
       // ignore
     }
@@ -568,35 +565,30 @@ export async function disposeOfflineTranslator(): Promise<void> {
 
   // 重置所有状态
   translatorEnZh = null;
-  initPromise = null;
-  isInitializing = false;
+  // Pending initialization owns its lock until the underlying runtime settles.
+  if (!isInitializing) initPromise = null;
   logger.info('[离线翻译] 翻译器已释放');
 }
 
 /**
- * 清除模型缓存（IndexedDB 和 Cache Storage）
+ * 清除当前翻译模型缓存，保留其他模型和数据库。
  */
 export async function clearModelCache(): Promise<void> {
   try {
-    // 清除 IndexedDB 中的 transformers 缓存
-    const databases = await indexedDB.databases();
-    for (const db of databases) {
-      if (
-        db.name &&
-        (db.name.includes('transformers') || db.name.includes('onnx'))
-      ) {
-        indexedDB.deleteDatabase(db.name);
-        logger.info(`[离线翻译] 已删除 IndexedDB: ${db.name}`);
-      }
-    }
-
-    // 清除 Cache Storage
-    if ('caches' in window) {
+    if (typeof caches !== 'undefined') {
       const cacheNames = await caches.keys();
       for (const name of cacheNames) {
-        if (name.includes('transformers') || name.includes('onnx')) {
-          await caches.delete(name);
-          logger.info(`[离线翻译] 已删除 Cache: ${name}`);
+        if (name.includes('transformers') || name.includes('huggingface')) {
+          const cache = await caches.open(name);
+          for (const request of await cache.keys()) {
+            const url = new URL(request.url);
+            if (
+              url.origin === new URL(TRANSFORMERS_REMOTE_HOST).origin &&
+              url.pathname.startsWith(`/${MODEL_EN_ZH}/resolve/`)
+            ) {
+              await cache.delete(request);
+            }
+          }
         }
       }
     }

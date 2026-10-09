@@ -128,7 +128,7 @@
     },
     {
       "id": "translation",
-      "version": "2.0.22",
+      "version": "2.0.23",
       "name": {
         "i18nKey": "plugins.translation.name",
         "fallback": "Translation"
@@ -138,11 +138,11 @@
         "fallback": "Translate window, selection translation, screenshot translation, and offline model management."
       },
       "category": "automation",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-translation/archive/refs/tags/2.0.22.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-translation/archive/refs/tags/2.0.23.zip",
       "builtinPluginId": "translation",
       "status": "included",
-      "sizeBytes": 355114,
-      "sha256": "29dbd10563aaa20b4a43ae9d7ddbd5ad22e4fa3a85ff37da927e167ee92b1e27",
+      "sizeBytes": 355299,
+      "sha256": "2ace37a64eed394ad730b71325d42273faac96c6745eb22fc26f51c13819b733",
       "dependencies": [
         "translation-offline-runtime"
       ],
@@ -153,7 +153,7 @@
       "minAppVersion": "2.2.7",
       "compatibleAppVersion": ">=2.2.7",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-translation",
-      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-translation/releases/tag/2.0.22"
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-translation/releases/tag/2.0.23"
     },
     {
       "id": "translation-offline-runtime",

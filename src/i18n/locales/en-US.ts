@@ -2325,6 +2325,8 @@ export default {
     deleteModel: 'Delete Model',
     modelLoadSuccess: 'Offline translation model loaded',
     modelLoadFailed: 'Model load failed, please retry',
+    modelCacheIncomplete:
+      'The model was not fully saved to the local cache. Check available disk space and browser storage permissions, then retry.',
     modelDeleted: 'Offline translation model deleted',
     modelDeleteFailed: 'Failed to delete model',
     modelInfo: 'Model Info',
@@ -2337,7 +2339,8 @@ export default {
     indexedDBLocation: 'Browser IndexedDB (App Data Directory)',
     usage: 'Usage Tips',
     usageDesc: 'Tips for using offline translation',
-    usageTip1: 'First load requires downloading ~300MB model files',
+    usageTip1:
+      'First load downloads ~120MB of model files (runtime resources are installed separately)',
     usageTip2: 'Model is cached locally after download, no re-download needed',
     usageTip3: 'Offline translation only supports English to Chinese',
     usageTip4: 'Model must be activated before using offline translation',
