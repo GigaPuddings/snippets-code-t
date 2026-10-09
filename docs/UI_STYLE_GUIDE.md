@@ -8,6 +8,7 @@
 | Tailwind 映射 | `tailwind.config.js` | 把变量映射为 `text-ui`、`h-ui-control`、`rounded-ui` 等 utility |
 | 构建配置 | `postcss.config.js` | 按配置文件自身的位置加载 Tailwind，避免受启动目录影响 |
 | 公共外观 | `src/styles/components.scss` | 操作按钮、菜单项、卡片、列表行、设置卡片及悬浮菜单 |
+| 图标外观 | `src/styles/icons.scss` | SVG 对齐、统一描边、实心状态及旧插件样式兼容 |
 | 插件页面外观 | `src/styles/plugin-config.scss` | 插件页面布局及中性表单控件，同时供主应用和独立插件包编译 |
 | Markdown 排版 | `src/styles/markdown.scss` | 正文、标题、列表、引用、表格与代码块的共享 mixin |
 | 样式入口 | `src/styles/index.scss` | 加载主题与公共规则，处理第三方组件覆盖、提示和弹窗 |
@@ -56,9 +57,15 @@
 示例：
 
 ```vue
+<script setup lang="ts">
+import ArrowLeft from '~icons/lucide/arrow-left';
+</script>
+
+<template>
 <button type="button" class="ui-icon-button" aria-label="返回" :disabled="!canGoBack">
-  <ArrowLeft theme="outline" size="18" />
+  <ArrowLeft width="18" height="18" />
 </button>
+</template>
 
 <button type="button" class="ui-card grid items-center gap-2 px-3 py-2">
   <!-- 业务内容 -->
@@ -69,13 +76,38 @@
 
 ## 图标和主题
 
-- config 区域与标题栏使用 `ui-icon-scope`；Icon Park 的描边统一取 `--workspace-icon-stroke`。
-- 头像菜单、关于菜单及应用对话框的图标也使用同一规则，覆盖 teleport 后失去父容器的情况。
-- 这些区域不再逐个填写 `stroke-width`。自定义 SVG 图形与图表不受该规则影响。
+- 主 UI 图标集为 **Lucide**，通过 `~icons/lucide/<名称>` 静态导入。品牌图标使用 `~icons/simple-icons/<名称>` 或已有品牌资产，不混用其他 UI 图标集。
+- 主应用 Vite 使用 `scripts/icon-config.mjs`。`unplugin-icons` 从本地 Iconify JSON 数据按需生成 Vue 3 SVG 组件；禁用自动安装，运行时不请求 Iconify API，也不打包整个图标集。图标构建工具要求 Node.js 20.19.x 或 22.12 及更新版本。
+- 默认尺寸为 `1em`；使用 `width`、`height` 或现有尺寸 class 设置 16/18/20/24px 等大小，颜色继承 `currentColor`。移除旧 `theme`、`size`、`strokeWidth` 属性。旋转用 `animate-spin`，收藏星等实心状态用 `app-icon--filled`。
+- 列表类型图标用 16px，标题栏和文档工具栏用 18px，主导航用 20px；点击区域由按钮控制，不在 SVG 上添加按钮尺寸或内边距。工作区入口统一用 `library`，笔记类型用 `notebook`，代码片段用 `file-code`；阅读模式保留 `book-open`。拖拽预览克隆已渲染的类型 SVG，避免开发服务无法加载的原始图标虚拟导入。
+- `src/styles/icons.scss` 中的全局规则适用于弹出层；Lucide 的 24px 网格描边统一取 `--app-icon-stroke`。品牌图标、进度环和图表保留自己的绘制规则。
+- 动态菜单和导航继续传递 Vue `Component`，通过静态导入配置；不引入完整图标名称注册表。普通 SVG 图标同样改用生成的组件。
+- 仅产品专属 SVG 放在 `src/assets/icons`，通过 `~icons/app/<文件名>` 编译；规范见该目录 README。保留现有应用图标、品牌图标、用户文件图标和功能性 SVG 图形。
+- 官方插件的图标迁移和构建脚本另行提交、发布。迁移时复用 `scripts/icon-config.mjs`，入口导入同一份图标样式，再单独构建、安装对应插件。少量 `.i-icon` 布局、旋转兼容规则用于尚未更新的已安装插件；`@icon-park/vue-next` 暂时保留为开发依赖，供尚未迁移的插件源码使用。主应用自有 UI 已迁移；工作区仍复用 Git 插件的贡献组件，因此该组件的旧图标暂时也会进入主应用构建。
+- 图标许可证在 `public/licenses/icons.txt`，主应用构建自动携带该文件。插件迁移时也应把许可证带入独立包。新增第三方图标须检查对应图标集及品牌许可。
 - 主色取 `--el-color-primary`；主色 hover 取 `--el-color-primary-dark-2`。不要在按钮中填写固定蓝色。
 - 自动主题继续由 `src/store/theme.ts`、`src/utils/theme-sync.ts` 和 `system-theme` 插件控制。样式变量不新增持久化配置。
 
 ## 页面可以保留的差异
+
+### 图标语义约定
+
+同一功能在主导航、工作台快捷入口、列表和搜索结果中使用相同的图标含义。图标表示对象或动作；状态通过选中背景、实心标记和 `aria-pressed` 表达，不另换成含义不同的图案。
+
+| 功能 | Lucide 图标 | 含义 |
+| --- | --- | --- |
+| 工作台 / 工作区 | `layout-dashboard` / `library` | 总览 / 知识集合 |
+| 启动器 / 网络搜索 / 待办 | `app-window` / `globe` / `list-todo` | 打开应用 / 网络检索 / 任务清单 |
+| 笔记 / 代码片段 / 未分类 | `notebook` / `file-code` / `inbox` | 文档类型 / 代码文件 / 待整理内容 |
+| 插件 / AI 能力 / 开发者模式 | `puzzle` / `brain` / `square-terminal` | 扩展 / 智能能力 / 调试工具 |
+| 编辑器与附件 | `file-image` | 文档及图片附件设置 |
+| 阅读 / 编辑 / 源码 | `book-open` / `square-pen` / `code` | 文档模式 |
+| 预览 / 隐藏预览 | `eye` / `eye-off` | 查看内容；折叠侧栏仍使用 `panel-left` 或 `panel-right-close` |
+| 链接 / 附件 / 类型转换 | `link` / `paperclip` / `replace` | 链接地址 / 附加文件 / 替换内容类型 |
+| 截图选择 / 画笔 / OCR | `mouse-pointer-2` / `pencil` / `scan-text` | 选择与标注 / 文本识别 |
+| 置顶 / 取消置顶 / 检查更新 | `pin` / `pin-off` / `refresh-cw` | 置顶开关用同一个 `pin`；`pin-off` 仅用于明确的取消置顶菜单操作 |
+
+文字提示和可访问名称继续描述实际动作，例如“打开已存笔记”“显示预览”，不使用图标库的名称。
 
 文件树缩进、拖放提示、编辑器专用覆盖、动画和复杂响应式布局属于页面职责。附件设置的滑块需要在较宽断点换行，因此保留专用断点，但设置行的基础内边距与分隔线复用公共规则。
 
@@ -98,3 +130,4 @@ Local AI 对话页采用独立的双栏布局，标题、图标按钮、列表�
 2. 变更 Tailwind 映射或 `@apply` 时验证 Vite 编译，确认公共类能生成。
 3. 在实际 config 窗口检查工作台、菜单、设置、文档工具栏及悬浮菜单的浅色/深色显示。
 4. 检查 hover、键盘焦点、禁用状态、长标题省略及窄窗口滚动行为。
+5. 图标构建改动运行 `pnpm exec vitest run scripts/icon-config.test.mjs`，这组测试也包含在 `pnpm test` 中。官方插件的独立构建验证随插件迁移进行；主应用提交不改写插件包和 manifest。
