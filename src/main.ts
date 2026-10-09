@@ -25,7 +25,6 @@ async function initApp(): Promise<void> {
   // 动态导入样式文件，减少主线程阻塞
   const stylePromises = [
     import('element-plus/theme-chalk/dark/css-vars.css'),
-    import('@icon-park/vue-next/styles/index.css'),
     import('@/styles/index.scss')
   ];
 

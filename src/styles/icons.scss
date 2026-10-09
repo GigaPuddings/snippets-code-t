@@ -1,0 +1,39 @@
+// Shared by the host and independently built plugin runtimes.
+// Brand assets and functional SVG graphics retain their drawing attributes.
+.app-icon {
+  display: inline-block;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+.app-icon--lucide [stroke-width] {
+  stroke-width: var(--app-icon-stroke, 1.75);
+}
+
+.app-icon--lucide.app-icon--filled [fill] {
+  fill: currentcolor;
+}
+
+// Installed plugins may still contain IconPark components until independently
+// updated. Keep their layout/spin working without importing the old library.
+.i-icon {
+  display: inline-block;
+  font-style: normal;
+  line-height: 0;
+  color: inherit;
+  vertical-align: -0.125em;
+}
+
+.i-icon-spin svg {
+  animation: legacy-icon-spin 1s linear infinite;
+}
+
+.i-icon-rtl {
+  transform: scaleX(-1);
+}
+
+@keyframes legacy-icon-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

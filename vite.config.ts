@@ -4,6 +4,10 @@ import { resolve } from 'path';
 import AutoImport from 'unplugin-auto-import/vite';
 import Components from 'unplugin-vue-components/vite';
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers';
+import {
+  createIconPlugins,
+  createIconResolver
+} from './scripts/icon-config.mjs';
 // import VueDevTools from "vite-plugin-vue-devtools";
 
 const host = process.env.TAURI_DEV_HOST;
@@ -16,6 +20,7 @@ export default defineConfig(async ({ command }) => {
   return {
     plugins: [
       vue(),
+      ...createIconPlugins(),
       /** 自动导入配置  @see https://github.com/sxzz/element-plus-best-practices/blob/main/vite.config.ts */
       AutoImport({
         // 自动导入 Vue 相关函数，如：ref, reactive, toRef 等
@@ -41,6 +46,7 @@ export default defineConfig(async ({ command }) => {
       }),
       Components({
         resolvers: [
+          createIconResolver(),
           // 自动导入 Element Plus 组件
           ElementPlusResolver({
             importStyle: 'sass'

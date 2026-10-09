@@ -1,4 +1,5 @@
 @use './plugin-config';
+@use './icons';
 
 // Shared UI appearance. Tailwind utilities on callers describe layout only.
 @layer components {
@@ -77,15 +78,6 @@
   .ui-section-heading {
     @apply text-ui font-medium text-ui-main opacity-75 select-none;
   }
-}
-
-// Icon Park sets stroke widths as SVG attributes. Keep one CSS value for the
-// shell and for its teleported menus and dialogs; custom SVG artwork is excluded.
-:where(.ui-icon-scope, .account-menu-popper, .about-menu-popper, .app-dialog)
-  .i-icon
-  svg
-  [stroke-width] {
-  stroke-width: var(--workspace-icon-stroke);
 }
 
 // ============================================
