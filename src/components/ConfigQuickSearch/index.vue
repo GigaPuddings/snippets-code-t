@@ -12,12 +12,7 @@
           @keydown="handleKeydown"
         >
           <div class="config-search-input-row">
-            <Search
-              class="config-search-icon"
-              theme="outline"
-              size="18"
-              :strokeWidth="3"
-            />
+            <Search class="config-search-icon" width="18" height="18" />
             <input
               ref="inputRef"
               v-model="searchText"
@@ -31,7 +26,7 @@
               :aria-label="$t('common.clear')"
               @click="clearSearch"
             >
-              <CloseSmall theme="outline" size="16" :strokeWidth="3" />
+              <CloseSmall width="16" height="16" />
             </button>
             <span class="config-search-shortcut">Esc</span>
           </div>
@@ -94,7 +89,8 @@
 </template>
 
 <script setup lang="ts">
-import { CloseSmall, Search } from '@icon-park/vue-next';
+import CloseSmall from '~icons/lucide/x';
+import Search from '~icons/lucide/search';
 import { invoke } from '@tauri-apps/api/core';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';

@@ -1,4 +1,6 @@
-import { FilePdfOne, FileText, Folder } from '@icon-park/vue-next';
+import FilePdfOne from '~icons/lucide/file-text';
+import FileText from '~icons/lucide/file-text';
+import Folder from '~icons/lucide/folder';
 import { escapeHtml, highlightText } from '@/utils/text';
 import type { ComposerTranslation } from 'vue-i18n';
 import type { Component } from 'vue';

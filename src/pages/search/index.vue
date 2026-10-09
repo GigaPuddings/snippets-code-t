@@ -8,7 +8,8 @@ import { useSearchKeyboard } from './composables/useSearchKeyboard';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { ErrorHandler, ErrorType } from '@/utils/error-handler';
 import Result from './components/Result.vue';
-import { ArrowRight, Search } from '@icon-park/vue-next';
+import ArrowRight from '~icons/lucide/arrow-right';
+import Search from '~icons/lucide/search';
 import { useI18n } from 'vue-i18n';
 import { usePluginStore } from '@/store';
 import aiChatSparkleIcon from '@/assets/ai-chat-sparkle-icon.png';
@@ -212,7 +213,7 @@ onUnmounted(() => {
           @mousedown.prevent
           @click="toggleDeepSearch"
         >
-          <Search theme="outline" size="16" />
+          <Search width="16" height="16" />
         </button>
         <img
           src="@tauri/icons/icon.png"
@@ -236,7 +237,7 @@ onUnmounted(() => {
           <span class="ai-chat-entry-query">“{{ aiPrompt }}”</span>
         </span>
         <kbd class="ai-chat-entry-shortcut" aria-hidden="true">Ctrl Enter</kbd>
-        <ArrowRight class="ai-chat-entry-arrow" theme="outline" size="18" />
+        <ArrowRight class="ai-chat-entry-arrow" width="18" height="18" />
       </button>
     </section>
     <Result

@@ -34,8 +34,8 @@
           :aria-pressed="previewPanelVisible"
           @click="togglePreviewPanel"
         >
-          <PreviewOpen v-if="previewPanelVisible" theme="outline" size="15" />
-          <PreviewCloseOne v-else theme="outline" size="15" />
+          <PreviewOpen v-if="previewPanelVisible" width="15" height="15" />
+          <PreviewCloseOne v-else width="15" height="15" />
         </button>
         <button class="return-hint" type="button" @click="emit('backToSearch')">
           <span class="hint-key">Tab</span>
@@ -87,7 +87,8 @@ import InlinePreview from './InlinePreview.vue';
 import { useFocusMode } from '@/hooks/useFocusMode';
 import { useSearchResultTabs } from '../composables/useSearchResultTabs';
 import { useI18n } from 'vue-i18n';
-import { PreviewCloseOne, PreviewOpen } from '@icon-park/vue-next';
+import PreviewCloseOne from '~icons/lucide/panel-right-open';
+import PreviewOpen from '~icons/lucide/panel-right-close';
 import {
   getQuickSearchPreviewVisible,
   setQuickSearchPreviewVisible

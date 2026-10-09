@@ -6,8 +6,14 @@
           <div class="quick-tool-header">
             <div class="quick-tool-title-wrap">
               <div class="quick-tool-icon">
+                <component
+                  v-if="heroIconState.component"
+                  :is="heroIconState.component"
+                  width="20"
+                  height="20"
+                />
                 <img
-                  v-if="heroIconSrc"
+                  v-else-if="heroIconSrc"
                   :src="heroIconSrc"
                   :alt="quickToolTitle"
                 />
@@ -28,7 +34,7 @@
                 aria-label="复制结果"
                 @click="copyQuickToolResult"
               >
-                <Copy theme="outline" size="15" />
+                <Copy width="15" height="15" />
               </button>
             </div>
           </div>
@@ -84,10 +90,6 @@
       <template v-else-if="!isPreviewVisible">
         <!-- 是否预览 -->
         <div v-if="canPreview" class="preview-header-actions">
-          <!-- <button v-if="canOpenInConfig" class="preview-config-button" type="button" @click="openInConfig"
-            :aria-label="t('searchPreview.openInConfig')" :title="t('searchPreview.openInConfig')">
-            <internal-expansion theme="outline" size="14" />
-          </button> -->
           <button
             class="preview-config-button"
             type="button"
@@ -95,13 +97,23 @@
             :aria-label="t('searchPreview.expandPreview')"
             :title="t('searchPreview.expandPreview')"
           >
-            <preview-close-one theme="outline" size="14" />
+            <preview-close-one width="14" height="14" />
           </button>
         </div>
 
         <div class="info-header">
           <div class="info-icon" :class="infoIconClass">
-            <img v-if="heroIconSrc" :src="heroIconSrc" :alt="previewTitle" />
+            <component
+              v-if="heroIconState.component"
+              :is="heroIconState.component"
+              width="36"
+              height="36"
+            />
+            <img
+              v-else-if="heroIconSrc"
+              :src="heroIconSrc"
+              :alt="previewTitle"
+            />
             <span v-else>{{ heroFallbackText }}</span>
           </div>
           <div class="header-meta">
@@ -173,7 +185,7 @@
             >
               <div class="flex items-center gap-2">
                 <span class="file-action-icon">
-                  <component :is="action.icon" theme="outline" size="16" />
+                  <component :is="action.icon" width="16" height="16" />
                 </span>
                 <span class="file-action-text">{{ action.label }}</span>
               </div>
@@ -199,7 +211,7 @@
             @click="togglePreviewVisible"
             :aria-label="t('searchPreview.collapsePreview')"
           >
-            <PreviewOpen theme="outline" size="14" />
+            <PreviewOpen width="14" height="14" />
           </button>
         </div>
         <template v-if="canPreview">
@@ -274,19 +286,17 @@
 </template>
 
 <script lang="ts" setup>
-import {
-  PreviewCloseOne,
-  PreviewOpen,
-  ArrowRight,
-  Home,
-  More,
-  Copy,
-  Search,
-  LinkTwo,
-  Share,
-  FolderOpen,
-  Permissions
-} from '@icon-park/vue-next';
+import PreviewCloseOne from '~icons/lucide/eye';
+import PreviewOpen from '~icons/lucide/eye-off';
+import ArrowRight from '~icons/lucide/arrow-right';
+import Home from '~icons/lucide/house';
+import More from '~icons/lucide/ellipsis-vertical';
+import Copy from '~icons/lucide/copy';
+import Search from '~icons/lucide/search';
+import LinkTwo from '~icons/lucide/link';
+import Share from '~icons/lucide/share-2';
+import FolderOpen from '~icons/lucide/folder-open';
+import Permissions from '~icons/lucide/shield-check';
 import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 import {
   openFileWithDefaultApp,

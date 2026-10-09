@@ -52,20 +52,20 @@
             </span>
           </div>
           <template v-else>
+            <component
+              v-if="getIconState(item).component"
+              :is="getIconState(item).component"
+              class="icon text-search-secondary"
+            />
             <img
-              v-if="getIconState(item).src"
+              v-else-if="getIconState(item).src"
               :src="getIconState(item).src"
               class="icon"
-              :class="getImageIconClass(item)"
               @error="handleIconError(item)"
               loading="eager"
               decoding="async"
             />
-            <div
-              v-else
-              class="text-fallback-icon"
-              :class="`type-${getIconState(item).typeClass || 'default'}`"
-            >
+            <div v-else class="text-fallback-icon">
               {{ getIconState(item).fallbackText }}
             </div>
           </template>
@@ -85,7 +85,7 @@
             v-if="index >= visibleShortcutStart && index < visibleShortcutEnd"
             class="shortcut-key"
           >
-            <Command class="shortcut-key-icon" theme="outline" size="12" />
+            <Command class="shortcut-key-icon" width="12" height="12" />
             <span class="shortcut-key-text">
               {{ index - visibleShortcutStart + 1 }}
             </span>
@@ -98,7 +98,7 @@
 
 <script lang="ts" setup>
 import { useConfigurationStore } from '@/store';
-import { Command } from '@icon-park/vue-next';
+import Command from '~icons/lucide/command';
 import { RecycleScroller } from 'vue-virtual-scroller';
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css';
 import { useFocusMode } from '@/hooks/useFocusMode';
@@ -358,14 +358,6 @@ const handleIconError = (item: ContentType) => {
 };
 
 const getIconState = getSearchResultIcon;
-const getImageIconClass = (item: ContentType) => {
-  const icon = getIconState(item);
-  return {
-    'default-type-icon': icon.isDefaultTypeIcon,
-    'type-icon': Boolean(icon.typeClass),
-    [icon.typeClass]: Boolean(icon.typeClass)
-  };
-};
 
 const enterListMode = (selectLast = false) => {
   ensureValidTab();
@@ -548,9 +540,8 @@ defineExpose({
       }
 
       .icon-wrapper {
-        // 统一配置图标大小和默认类型图标的缩放比例
+        // Image assets and generated SVG components share the same size.
         --result-icon-size: 22px;
-        --default-type-icon-scale: 1.14;
 
         @apply flex items-center justify-center w-8 h-8 flex-shrink-0 rounded-lg;
 
@@ -562,27 +553,10 @@ defineExpose({
           height: var(--result-icon-size);
 
           @apply object-contain;
-
-          &.default-type-icon {
-            transform: scale(var(--default-type-icon-scale));
-            transform-origin: center;
-          }
-
-          &.type-icon {
-            @apply opacity-80;
-
-            &.code {
-              @apply opacity-70;
-            }
-
-            &.note {
-              @apply opacity-80;
-            }
-          }
         }
 
         .text-fallback-icon {
-          @apply flex items-center justify-center w-6 h-6 rounded-md text-xs font-semibold text-blue-700 bg-blue-100 dark:text-blue-100 dark:bg-blue-500/30;
+          @apply flex items-center justify-center w-6 h-6 rounded-md text-xs font-semibold text-search-secondary bg-search-hover;
         }
       }
 
