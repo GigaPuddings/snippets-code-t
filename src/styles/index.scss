@@ -6,18 +6,23 @@
 @tailwind components;
 @tailwind utilities;
 
-.transparent-input .el-input__wrapper.is-focus,
-.transparent-input .el-input__wrapper:hover,
 .transparent-input .el-input__wrapper {
-  box-shadow: none !important;
-}
+  background-color: transparent;
+  box-shadow: none;
 
-.transparent-input .el-input__wrapper {
-  background-color: transparent !important;
+  &:hover,
+  &.is-focus {
+    box-shadow: none;
+  }
 }
 
 .transparent-input .el-textarea__inner {
-  box-shadow: none !important;
+  box-shadow: none;
+
+  &:hover,
+  &:focus {
+    box-shadow: none;
+  }
 }
 
 .transparent-input .el-button:hover,
@@ -26,25 +31,14 @@
   background-color: var(--el-color-primary) !important;
 }
 
-.transparent-input .el-input-group__append {
-  @apply absolute -right-1 z-10 !bg-transparent !shadow-none;
-
-  .summarize-button {
-    @apply rounded-md !bg-neutral-200 dark:!bg-neutral-800;
-  }
-
-  .button-shortcut {
-    @apply h-6 leading-6 px-2;
-  }
-}
-
 .transparent-input .el-select__wrapper {
-  background-color: transparent !important;
-  box-shadow: none !important;
-}
+  background-color: transparent;
+  box-shadow: none;
 
-.transparent-input .el-select__wrapper.is-focused {
-  box-shadow: none !important;
+  &:hover,
+  &.is-focused {
+    box-shadow: none;
+  }
 }
 
 // 密码输入框的小眼睛图标样式调整
@@ -101,59 +95,6 @@
   .el-input__inner {
     @apply pl-[10px];
   }
-}
-
-.summarize-input .el-select__wrapper {
-  box-shadow: none;
-
-  &.is-focused {
-    outline: 2px solid var(--el-color-primary);
-    outline-offset: 2px;
-  }
-}
-
-.summarize-button {
-  @apply rounded-md;
-}
-
-// 快捷键设置
-.summarize-input-wrapper .el-input__suffix {
-  position: absolute;
-  left: 10px;
-}
-
-.summarize-input-wrapper .el-input__suffix .label {
-  display: flex;
-  font-size: 14px;
-  font-weight: normal;
-  color: var(--categories-text-color);
-  pointer-events: none;
-}
-
-.summarize-input-wrapper .label-char {
-  transition: 0.2s ease all;
-  transition-delay: calc(var(--index) * 0.05s);
-}
-
-.summarize-input-wrapper
-  .el-input__inner:focus
-  + .el-input__suffix
-  label
-  .label-char,
-.summarize-input-wrapper
-  .el-input__inner:valid
-  + .el-input__suffix
-  label
-  .label-char {
-  font-size: 14px;
-  transform: translateY(-20px);
-}
-
-.summarize-input-wrapper
-  .el-input__inner:valid
-  + .el-input__suffix
-  .summarize-button {
-  display: block;
 }
 
 // 应用提示条：保留 Element Plus 的可访问性与队列管理，只使用应用主题视觉。

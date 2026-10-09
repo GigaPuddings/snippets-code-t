@@ -9,7 +9,7 @@
         <section
           v-for="hotkey in visibleHotkeySettings"
           :key="hotkey.name"
-          class="summarize-section transparent-input"
+          class="summarize-section"
         >
           <div class="summarize-label">
             <div class="summarize-label-title">{{ hotkeyLabel(hotkey) }}</div>
@@ -17,10 +17,11 @@
               {{ hotkeyDescription(hotkey) }}
             </div>
           </div>
-          <div class="summarize-input-wrapper">
+          <div class="summarize-input-wrapper max-[720px]:w-full">
             <el-input
-              class="summarize-input"
-              required
+              class="summarize-input max-[720px]:!w-auto max-[720px]:min-w-0 max-[720px]:flex-1"
+              :placeholder="t('shortcut.pressToSet')"
+              :aria-label="hotkeyLabel(hotkey)"
               :model-value="getHotkeyValue(store, hotkey.name)"
               @update:model-value="
                 (value) => setHotkeyValue(store, hotkey.name, String(value))
@@ -37,37 +38,21 @@
                     getHotkeyValue(store, hotkey.name)
                   )
               "
+            />
+            <CustomButton
+              v-if="getHotkeyValue(store, hotkey.name)"
+              type="default"
+              size="small"
+              @click="
+                () =>
+                  registerHandler(
+                    hotkey.name,
+                    getHotkeyValue(store, hotkey.name)
+                  )
+              "
             >
-              <template #suffix>
-                <label class="label">
-                  <span
-                    v-for="(char, index) in labelText"
-                    :key="index"
-                    class="label-char"
-                    :style="{ '--index': index }"
-                  >
-                    {{ char }}
-                  </span>
-                </label>
-              </template>
-              <template #append>
-                <CustomButton
-                  v-if="getHotkeyValue(store, hotkey.name)"
-                  type="default"
-                  size="small"
-                  class="button-shortcut"
-                  @click="
-                    () =>
-                      registerHandler(
-                        hotkey.name,
-                        getHotkeyValue(store, hotkey.name)
-                      )
-                  "
-                >
-                  {{ $t('shortcut.register') }}
-                </CustomButton>
-              </template>
-            </el-input>
+              {{ $t('shortcut.register') }}
+            </CustomButton>
           </div>
         </section>
       </div>
@@ -102,8 +87,6 @@ const pluginStore = usePluginStore();
 defineOptions({
   name: 'Shortcut'
 });
-
-const labelText = computed(() => t('shortcut.pressToSet').split(''));
 
 const knownHotkeySettings = new Map(
   hotkeySettingDefinitions.map((hotkey) => [hotkey.name, hotkey])
