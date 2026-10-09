@@ -1,5 +1,6 @@
+import '@/styles/icons.scss';
 import { defineAsyncComponent } from 'vue';
-import { Translate } from '@icon-park/vue-next';
+import Translate from '~icons/lucide/languages';
 import type { PluginFrontendRuntimeContext } from '../runtime';
 
 export const activate = (context: PluginFrontendRuntimeContext): void => {

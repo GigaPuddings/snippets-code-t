@@ -1,17 +1,15 @@
 <script setup lang="ts">
-import {
-  CheckSmall,
-  Computer,
-  Delete,
-  FolderOpen,
-  Lightning,
-  Picture,
-  Pin,
-  Refresh,
-  Save,
-  Search,
-  Time
-} from '@icon-park/vue-next';
+import CheckSmall from '~icons/lucide/check';
+import Computer from '~icons/lucide/monitor';
+import Delete from '~icons/lucide/trash-2';
+import FolderOpen from '~icons/lucide/folder-open';
+import Lightning from '~icons/lucide/zap';
+import Picture from '~icons/lucide/image';
+import Pin from '~icons/lucide/pin';
+import Refresh from '~icons/lucide/refresh-cw';
+import Save from '~icons/lucide/save';
+import Search from '~icons/lucide/search';
+import Time from '~icons/lucide/clock';
 import { useI18n } from 'vue-i18n';
 import type {
   FolderSort,
@@ -126,7 +124,7 @@ const updateAutoRestore = (event: Event): void =>
             :alt="t('wallpaperSwitcher.currentPreviewAlt')"
           />
           <div v-else class="stage-empty">
-            <Picture :size="40" />
+            <Picture :width="40" :height="40" />
             <span>{{ t('wallpaperSwitcher.noCurrentWallpaper') }}</span>
           </div>
         </div>
@@ -146,11 +144,11 @@ const updateAutoRestore = (event: Event): void =>
             <h1 :title="currentWallpaperName">{{ currentWallpaperName }}</h1>
             <div class="stage-meta">
               <span>
-                <Computer :size="15" />
+                <Computer :width="15" :height="15" />
                 {{ resolutionLabel }}
               </span>
               <span>
-                <Time :size="15" />
+                <Time :width="15" :height="15" />
                 {{ nextSwitchLabel }}
               </span>
             </div>
@@ -163,8 +161,13 @@ const updateAutoRestore = (event: Event): void =>
               :disabled="switching"
               @click="emit('switchNow')"
             >
-              <Refresh v-if="switching" :size="16" class="spinning" />
-              <Lightning v-else :size="16" />
+              <Refresh
+                v-if="switching"
+                :width="16"
+                :height="16"
+                class="spinning"
+              />
+              <Lightning v-else :width="16" :height="16" />
               {{
                 switching
                   ? t('wallpaperSwitcher.switching')
@@ -176,7 +179,7 @@ const updateAutoRestore = (event: Event): void =>
               class="stage-btn stage-btn-ghost"
               @click="emit('setCurrentAsFixed')"
             >
-              <Pin :size="16" />
+              <Pin :width="16" :height="16" />
               {{ t('wallpaperSwitcher.setFixed') }}
             </button>
           </div>
@@ -192,7 +195,7 @@ const updateAutoRestore = (event: Event): void =>
             <h2>{{ t('wallpaperSwitcher.chooseSource') }}</h2>
           </div>
           <span class="ready-state">
-            <CheckSmall :size="14" />
+            <CheckSmall :width="14" :height="14" />
             {{ t('wallpaperSwitcher.ready') }}
           </span>
         </header>
@@ -207,9 +210,17 @@ const updateAutoRestore = (event: Event): void =>
             :aria-selected="config.mode === option.value"
             @click="setMode(option.value)"
           >
-            <FolderOpen v-if="option.value === 'folder'" :size="18" />
-            <Search v-else-if="option.value === 'wallhaven'" :size="18" />
-            <Picture v-else :size="18" />
+            <FolderOpen
+              v-if="option.value === 'folder'"
+              :width="18"
+              :height="18"
+            />
+            <Search
+              v-else-if="option.value === 'wallhaven'"
+              :width="18"
+              :height="18"
+            />
+            <Picture v-else :width="18" :height="18" />
             <span>
               <strong>{{ t(option.labelKey) }}</strong>
               <small>{{ t(option.captionKey) }}</small>
@@ -229,7 +240,7 @@ const updateAutoRestore = (event: Event): void =>
                 class="text-action"
                 @click="emit('scanFolder')"
               >
-                <Refresh :size="14" />
+                <Refresh :width="14" :height="14" />
                 {{ t('wallpaperSwitcher.scan') }}
               </button>
             </div>
@@ -254,7 +265,9 @@ const updateAutoRestore = (event: Event): void =>
               :title="config.folderPath || ''"
               @click="emit('chooseFolder')"
             >
-              <span class="path-icon"><FolderOpen :size="18" /></span>
+              <span class="path-icon">
+                <FolderOpen :width="18" :height="18" />
+              </span>
               <span class="path-copy">
                 <small>{{ t('wallpaperSwitcher.folderPath') }}</small>
                 <strong>
@@ -287,7 +300,7 @@ const updateAutoRestore = (event: Event): void =>
               class="browse-online-btn"
               @click="emit('openWallhavenGrid')"
             >
-              <Picture :size="18" />
+              <Picture :width="18" :height="18" />
               <span>
                 <strong>{{ t('wallpaperSwitcher.browseOnline') }}</strong>
                 <small>{{ t('wallpaperSwitcher.browseOnlineHint') }}</small>
@@ -309,7 +322,9 @@ const updateAutoRestore = (event: Event): void =>
               :title="config.fixedImagePath || ''"
               @click="emit('chooseImage')"
             >
-              <span class="path-icon"><Picture :size="18" /></span>
+              <span class="path-icon">
+                <Picture :width="18" :height="18" />
+              </span>
               <span class="path-copy">
                 <small>{{ t('wallpaperSwitcher.imagePath') }}</small>
                 <strong>
@@ -328,7 +343,7 @@ const updateAutoRestore = (event: Event): void =>
 
     <section class="automation-card">
       <div class="automation-intro">
-        <span class="automation-icon"><Time :size="20" /></span>
+        <span class="automation-icon"><Time :width="20" :height="20" /></span>
         <div>
           <span class="section-kicker">
             {{ t('wallpaperSwitcher.stepTwo') }}
@@ -399,7 +414,7 @@ const updateAutoRestore = (event: Event): void =>
 
     <footer class="utility-bar">
       <div class="tray-callout">
-        <Lightning :size="17" />
+        <Lightning :width="17" :height="17" />
         <span>
           <strong>{{ t('wallpaperSwitcher.trayQuickSwitch') }}</strong>
           <small>{{ t('wallpaperSwitcher.trayQuickSwitchHint') }}</small>
@@ -419,7 +434,7 @@ const updateAutoRestore = (event: Event): void =>
           :title="t('wallpaperSwitcher.clearCache')"
           @click="emit('clearCache')"
         >
-          <Delete :size="16" />
+          <Delete :width="16" :height="16" />
         </button>
         <button
           type="button"
@@ -428,7 +443,7 @@ const updateAutoRestore = (event: Event): void =>
           :title="t('wallpaperSwitcher.openCache')"
           @click="emit('openCacheDir')"
         >
-          <FolderOpen :size="16" />
+          <FolderOpen :width="16" :height="16" />
         </button>
         <button
           type="button"
@@ -436,7 +451,7 @@ const updateAutoRestore = (event: Event): void =>
           :disabled="saving"
           @click="emit('persistConfig')"
         >
-          <Save :size="17" />
+          <Save :width="17" :height="17" />
           {{
             saving
               ? t('wallpaperSwitcher.saving')

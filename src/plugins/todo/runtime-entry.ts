@@ -1,3 +1,4 @@
+import '@/styles/icons.scss';
 import '@/styles/plugin-config.scss';
 import type { PluginFrontendRuntimeContext } from '../runtime';
 

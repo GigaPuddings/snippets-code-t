@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import { Back, CloseSmall, Picture, PictureAlbum } from '@icon-park/vue-next';
+import Back from '~icons/lucide/arrow-left';
+import CloseSmall from '~icons/lucide/x';
+import Picture from '~icons/lucide/image';
+import PictureAlbum from '~icons/lucide/images';
 import { useI18n } from 'vue-i18n';
 import type { WallhavenSource } from '../../../api';
 import WallhavenSourceTabs from './WallhavenSourceTabs.vue';
@@ -25,7 +28,7 @@ const { t } = useI18n();
 <template>
   <header class="titlebar" data-tauri-drag-region>
     <div v-if="activeView === 'switcher'" class="title">
-      <span class="title-icon"><Picture :size="18" /></span>
+      <span class="title-icon"><Picture :width="18" :height="18" /></span>
       <span class="title-copy">
         <strong>{{ t('wallpaperSwitcher.title') }}</strong>
         <small>{{ t('wallpaperSwitcher.titleSubtitle') }}</small>
@@ -49,7 +52,7 @@ const { t } = useI18n();
         :title="t('wallpaperSwitcher.back')"
         @click="emit('back')"
       >
-        <Back :size="20" />
+        <Back :width="20" :height="20" />
       </button>
       <span>{{ t('wallpaperSwitcher.wallhavenTitle') }}</span>
     </div>
@@ -60,7 +63,7 @@ const { t } = useI18n();
         :title="t('wallpaperSwitcher.openWallhaven')"
         @click="emit('openWallhaven')"
       >
-        <PictureAlbum :size="18" />
+        <PictureAlbum :width="18" :height="18" />
         <span>{{ t('wallpaperSwitcher.browseOnline') }}</span>
       </button>
       <button
@@ -69,7 +72,7 @@ const { t } = useI18n();
         :title="t('wallpaperSwitcher.close')"
         @click="emit('close')"
       >
-        <CloseSmall :size="20" />
+        <CloseSmall :width="20" :height="20" />
       </button>
     </div>
     <div v-else class="window-actions">
@@ -90,7 +93,7 @@ const { t } = useI18n();
         :title="t('wallpaperSwitcher.close')"
         @click="emit('close')"
       >
-        <CloseSmall :size="20" />
+        <CloseSmall :width="20" :height="20" />
       </button>
     </div>
   </header>

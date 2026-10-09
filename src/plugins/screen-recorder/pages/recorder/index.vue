@@ -128,26 +128,14 @@
             :title="$t('screenRecorder.minimize')"
             @click="handleMinimize"
           >
-            <Minus
-              class="title-icon"
-              theme="outline"
-              size="20"
-              :strokeWidth="3"
-              strokeLinecap="butt"
-            />
+            <Minus class="title-icon" width="20" height="20" />
           </button>
           <button
             class="title-button title-button--close"
             :title="$t('common.close')"
             @click="handleClose"
           >
-            <CloseSmall
-              class="title-icon"
-              theme="outline"
-              size="18"
-              :strokeWidth="3"
-              strokeLinecap="butt"
-            />
+            <CloseSmall class="title-icon" width="18" height="18" />
           </button>
         </div>
       </header>
@@ -184,12 +172,7 @@
               :aria-label="$t('screenRecorder.snapToWindow')"
               @mousedown.prevent="handleSnapToWindow"
             >
-              <Radar
-                theme="outline"
-                size="18"
-                :strokeWidth="3"
-                strokeLinecap="butt"
-              />
+              <Radar width="18" height="18" />
             </button>
 
             <button
@@ -223,12 +206,7 @@
               :disabled="isBusy"
               @click="toggleCursor"
             >
-              <Mouse
-                theme="outline"
-                size="17"
-                :strokeWidth="3"
-                strokeLinecap="butt"
-              />
+              <Mouse width="17" height="17" />
             </button>
           </div>
 
@@ -444,7 +422,10 @@ import {
 } from '@tauri-apps/api/window';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { CloseSmall, Minus, Mouse, Radar } from '@icon-park/vue-next';
+import CloseSmall from '~icons/lucide/x';
+import Minus from '~icons/lucide/minus';
+import Mouse from '~icons/lucide/mouse-pointer-2';
+import Radar from '~icons/lucide/crosshair';
 import modal from '@/utils/modal';
 import { logger } from '@/utils/logger';
 import {

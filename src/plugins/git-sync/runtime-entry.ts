@@ -1,5 +1,6 @@
+import '@/styles/icons.scss';
 import { defineAsyncComponent } from 'vue';
-import { Github } from '@icon-park/vue-next';
+import Github from '~icons/simple-icons/github';
 import type { PluginFrontendRuntimeContext } from '../runtime';
 
 export const activate = (context: PluginFrontendRuntimeContext): void => {

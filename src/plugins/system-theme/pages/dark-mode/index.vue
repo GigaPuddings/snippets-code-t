@@ -10,7 +10,7 @@
     >
       <div class="flex items-center gap-2">
         <div class="title-icon-wrap">
-          <Contrast :size="18" :stroke-width="3.5" />
+          <Contrast :width="18" :height="18" />
         </div>
         <h1 class="m-0 text-base font-medium tracking-tight">
           {{ $t('darkMode.title') }}
@@ -23,7 +23,7 @@
         class="close-btn"
         :aria-label="$t('common.close')"
       >
-        <Close :size="18" />
+        <Close :width="18" :height="18" />
       </button>
     </div>
 
@@ -43,12 +43,7 @@
             />
             <div class="mode-content mode-system">
               <span class="mode-icon-wrap">
-                <Computer
-                  class="mode-icon"
-                  theme="outline"
-                  :size="19"
-                  :stroke-width="3.5"
-                />
+                <Computer class="mode-icon" :width="19" :height="19" />
               </span>
               <div class="mode-body">
                 <span class="mode-title">{{ $t('darkMode.systemMode') }}</span>
@@ -68,12 +63,7 @@
             />
             <div class="mode-content mode-light">
               <span class="mode-icon-wrap">
-                <Sun
-                  class="mode-icon"
-                  theme="outline"
-                  :size="19"
-                  :stroke-width="3.5"
-                />
+                <Sun class="mode-icon" :width="19" :height="19" />
               </span>
               <div class="mode-body">
                 <span class="mode-title">{{ $t('darkMode.lightMode') }}</span>
@@ -93,12 +83,7 @@
             />
             <div class="mode-content mode-dark">
               <span class="mode-icon-wrap">
-                <Moon
-                  class="mode-icon"
-                  theme="outline"
-                  :size="18"
-                  :stroke-width="3.5"
-                />
+                <Moon class="mode-icon" :width="18" :height="18" />
               </span>
               <div class="mode-body">
                 <span class="mode-title">{{ $t('darkMode.darkMode') }}</span>
@@ -116,12 +101,7 @@
             />
             <div class="mode-content mode-schedule">
               <span class="mode-icon-wrap">
-                <Time
-                  class="mode-icon"
-                  theme="outline"
-                  :size="19"
-                  :stroke-width="3.5"
-                />
+                <Time class="mode-icon" :width="19" :height="19" />
               </span>
               <div class="mode-body">
                 <span class="mode-title">
@@ -202,7 +182,7 @@
               />
               <div class="schedule-type-card">
                 <span class="schedule-type-title">
-                  <Sunrise :size="18" />
+                  <Sunrise :width="18" :height="18" />
                   {{ $t('darkMode.sunBased') }}
                 </span>
                 <span class="schedule-type-desc">
@@ -220,7 +200,7 @@
               />
               <div class="schedule-type-card">
                 <span class="schedule-type-title">
-                  <Time :size="18" />
+                  <Time :width="18" :height="18" />
                   {{ $t('darkMode.customSchedule') }}
                 </span>
                 <span class="schedule-type-desc">
@@ -234,7 +214,7 @@
         <!-- 位置信息（日出日落模式） -->
         <div class="section" v-if="config.schedule_type === 'SunBased'">
           <h2 class="section-title section-title-with-icon">
-            <Local theme="filled" :size="18" />
+            <Local :width="18" :height="18" />
             {{ $t('darkMode.locationInfo') }}
           </h2>
           <div class="inset-card location-card">
@@ -267,8 +247,8 @@
               class="btn-secondary btn-with-icon mt-3"
               :disabled="locationLoading"
             >
-              <Refresh v-if="!locationLoading" :size="16" />
-              <Refresh v-else class="animate-spin" :size="16" />
+              <Refresh v-if="!locationLoading" :width="16" :height="16" />
+              <Refresh v-else class="animate-spin" :width="16" :height="16" />
               {{
                 locationLoading
                   ? $t('darkMode.refreshing')
@@ -286,14 +266,14 @@
           <h2 class="section-title">{{ $t('darkMode.sunTimes') }}</h2>
           <div class="inset-card sun-times-card">
             <div class="sun-row">
-              <Sunrise class="sun-icon" theme="filled" :size="20" />
+              <Sunrise class="sun-icon" :width="20" :height="20" />
               <div class="sun-info">
                 <span class="sun-label">{{ $t('darkMode.sunrise') }}</span>
                 <span class="sun-value">{{ sunTimes.sunrise }}</span>
               </div>
             </div>
             <div class="sun-row">
-              <Sunset class="sun-icon" theme="filled" :size="20" />
+              <Sunset class="sun-icon" :width="20" :height="20" />
               <div class="sun-info">
                 <span class="sun-label">{{ $t('darkMode.sunset') }}</span>
                 <span class="sun-value">{{ sunTimes.sunset }}</span>
@@ -365,7 +345,7 @@
           <div class="inset-card time-settings">
             <label class="time-row">
               <span class="time-label-text">
-                <Sun theme="outline" :size="18" :stroke-width="3.5" />
+                <Sun :width="18" :height="18" />
                 {{ $t('darkMode.lightModeStart') }}
               </span>
               <input
@@ -377,7 +357,7 @@
             </label>
             <label class="time-row">
               <span class="time-label-text">
-                <Moon theme="outline" :size="18" :stroke-width="3.5" />
+                <Moon :width="18" :height="18" />
                 {{ $t('darkMode.darkModeStart') }}
               </span>
               <input
@@ -400,18 +380,16 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
 import { useI18n } from 'vue-i18n';
 import modal from '@/utils/modal';
-import {
-  Moon,
-  Close,
-  Sunrise,
-  Sunset,
-  Sun,
-  Computer,
-  Time,
-  Contrast,
-  Local,
-  Refresh
-} from '@icon-park/vue-next';
+import Moon from '~icons/lucide/moon';
+import Close from '~icons/lucide/x';
+import Sunrise from '~icons/lucide/sunrise';
+import Sunset from '~icons/lucide/sunset';
+import Sun from '~icons/lucide/sun';
+import Computer from '~icons/lucide/monitor';
+import Time from '~icons/lucide/clock';
+import Contrast from '~icons/lucide/contrast';
+import Local from '~icons/lucide/map-pin';
+import Refresh from '~icons/lucide/refresh-cw';
 
 const { t } = useI18n();
 import { logger } from '@/utils/logger';

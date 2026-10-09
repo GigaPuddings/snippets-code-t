@@ -22,9 +22,8 @@
           <Loading
             v-if="isLoading && !contributionActivity"
             class="git-contribution-mini__loading"
-            theme="outline"
-            size="14"
-            :strokeWidth="3"
+            width="14"
+            height="14"
           />
           <span v-else class="git-contribution-mini__spark" aria-hidden="true">
             <i
@@ -66,7 +65,7 @@
                 type="button"
                 @click.stop="goToGitSettings"
               >
-                <SettingTwo theme="outline" size="15" :strokeWidth="3" />
+                <SettingTwo width="15" height="15" />
               </button>
             </el-tooltip>
           </header>
@@ -120,7 +119,8 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { Loading, SettingTwo } from '@icon-park/vue-next';
+import Loading from '~icons/lucide/loader-circle';
+import SettingTwo from '~icons/lucide/settings';
 import { usePluginStore } from '@/store/plugins';
 import { getGitContributionActivity } from '@/plugins/git-sync/api';
 import type {

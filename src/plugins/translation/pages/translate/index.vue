@@ -17,16 +17,14 @@ import {
   warmupOfflineTranslator,
   cancelOfflineTranslation
 } from '@/plugins/translation/utils/offlineTranslator';
-import {
-  Pushpin,
-  CloseSmall,
-  Switch as SwitchIcon,
-  VolumeUp,
-  Delete,
-  Up,
-  Down,
-  Copy
-} from '@icon-park/vue-next';
+import Pushpin from '~icons/lucide/pin';
+import CloseSmall from '~icons/lucide/x';
+import SwitchIcon from '~icons/lucide/arrow-left-right';
+import VolumeUp from '~icons/lucide/volume-2';
+import Delete from '~icons/lucide/trash-2';
+import Up from '~icons/lucide/chevron-up';
+import Down from '~icons/lucide/chevron-down';
+import Copy from '~icons/lucide/copy';
 
 const { t } = useI18n();
 const pluginStore = usePluginStore();
@@ -694,7 +692,7 @@ onUnmounted(() => {
             @click="togglePin"
             :class="['window-action', 'pin-button', isPinned ? 'pinned' : '']"
           >
-            <Pushpin :size="18" />
+            <Pushpin :width="18" :height="18" />
           </button>
         </el-tooltip>
       </div>
@@ -715,7 +713,7 @@ onUnmounted(() => {
             @click="closeWindow"
             class="window-action material-close"
           >
-            <CloseSmall :size="22" />
+            <CloseSmall :width="22" :height="22" />
           </button>
         </el-tooltip>
       </div>
@@ -751,7 +749,7 @@ onUnmounted(() => {
             @click="swapLanguages"
             class="swap-button"
           >
-            <SwitchIcon :size="22" />
+            <SwitchIcon :width="22" :height="22" />
           </button>
         </el-tooltip>
 
@@ -797,7 +795,7 @@ onUnmounted(() => {
                 @click="speakText(sourceText, sourceLanguage)"
                 class="action-btn"
               >
-                <VolumeUp :size="18" />
+                <VolumeUp :width="18" :height="18" />
               </button>
             </el-tooltip>
             <el-tooltip
@@ -808,7 +806,7 @@ onUnmounted(() => {
               popper-class="themed-tooltip-popper"
             >
               <button type="button" @click="clearInput" class="action-btn">
-                <Delete :size="18" />
+                <Delete :width="18" :height="18" />
               </button>
             </el-tooltip>
           </div>
@@ -853,7 +851,8 @@ onUnmounted(() => {
             <div class="result-controls">
               <component
                 :is="result.expanded ? Up : Down"
-                :size="18"
+                width="18"
+                height="18"
                 class="expand-icon"
               />
             </div>
@@ -885,7 +884,7 @@ onUnmounted(() => {
                   @click="speakText(result.text, targetLanguage)"
                   class="action-btn"
                 >
-                  <VolumeUp :size="18" />
+                  <VolumeUp :width="18" :height="18" />
                 </button>
               </el-tooltip>
 
@@ -900,7 +899,7 @@ onUnmounted(() => {
                   @click="copyResult(result.text)"
                   class="action-btn"
                 >
-                  <Copy :size="18" />
+                  <Copy :width="18" :height="18" />
                 </button>
               </el-tooltip>
 
@@ -915,7 +914,7 @@ onUnmounted(() => {
                   @click="translateBack(result)"
                   class="action-btn rotate-icon"
                 >
-                  <SwitchIcon :size="18" />
+                  <SwitchIcon :width="18" :height="18" />
                 </button>
               </el-tooltip>
             </div>

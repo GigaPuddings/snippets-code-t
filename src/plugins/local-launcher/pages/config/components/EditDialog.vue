@@ -75,18 +75,13 @@
                   class="remove-btn"
                   @click="formData.icon = null"
                 >
-                  <Delete theme="outline" size="14" :strokeWidth="3" />
+                  <Delete width="14" height="14" />
                 </CustomButton>
               </div>
             </div>
             <div v-else class="icon-placeholder">
-              <Application
-                v-if="type === 'app'"
-                theme="outline"
-                size="24"
-                :strokeWidth="2"
-              />
-              <Browser v-else theme="outline" size="24" :strokeWidth="2" />
+              <Application v-if="type === 'app'" width="24" height="24" />
+              <Browser v-else width="24" height="24" />
               <span class="placeholder-text">
                 {{ $t('editDialog.noIcon') }}
               </span>
@@ -113,7 +108,7 @@
                 class="extract-btn"
               >
                 {{ $t('editDialog.fetchIcon') }}
-                <Down theme="outline" size="14" :strokeWidth="3" class="ml-1" />
+                <Down width="14" height="14" class="ml-1" />
               </CustomButton>
               <template #dropdown>
                 <el-dropdown-menu>
@@ -171,7 +166,7 @@
             @click="handleDelete"
             class="delete-btn"
           >
-            <Delete theme="outline" size="14" :strokeWidth="3" />
+            <Delete width="14" height="14" />
             {{ $t('common.delete') }}
           </CustomButton>
         </div>
@@ -185,12 +180,7 @@
             :loading="submitting"
             class="submit-btn"
           >
-            <Check
-              v-if="!submitting"
-              theme="outline"
-              size="14"
-              :strokeWidth="3"
-            />
+            <Check v-if="!submitting" width="14" height="14" />
             {{ isEdit ? $t('common.save') : $t('common.add') }}
           </CustomButton>
         </div>
@@ -203,7 +193,11 @@
 import { invoke } from '@tauri-apps/api/core';
 import { open as openFileDialog } from '@tauri-apps/plugin-dialog';
 import type { FormInstance, FormRules } from 'element-plus';
-import { Application, Browser, Delete, Check, Down } from '@icon-park/vue-next';
+import Application from '~icons/lucide/app-window';
+import Browser from '~icons/lucide/globe';
+import Delete from '~icons/lucide/trash-2';
+import Check from '~icons/lucide/check';
+import Down from '~icons/lucide/chevron-down';
 import { useI18n } from 'vue-i18n';
 import { CommonDialog, CustomButton } from '@/components/UI';
 import modal from '@/utils/modal';
@@ -512,7 +506,7 @@ defineExpose({ open });
             .remove-btn {
               @apply text-white hover:text-red-400;
 
-              :deep(.i-icon) {
+              :deep(.app-icon) {
                 @apply text-current;
               }
             }

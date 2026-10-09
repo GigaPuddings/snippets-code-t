@@ -1,7 +1,7 @@
 <template>
   <main
     :class="[
-      'local-ai-chat-shell font-ui text-ui ui-icon-scope',
+      'local-ai-chat-shell font-ui text-ui',
       sidebarCollapsed ? 'local-ai-chat-shell--sidebar-collapsed' : '',
       sending ? 'local-ai-chat-shell--sending' : ''
     ]"
@@ -30,7 +30,7 @@
           :aria-pressed="sidebarCollapsed"
           @click="sidebarCollapsed = !sidebarCollapsed"
         >
-          <LeftBar theme="outline" size="17" />
+          <LeftBar width="17" height="17" />
         </button>
       </header>
 
@@ -41,12 +41,12 @@
           :disabled="navigationLocked"
           @click="createNewChat"
         >
-          <Edit theme="outline" size="18" />
+          <Edit width="18" height="18" />
           <span>{{ t('localAi.newChat') }}</span>
           <span class="sidebar-new-chat-shortcut">Ctrl N</span>
         </button>
         <label class="sidebar-search">
-          <Search theme="outline" size="16" />
+          <Search width="16" height="16" />
           <input
             v-model="searchQuery"
             :aria-label="t('localAi.searchHistory')"
@@ -71,7 +71,7 @@
               "
               @click="clearHistoryDialogVisible = true"
             >
-              <Delete theme="outline" size="16" />
+              <Delete width="16" height="16" />
             </button>
             <button
               class="ui-icon-button ui-icon-button--small ui-action--muted"
@@ -82,8 +82,8 @@
             >
               <Refresh
                 :class="{ 'animate-spin': refreshing }"
-                theme="outline"
-                size="16"
+                width="16"
+                height="16"
               />
             </button>
           </div>
@@ -128,7 +128,7 @@
               :disabled="navigationLocked"
               @click.stop="deleteHistoryItem(history.id)"
             >
-              <Delete theme="outline" size="16" />
+              <Delete width="16" height="16" />
             </button>
           </div>
         </div>
@@ -138,7 +138,7 @@
       <footer class="sidebar-service">
         <div class="sidebar-service-card">
           <span class="sidebar-service-icon">
-            <Robot theme="outline" size="15" />
+            <Robot width="15" height="15" />
           </span>
           <span class="sidebar-service-copy">
             <strong>{{ serviceStatusText }}</strong>
@@ -162,9 +162,9 @@
           type="button"
           @click="goSettings"
         >
-          <SettingTwo theme="outline" size="16" />
+          <SettingTwo width="16" height="16" />
           <span>{{ t('localAi.settings') }}</span>
-          <Right theme="outline" size="14" />
+          <Right width="14" height="14" />
         </button>
       </footer>
     </aside>
@@ -179,7 +179,7 @@
             :title="t('localAi.expandSidebar')"
             @click="sidebarCollapsed = false"
           >
-            <LeftBar theme="outline" size="17" />
+            <LeftBar width="17" height="17" />
           </button>
           <h1 class="chat-context-title" :title="activeHistoryTitle">
             {{ activeHistoryTitle }}
@@ -203,7 +203,7 @@
           <section v-if="!activeMessages.length" class="empty-state">
             <div class="empty-hero">
               <div class="empty-hero-mark">
-                <RobotOne theme="outline" size="30" />
+                <RobotOne width="30" height="30" />
               </div>
               <span class="empty-eyebrow">
                 <i></i>
@@ -226,13 +226,13 @@
                   @click="applyQuickPrompt(item.title)"
                 >
                   <span class="quick-prompt-icon">
-                    <component :is="item.icon" theme="outline" size="17" />
+                    <component :is="item.icon" width="17" height="17" />
                   </span>
                   <span class="quick-prompt-copy">
                     <strong>{{ t(item.title) }}</strong>
                     <small>{{ t(item.description) }}</small>
                   </span>
-                  <Right theme="outline" size="14" />
+                  <Right width="14" height="14" />
                 </button>
               </div>
             </div>
@@ -326,7 +326,7 @@
                       :title="t('common.copy')"
                       @click="copyMessage(display.message)"
                     >
-                      <Copy theme="outline" size="16" />
+                      <Copy width="16" height="16" />
                     </button>
                     <button
                       class="ui-icon-button ui-icon-button--small ui-action--muted"
@@ -334,7 +334,7 @@
                       :title="t('common.edit')"
                       @click="editMessage(display.message)"
                     >
-                      <Edit theme="outline" size="16" />
+                      <Edit width="16" height="16" />
                     </button>
                     <button
                       class="ui-icon-button ui-icon-button--small ui-action--muted"
@@ -342,7 +342,7 @@
                       :title="t('common.delete')"
                       @click="deleteMessage(display.message.id)"
                     >
-                      <Delete theme="outline" size="16" />
+                      <Delete width="16" height="16" />
                     </button>
                   </div>
                 </template>
@@ -381,7 +381,7 @@
                       >
                         <summary>
                           <span class="reasoning-summary-title">
-                            <Brain theme="outline" size="14" />
+                            <Brain width="14" height="14" />
                             {{ messageReasoningLabel(display.message) }}
                           </span>
                           <small v-if="display.message.streaming">
@@ -517,7 +517,7 @@
                       :title="t('common.copy')"
                       @click="copyMessage(display.message)"
                     >
-                      <Copy theme="outline" size="16" />
+                      <Copy width="16" height="16" />
                     </button>
                     <button
                       v-if="!display.message.error"
@@ -546,10 +546,10 @@
                     >
                       <FileSuccess
                         v-if="display.message.savedNote"
-                        theme="outline"
-                        size="16"
+                        width="16"
+                        height="16"
                       />
-                      <FileText v-else theme="outline" size="16" />
+                      <FileText v-else width="16" height="16" />
                     </button>
                     <button
                       v-if="display.message.role === 'assistant'"
@@ -558,7 +558,7 @@
                       :title="t('localAi.regenerate')"
                       @click="regenerateMessage(display.message.id)"
                     >
-                      <Refresh theme="outline" size="16" />
+                      <Refresh width="16" height="16" />
                     </button>
                     <button
                       v-if="display.message.role === 'assistant'"
@@ -567,7 +567,7 @@
                       :title="t('localAi.branchChat')"
                       @click="forkFromMessage(display.message.id)"
                     >
-                      <Fork theme="outline" size="16" />
+                      <Fork width="16" height="16" />
                     </button>
                     <button
                       class="ui-icon-button ui-icon-button--small ui-action--muted"
@@ -575,7 +575,7 @@
                       :title="t('common.edit')"
                       @click="editMessage(display.message)"
                     >
-                      <Edit theme="outline" size="16" />
+                      <Edit width="16" height="16" />
                     </button>
                     <button
                       class="ui-icon-button ui-icon-button--small ui-action--muted"
@@ -583,7 +583,7 @@
                       :title="t('common.delete')"
                       @click="deleteMessage(display.message.id)"
                     >
-                      <Delete theme="outline" size="16" />
+                      <Delete width="16" height="16" />
                     </button>
                   </div>
                 </template>
@@ -601,7 +601,7 @@
           :title="t('localAi.jumpToLatest')"
           @click="forceScrollToBottom"
         >
-          <Down theme="outline" size="16" />
+          <Down width="16" height="16" />
           <span>{{ t('localAi.jumpToLatest') }}</span>
         </button>
         <form
@@ -651,7 +651,7 @@
                 :title="t('common.delete')"
                 @click="removeComposerAttachment(attachment.id)"
               >
-                <Delete theme="outline" size="14" />
+                <Delete width="14" height="14" />
               </button>
             </div>
           </div>
@@ -679,10 +679,10 @@
                 <Refresh
                   v-if="attachmentPicking"
                   class="animate-spin"
-                  theme="outline"
-                  size="16"
+                  width="16"
+                  height="16"
                 />
-                <Link v-else theme="outline" size="16" />
+                <Link v-else width="16" height="16" />
               </button>
               <button
                 :class="[
@@ -702,10 +702,10 @@
                 <Refresh
                   v-if="promptEnhancing"
                   class="animate-spin"
-                  theme="outline"
-                  size="14"
+                  width="14"
+                  height="14"
                 />
-                <MagicWand v-else theme="outline" size="15" />
+                <MagicWand v-else width="15" height="15" />
                 <span>{{ t('localAi.enhancePrompt') }}</span>
               </button>
               <button
@@ -724,20 +724,20 @@
                 :aria-pressed="thinkingEnabled"
                 @click="thinkingEnabled = !thinkingEnabled"
               >
-                <Brain theme="outline" size="15" />
+                <Brain width="15" height="15" />
                 <span>{{ t('localAi.reasoningTitle') }}</span>
               </button>
             </div>
             <div class="input-toolbar-right">
               <div class="model-select-shell" :title="currentModelDisplay">
-                <Cube theme="outline" size="14" />
+                <Cube width="14" height="14" />
                 <el-select
                   v-model="selectedChatModelPath"
                   class="chat-model-select"
                   size="small"
                   :disabled="sending || !availableChatModels.length"
                   :placeholder="currentModelDisplay"
-                  popper-class="chat-model-select-popper ui-icon-scope"
+                  popper-class="chat-model-select-popper"
                   @change="changeChatModel"
                 >
                   <el-option
@@ -747,15 +747,15 @@
                     :value="path"
                   >
                     <span class="chat-model-option">
-                      <Cube theme="outline" size="14" />
+                      <Cube width="14" height="14" />
                       <span class="chat-model-option-name">
                         {{ fileName(path) }}
                       </span>
                       <CheckSmall
                         v-if="selectedChatModelPath === path"
                         class="chat-model-option-check"
-                        theme="outline"
-                        size="15"
+                        width="15"
+                        height="15"
                       />
                     </span>
                   </el-option>
@@ -788,10 +788,15 @@
                 <Refresh
                   v-if="stopRequested"
                   class="animate-spin"
-                  theme="outline"
-                  size="15"
+                  width="15"
+                  height="15"
                 />
-                <Square v-else theme="filled" size="11" />
+                <Square
+                  v-else
+                  width="11"
+                  height="11"
+                  class="app-icon--filled"
+                />
               </button>
               <button
                 v-else
@@ -801,7 +806,7 @@
                 :title="t('localAi.send')"
                 :aria-label="t('localAi.send')"
               >
-                <Send theme="outline" size="15" />
+                <Send width="15" height="15" />
               </button>
             </div>
           </div>
@@ -831,31 +836,29 @@ import type { ObjectDirective } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import {
-  Brain,
-  Copy,
-  Square,
-  Delete,
-  Down,
-  Edit,
-  Refresh,
-  Robot,
-  Search,
-  Send,
-  SettingTwo,
-  Link,
-  Fork,
-  LeftBar,
-  Right,
-  Cube,
-  RobotOne,
-  MagicWand,
-  FileText,
-  Translate,
-  Code,
-  FileSuccess,
-  CheckSmall
-} from '@icon-park/vue-next';
+import Brain from '~icons/lucide/brain';
+import Copy from '~icons/lucide/copy';
+import Square from '~icons/lucide/square';
+import Delete from '~icons/lucide/trash-2';
+import Down from '~icons/lucide/chevron-down';
+import Edit from '~icons/lucide/square-pen';
+import Refresh from '~icons/lucide/refresh-cw';
+import Robot from '~icons/lucide/bot';
+import Search from '~icons/lucide/search';
+import Send from '~icons/lucide/send';
+import SettingTwo from '~icons/lucide/settings';
+import Link from '~icons/lucide/paperclip';
+import Fork from '~icons/lucide/git-fork';
+import LeftBar from '~icons/lucide/panel-left';
+import Right from '~icons/lucide/chevron-right';
+import Cube from '~icons/lucide/box';
+import RobotOne from '~icons/lucide/bot';
+import MagicWand from '~icons/lucide/wand-sparkles';
+import FileText from '~icons/lucide/file-text';
+import Translate from '~icons/lucide/languages';
+import Code from '~icons/lucide/code';
+import FileSuccess from '~icons/lucide/file-check';
+import CheckSmall from '~icons/lucide/check';
 import {
   clearLocalAiChatHistories,
   deleteLocalAiChatHistory,

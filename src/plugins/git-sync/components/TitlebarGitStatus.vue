@@ -9,11 +9,10 @@
     <loading
       v-if="syncState === 'syncing'"
       class="icon git-sync-icon"
-      theme="outline"
-      size="16"
-      :strokeWidth="3"
+      width="16"
+      height="16"
     />
-    <branch v-else class="icon" theme="outline" size="16" :strokeWidth="3" />
+    <branch v-else class="icon" width="16" height="16" />
     <span v-if="syncState === 'has_changes'" class="git-badge">
       {{ pendingFilesCount }}
     </span>
@@ -26,7 +25,7 @@
   </div>
 
   <el-dropdown-item v-else-if="visible" @click="goToGitSettings">
-    <branch theme="outline" size="16" :strokeWidth="3" class="align-middle" />
+    <branch width="16" height="16" class="align-middle" />
     <span class="ml-2">{{ $t('titlebar.gitSync') }}</span>
     <span v-if="syncState === 'has_changes'" class="git-badge ml-1">
       {{ pendingFilesCount }}
@@ -36,7 +35,8 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from 'vue';
-import { Branch, Loading } from '@icon-park/vue-next';
+import Branch from '~icons/lucide/git-branch';
+import Loading from '~icons/lucide/loader-circle';
 import {
   cleanupGitStatusListener,
   initWorkspaceChangeListener,

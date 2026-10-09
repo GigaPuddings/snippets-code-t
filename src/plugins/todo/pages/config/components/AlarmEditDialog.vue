@@ -15,9 +15,8 @@
         <delete
           v-if="props.editData"
           class="delete-icon"
-          theme="outline"
-          size="20"
-          :strokeWidth="3"
+          width="20"
+          height="20"
           @click="handleDelete"
         />
       </div>
@@ -28,17 +27,15 @@
           <div class="time-unit">
             <up
               class="cursor-pointer"
-              theme="outline"
-              size="20"
-              :strokeWidth="6"
+              width="20"
+              height="20"
               @click="adjustTime('hour', 1)"
             />
             <div class="time-value">{{ formData.hour }}</div>
             <down
               class="cursor-pointer"
-              theme="outline"
-              size="20"
-              :strokeWidth="6"
+              width="20"
+              height="20"
               @click="adjustTime('hour', -1)"
             />
           </div>
@@ -46,17 +43,15 @@
           <div class="time-unit">
             <up
               class="cursor-pointer"
-              theme="outline"
-              size="20"
-              :strokeWidth="6"
+              width="20"
+              height="20"
               @click="adjustTime('minute', 1)"
             />
             <div class="time-value">{{ formData.minute }}</div>
             <down
               class="cursor-pointer"
-              theme="outline"
-              size="20"
-              :strokeWidth="6"
+              width="20"
+              height="20"
               @click="adjustTime('minute', -1)"
             />
           </div>
@@ -64,7 +59,7 @@
       </div>
 
       <div class="alarm-title-input transparent-input">
-        <edit-two theme="outline" size="20" :strokeWidth="3" />
+        <edit-two width="20" height="20" />
         <el-tooltip effect="light" :content="$t('alarm.title')" placement="top">
           <el-input
             class="title-input"
@@ -95,7 +90,7 @@
         v-if="formData.alarmType === 'SpecificDate'"
         class="alarm-date-picker"
       >
-        <calendar theme="outline" size="20" :strokeWidth="3" />
+        <calendar width="20" height="20" />
         <el-config-provider :locale="zhCnLocale">
           <el-date-picker
             v-model="specificDatesValue"
@@ -129,7 +124,7 @@
       </div>
 
       <div class="alarm-pause-time transparent-input">
-        <alarm-clock theme="outline" size="20" :strokeWidth="3" />
+        <alarm-clock width="20" height="20" />
         <el-tooltip
           effect="light"
           :content="$t('alarm.pauseTime')"
@@ -152,11 +147,11 @@
     <template #footer>
       <div class="dialog-footer">
         <CustomButton type="primary" @click="handleSubmit">
-          <save theme="outline" size="18" :strokeWidth="3" />
+          <save width="18" height="18" />
           <span class="ml-1">{{ $t('common.save') }}</span>
         </CustomButton>
         <CustomButton type="default" @click="dialogVisible = false">
-          <close theme="outline" size="18" :strokeWidth="3" />
+          <close width="18" height="18" />
           <span class="ml-1">{{ $t('common.cancel') }}</span>
         </CustomButton>
       </div>
@@ -165,16 +160,14 @@
 </template>
 
 <script setup lang="ts">
-import {
-  Up,
-  Down,
-  Delete,
-  EditTwo,
-  AlarmClock,
-  Save,
-  Close,
-  Calendar
-} from '@icon-park/vue-next';
+import Up from '~icons/lucide/chevron-up';
+import Down from '~icons/lucide/chevron-down';
+import Delete from '~icons/lucide/trash-2';
+import EditTwo from '~icons/lucide/square-pen';
+import AlarmClock from '~icons/lucide/alarm-clock';
+import Save from '~icons/lucide/save';
+import Close from '~icons/lucide/x';
+import Calendar from '~icons/lucide/calendar';
 import dayjs from 'dayjs';
 import { CustomButton, CommonDialog } from '@/components/UI';
 import { useI18n } from 'vue-i18n';

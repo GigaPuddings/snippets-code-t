@@ -19,9 +19,8 @@
             <loading
               v-if="syncState === 'syncing'"
               class="git-sync-icon"
-              theme="outline"
-              size="24"
-              :strokeWidth="3"
+              width="24"
+              height="24"
             />
             <check-one
               v-else-if="
@@ -29,21 +28,18 @@
                 syncState === 'idle' ||
                 syncState === 'disabled'
               "
-              theme="outline"
-              size="24"
-              :strokeWidth="3"
+              width="24"
+              height="24"
             />
             <attention
               v-else-if="syncState === 'has_changes'"
-              theme="outline"
-              size="24"
-              :strokeWidth="3"
+              width="24"
+              height="24"
             />
             <close-small
               v-else-if="syncState === 'error'"
-              theme="outline"
-              size="24"
-              :strokeWidth="3"
+              width="24"
+              height="24"
             />
           </div>
           <div class="sync-status-info">
@@ -489,7 +485,10 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
-import { Loading, CheckOne, Attention, CloseSmall } from '@icon-park/vue-next';
+import Loading from '~icons/lucide/loader-circle';
+import CheckOne from '~icons/lucide/circle-check';
+import Attention from '~icons/lucide/triangle-alert';
+import CloseSmall from '~icons/lucide/x';
 import {
   CustomButton,
   CustomSwitch,

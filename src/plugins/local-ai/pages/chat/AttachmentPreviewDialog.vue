@@ -12,7 +12,7 @@
       </div>
       <div class="attachment-preview-dialog__meta">
         <span class="attachment-preview-dialog__file">
-          <Picture theme="outline" size="16" />
+          <Picture width="16" height="16" />
           <strong :title="attachment.name">{{ attachment.name }}</strong>
         </span>
         <span>{{ formatFileSize(attachment.size) }}</span>
@@ -23,7 +23,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
-import { Picture } from '@icon-park/vue-next';
+import Picture from '~icons/lucide/image';
 import { CommonDialog } from '@/components/UI';
 import {
   formatFileSize,

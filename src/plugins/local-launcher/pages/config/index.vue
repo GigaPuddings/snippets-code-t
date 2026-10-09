@@ -1,5 +1,5 @@
 <template>
-  <main class="plugin-config-page ui-icon-scope local-container">
+  <main class="plugin-config-page local-container">
     <header class="plugin-config-header">
       <h1 class="plugin-config-title">{{ $t('nav.launcher') }}</h1>
       <div class="flex shrink-0 items-center gap-2">
@@ -41,7 +41,7 @@
         <!-- 搜索和操作 -->
         <div class="header-right">
           <div class="search-wrapper">
-            <Search class="search-icon" theme="outline" size="16" />
+            <Search class="search-icon" width="16" height="16" />
             <el-input
               v-model="searchQuery"
               :placeholder="$t('local.search')"
@@ -62,7 +62,7 @@
       >
         <div class="scan-status__summary">
           <span class="scan-status__icon">
-            <LoadingIcon theme="outline" size="17" spin />
+            <LoadingIcon width="17" height="17" class="animate-spin" />
           </span>
           <div class="scan-status__copy">
             <span class="scan-status__title">{{ localizedScanStage }}</span>
@@ -100,7 +100,7 @@
           <span class="indexing-orbit indexing-orbit--outer"></span>
           <span class="indexing-orbit indexing-orbit--inner"></span>
           <span class="indexing-core">
-            <LoadingIcon theme="outline" size="28" />
+            <LoadingIcon width="28" height="28" />
           </span>
         </div>
 
@@ -184,8 +184,8 @@
                   v-else
                   :is="activeTab === 'app' ? Application : Browser"
                   class="icon-placeholder"
-                  theme="outline"
-                  size="28"
+                  width="28"
+                  height="28"
                 />
               </div>
               <div class="item-info">
@@ -208,7 +208,8 @@
                 <div class="item-path">
                   <component
                     :is="activeTab === 'app' ? FolderOpen : Link"
-                    size="14"
+                    width="14"
+                    height="14"
                   />
                   <span>{{ item.content }}</span>
                 </div>
@@ -270,18 +271,16 @@ import { useI18n } from 'vue-i18n';
 import modal from '@/utils/modal';
 
 const { t } = useI18n();
-import {
-  Edit,
-  Delete,
-  Plus,
-  Check,
-  Application,
-  Browser,
-  FolderOpen,
-  Link,
-  Search,
-  Loading as LoadingIcon
-} from '@icon-park/vue-next';
+import Edit from '~icons/lucide/square-pen';
+import Delete from '~icons/lucide/trash-2';
+import Plus from '~icons/lucide/plus';
+import Check from '~icons/lucide/check';
+import Application from '~icons/lucide/app-window';
+import Browser from '~icons/lucide/globe';
+import FolderOpen from '~icons/lucide/folder-open';
+import Link from '~icons/lucide/link';
+import Search from '~icons/lucide/search';
+import LoadingIcon from '~icons/lucide/loader-circle';
 import { RecycleScroller } from 'vue-virtual-scroller';
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css';
 import EditDialog from './components/EditDialog.vue';

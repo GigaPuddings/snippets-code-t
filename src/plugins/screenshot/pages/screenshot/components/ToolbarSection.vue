@@ -11,12 +11,7 @@
             :title="tool.title"
             :aria-pressed="currentTool === tool.type"
           >
-            <component
-              :is="tool.icon"
-              theme="outline"
-              size="18"
-              :strokeWidth="2.5"
-            />
+            <component :is="tool.icon" width="18" height="18" />
           </button>
         </template>
       </div>
@@ -32,7 +27,7 @@
           class="action-btn undo"
           :title="t('screenshot.undo')"
         >
-          <return theme="outline" size="18" :strokeWidth="2.5" />
+          <return width="18" height="18" />
         </button>
 
         <button
@@ -41,7 +36,7 @@
           class="action-btn redo"
           :title="t('screenshot.redo')"
         >
-          <go-on theme="outline" size="18" :strokeWidth="2.5" />
+          <go-on width="18" height="18" />
         </button>
 
         <button
@@ -50,7 +45,7 @@
           class="action-btn delete"
           :title="t('screenshot.delete')"
         >
-          <delete-four theme="outline" size="18" :strokeWidth="2.5" />
+          <delete-four width="18" height="18" />
         </button>
 
         <button
@@ -58,7 +53,7 @@
           class="action-btn cancel"
           :title="t('screenshot.cancel')"
         >
-          <close theme="outline" size="18" :strokeWidth="2.5" />
+          <close width="18" height="18" />
         </button>
 
         <button
@@ -66,7 +61,7 @@
           class="action-btn save"
           :title="t('screenshot.save')"
         >
-          <download theme="outline" size="18" :strokeWidth="2.5" />
+          <download width="18" height="18" />
         </button>
 
         <button
@@ -74,7 +69,7 @@
           class="action-btn confirm"
           :title="t('screenshot.confirm')"
         >
-          <check theme="outline" size="18" :strokeWidth="2.5" />
+          <check width="18" height="18" />
         </button>
       </div>
     </div>
@@ -170,7 +165,7 @@
                 :class="{ active: !presetColors.includes(currentColor) }"
                 :title="t('screenshot.customColor')"
               >
-                <Platte theme="outline" size="13" :strokeWidth="2.5" />
+                <Platte width="13" height="13" />
               </button>
               <input
                 type="color"
@@ -258,27 +253,25 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 import { ToolType } from '../core/types';
-import {
-  MoveOne,
-  RectangleOne,
-  Round,
-  Minus,
-  ArrowRightUp,
-  Write,
-  Mosaic,
-  FontSize,
-  Return,
-  GoOn,
-  DeleteFour,
-  Download,
-  Check,
-  Close,
-  Platte,
-  Pushpin,
-  Translate,
-  TextRecognition,
-  ListNumbers
-} from '@icon-park/vue-next';
+import MoveOne from '~icons/lucide/mouse-pointer-2';
+import RectangleOne from '~icons/lucide/rectangle-horizontal';
+import Round from '~icons/lucide/circle';
+import Minus from '~icons/lucide/minus';
+import ArrowRightUp from '~icons/lucide/arrow-up-right';
+import Write from '~icons/lucide/pencil';
+import Mosaic from '~icons/lucide/grid-2x2';
+import FontSize from '~icons/lucide/type';
+import Return from '~icons/lucide/undo-2';
+import GoOn from '~icons/lucide/redo-2';
+import DeleteFour from '~icons/lucide/trash-2';
+import Download from '~icons/lucide/download';
+import Check from '~icons/lucide/check';
+import Close from '~icons/lucide/x';
+import Platte from '~icons/lucide/palette';
+import Pushpin from '~icons/lucide/pin';
+import Translate from '~icons/lucide/languages';
+import TextRecognition from '~icons/lucide/scan-text';
+import ListNumbers from '~icons/lucide/list-ordered';
 
 const toolbarContainerRef = ref<HTMLElement | null>(null);
 

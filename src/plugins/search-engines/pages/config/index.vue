@@ -1,9 +1,13 @@
 <template>
-  <main class="plugin-config-page ui-icon-scope">
+  <main class="plugin-config-page">
     <!-- 加载中提示 -->
     <div v-if="isScanning" class="scanning-overlay">
       <div class="scanning-content">
-        <LoadingIcon class="scanning-icon" theme="outline" size="48" spin />
+        <LoadingIcon
+          class="animate-spin scanning-icon"
+          width="48"
+          height="48"
+        />
         <div class="scanning-text">
           {{ scanStage || $t('progress.preparing') }}
         </div>
@@ -87,8 +91,8 @@
                       <Picture
                         v-if="!engine.icon"
                         class="engine-icon placeholder-icon"
-                        theme="outline"
-                        size="24"
+                        width="24"
+                        height="24"
                       />
                       <img
                         v-else
@@ -157,7 +161,7 @@
               </div>
 
               <div class="url-tip">
-                <Info class="shrink-0" theme="outline" size="16" />
+                <Info class="shrink-0" width="16" height="16" />
                 <span>{{ $t('retrieve.urlFormatTip') }}</span>
               </div>
             </div>
@@ -190,14 +194,12 @@
 </template>
 
 <script setup lang="ts">
-import {
-  Add,
-  Redo,
-  Delete,
-  Info,
-  Picture,
-  Loading as LoadingIcon
-} from '@icon-park/vue-next';
+import Add from '~icons/lucide/plus';
+import Redo from '~icons/lucide/rotate-ccw';
+import Delete from '~icons/lucide/trash-2';
+import Info from '~icons/lucide/info';
+import Picture from '~icons/lucide/image';
+import LoadingIcon from '~icons/lucide/loader-circle';
 import { uuid } from '@/utils';
 import { invoke } from '@tauri-apps/api/core';
 import { emit, listen } from '@tauri-apps/api/event';

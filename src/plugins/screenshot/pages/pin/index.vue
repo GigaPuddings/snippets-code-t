@@ -38,7 +38,7 @@
         >
           <div class="ocr-title-copy" data-tauri-drag-region>
             <div class="ocr-window-title" data-tauri-drag-region>
-              <text-recognition theme="outline" size="18" />
+              <text-recognition width="18" height="18" />
               <span data-tauri-drag-region>{{ $t('pin.ocrResult') }}</span>
             </div>
             <div class="ocr-source-inline" data-tauri-drag-region>
@@ -59,10 +59,10 @@
               <Loading
                 v-if="ocrLoading"
                 class="ocr-loading-icon"
-                size="14"
-                theme="outline"
+                width="14"
+                height="14"
               />
-              <Magic v-else size="14" theme="outline" />
+              <Magic v-else width="14" height="14" />
               <span>{{ recognitionSourceLabel }}</span>
             </div>
 
@@ -74,10 +74,10 @@
                 "
                 @click.stop="handleToggleAlwaysOnTop"
               >
-                <component
-                  :is="isAlwaysOnTop ? Pushpin : Pin"
-                  size="18"
-                  theme="outline"
+                <Pushpin
+                  :class="{ 'app-icon--filled': isAlwaysOnTop }"
+                  width="18"
+                  height="18"
                 />
               </button>
               <span class="ocr-window-divider"></span>
@@ -86,21 +86,21 @@
                 :title="$t('pin.minimize')"
                 @click.stop="handleMinimize"
               >
-                <Minus size="18" theme="outline" />
+                <Minus width="18" height="18" />
               </button>
               <button
                 class="ocr-window-btn"
                 :title="$t('pin.maximize')"
                 @click.stop="handleToggleMaximize"
               >
-                <Square size="14" theme="outline" :strokeWidth="5" />
+                <Square width="14" height="14" />
               </button>
               <button
                 class="ocr-window-btn"
                 :title="$t('pin.close')"
                 @click.stop="handleClose"
               >
-                <Close size="14" theme="outline" :strokeWidth="6" />
+                <Close width="14" height="14" />
               </button>
             </div>
           </div>
@@ -130,7 +130,7 @@
                     :title="$t('pin.showAiPanel')"
                     @click.stop="isResultPaneCollapsed = false"
                   >
-                    <Left size="14" theme="outline" />
+                    <Left width="14" height="14" />
                     <span>{{ $t('pin.showAiPanel') }}</span>
                   </button>
                 </div>
@@ -199,7 +199,7 @@
                     :disabled="!ocrText.trim()"
                     @click.stop="handleCopyOcrText"
                   >
-                    <Copy size="15" theme="outline" />
+                    <Copy width="15" height="15" />
                     <span>{{ $t('pin.copyAll') }}</span>
                   </CustomButton>
                   <button
@@ -208,14 +208,14 @@
                     :title="$t('pin.hideAiPanel')"
                     @click.stop="isResultPaneCollapsed = true"
                   >
-                    <Right size="14" theme="outline" />
+                    <Right width="14" height="14" />
                   </button>
                 </div>
               </header>
 
               <div v-if="ocrLoading && !ocrText.trim()" class="ocr-state">
                 <div class="ocr-ai-orbit">
-                  <Magic size="22" theme="outline" />
+                  <Magic width="22" height="22" />
                 </div>
                 <strong>{{ $t('pin.aiReadingImage') }}</strong>
                 <span>{{ $t('pin.aiReadingHint') }}</span>
@@ -301,7 +301,7 @@
           :disabled="!ocrText.trim()"
           @click.stop="handleCopyOcrText"
         >
-          <Copy size="18" theme="outline" :strokeWidth="2.5" />
+          <Copy width="18" height="18" />
           <span>
             {{
               selectedOcrRecordCount > 0
@@ -318,19 +318,8 @@
             :disabled="!ocrText.trim() || isTranslating"
             @click.stop="handleTranslateOcr"
           >
-            <Translate
-              v-if="!isTranslating"
-              size="18"
-              theme="outline"
-              :strokeWidth="2.5"
-            />
-            <Loading
-              v-else
-              class="ocr-loading-icon"
-              size="18"
-              theme="outline"
-              :strokeWidth="2.5"
-            />
+            <Translate v-if="!isTranslating" width="18" height="18" />
+            <Loading v-else class="ocr-loading-icon" width="18" height="18" />
             <span>{{ $t('pin.translate') }}</span>
           </CustomButton>
           <CustomButton
@@ -339,7 +328,7 @@
             :disabled="!ocrText.trim() || isTranslating"
             @click.stop="toggleTranslateMenu"
           >
-            <Down size="14" theme="outline" :strokeWidth="2.7" />
+            <Down width="14" height="14" />
           </CustomButton>
           <!-- 翻译引擎菜单 -->
           <div
@@ -359,7 +348,8 @@
                 v-if="currentTranslateEngine === engine.value"
                 :is="Check"
                 class="menu-item-icon"
-                size="16"
+                width="16"
+                height="16"
               />
             </div>
           </div>
@@ -375,7 +365,7 @@
             :disabled="ocrLoading"
             @click.stop="toggleOcrLanguageMenu"
           >
-            <TextRecognition size="18" theme="outline" :strokeWidth="2.5" />
+            <TextRecognition width="18" height="18" />
             <span>{{ currentOcrLanguageLabel }}</span>
           </CustomButton>
           <CustomButton
@@ -384,7 +374,7 @@
             :disabled="ocrLoading"
             @click.stop="toggleOcrLanguageMenu"
           >
-            <Down size="14" theme="outline" :strokeWidth="3" />
+            <Down width="14" height="14" />
           </CustomButton>
           <div
             v-if="showOcrLanguageMenu"
@@ -403,7 +393,8 @@
                 v-if="currentOcrLanguage === language.value"
                 :is="Check"
                 class="menu-item-icon"
-                size="16"
+                width="16"
+                height="16"
               />
             </div>
           </div>
@@ -416,7 +407,7 @@
             :disabled="ocrLoading || !imageData"
             @click.stop="recognizeCurrentImage"
           >
-            <Magic size="17" theme="outline" :strokeWidth="2.5" />
+            <Magic width="17" height="17" />
             <span>{{ $t('pin.aiRecognizeAgain') }}</span>
           </CustomButton>
         </div>
@@ -427,7 +418,7 @@
           :disabled="!ocrText.trim()"
           @click.stop="handleSaveOcrText"
         >
-          <Save size="18" theme="outline" :strokeWidth="2.5" />
+          <Save width="18" height="18" />
           <span>{{ $t('pin.saveAsText') }}</span>
         </CustomButton>
         <span class="ocr-action-divider"></span>
@@ -437,7 +428,7 @@
           :title="$t('pin.more')"
           @click.stop="handleMoreActions"
         >
-          <More size="18" theme="outline" :strokeWidth="2.7" />
+          <More width="18" height="18" />
         </CustomButton>
       </footer>
     </section>
@@ -452,38 +443,23 @@
         <component
           class="menu-item-icon"
           :is="isAlwaysOnTop ? Pin : Pushpin"
-          size="18"
-          :strokeWidth="3"
+          width="18"
+          height="18"
         />
         <span>
           {{ isAlwaysOnTop ? $t('pin.togglePin') : $t('pin.pinWindow') }}
         </span>
       </div>
       <div class="menu-item" @click="handleResetZoom">
-        <Redo
-          class="menu-item-icon"
-          size="18"
-          theme="outline"
-          :strokeWidth="3"
-        />
+        <Redo class="menu-item-icon" width="18" height="18" />
         <span>{{ $t('pin.resetZoom') }}</span>
       </div>
       <div class="menu-item" @click="handleCopyImage">
-        <Copy
-          class="menu-item-icon"
-          size="18"
-          theme="outline"
-          :strokeWidth="3"
-        />
+        <Copy class="menu-item-icon" width="18" height="18" />
         <span>{{ $t('pin.copyImage') }}</span>
       </div>
       <div class="menu-item" @click="handleSaveImage">
-        <Save
-          class="menu-item-icon"
-          size="18"
-          theme="outline"
-          :strokeWidth="3"
-        />
+        <Save class="menu-item-icon" width="18" height="18" />
         <span>{{ $t('pin.saveImage') }}</span>
       </div>
       <div
@@ -491,22 +467,12 @@
         class="menu-item"
         @click="handleCopyOcrText"
       >
-        <Copy
-          class="menu-item-icon"
-          size="18"
-          theme="outline"
-          :strokeWidth="3"
-        />
+        <Copy class="menu-item-icon" width="18" height="18" />
         <span>{{ $t('pin.copyText') }}</span>
       </div>
       <div class="menu-divider"></div>
       <div class="menu-item danger" @click="handleClose">
-        <Close
-          class="menu-item-icon"
-          size="18"
-          theme="outline"
-          :strokeWidth="3"
-        />
+        <Close class="menu-item-icon" width="18" height="18" />
         <span>{{ $t('pin.closePin') }}</span>
       </div>
     </div>
@@ -525,25 +491,23 @@ import {
 import { Window, LogicalSize } from '@tauri-apps/api/window';
 import { invoke } from '@tauri-apps/api/core';
 import { useI18n } from 'vue-i18n';
-import {
-  Pin,
-  Pushpin,
-  Redo,
-  Copy,
-  Save,
-  Close,
-  Loading,
-  TextRecognition,
-  Minus,
-  Square,
-  Down,
-  Translate,
-  More,
-  Check,
-  Magic,
-  Left,
-  Right
-} from '@icon-park/vue-next';
+import Pin from '~icons/lucide/pin-off';
+import Pushpin from '~icons/lucide/pin';
+import Redo from '~icons/lucide/rotate-ccw';
+import Copy from '~icons/lucide/copy';
+import Save from '~icons/lucide/save';
+import Close from '~icons/lucide/x';
+import Loading from '~icons/lucide/loader-circle';
+import TextRecognition from '~icons/lucide/scan-text';
+import Minus from '~icons/lucide/minus';
+import Square from '~icons/lucide/square';
+import Down from '~icons/lucide/chevron-down';
+import Translate from '~icons/lucide/languages';
+import More from '~icons/lucide/ellipsis-vertical';
+import Check from '~icons/lucide/check';
+import Magic from '~icons/lucide/sparkles';
+import Left from '~icons/lucide/chevron-left';
+import Right from '~icons/lucide/chevron-right';
 import { logger, ocrDiagnosticLogger } from '@/utils/logger';
 import modal from '@/utils/modal';
 import CustomButton from '@/components/UI/CustomButton.vue';

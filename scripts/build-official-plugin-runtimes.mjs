@@ -7,6 +7,7 @@ import vue from '@vitejs/plugin-vue';
 import AutoImport from 'unplugin-auto-import/vite';
 import Components from 'unplugin-vue-components/vite';
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers';
+import { createIconPlugins, createIconResolver } from './icon-config.mjs';
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const PLUGIN_PACKAGE_ROOT = resolve(ROOT, 'plugin-registry/packages');
@@ -47,7 +48,7 @@ async function listFiles(directory) {
 const toPluginPath = (pluginDir, filePath) =>
   relative(pluginDir, filePath).replaceAll('\\', '/');
 
-async function buildRuntime(pluginId, entryPath) {
+async function buildRuntime(pluginId, entryPath, checkOnly) {
   const pluginDir = join(PLUGIN_PACKAGE_ROOT, pluginId);
   const manifestPath = join(pluginDir, 'plugin.json');
   if (!existsSync(manifestPath)) {
@@ -55,14 +56,17 @@ async function buildRuntime(pluginId, entryPath) {
   }
 
   const distDir = join(pluginDir, 'dist');
-  await rm(distDir, { recursive: true, force: true });
-  await mkdir(distDir, { recursive: true });
+  if (!checkOnly) {
+    await rm(distDir, { recursive: true, force: true });
+    await mkdir(distDir, { recursive: true });
+  }
 
-  await build({
+  const result = await build({
     configFile: false,
     root: ROOT,
     plugins: [
       vue(),
+      ...createIconPlugins(),
       AutoImport({
         imports: ['vue', 'pinia', 'vue-router'],
         resolvers: [ElementPlusResolver({ importStyle: 'sass' })],
@@ -70,7 +74,10 @@ async function buildRuntime(pluginId, entryPath) {
         vueTemplate: true
       }),
       Components({
-        resolvers: [ElementPlusResolver({ importStyle: 'sass' })],
+        resolvers: [
+          createIconResolver(),
+          ElementPlusResolver({ importStyle: 'sass' })
+        ],
         dirs: ['src/components', 'src/**/components'],
         dts: false
       })
@@ -88,6 +95,7 @@ async function buildRuntime(pluginId, entryPath) {
       __INTLIFY_PROD_DEVTOOLS__: 'false'
     },
     build: {
+      write: !checkOnly,
       outDir: distDir,
       emptyOutDir: true,
       target: 'es2020',
@@ -112,7 +120,13 @@ async function buildRuntime(pluginId, entryPath) {
   // runtimes are shipped as release assets, so compact the single entry after
   // Rollup has finished without changing its external module boundary.
   const frontendPath = join(distDir, 'frontend.js');
-  const frontendSource = await readFile(frontendPath, 'utf8');
+  const output = (Array.isArray(result) ? result : [result]).flatMap(
+    (bundle) => bundle.output
+  );
+  const frontendSource = output.find(
+    (file) => file.type === 'chunk' && file.fileName === 'frontend.js'
+  )?.code;
+  if (!frontendSource) throw new Error(`${pluginId}: 缺少 frontend.js 产物`);
   const minifiedFrontend = await transformWithEsbuild(
     frontendSource,
     frontendPath,
@@ -123,7 +137,20 @@ async function buildRuntime(pluginId, entryPath) {
       sourcemap: false
     }
   );
+  if (checkOnly) {
+    return {
+      pluginId,
+      files: output.length,
+      styles: output.filter((file) => file.fileName.endsWith('.css')).length
+    };
+  }
   await writeFile(frontendPath, minifiedFrontend.code, 'utf8');
+  // Carry icon attribution with independently distributed plugin bundles.
+  await writeFile(
+    join(distDir, 'ICON_LICENSES.txt'),
+    await readFile(join(ROOT, 'public/licenses/icons.txt'), 'utf8'),
+    'utf8'
+  );
 
   const files = await listFiles(distDir);
   const styles = files
@@ -151,7 +178,9 @@ async function buildRuntime(pluginId, entryPath) {
 }
 
 async function main() {
-  const requested = process.argv.slice(2);
+  const args = process.argv.slice(2);
+  const checkOnly = args.includes('--check');
+  const requested = args.filter((arg) => arg !== '--check');
   const selected = requested.length
     ? Object.fromEntries(
         requested.map((pluginId) => [
@@ -170,10 +199,12 @@ async function main() {
   const results = [];
   for (const [pluginId, entryPath] of Object.entries(selected)) {
     console.log(`[Plugins] building ${pluginId}`);
-    results.push(await buildRuntime(pluginId, entryPath));
+    results.push(await buildRuntime(pluginId, entryPath, checkOnly));
   }
 
-  console.log(`[Plugins] 官方插件运行时打包完成: ${results.length}`);
+  console.log(
+    `[Plugins] 官方插件运行时${checkOnly ? '构建检查' : '打包'}完成: ${results.length}`
+  );
   for (const result of results) {
     console.log(
       `[Plugins] ${result.pluginId}: files=${result.files}, styles=${result.styles}`

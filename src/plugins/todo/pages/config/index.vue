@@ -1,5 +1,5 @@
 <template>
-  <main class="plugin-config-page ui-icon-scope todo-container">
+  <main class="plugin-config-page todo-container">
     <header class="plugin-config-header">
       <div class="flex min-w-0 items-center gap-2">
         <h1 class="plugin-config-title">{{ $t('plugins.todo.name') }}</h1>
@@ -51,7 +51,7 @@
           <div class="time">{{ item.time }}</div>
           <div class="info">
             <div class="time-left">
-              <remind theme="outline" size="14" />
+              <remind width="14" height="14" />
               <span>{{ item.time_left }}</span>
             </div>
             <div class="title" :title="item.title">{{ item.title }}</div>
@@ -126,7 +126,7 @@
         class="mb-1 flex h-12 w-12 items-center justify-center rounded-ui-lg bg-ui-card text-ui-muted"
         aria-hidden="true"
       >
-        <remind theme="outline" size="24" />
+        <remind width="24" height="24" />
       </div>
       <h2 class="m-0 text-base font-medium text-ui-heading">
         {{ $t('alarm.noAlarms') }}
@@ -163,7 +163,11 @@
 </template>
 
 <script setup lang="ts">
-import { Write, Plus, CheckSmall, Delete, Remind } from '@icon-park/vue-next';
+import Write from '~icons/lucide/square-pen';
+import Plus from '~icons/lucide/plus';
+import CheckSmall from '~icons/lucide/check';
+import Delete from '~icons/lucide/trash-2';
+import Remind from '~icons/lucide/bell';
 import { useI18n } from 'vue-i18n';
 import AlarmEditDialog from './components/AlarmEditDialog.vue';
 import { invoke } from '@tauri-apps/api/core';

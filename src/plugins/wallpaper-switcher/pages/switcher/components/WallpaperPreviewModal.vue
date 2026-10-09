@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { CloseSmall, Loading } from '@icon-park/vue-next';
+import CloseSmall from '~icons/lucide/x';
+import Loading from '~icons/lucide/loader-circle';
 import { useI18n } from 'vue-i18n';
 import type { WallhavenWallpaper } from '../../../api';
 import type { DownloadProgress } from '../../../composables/useWallhaven';
@@ -37,7 +38,7 @@ const progressFor = (id: string): DownloadProgress | undefined =>
       <header>
         <strong>{{ wallpaper.resolution }}</strong>
         <button type="button" class="flat-icon" @click="emit('close')">
-          <CloseSmall :size="23" />
+          <CloseSmall :width="23" :height="23" />
         </button>
       </header>
       <div class="preview-image-wrap">
@@ -73,8 +74,9 @@ const progressFor = (id: string): DownloadProgress | undefined =>
         >
           <Loading
             v-if="workingActionFor(wallpaper.id) === 'downloading'"
-            :size="16"
-            spin
+            :width="16"
+            :height="16"
+            class="animate-spin"
           />
           {{
             workingActionFor(wallpaper.id) === 'downloading'
@@ -94,8 +96,9 @@ const progressFor = (id: string): DownloadProgress | undefined =>
         >
           <Loading
             v-if="workingActionFor(wallpaper.id) === 'setting'"
-            :size="16"
-            spin
+            :width="16"
+            :height="16"
+            class="animate-spin"
           />
           {{
             workingActionFor(wallpaper.id) === 'setting'

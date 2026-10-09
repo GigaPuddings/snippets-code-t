@@ -1,13 +1,11 @@
 <script setup lang="ts">
-import {
-  CloseSmall,
-  Computer,
-  Download,
-  Loading,
-  PreviewOpen,
-  Refresh,
-  Search
-} from '@icon-park/vue-next';
+import CloseSmall from '~icons/lucide/x';
+import Computer from '~icons/lucide/monitor';
+import Download from '~icons/lucide/download';
+import Loading from '~icons/lucide/loader-circle';
+import PreviewOpen from '~icons/lucide/eye';
+import Refresh from '~icons/lucide/refresh-cw';
+import Search from '~icons/lucide/search';
 import { useI18n } from 'vue-i18n';
 import type { WallhavenWallpaper } from '../../../api';
 import type { DownloadProgress } from '../../../composables/useWallhaven';
@@ -72,7 +70,7 @@ const progressFor = (id: string): DownloadProgress | undefined =>
           @input="updateKeyword"
           @keydown.enter="emit('refresh')"
         />
-        <Search :size="16" class="search-icon" />
+        <Search :width="16" :height="16" class="search-icon" />
         <button
           v-if="keyword"
           type="button"
@@ -80,7 +78,7 @@ const progressFor = (id: string): DownloadProgress | undefined =>
           :title="t('wallpaperSwitcher.clear')"
           @click="emit('update:keyword', '')"
         >
-          <CloseSmall :size="18" />
+          <CloseSmall :width="18" :height="18" />
         </button>
       </div>
 
@@ -111,7 +109,7 @@ const progressFor = (id: string): DownloadProgress | undefined =>
           :title="t('wallpaperSwitcher.refresh')"
           @click="emit('refresh')"
         >
-          <Refresh :size="14" :class="{ spinning: loading }" />
+          <Refresh :width="14" :height="14" :class="{ spinning: loading }" />
         </button>
       </div>
     </section>
@@ -164,7 +162,7 @@ const progressFor = (id: string): DownloadProgress | undefined =>
               :title="t('wallpaperSwitcher.preview')"
               @click="emit('openPreview', wallpaper)"
             >
-              <PreviewOpen :size="16" />
+              <PreviewOpen :width="16" :height="16" />
               {{ t('wallpaperSwitcher.preview') }}
             </button>
             <button
@@ -179,10 +177,11 @@ const progressFor = (id: string): DownloadProgress | undefined =>
             >
               <Loading
                 v-if="workingActionFor(wallpaper.id) === 'setting'"
-                :size="16"
-                spin
+                :width="16"
+                :height="16"
+                class="animate-spin"
               />
-              <Computer v-else :size="16" />
+              <Computer v-else :width="16" :height="16" />
               <span>
                 {{
                   workingActionFor(wallpaper.id) === 'setting'
@@ -203,10 +202,11 @@ const progressFor = (id: string): DownloadProgress | undefined =>
             >
               <Loading
                 v-if="workingActionFor(wallpaper.id) === 'downloading'"
-                :size="16"
-                spin
+                :width="16"
+                :height="16"
+                class="animate-spin"
               />
-              <Download v-else :size="16" />
+              <Download v-else :width="16" :height="16" />
               <span>
                 {{
                   workingActionFor(wallpaper.id) === 'downloading'

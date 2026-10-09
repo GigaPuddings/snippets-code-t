@@ -10,7 +10,7 @@
     <div class="save-config-content">
       <!-- 警告提示 -->
       <div class="warning-box">
-        <Attention theme="filled" size="20" class="warning-icon" />
+        <Attention width="20" height="20" class="warning-icon" />
         <p class="warning-text">
           {{ $t('settings.gitSync.saveConfigWarning') }}
         </p>
@@ -39,7 +39,7 @@
 
       <!-- 备份提醒 -->
       <div class="backup-reminder">
-        <Info theme="filled" size="18" class="info-icon" />
+        <Info width="18" height="18" class="info-icon" />
         <span>{{ $t('settings.gitSync.backupReminder') }}</span>
       </div>
 
@@ -69,7 +69,8 @@
 
 <script setup lang="ts">
 import { CommonDialog, CustomButton } from '@/components/UI';
-import { Info, Attention } from '@icon-park/vue-next';
+import Info from '~icons/lucide/info';
+import Attention from '~icons/lucide/triangle-alert';
 import type { GitSettings } from '@/types/models';
 
 interface Props {

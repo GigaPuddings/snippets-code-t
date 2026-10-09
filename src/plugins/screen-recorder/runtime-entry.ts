@@ -1,3 +1,4 @@
+import '@/styles/icons.scss';
 import type { PluginFrontendRuntimeContext } from '../runtime';
 
 export const activate = (context: PluginFrontendRuntimeContext): void => {

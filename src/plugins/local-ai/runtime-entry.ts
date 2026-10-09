@@ -1,5 +1,6 @@
+import '@/styles/icons.scss';
 import { defineAsyncComponent } from 'vue';
-import { SettingTwo } from '@icon-park/vue-next';
+import SettingTwo from '~icons/lucide/settings';
 import type { PluginFrontendRuntimeContext } from '../runtime';
 import { localAiProvider } from '@/ai';
 import '@/styles/plugin-config.scss';
