@@ -138,7 +138,7 @@
       <footer class="sidebar-service">
         <div class="sidebar-service-card">
           <span class="sidebar-service-icon">
-            <Robot width="15" height="15" />
+            <MessageCircleMore width="15" height="15" />
           </span>
           <span class="sidebar-service-copy">
             <strong>{{ serviceStatusText }}</strong>
@@ -203,7 +203,7 @@
           <section v-if="!activeMessages.length" class="empty-state">
             <div class="empty-hero">
               <div class="empty-hero-mark">
-                <RobotOne width="30" height="30" />
+                <MessageCircleMore width="30" height="30" />
               </div>
               <span class="empty-eyebrow">
                 <i></i>
@@ -843,7 +843,7 @@ import Delete from '~icons/lucide/trash-2';
 import Down from '~icons/lucide/chevron-down';
 import Edit from '~icons/lucide/square-pen';
 import Refresh from '~icons/lucide/refresh-cw';
-import Robot from '~icons/lucide/bot';
+import MessageCircleMore from '~icons/lucide/message-circle-more';
 import Search from '~icons/lucide/search';
 import Send from '~icons/lucide/send';
 import SettingTwo from '~icons/lucide/settings';
@@ -852,7 +852,6 @@ import Fork from '~icons/lucide/git-fork';
 import LeftBar from '~icons/lucide/panel-left';
 import Right from '~icons/lucide/chevron-right';
 import Cube from '~icons/lucide/box';
-import RobotOne from '~icons/lucide/bot';
 import MagicWand from '~icons/lucide/wand-sparkles';
 import FileText from '~icons/lucide/file-text';
 import Translate from '~icons/lucide/languages';

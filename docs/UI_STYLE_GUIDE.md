@@ -100,6 +100,7 @@ import ArrowLeft from '~icons/lucide/arrow-left';
 | 启动器 / 网络搜索 / 待办 | `app-window` / `globe` / `list-todo` | 打开应用 / 网络检索 / 任务清单 |
 | 笔记 / 代码片段 / 未分类 | `notebook` / `file-code` / `inbox` | 文档类型 / 代码文件 / 待整理内容 |
 | 插件 / AI 能力 / 开发者模式 | `puzzle` / `brain` / `square-terminal` | 扩展 / 智能能力 / 调试工具 |
+| AI 聊天 | `message-circle-more` | 对话入口、聊天空白页和聊天服务标识；AI 能力状态继续用 `brain` |
 | 编辑器与附件 | `file-image` | 文档及图片附件设置 |
 | 阅读 / 编辑 / 源码 | `book-open` / `square-pen` / `code` | 文档模式 |
 | 预览 / 隐藏预览 | `eye` / `eye-off` | 查看内容；折叠侧栏仍使用 `panel-left` 或 `panel-right-close` |

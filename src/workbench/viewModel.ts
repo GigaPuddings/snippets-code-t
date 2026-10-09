@@ -2,7 +2,7 @@ import type { Component, ComputedRef, Ref } from 'vue';
 import Application from '~icons/lucide/puzzle';
 import Library from '~icons/lucide/library';
 import MessageSearch from '~icons/lucide/search';
-import Robot from '~icons/lucide/bot';
+import Brain from '~icons/lucide/brain';
 import { AI_PROVIDER_CAPABILITIES } from '@/ai';
 import { DEFAULT_SEARCH_PROVIDER_TIMEOUT_MS } from '@/search/sourceCatalog';
 import type { MarkdownFile } from '@/types';
@@ -256,7 +256,7 @@ const buildPluginLayer = (input: WorkbenchViewModelInput): WorkbenchLayer => ({
 const buildAiLayer = (input: WorkbenchViewModelInput): WorkbenchLayer => ({
   id: 'ai',
   label: input.t('settings.workbench.layers.ai'),
-  icon: Robot,
+  icon: Brain,
   status: aiStatus(input.ai),
   stats: [
     {
