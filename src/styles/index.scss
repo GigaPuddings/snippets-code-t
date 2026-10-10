@@ -100,41 +100,47 @@
 // 应用提示条：保留 Element Plus 的可访问性与队列管理，只使用应用主题视觉。
 .app-toast.el-message,
 .app-toast.el-notification {
+  gap: 8px;
+  align-items: center;
+  width: max-content;
+  min-width: 0;
+  max-width: calc(100vw - 32px);
+  padding: 10px 12px;
+  font-family: var(--app-ui-font-family);
   background: var(--toast-bg) !important;
-  backdrop-filter: blur(14px);
   border: 1px solid var(--toast-border) !important;
-  border-radius: 10px !important;
+  border-radius: var(--app-ui-radius-lg) !important;
   box-shadow: var(--toast-shadow) !important;
+
+  .el-message__content,
+  .el-notification__content {
+    margin: 0;
+    font-size: var(--app-ui-font-size);
+    line-height: var(--app-ui-line-height);
+    color: var(--toast-text) !important;
+    overflow-wrap: anywhere;
+  }
+
+  .el-message__icon,
+  .el-notification__icon {
+    flex-shrink: 0;
+    width: 16px;
+    height: 20px;
+    margin: 0;
+    font-size: 16px;
+  }
 }
 
 .app-toast.el-message {
-  --el-message-padding: 10px 13px !important;
-
-  min-width: 0;
-  max-width: min(520px, calc(100vw - 32px));
-
-  .el-message__content {
-    font-size: 13px;
-    line-height: 1.45;
-    color: var(--toast-text) !important;
-  }
+  max-width: min(420px, calc(100vw - 32px));
 }
 
-.app-toast {
-  &--success {
-    border-left: 3px solid var(--el-color-success) !important;
-  }
+.app-toast.el-notification {
+  max-width: min(360px, calc(100vw - 32px));
 
-  &--warning {
-    border-left: 3px solid var(--el-color-warning) !important;
-  }
-
-  &--error {
-    border-left: 3px solid var(--el-color-danger) !important;
-  }
-
-  &--info {
-    border-left: 3px solid var(--el-color-primary) !important;
+  .el-notification__group {
+    min-width: 0;
+    margin: 0;
   }
 }
 
@@ -353,27 +359,6 @@
 
 .el-dialog.delete-dialog {
   border-top: 3px solid var(--el-color-danger) !important;
-}
-
-.el-notification.app-toast {
-  width: min(360px, calc(100vw - 32px));
-  padding: 11px 13px;
-
-  .el-notification__group {
-    margin: 0;
-  }
-
-  .el-notification__content {
-    margin: 0;
-    font-size: 13px;
-    line-height: 1.45;
-    color: var(--toast-text) !important;
-  }
-
-  .el-notification__icon {
-    margin-top: 0;
-    font-size: 16px;
-  }
 }
 
 // ============================================

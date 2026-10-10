@@ -7,20 +7,19 @@
 
     <!-- 可滚动内容 -->
     <main class="panel-content">
-      <!-- 当前同步状态：同面板内左右分栏 -->
+      <!-- 同步摘要保持紧凑，文件详情按需展开。 -->
       <div
         v-if="gitSettings.enabled"
         class="sync-status-panel"
         :class="`sync-status-panel--${syncState}`"
       >
-        <!-- 左侧：状态摘要 -->
-        <div class="sync-status-panel__left">
+        <div class="sync-status-summary">
           <div class="sync-status-icon">
             <loading
               v-if="syncState === 'syncing'"
               class="git-sync-icon"
-              width="24"
-              height="24"
+              width="20"
+              height="20"
             />
             <check-one
               v-else-if="
@@ -28,18 +27,18 @@
                 syncState === 'idle' ||
                 syncState === 'disabled'
               "
-              width="24"
-              height="24"
+              width="20"
+              height="20"
             />
             <attention
               v-else-if="syncState === 'has_changes'"
-              width="24"
-              height="24"
+              width="20"
+              height="20"
             />
             <close-small
               v-else-if="syncState === 'error'"
-              width="24"
-              height="24"
+              width="20"
+              height="20"
             />
           </div>
           <div class="sync-status-info">
@@ -51,10 +50,8 @@
                 {{ $t('settings.gitSync.status.syncing') }}
               </template>
               <template v-else-if="syncState === 'has_changes'">
-                <span class="pending-count">
-                  {{ pendingFilesCount }}
-                  {{ $t('settings.gitSync.status.pendingFiles') }}
-                </span>
+                {{ pendingFilesCount }}
+                {{ $t('settings.gitSync.status.pendingFiles') }}
               </template>
               <template
                 v-else-if="syncState === 'synced' || syncState === 'idle'"
@@ -73,28 +70,49 @@
               </template>
             </div>
           </div>
+          <button
+            v-if="syncState === 'has_changes' && pendingFilesCount > 0"
+            type="button"
+            class="ui-action ui-action--muted sync-pending-toggle"
+            :aria-expanded="pendingFilesExpanded"
+            aria-controls="git-sync-pending-files"
+            @click="pendingFilesExpanded = !pendingFilesExpanded"
+          >
+            {{ $t('settings.gitSync.status.viewDetails') }}
+            <ChevronDown
+              width="16"
+              height="16"
+              :class="{ 'rotate-180': pendingFilesExpanded }"
+              aria-hidden="true"
+            />
+          </button>
         </div>
 
-        <!-- 右侧：待同步文件列表（仅在有变更时显示） -->
-        <template v-if="syncState === 'has_changes' && pendingFilesCount > 0">
-          <div class="sync-status-panel__divider"></div>
-          <div class="sync-status-panel__right">
-            <div class="sync-pending-files-header">
-              {{ $t('settings.gitSync.status.pendingFilesTitle') }} ({{
-                pendingFilesCount
-              }})
+        <div
+          v-if="
+            pendingFilesExpanded &&
+            syncState === 'has_changes' &&
+            pendingFilesCount > 0
+          "
+          class="sync-pending-files"
+        >
+          <RecycleScroller
+            id="git-sync-pending-files"
+            class="sync-pending-files-list"
+            :items="pendingFilesList"
+            :item-size="28"
+            :buffer="56"
+            :style="{ height: `${Math.min(pendingFilesCount, 6) * 28}px` }"
+            role="region"
+            :aria-label="$t('settings.gitSync.status.pendingFilesTitle')"
+            tabindex="0"
+            v-slot="{ item }"
+          >
+            <div class="sync-pending-file-item" :title="item">
+              {{ item }}
             </div>
-            <div class="sync-pending-files-list">
-              <div
-                v-for="file in pendingFilesList"
-                :key="file"
-                class="sync-pending-file-item"
-              >
-                <span class="file-name">{{ file }}</span>
-              </div>
-            </div>
-          </div>
-        </template>
+          </RecycleScroller>
+        </div>
       </div>
 
       <section v-if="gitSettings.enabled" class="contribution-section">
@@ -489,6 +507,9 @@ import Loading from '~icons/lucide/loader-circle';
 import CheckOne from '~icons/lucide/circle-check';
 import Attention from '~icons/lucide/triangle-alert';
 import CloseSmall from '~icons/lucide/x';
+import ChevronDown from '~icons/lucide/chevron-down';
+import { RecycleScroller } from 'vue-virtual-scroller';
+import 'vue-virtual-scroller/dist/vue-virtual-scroller.css';
 import {
   CustomButton,
   CustomSwitch,
@@ -541,6 +562,13 @@ const {
 const pendingFilesList = computed(() => {
   if (!gitStatus.value?.changed_files) return [];
   return gitStatus.value.changed_files;
+});
+const pendingFilesExpanded = ref(false);
+
+watch([syncState, pendingFilesCount], ([state, count]) => {
+  if (state !== 'has_changes' || count === 0) {
+    pendingFilesExpanded.value = false;
+  }
 });
 
 // 获取同步状态标签
@@ -1217,80 +1245,58 @@ onMounted(async () => {
 }
 
 .sync-status-panel {
-  @apply mb-3.5 flex min-h-[78px] items-stretch gap-3.5 rounded-lg border border-panel bg-content p-3.5;
+  @apply mb-3.5 overflow-hidden rounded-ui-lg border;
+
+  background: var(--settings-surface);
+  border-color: var(--settings-border);
 }
 
-.sync-status-panel__left {
-  @apply flex min-w-0 items-center gap-3;
+.sync-status-summary {
+  @apply flex min-h-[56px] items-center gap-3 px-3.5 py-2.5;
 }
 
 .sync-status-icon {
-  @apply inline-flex h-[38px] w-[38px] flex-shrink-0 items-center justify-center rounded-full text-primary;
-
-  background: rgba(var(--el-color-primary-rgb), 0.1);
+  @apply inline-flex flex-shrink-0 items-center justify-center text-ui-muted;
 }
 
 .sync-status-info {
-  @apply min-w-0;
+  @apply min-w-0 flex-1;
 }
 
 .sync-status-label {
-  @apply text-[15px] font-bold text-panel;
+  @apply text-sm font-medium text-ui-main;
 }
 
 .sync-status-detail {
-  @apply mt-[3px] text-[13px] text-content;
-
-  .pending-count {
-    @apply font-medium;
-  }
+  @apply mt-0.5 text-xs text-ui-muted;
 }
 
-.sync-status-panel__divider {
-  @apply w-px flex-shrink-0 self-stretch bg-[var(--categories-border-color)];
+.sync-pending-toggle {
+  @apply flex-shrink-0;
 }
 
-.sync-status-panel__right {
-  @apply flex min-w-0 flex-1 flex-col pl-1;
-}
+.sync-pending-files {
+  @apply border-t;
 
-.sync-pending-files-header {
-  @apply mb-1.5 flex-shrink-0 text-xs font-bold text-panel;
+  border-color: var(--settings-border);
 }
 
 .sync-pending-files-list {
-  @apply flex min-h-0 flex-1 flex-wrap gap-1.5 overflow-y-auto;
+  @apply text-xs text-ui-muted;
+
+  &:focus-visible {
+    outline: 2px solid var(--el-color-primary);
+    outline-offset: -2px;
+  }
 }
 
 .sync-pending-file-item {
-  @apply flex max-w-[180px] items-center rounded-md border border-panel bg-panel px-2 py-[3px] text-xs text-panel;
-
-  opacity: 0.9;
-}
-
-.file-name {
-  @apply block truncate;
+  @apply h-7 truncate px-3.5 leading-7;
 }
 
 .sync-status-panel--syncing {
-  @apply border-blue-500/30 bg-blue-500/10;
-
-  .sync-status-icon,
-  .sync-status-detail .pending-count {
-    @apply text-blue-500;
-  }
-
-  .sync-status-label,
-  .sync-pending-files-header {
-    @apply text-blue-600 dark:text-blue-400;
-  }
-
-  .sync-status-panel__divider {
-    @apply bg-blue-500/50;
-  }
-
-  .sync-pending-file-item {
-    @apply hover:bg-blue-500/20;
+  .sync-status-icon {
+    color: var(--el-color-primary);
   }
 
   .git-sync-icon {
@@ -1300,68 +1306,20 @@ onMounted(async () => {
 
 .sync-status-panel--synced,
 .sync-status-panel--idle {
-  @apply border-green-500/30 bg-green-500/10;
-
-  .sync-status-icon,
-  .sync-status-detail .pending-count {
-    @apply text-green-500;
-  }
-
-  .sync-status-label,
-  .sync-pending-files-header {
-    @apply text-green-600 dark:text-green-400;
-  }
-
-  .sync-status-panel__divider {
-    @apply bg-green-500/50;
-  }
-
-  .sync-pending-file-item {
-    @apply hover:bg-green-500/20;
+  .sync-status-icon {
+    color: var(--el-color-success);
   }
 }
 
 .sync-status-panel--has_changes {
-  @apply border-amber-500/30 bg-amber-500/10;
-
-  .sync-status-icon,
-  .sync-status-detail .pending-count {
-    @apply text-amber-500;
-  }
-
-  .sync-status-label,
-  .sync-pending-files-header {
-    @apply text-amber-600 dark:text-amber-400;
-  }
-
-  .sync-status-panel__divider {
-    @apply bg-amber-500/50;
-  }
-
-  .sync-pending-file-item {
-    @apply hover:bg-amber-500/20;
+  .sync-status-icon {
+    color: var(--el-color-warning);
   }
 }
 
 .sync-status-panel--error {
-  @apply border-red-500/30 bg-red-500/10;
-
-  .sync-status-icon,
-  .sync-status-detail .pending-count {
-    @apply text-red-500;
-  }
-
-  .sync-status-label,
-  .sync-pending-files-header {
-    @apply text-red-600 dark:text-red-400;
-  }
-
-  .sync-status-panel__divider {
-    @apply bg-red-500/50;
-  }
-
-  .sync-pending-file-item {
-    @apply hover:bg-red-500/20;
+  .sync-status-icon {
+    color: var(--el-color-danger);
   }
 }
 

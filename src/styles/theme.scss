@@ -168,10 +168,10 @@
   --el-overlay-color: var(--dialog-overlay);
   --el-overlay-color-light: var(--dialog-overlay);
   --el-overlay-color-lighter: var(--dialog-overlay);
-  --toast-bg: rgb(255 255 255 / 96%);
-  --toast-border: #d9e2ef;
-  --toast-text: #1f2937;
-  --toast-shadow: 0 10px 28px rgb(39 76 119 / 14%), 0 2px 8px rgb(26 43 63 / 8%);
+  --toast-bg: var(--settings-surface);
+  --toast-border: var(--settings-border);
+  --toast-text: var(--workspace-nav-text);
+  --toast-shadow: 0 4px 16px rgb(0 0 0 / 8%), 0 1px 4px rgb(0 0 0 / 4%);
 
   // ==================== OCR 窗口主题变量 ====================
   --ocr-shell-bg: rgb(255 255 255 / 94%);
@@ -375,10 +375,10 @@ html.dark {
   --el-overlay-color: var(--dialog-overlay);
   --el-overlay-color-light: var(--dialog-overlay);
   --el-overlay-color-lighter: var(--dialog-overlay);
-  --toast-bg: rgb(42 42 42 / 96%);
-  --toast-border: #414141;
-  --toast-text: #e5e7eb;
-  --toast-shadow: 0 12px 32px rgb(0 0 0 / 36%), 0 2px 8px rgb(0 0 0 / 22%);
+  --toast-bg: var(--settings-surface);
+  --toast-border: var(--settings-border);
+  --toast-text: var(--workspace-nav-text);
+  --toast-shadow: 0 4px 16px rgb(0 0 0 / 24%), 0 1px 4px rgb(0 0 0 / 12%);
 
   // ==================== OCR 窗口深色主题变量 ====================
   --ocr-shell-bg: rgb(30 30 30 / 94%);
