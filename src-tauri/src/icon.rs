@@ -46,7 +46,7 @@ pub struct CachedIcon {
 const MAX_CACHE_AGE: u64 = 604800; // 7 days in seconds
 const MAX_CACHE_SIZE: usize = 500; // 最多缓存500个图标，防止内存溢出
 const APP_INDEX_STORAGE_SCHEMA_VERSION: u64 = 2;
-const APP_INDEX_EXTRACTOR_VERSION: u64 = 7;
+const APP_INDEX_EXTRACTOR_VERSION: u64 = 9;
 const BOOKMARK_INDEX_STORAGE_SCHEMA_VERSION: u64 = 2;
 const BOOKMARK_INDEX_EXTRACTOR_VERSION: u64 = 4;
 

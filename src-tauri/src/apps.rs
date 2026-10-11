@@ -18,12 +18,18 @@ use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::time::{Duration, Instant, UNIX_EPOCH};
 use uuid::Uuid;
 use walkdir::WalkDir;
-use windows::core::{BOOL, GUID, HSTRING, PCWSTR};
+use windows::core::{Interface, BOOL, GUID, HSTRING, PCWSTR};
 use windows::Win32::Foundation::{HWND, LPARAM, PROPERTYKEY};
-use windows::Win32::System::Com::{CoInitialize, CoTaskMemFree, CoUninitialize};
+use windows::Win32::System::Com::{
+    CoCreateInstance, CoInitialize, CoTaskMemFree, CoUninitialize, IPersistFile,
+    CLSCTX_INPROC_SERVER, STGM_READ,
+};
 use windows::Win32::System::ProcessStatus::{K32EnumProcesses, K32GetModuleFileNameExA};
 use windows::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ};
-use windows::Win32::UI::Shell::{IShellItem2, SHCreateItemFromParsingName, ShellExecuteW};
+use windows::Win32::UI::Shell::{
+    FOLDERID_AppsFolder, IShellItem2, IShellLinkDataList, IShellLinkW, SHCreateItemFromParsingName,
+    SHCreateItemInKnownFolder, ShellExecuteW, ShellLink, KF_FLAG_DEFAULT, SLDF_RUNAS_USER,
+};
 use windows::Win32::UI::WindowsAndMessaging::{
     BringWindowToTop, EnumWindows, GetWindow, GetWindowThreadProcessId, IsIconic, IsWindowVisible,
     SetForegroundWindow, ShowWindow, SwitchToThisWindow, GW_OWNER, SW_RESTORE, SW_SHOWNORMAL,
@@ -57,6 +63,17 @@ pub struct AppMetadata {
 
 /// Every scanner uses the same policy. User-added entries bypass this filter.
 pub fn is_launchable_candidate(title: &str, target: &str) -> bool {
+    !is_disallowed_app(title, target)
+        && (is_shell_apps_folder_path(target)
+            || (Path::new(target).exists()
+                && Path::new(target).extension().is_some_and(|ext| {
+                    ["exe", "lnk", "com", "cmd", "bat"]
+                        .iter()
+                        .any(|allowed| ext.eq_ignore_ascii_case(allowed))
+                })))
+}
+
+fn is_disallowed_app(title: &str, target: &str) -> bool {
     let name = title.trim().to_lowercase();
     let basename = target
         .rsplit(['\\', '/'])
@@ -64,8 +81,11 @@ pub fn is_launchable_candidate(title: &str, target: &str) -> bool {
         .unwrap_or(target)
         .to_lowercase();
     let stem = basename.strip_suffix(".exe").unwrap_or(&basename);
-    let forbidden = ["uninstall", "uninstaller", "uninst", "remove", "卸载"];
-    if name.is_empty()
+    let forbidden = ["uninstall", "uninstaller", "uninst", "remove"];
+    name.is_empty()
+        // Chinese uninstall names do not have a word separator (e.g. 卸载百度网盘).
+        || name.starts_with("卸载")
+        || stem.starts_with("卸载")
         || forbidden
             .iter()
             .any(|word| name == *word || name.starts_with(&format!("{word} ")))
@@ -84,18 +104,9 @@ pub fn is_launchable_candidate(title: &str, target: &str) -> bool {
             "updater",
             "squirrel",
             "elevation_service",
+            "officeclicktorun",
         ]
         .contains(&stem)
-    {
-        return false;
-    }
-    is_shell_apps_folder_path(target)
-        || (Path::new(target).exists()
-            && Path::new(target).extension().is_some_and(|ext| {
-                ["exe", "lnk", "com", "cmd", "bat"]
-                    .iter()
-                    .any(|allowed| ext.eq_ignore_ascii_case(allowed))
-            }))
 }
 
 pub struct InstalledAppsScan {
@@ -435,7 +446,18 @@ pub fn resolve_shell_apps_folder_display_path(app_path: &str) -> Option<String> 
         return Some(full_path.to_string_lossy().to_string());
     }
 
-    None
+    // Classic AppUserModelIDs (Chrome, md.obsidian, Office, etc.) are not
+    // package IDs. Ask AppsFolder for their real target instead of matching names.
+    unsafe {
+        let _com_guard = ComInitializationGuard(CoInitialize(None).is_ok());
+        let item: IShellItem2 = SHCreateItemInKnownFolder(
+            &FOLDERID_AppsFolder,
+            KF_FLAG_DEFAULT,
+            &HSTRING::from(app_id),
+        )
+        .ok()?;
+        shell_item_target_property(&item)
+    }
 }
 
 /// Resolves the official packaged-app logo declared for an AppsFolder entry.
@@ -774,6 +796,11 @@ const PKEY_LINK_TARGET_PARSING_PATH: PROPERTYKEY = PROPERTYKEY {
     pid: 2,
 };
 
+const PKEY_LINK_ARGUMENTS: PROPERTYKEY = PROPERTYKEY {
+    fmtid: GUID::from_u128(0x436f2667_14e2_4feb_b30a_146c53b5b674),
+    pid: 100,
+};
+
 fn normalize_shortcut_target(target: String) -> Option<String> {
     let target = target.trim().trim_matches('\0').trim().to_string();
     if target.is_empty() {
@@ -803,70 +830,201 @@ impl Drop for ComInitializationGuard {
     }
 }
 
-fn resolve_shortcut_target_property(shortcut_path: &Path) -> Option<String> {
-    let parsing_path = HSTRING::from(shortcut_path.to_string_lossy().as_ref());
-
+fn resolve_shell_item_target_property(parsing_path: &str) -> Option<String> {
+    let parsing_path = HSTRING::from(parsing_path);
     unsafe {
         // Balance every successful COM initialization. This scanner can resolve
         // many shortcuts on one worker thread and previously leaked one COM
         // initialization count per shortcut until that thread exited.
         let _com_guard = ComInitializationGuard(CoInitialize(None).is_ok());
         let item: IShellItem2 = SHCreateItemFromParsingName(&parsing_path, None).ok()?;
-        let value = item.GetString(&PKEY_LINK_TARGET_PARSING_PATH).ok()?;
-        let target = value.to_string().ok();
-        CoTaskMemFree(Some(value.0 as *const core::ffi::c_void));
-        target.and_then(normalize_shortcut_target)
+        shell_item_target_property(&item)
     }
 }
 
-// 解析快捷方式获取目标路径
-fn resolve_shortcut(shortcut_path: &Path) -> Option<String> {
-    let filename = shortcut_path
-        .file_stem()
-        .unwrap_or_default()
-        .to_string_lossy()
-        .to_string();
-    let common_targets = match filename.to_lowercase().as_str() {
-        "word" | "microsoft word" => {
-            Some("C:\\Program Files\\Microsoft Office\\root\\Office16\\WINWORD.EXE")
-        }
-        "excel" | "microsoft excel" => {
-            Some("C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE")
-        }
-        "powerpoint" | "microsoft powerpoint" => {
-            Some("C:\\Program Files\\Microsoft Office\\root\\Office16\\POWERPNT.EXE")
-        }
-        "outlook" | "microsoft outlook" => {
-            Some("C:\\Program Files\\Microsoft Office\\root\\Office16\\OUTLOOK.EXE")
-        }
-        "access" | "microsoft access" => {
-            Some("C:\\Program Files\\Microsoft Office\\root\\Office16\\MSACCESS.EXE")
-        }
-        "chrome" | "google chrome" => {
-            Some("C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe")
-        }
-        "edge" | "microsoft edge" => {
-            Some("C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe")
-        }
-        "firefox" | "mozilla firefox" => Some("C:\\Program Files\\Mozilla Firefox\\firefox.exe"),
-        "notepad++" => Some("C:\\Program Files\\Notepad++\\notepad++.exe"),
-        "paint" | "mspaint" => Some("C:\\Windows\\System32\\mspaint.exe"),
-        "cmd" | "command prompt" => Some("C:\\Windows\\System32\\cmd.exe"),
-        _ => None,
-    };
+fn shell_item_target_property(item: &IShellItem2) -> Option<String> {
+    shell_item_string_property(item, &PKEY_LINK_TARGET_PARSING_PATH)
+        .and_then(normalize_shortcut_target)
+}
 
-    if let Some(target) = common_targets {
-        if Path::new(target).exists() {
-            // info!("通过名称匹配找到快捷方式目标: {} -> {}", filename, target);
-            return Some(target.to_string());
-        }
+fn shell_item_string_property(item: &IShellItem2, key: &PROPERTYKEY) -> Option<String> {
+    unsafe {
+        let value = item.GetString(key).ok()?;
+        let target = value.to_string().ok();
+        CoTaskMemFree(Some(value.0 as *const core::ffi::c_void));
+        target
     }
+}
 
-    resolve_shortcut_target_property(shortcut_path)
+// Read the actual shortcut, including nonstandard installation paths. Inferring
+// a target from the shortcut name can resolve a different installation entirely.
+fn resolve_shortcut(shortcut_path: &Path) -> Option<String> {
+    resolve_shell_item_target_property(&shortcut_path.to_string_lossy())
 }
 
 pub fn resolve_shortcut_display_path(shortcut_path: &str) -> Option<String> {
     resolve_shortcut(Path::new(shortcut_path))
+}
+
+#[derive(Debug, Eq, Hash, PartialEq)]
+struct AppLaunchIdentity {
+    target: String,
+    arguments: String,
+    working_directory: String,
+    run_as_admin: bool,
+    show_command: i32,
+}
+
+fn normalized_app_path(path: &str) -> String {
+    let path = Path::new(path);
+    // canonicalize also folds junctions and redundant separators for real files;
+    // components keeps the UNC prefix intact if an inaccessible path needs a fallback.
+    fs::canonicalize(path)
+        .unwrap_or_else(|_| path.components().collect::<PathBuf>())
+        .to_string_lossy()
+        .replace('/', "\\")
+        .to_lowercase()
+}
+
+impl AppLaunchIdentity {
+    fn new(target: &str, arguments: String, working_directory: &str) -> Self {
+        let working_directory = if working_directory.is_empty() {
+            Path::new(target)
+                .parent()
+                .map(|path| normalized_app_path(&path.to_string_lossy()))
+                .unwrap_or_default()
+        } else {
+            normalized_app_path(working_directory)
+        };
+        Self {
+            target: normalized_app_path(target),
+            arguments,
+            working_directory,
+            run_as_admin: false,
+            show_command: SW_SHOWNORMAL.0,
+        }
+    }
+}
+
+fn read_shortcut_launch_identity(path: &Path, target: &str) -> Option<AppLaunchIdentity> {
+    unsafe {
+        let _com_guard = ComInitializationGuard(CoInitialize(None).is_ok());
+        let link: IShellLinkW = CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER).ok()?;
+        let persist: IPersistFile = link.cast().ok()?;
+        persist
+            .Load(&HSTRING::from(path.to_string_lossy().as_ref()), STGM_READ)
+            .ok()?;
+        // Windows command lines have at most 32767 UTF-16 code units. Avoid a
+        // MAX_PATH buffer here: truncation could merge distinct profile arguments.
+        let mut arguments = vec![0_u16; 32768];
+        let mut directory = vec![0_u16; 32768];
+        link.GetArguments(&mut arguments).ok()?;
+        link.GetWorkingDirectory(&mut directory).ok()?;
+        let flags: IShellLinkDataList = link.cast().ok()?;
+        let mut identity = AppLaunchIdentity::new(
+            target,
+            String::from_utf16(&arguments[..arguments.iter().position(|value| *value == 0)?])
+                .ok()?,
+            &String::from_utf16(&directory[..directory.iter().position(|value| *value == 0)?])
+                .ok()?,
+        );
+        identity.run_as_admin = flags.GetFlags().ok()? & SLDF_RUNAS_USER.0 as u32 != 0;
+        identity.show_command = link.GetShowCmd().ok()?.0;
+        Some(identity)
+    }
+}
+
+fn app_launch_identity(content: &str) -> AppLaunchIdentity {
+    if let Some(app_id) = shell_apps_folder_app_id(content) {
+        // Packaged apps must retain their activation identity. Their executable
+        // alone cannot describe the AppID, sandbox or activation arguments.
+        if !app_id.contains('!') {
+            if let Some(identity) = classic_shell_launch_identity(app_id) {
+                return identity;
+            }
+        }
+        return AppLaunchIdentity::new(content, String::new(), "");
+    }
+    let path = Path::new(content);
+    if path
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("lnk"))
+    {
+        if let Some(target) = resolve_shortcut(path) {
+            if is_shell_apps_folder_path(&target) {
+                return app_launch_identity(&target);
+            }
+            if let Some(identity) = read_shortcut_launch_identity(path, &target) {
+                return identity;
+            }
+        }
+        // If arguments cannot be read, retain the shortcut as a separate entry.
+    }
+    AppLaunchIdentity::new(content, String::new(), "")
+}
+
+fn classic_shell_launch_identity(app_id: &str) -> Option<AppLaunchIdentity> {
+    unsafe {
+        let _com_guard = ComInitializationGuard(CoInitialize(None).is_ok());
+        let item: IShellItem2 = SHCreateItemInKnownFolder(
+            &FOLDERID_AppsFolder,
+            KF_FLAG_DEFAULT,
+            &HSTRING::from(app_id),
+        )
+        .ok()?;
+        let target = shell_item_target_property(&item)?;
+        let arguments = shell_item_string_property(&item, &PKEY_LINK_ARGUMENTS).unwrap_or_default();
+        classic_shell_target_identity(&target, arguments)
+    }
+}
+
+fn classic_shell_target_identity(target: &str, arguments: String) -> Option<AppLaunchIdentity> {
+    // AppsFolder does not expose a shortcut's working directory or run-as flags.
+    // Keep configured entries (VS prompts, MySQL clients, PWAs, etc.) and shell
+    // documents such as .msc as native activation entries, not as bare executables.
+    if !arguments.is_empty()
+        || !Path::new(target)
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("exe"))
+    {
+        return None;
+    }
+    Some(AppLaunchIdentity::new(target, arguments, ""))
+}
+
+fn deduplicate_apps(apps: Vec<AppInfo>) -> Vec<AppInfo> {
+    let mut unique_apps: Vec<AppInfo> = Vec::new();
+    let mut seen: HashMap<AppLaunchIdentity, usize> = HashMap::new();
+    for mut app in apps {
+        if !is_launchable_candidate(&app.title, &app.content) {
+            continue;
+        }
+        if let Some(app_id) = shell_apps_folder_app_id(&app.content) {
+            let original_title = app.title.clone();
+            app.title = normalize_start_app_title(&app.title, app_id, &app.content);
+            if original_title != app.title && !app.metadata.aliases.contains(&original_title) {
+                app.metadata.aliases.push(original_title);
+            }
+        }
+        let identity = app_launch_identity(&app.content);
+        // Apply the policy to the resolved target too (e.g. a service shortcut).
+        if is_disallowed_app(&app.title, &identity.target) {
+            continue;
+        }
+        if let Some(&index) = seen.get(&identity) {
+            for alias in std::iter::once(app.title).chain(app.metadata.aliases) {
+                if alias != unique_apps[index].title
+                    && !unique_apps[index].metadata.aliases.contains(&alias)
+                {
+                    unique_apps[index].metadata.aliases.push(alias);
+                }
+            }
+        } else {
+            seen.insert(identity, unique_apps.len());
+            unique_apps.push(app);
+        }
+    }
+    unique_apps
 }
 
 fn try_with_timeout<T, E, F>(f: F, timeout: std::time::Duration) -> Result<Result<T, E>, ()>
@@ -1719,45 +1877,8 @@ pub fn get_installed_apps() -> InstalledAppsScan {
     all_apps.extend(store_apps);
     all_apps.extend(windows_apps);
 
-    let mut unique_apps: Vec<AppInfo> = Vec::new();
-    let mut seen_paths: HashMap<String, usize> = HashMap::new();
-    for mut app in all_apps {
-        if !is_launchable_candidate(&app.title, &app.content) {
-            continue;
-        }
-        let original_title = app.title.clone();
-        if is_shell_apps_folder_path(&app.content) {
-            let app_id = app
-                .content
-                .split_once('\\')
-                .map(|(_, id)| id)
-                .unwrap_or(&app.content);
-            app.title = normalize_start_app_title(&app.title, app_id, &app.content);
-        }
-        if original_title != app.title && !app.metadata.aliases.contains(&original_title) {
-            app.metadata.aliases.push(original_title);
-        }
-        let identity = if is_shell_apps_folder_path(&app.content) {
-            resolve_shell_apps_folder_display_path(&app.content)
-                .unwrap_or_else(|| app.content.clone())
-        } else {
-            app.content.clone()
-        }
-        .to_lowercase();
-        if let Some(&index) = seen_paths.get(&identity) {
-            for alias in std::iter::once(app.title).chain(app.metadata.aliases) {
-                if !unique_apps[index].metadata.aliases.contains(&alias) {
-                    unique_apps[index].metadata.aliases.push(alias);
-                }
-            }
-            continue;
-        }
-        seen_paths.insert(identity, unique_apps.len());
-        unique_apps.push(app);
-    }
-
     InstalledAppsScan {
-        apps: unique_apps,
+        apps: deduplicate_apps(all_apps),
         complete: warning.is_none(),
         warning,
     }
@@ -2274,6 +2395,13 @@ mod tests {
             ("ActionsMcpHost.exe", "ActionsMcpHost", false),
             ("update.exe", "Updater", false),
             ("RemovalTool.exe", "Removal Tool", true),
+            (
+                "OfficeClickToRun.exe",
+                "Microsoft Office 家庭和学生版 2021 - zh-cn",
+                false,
+            ),
+            ("WINWORD.EXE", "Word", true),
+            ("卸载微信开发者工具.exe", "微信开发者工具", false),
         ] {
             let path = dir.join(file);
             std::fs::write(&path, []).unwrap();
@@ -2291,7 +2419,205 @@ mod tests {
             "Codex",
             "shell:AppsFolder\\OpenAI.Codex_2p2nqsd0c76g0!App"
         ));
+        for title in ["卸载百度网盘", "卸载电脑软件", "卸载微信开发者工具"] {
+            assert!(!super::is_launchable_candidate(
+                title,
+                "shell:AppsFolder\\Microsoft.AutoGenerated.test"
+            ));
+        }
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    struct AppFixture(std::path::PathBuf);
+
+    impl AppFixture {
+        fn new() -> Self {
+            let path =
+                std::env::temp_dir().join(format!("launcher-dedup-{}", uuid::Uuid::new_v4()));
+            std::fs::create_dir_all(&path).unwrap();
+            Self(path)
+        }
+
+        fn executable(&self, name: &str) -> String {
+            let path = self.0.join(name);
+            std::fs::write(&path, []).unwrap();
+            path.to_string_lossy().into_owned()
+        }
+
+        fn shortcut(
+            &self,
+            name: &str,
+            target: &str,
+            arguments: &str,
+            directory: &str,
+            admin: bool,
+        ) -> String {
+            use windows::core::Interface;
+            use windows::Win32::System::Com::{
+                CoCreateInstance, CoInitialize, IPersistFile, CLSCTX_INPROC_SERVER,
+            };
+            use windows::Win32::UI::Shell::{
+                IShellLinkDataList, IShellLinkW, ShellLink, SLDF_RUNAS_USER,
+            };
+            let path = self.0.join(name);
+            unsafe {
+                let _guard = super::ComInitializationGuard(CoInitialize(None).is_ok());
+                let link: IShellLinkW =
+                    CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER).unwrap();
+                link.SetPath(&windows::core::HSTRING::from(target)).unwrap();
+                link.SetArguments(&windows::core::HSTRING::from(arguments))
+                    .unwrap();
+                link.SetWorkingDirectory(&windows::core::HSTRING::from(directory))
+                    .unwrap();
+                if admin {
+                    let data: IShellLinkDataList = link.cast().unwrap();
+                    data.SetFlags(data.GetFlags().unwrap() | SLDF_RUNAS_USER.0 as u32)
+                        .unwrap();
+                }
+                let persist: IPersistFile = link.cast().unwrap();
+                persist
+                    .Save(
+                        &windows::core::HSTRING::from(path.to_string_lossy().as_ref()),
+                        true,
+                    )
+                    .unwrap();
+            }
+            path.to_string_lossy().into_owned()
+        }
+    }
+
+    impl Drop for AppFixture {
+        fn drop(&mut self) {
+            std::fs::remove_dir_all(&self.0).unwrap();
+        }
+    }
+
+    fn app(title: &str, content: &str) -> super::AppInfo {
+        super::AppInfo {
+            id: uuid::Uuid::new_v4().to_string(),
+            title: title.into(),
+            content: content.into(),
+            icon: None,
+            summarize: "app".into(),
+            usage_count: 0,
+            metadata: Default::default(),
+        }
+    }
+
+    #[test]
+    fn deduplicates_real_shortcuts_and_path_variants_without_using_titles() {
+        let fixture = AppFixture::new();
+        let target = fixture.executable("test.exe");
+        let desktop = fixture.shortcut(
+            "Desktop.lnk",
+            &target,
+            "",
+            &fixture.0.to_string_lossy(),
+            false,
+        );
+        let start_menu = fixture.shortcut("StartMenu.lnk", &target, "", "", false);
+        let same_title_other_target = fixture.executable("other.exe");
+        let variants = target.to_uppercase().replace('\\', "\\\\");
+        let result = super::deduplicate_apps(vec![
+            app("Application", &target),
+            app("Path variant", &variants),
+            app("Desktop name", &desktop),
+            app("Start Menu name", &start_menu),
+            app("Application", &same_title_other_target),
+        ]);
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].content, target);
+        for alias in ["Path variant", "Desktop name", "Start Menu name"] {
+            assert!(result[0]
+                .metadata
+                .aliases
+                .iter()
+                .any(|value| value == alias));
+        }
+        assert_eq!(result[1].content, same_title_other_target);
+    }
+
+    #[test]
+    fn keeps_distinct_shortcut_arguments_working_directories_and_elevation() {
+        let fixture = AppFixture::new();
+        let target = fixture.executable("test.exe");
+        let custom_directory = fixture.0.join("Custom working directory");
+        std::fs::create_dir_all(&custom_directory).unwrap();
+        let profile_a =
+            fixture.shortcut("Profile A.lnk", &target, "--profile-directory=A", "", false);
+        let duplicate_a = fixture.shortcut(
+            "Profile A copy.lnk",
+            &target,
+            "--profile-directory=A",
+            "",
+            false,
+        );
+        let profile_b =
+            fixture.shortcut("Profile B.lnk", &target, "--profile-directory=a", "", false);
+        let directory = fixture.shortcut(
+            "Directory.lnk",
+            &target,
+            "",
+            &custom_directory.to_string_lossy(),
+            false,
+        );
+        let elevated = fixture.shortcut("Admin.lnk", &target, "", "", true);
+        let result = super::deduplicate_apps(vec![
+            app("Application", &target),
+            app("Profile A", &profile_a),
+            app("Profile A copy", &duplicate_a),
+            app("Profile B", &profile_b),
+            app("Directory", &directory),
+            app("Admin", &elevated),
+        ]);
+        assert_eq!(result.len(), 5);
+        for path in [&target, &profile_a, &profile_b, &directory, &elevated] {
+            assert!(result.iter().any(|app| &app.content == path));
+        }
+    }
+
+    #[test]
+    fn shortcut_name_never_overrides_its_actual_target() {
+        let fixture = AppFixture::new();
+        let target = fixture.executable("Custom Chrome.exe");
+        let shortcut = fixture.shortcut("Google Chrome.lnk", &target, "--custom", "", false);
+        assert_eq!(
+            super::resolve_shortcut(std::path::Path::new(&shortcut)),
+            Some(target)
+        );
+    }
+
+    #[test]
+    fn keeps_packaged_app_activation_ids_separate() {
+        let result = super::deduplicate_apps(vec![
+            app("ChatGPT", "shell:AppsFolder\\OpenAI.Codex_publisher!App"),
+            app("Codex", "SHELL:AppsFolder\\OpenAI.Codex_publisher!App"),
+            app("Codex", "shell:AppsFolder\\OpenAI.Codex_publisher!OtherApp"),
+        ]);
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].title, "Codex");
+        assert_eq!(result[0].metadata.aliases, ["ChatGPT"]);
+    }
+
+    #[test]
+    fn classic_shell_entries_with_arguments_or_document_targets_are_not_bare_apps() {
+        for (target, arguments) in [
+            (r"C:\Windows\System32\cmd.exe", r"/k C:\Tools\VsDevCmd.bat"),
+            (
+                r"C:\Apps\chrome.exe",
+                "--profile-directory=Work --app-id=example",
+            ),
+            (r"C:\Apps\ONENOTE.EXE", "/memoryWindow start"),
+            (r"C:\Windows\System32\compmgmt.msc", "/s"),
+        ] {
+            assert!(super::classic_shell_target_identity(target, arguments.into()).is_none());
+        }
+        let fixture = AppFixture::new();
+        let target = fixture.executable("plain.exe");
+        assert_eq!(
+            super::classic_shell_target_identity(&target, String::new()),
+            Some(super::app_launch_identity(&target))
+        );
     }
 
     #[test]

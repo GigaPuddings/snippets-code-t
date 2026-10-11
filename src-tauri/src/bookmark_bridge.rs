@@ -8,7 +8,7 @@ use serde_json::{json, Value};
 use std::collections::{HashMap, VecDeque};
 use std::io::{Read, Write};
 use std::net::{Ipv4Addr, SocketAddrV4, TcpListener, TcpStream};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     mpsc, LazyLock, Mutex,
@@ -26,8 +26,10 @@ const REGISTRY_ROOTS: &[&str] = &[
     "Software\\Google\\Chrome",
     "Software\\Microsoft\\Edge",
     "Software\\BraveSoftware\\Brave-Browser",
+    "Software\\Chromium",
     "Software\\Mozilla",
 ];
+const SUPPORTED_BROWSERS: &[&str] = &["Chrome", "Edge", "Brave", "Firefox", "ShuangHe"];
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct BridgeClient {
@@ -165,7 +167,7 @@ fn poll(message: Value) -> Result<Value, String> {
         serde_json::from_value(message.get("client").cloned().ok_or("缺少连接信息")?)
             .map_err(|e| e.to_string())?;
     Uuid::parse_str(&client.id).map_err(|_| "无效的浏览器连接标识")?;
-    if !["Chrome", "Edge", "Brave", "Firefox"].contains(&client.browser.as_str())
+    if !SUPPORTED_BROWSERS.contains(&client.browser.as_str())
         || client.label.is_empty()
         || client.label.len() > 160
     {
@@ -277,6 +279,58 @@ fn start_broker() -> Result<(), String> {
 pub struct BridgeStatus {
     pub clients: Vec<BridgeClient>,
     pub bindings: HashMap<String, String>,
+    pub prepared: bool,
+    pub extension_dir: String,
+    pub supported_browsers: &'static [&'static str],
+}
+
+fn host_manifest_matches(manifest: &Value, executable: &Path, firefox: bool) -> bool {
+    manifest.get("name").and_then(Value::as_str) == Some(HOST)
+        && manifest.get("type").and_then(Value::as_str) == Some("stdio")
+        && manifest
+            .get("path")
+            .and_then(Value::as_str)
+            .is_some_and(|path| Path::new(path) == executable)
+        && if firefox {
+            manifest.get("allowed_extensions") == Some(&json!([FIREFOX_ID]))
+        } else {
+            manifest.get("allowed_origins")
+                == Some(&json!([format!("chrome-extension://{CHROME_ID}/")]))
+        }
+}
+
+fn registration_ready(dir: &Path) -> bool {
+    let Ok(executable) = std::env::current_exe() else {
+        return false;
+    };
+    let root = RegKey::predef(HKEY_CURRENT_USER);
+    REGISTRY_ROOTS.iter().all(|registry_root| {
+        let firefox = registry_root.contains("Mozilla");
+        let manifest_path = dir.join(if firefox {
+            "firefox-host.json"
+        } else {
+            "chromium-host.json"
+        });
+        let registered: Option<String> = root
+            .open_subkey(format!("{registry_root}\\NativeMessagingHosts\\{HOST}"))
+            .ok()
+            .and_then(|key| key.get_value("").ok());
+        registered.is_some_and(|path| Path::new(&path) == manifest_path)
+            && std::fs::read(&manifest_path)
+                .ok()
+                .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok())
+                .is_some_and(|manifest| host_manifest_matches(&manifest, &executable, firefox))
+    }) && ["chromium", "firefox"].iter().all(|browser| {
+        [
+            "manifest.json",
+            "background.js",
+            "policy.js",
+            "popup.html",
+            "popup.js",
+        ]
+        .iter()
+        .all(|file| dir.join(browser).join(file).is_file())
+    })
 }
 
 pub fn status() -> Result<BridgeStatus, String> {
@@ -297,7 +351,14 @@ pub fn status() -> Result<BridgeStatus, String> {
         .map_err(|e| e.to_string())?
         .collect::<Result<_, _>>()
         .map_err(|e| e.to_string())?;
-    Ok(BridgeStatus { clients, bindings })
+    let dir = bridge_dir()?;
+    Ok(BridgeStatus {
+        clients,
+        bindings,
+        prepared: registration_ready(&dir),
+        extension_dir: dir.to_string_lossy().into(),
+        supported_browsers: SUPPORTED_BROWSERS,
+    })
 }
 
 pub fn bind_profile(profile_key: &str, client_id: &str) -> Result<(), String> {
@@ -464,5 +525,23 @@ mod tests {
         write_frame(&mut bytes, &message).unwrap();
         assert_eq!(read_frame(&mut bytes.as_slice()).unwrap(), message);
         assert!(read_frame(&mut ((MAX_MESSAGE + 1) as u32).to_le_bytes().as_slice()).is_err());
+    }
+
+    #[test]
+    fn preparation_requires_current_executable_and_exact_extension_identity() {
+        let exe = Path::new("C:\\Snippets\\snippets-code.exe");
+        let mut manifest = json!({"name": HOST, "path": exe, "type": "stdio", "allowed_origins": [format!("chrome-extension://{CHROME_ID}/")]});
+        assert!(host_manifest_matches(&manifest, exe, false));
+        assert!(!host_manifest_matches(
+            &manifest,
+            Path::new("C:\\Old\\snippets-code.exe"),
+            false
+        ));
+        manifest["allowed_origins"] = json!(["chrome-extension://untrusted/"]);
+        assert!(!host_manifest_matches(&manifest, exe, false));
+        manifest.as_object_mut().unwrap().remove("allowed_origins");
+        manifest["allowed_extensions"] = json!([FIREFOX_ID]);
+        assert!(host_manifest_matches(&manifest, exe, true));
+        assert!(!host_manifest_matches(&manifest, exe, false));
     }
 }

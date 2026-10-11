@@ -42,7 +42,24 @@ export interface BridgeClient {
 export interface BridgeStatus {
   clients: BridgeClient[];
   bindings: Record<string, string>;
+  prepared?: boolean;
+  extension_dir?: string;
+  supported_browsers?: string[];
 }
+
+export const supportsBrowserBridge = (
+  browser: string,
+  bridge: BridgeStatus
+): boolean =>
+  (
+    bridge.supported_browsers ?? ['Chrome', 'Edge', 'Brave', 'Firefox']
+  ).includes(browser);
+
+export const browserBridgeClients = (
+  browser: string,
+  bridge: BridgeStatus
+): BridgeClient[] =>
+  bridge.clients.filter((client) => client.browser === browser);
 
 export const bookmarkSourceKey = (
   source: Pick<BookmarkSource, 'profile_key' | 'node_id'>

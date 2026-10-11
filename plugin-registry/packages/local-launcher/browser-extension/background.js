@@ -28,6 +28,7 @@ async function connect() {
   port = null;
   if (previousPort) previousPort.disconnect();
   clearTimeout(timer);
+  status = 'Connecting';
   const nextPort = api.runtime.connectNative('com.snippets_code.bookmarks');
   port = nextPort;
   nextPort.onDisconnect.addListener(() => {

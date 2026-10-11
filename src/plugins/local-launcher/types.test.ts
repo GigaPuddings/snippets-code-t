@@ -3,6 +3,8 @@ import {
   bookmarkProfiles,
   bookmarkSourceKey,
   bookmarkSourceLabel,
+  browserBridgeClients,
+  supportsBrowserBridge,
   type BookmarkSource
 } from './types';
 
@@ -52,6 +54,29 @@ describe('launcher bookmark provenance', () => {
     );
     expect(bookmarkSourceLabel(source('Default'))).toBe(
       'Chrome · Default · Bookmarks bar / Work'
+    );
+  });
+
+  it('only offers connections for the matching browser and preserves legacy host support', () => {
+    const bridge = {
+      clients: [
+        { id: 'chrome', browser: 'Chrome', label: 'Default' },
+        { id: 'shuanghe', browser: 'ShuangHe', label: 'Default' }
+      ],
+      bindings: {},
+      supported_browsers: ['Chrome', 'Edge', 'Brave', 'Firefox', 'ShuangHe']
+    };
+    expect(browserBridgeClients('Edge', bridge)).toEqual([]);
+    expect(
+      browserBridgeClients('ShuangHe', bridge).map((client) => client.id)
+    ).toEqual(['shuanghe']);
+    expect(supportsBrowserBridge('ShuangHe', bridge)).toBe(true);
+    expect(supportsBrowserBridge('QQBrowser', bridge)).toBe(false);
+    expect(
+      supportsBrowserBridge('ShuangHe', { clients: [], bindings: {} })
+    ).toBe(false);
+    expect(supportsBrowserBridge('Chrome', { clients: [], bindings: {} })).toBe(
+      true
     );
   });
 });

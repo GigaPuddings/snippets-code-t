@@ -986,19 +986,37 @@ export default {
     continue: '继续',
     browserConnection: '浏览器连接',
     bridgeHint:
-      '准备本地连接后，在 Chrome、Edge、Brave 的扩展管理页加载导出的 chromium 目录；Firefox 可在调试页临时加载 firefox/manifest.json。打开扩展，填写当前配置文件名称并连接，然后在下方绑定对应配置文件。',
+      '读取书签无需扩展；删除浏览器原书签需要在对应浏览器配置文件中安装并连接书签扩展。请按以下步骤完成首次配置。',
+    bridgeStepPrepare: '1. 准备本地连接',
+    bridgeStepInstall: '2. 安装扩展并连接',
+    bridgeStepBind: '3. 绑定浏览器配置文件',
+    bridgeNotPrepared:
+      '尚未准备本地连接，或主程序路径已变化。请先点击“准备连接并导出扩展”。',
+    bridgePrepared: '本地连接已准备，请打开扩展目录并在浏览器中加载扩展。',
+    openExtensionFolder: '打开扩展目录',
+    bridgeInstallChromium:
+      'Chrome / Edge / Brave：打开 chrome://extensions、edge://extensions 或 brave://extensions，开启开发者模式，选择“加载已解压的扩展”，加载导出目录中的 chromium 文件夹。ShuangHe 可在其扩展管理页加载同一文件夹，需浏览器支持 Chromium 本地通信。',
+    bridgeInstallFirefox:
+      'Firefox：打开 about:debugging#/runtime/this-firefox，选择“临时载入附加组件”，加载 firefox/manifest.json。临时扩展在浏览器重启后需重新加载。',
+    bridgeConnectExtension:
+      '打开扩展弹窗，选择与下方来源相同的浏览器类型，填写配置文件名称，然后点击“连接”。每个配置文件需单独安装；保持 Snippets Code 运行。',
+    bridgeWaiting:
+      '等待 {browser} 扩展连接。完成第 2 步后，这里会自动显示可绑定的连接。',
+    bridgeUnsupported:
+      '{browser} 尚不支持原书签删除，可查看来源或从启动器隐藏。',
     prepareBridge: '准备连接并导出扩展',
     refreshConnections: '刷新连接',
     removeBridge: '移除本地连接',
     extensionExported: '扩展已导出至：{path}',
     noBrowserConnection:
-      '尚无浏览器扩展连接。请打开扩展并点击“连接”，然后刷新。',
+      '尚无浏览器扩展连接，请完成第 2 步。连接状态每 2 秒自动刷新；连接失败时请查看扩展弹窗中的错误提示。',
     selectConnection: '选择当前配置文件对应的扩展连接',
     deleteBrowserBookmark: '删除浏览器原书签…',
     browserDeleteHint:
       '再次确认要删除的来源。操作由所选浏览器执行，其同步行为遵循浏览器设置。未选择的来源会保留。',
     confirmBrowserDelete: '确认删除所选原书签',
-    sourceNotConnected: '该来源尚未绑定可用的浏览器连接，无法删除原书签。',
+    sourceNotConnected:
+      '请点击下方“浏览器连接”，安装并连接该来源的扩展，绑定对应配置文件后重新打开此窗口。',
     browserDeleteSuccess: '已删除 {count} 个浏览器书签来源',
     allBrowsers: '所有浏览器',
     sourceCount: '{count} 个来源',

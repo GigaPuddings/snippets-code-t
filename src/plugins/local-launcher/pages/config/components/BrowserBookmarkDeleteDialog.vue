@@ -38,7 +38,11 @@
           v-if="!isConnected(source)"
           class="mt-1 text-ui-caption text-ui-muted"
         >
-          {{ $t('local.sourceNotConnected') }}
+          {{
+            supportsBrowserBridge(source.browser, bridge)
+              ? $t('local.sourceNotConnected')
+              : $t('local.bridgeUnsupported', { browser: source.browser })
+          }}
         </p>
       </div>
     </el-checkbox-group>
@@ -71,6 +75,7 @@ import modal from '@/utils/modal';
 import {
   bookmarkSourceKey,
   bookmarkSourceLabel,
+  supportsBrowserBridge,
   type LauncherEntry,
   type BookmarkSource,
   type BridgeStatus

@@ -1026,20 +1026,38 @@ export default {
     continue: 'Continue',
     browserConnection: 'Browser connections',
     bridgeHint:
-      'Prepare the local connection, then load the exported chromium directory in Chrome, Edge or Brave extensions. For Firefox, temporarily load firefox/manifest.json in the debugging page. Open the extension, label this profile, connect, then pair the matching profile below.',
+      'Reading bookmarks needs no extension. Deleting original bookmarks requires the bridge extension in the matching browser profile. Complete these steps once for each profile.',
+    bridgeStepPrepare: '1. Prepare the local connection',
+    bridgeStepInstall: '2. Load and connect the extension',
+    bridgeStepBind: '3. Pair browser profiles',
+    bridgeNotPrepared:
+      'The connection is not prepared, or the app path has changed. Click “Prepare connection and export extension” first.',
+    bridgePrepared:
+      'Local connection prepared. Open the extension folder and load it in your browser.',
+    openExtensionFolder: 'Open extension folder',
+    bridgeInstallChromium:
+      'Chrome / Edge / Brave: open chrome://extensions, edge://extensions or brave://extensions, enable Developer mode, choose “Load unpacked”, and load the exported chromium folder. ShuangHe can load the same folder if it supports Chromium native messaging.',
+    bridgeInstallFirefox:
+      'Firefox: open about:debugging#/runtime/this-firefox, choose “Load Temporary Add-on”, and load firefox/manifest.json. Reload temporary add-ons after restarting the browser.',
+    bridgeConnectExtension:
+      'Open the extension popup, select the browser type shown below, label the profile and click Connect. Install separately in each profile and keep Snippets Code running.',
+    bridgeWaiting:
+      'Waiting for the {browser} extension. Available connections appear automatically after step 2.',
+    bridgeUnsupported:
+      'Original bookmark deletion is not supported for {browser}. You can view sources or hide entries in the launcher.',
     prepareBridge: 'Prepare connection and export extension',
     refreshConnections: 'Refresh connections',
     removeBridge: 'Remove local connection',
     extensionExported: 'Extension exported to: {path}',
     noBrowserConnection:
-      'No browser extension connected. Open the extension, click Connect, then refresh.',
+      'No extension connected yet. Complete step 2. Status refreshes every 2 seconds; check the extension popup for connection errors.',
     selectConnection: 'Select the extension connection for this profile',
     deleteBrowserBookmark: 'Delete original browser bookmark…',
     browserDeleteHint:
       'Confirm the sources to delete. The selected browser performs the operation and controls its own sync behavior. Unselected sources are retained.',
     confirmBrowserDelete: 'Delete selected original bookmarks',
     sourceNotConnected:
-      'This source has no paired, available browser connection.',
+      'Open Browser connections below, load and connect the extension, pair this profile, then reopen this dialog.',
     browserDeleteSuccess: 'Deleted {count} browser bookmark sources',
     allBrowsers: 'All browsers',
     sourceCount: '{count} sources',
