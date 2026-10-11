@@ -45,10 +45,10 @@ pub struct CachedIcon {
 // 图标缓存常数
 const MAX_CACHE_AGE: u64 = 604800; // 7 days in seconds
 const MAX_CACHE_SIZE: usize = 500; // 最多缓存500个图标，防止内存溢出
-const APP_INDEX_STORAGE_SCHEMA_VERSION: u64 = 1;
-const APP_INDEX_EXTRACTOR_VERSION: u64 = 6;
-const BOOKMARK_INDEX_STORAGE_SCHEMA_VERSION: u64 = 1;
-const BOOKMARK_INDEX_EXTRACTOR_VERSION: u64 = 3;
+const APP_INDEX_STORAGE_SCHEMA_VERSION: u64 = 2;
+const APP_INDEX_EXTRACTOR_VERSION: u64 = 7;
+const BOOKMARK_INDEX_STORAGE_SCHEMA_VERSION: u64 = 2;
+const BOOKMARK_INDEX_EXTRACTOR_VERSION: u64 = 4;
 
 // 全局图标缓存 - 使用 LRU 缓存自动淘汰最少使用的图标
 static ICON_CACHE: Lazy<Arc<Mutex<LruCache<String, CachedIcon>>>> = Lazy::new(|| {
@@ -1252,7 +1252,8 @@ fn run_app_and_bookmark_initialization(
             base_steps.max(1),
             "",
         );
-        bookmarks_to_load = get_browser_bookmarks();
+        let bookmark_scan = get_browser_bookmarks();
+        bookmarks_to_load = bookmark_scan.bookmarks;
         if !local_launcher_job_active(app_handle, generation) {
             return;
         }
@@ -1270,23 +1271,20 @@ fn run_app_and_bookmark_initialization(
             base_steps.max(1),
             &format!("共 {} 个书签", bookmarks_to_load.len()),
         );
-        let replace_scanned_index = force_rebuild
-            || bookmarks_index_stale
-            || matches!(reset_kind, Some("all" | "bookmarks" | "launcher"));
-        let persist_result = if replace_scanned_index {
-            db::replace_bookmarks(&bookmarks_to_load)
+        if bookmark_scan.complete {
+            if let Err(e) = db::replace_bookmarks(&bookmarks_to_load) {
+                log::error!("保存书签索引失败: {}", e);
+            } else {
+                let _ = db::mark_index_success_with_fingerprint(
+                    "bookmarks",
+                    BOOKMARK_INDEX_STORAGE_SCHEMA_VERSION,
+                    BOOKMARK_INDEX_EXTRACTOR_VERSION,
+                    Some(&bookmarks_fingerprint),
+                );
+            }
         } else {
-            db::insert_bookmarks(&bookmarks_to_load)
-        };
-        if let Err(e) = persist_result {
-            log::error!("插入书签到数据库失败: {}", e);
-        } else {
-            let _ = db::mark_index_success_with_fingerprint(
-                "bookmarks",
-                BOOKMARK_INDEX_STORAGE_SCHEMA_VERSION,
-                BOOKMARK_INDEX_EXTRACTOR_VERSION,
-                Some(&bookmarks_fingerprint),
-            );
+            log::warn!("[LocalLauncher] 本轮书签扫描不完整，保留旧索引并等待重试");
+            bookmarks_to_load.clear();
         }
         current_step += 1;
     }

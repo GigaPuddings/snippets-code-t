@@ -41,6 +41,61 @@ pub struct AppInfo {
     pub summarize: String,
     #[serde(default)]
     pub usage_count: u32,
+    #[serde(default)]
+    pub metadata: AppMetadata,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+pub struct AppMetadata {
+    #[serde(default)]
+    pub aliases: Vec<String>,
+    #[serde(default)]
+    pub discovery_source: String,
+    #[serde(default)]
+    pub auxiliary: bool,
+}
+
+/// Every scanner uses the same policy. User-added entries bypass this filter.
+pub fn is_launchable_candidate(title: &str, target: &str) -> bool {
+    let name = title.trim().to_lowercase();
+    let basename = target
+        .rsplit(['\\', '/'])
+        .next()
+        .unwrap_or(target)
+        .to_lowercase();
+    let stem = basename.strip_suffix(".exe").unwrap_or(&basename);
+    let forbidden = ["uninstall", "uninstaller", "uninst", "remove", "卸载"];
+    if name.is_empty()
+        || forbidden
+            .iter()
+            .any(|word| name == *word || name.starts_with(&format!("{word} ")))
+        || stem.starts_with("unins")
+        || [
+            "uninstall",
+            "uninst",
+            "actions_mcphost",
+            "actionsmcphost",
+            "gamebarelevatedft_alias",
+            "codex-chrome-native-host",
+            "codex-core-command-runner",
+            "crashpad_handler",
+            "crashreporter",
+            "update",
+            "updater",
+            "squirrel",
+            "elevation_service",
+        ]
+        .contains(&stem)
+    {
+        return false;
+    }
+    is_shell_apps_folder_path(target)
+        || (Path::new(target).exists()
+            && Path::new(target).extension().is_some_and(|ext| {
+                ["exe", "lnk", "com", "cmd", "bat"]
+                    .iter()
+                    .any(|allowed| ext.eq_ignore_ascii_case(allowed))
+            }))
 }
 
 pub struct InstalledAppsScan {
@@ -215,6 +270,7 @@ fn add_app_path_snapshot(tokens: &mut Vec<String>, root: &Path, max_depth: usize
         .max_depth(max_depth)
         .into_iter()
         .filter_map(Result::ok)
+        .take(20_000)
         .filter(|entry| entry.file_type().is_file())
     {
         let path = entry.path();
@@ -313,6 +369,12 @@ pub fn installed_apps_source_fingerprint() -> String {
         add_app_path_snapshot(&mut tokens, &path, max_depth);
     }
 
+    for root in db::launcher::launcher_settings()
+        .unwrap_or_default()
+        .scan_roots
+    {
+        add_app_path_snapshot(&mut tokens, Path::new(&root), 4);
+    }
     fingerprint_tokens(tokens)
 }
 
@@ -367,8 +429,7 @@ pub fn resolve_shell_apps_folder_display_path(app_path: &str) -> Option<String> 
         let manifest_path = Path::new(&package_root).join("AppxManifest.xml");
         let manifest_content = fs::read_to_string(manifest_path).ok()?;
         let executable =
-            extract_executable_for_app_id_from_manifest(&manifest_content, app_entry_id)
-                .or_else(|| extract_executable_from_manifest(&manifest_content))?;
+            extract_executable_for_app_id_from_manifest(&manifest_content, app_entry_id)?;
         let full_path = Path::new(&package_root).join(executable);
 
         return Some(full_path.to_string_lossy().to_string());
@@ -589,6 +650,9 @@ fn get_registry_apps(hkey: winreg::HKEY, path: &str) -> Vec<AppInfo> {
         if let Ok(keys) = key.enum_keys().collect::<Result<Vec<_>, _>>() {
             for app_key_name in keys {
                 if let Ok(app_key) = key.open_subkey(&app_key_name) {
+                    if app_key.get_value::<u32, _>("SystemComponent").unwrap_or(0) == 1 {
+                        continue;
+                    }
                     let mut app_data: HashMap<String, String> = HashMap::new();
 
                     if let Ok(values) = app_key.enum_values().collect::<Result<Vec<_>, _>>() {
@@ -604,14 +668,9 @@ fn get_registry_apps(hkey: winreg::HKEY, path: &str) -> Vec<AppInfo> {
                     {
                         if let Some(icon_path) = extract_icon_path(display_icon) {
                             let lower_icon_path = icon_path.to_lowercase();
-                            let lower_display_name = display_name.to_lowercase();
                             if Path::new(&icon_path).exists()
-                                && !lower_icon_path.contains("uninstall")
-                                && !lower_icon_path.contains("unins")
-                                && !lower_display_name.contains("uninstall")
-                                && !lower_display_name.contains("remove")
                                 && !lower_icon_path.contains("package cache")
-                                && !lower_icon_path.contains("EXE")
+                                && is_launchable_candidate(display_name, &icon_path)
                             {
                                 apps.push(AppInfo {
                                     id: Uuid::new_v4().to_string(),
@@ -620,6 +679,7 @@ fn get_registry_apps(hkey: winreg::HKEY, path: &str) -> Vec<AppInfo> {
                                     icon: None,
                                     summarize: "app".to_string(),
                                     usage_count: 0,
+                                    metadata: Default::default(),
                                 });
                             }
                         }
@@ -639,17 +699,24 @@ fn get_desktop_shortcuts() -> Vec<AppInfo> {
     // 尝试获取公共桌面和用户桌面路径
     let desktop_paths = [
         dirs::desktop_dir(),
-        dirs::document_dir().and_then(|p| p.join("..").join("Desktop").canonicalize().ok()),
-        Some(Path::new("C:\\Users\\Public\\Desktop").to_path_buf()),
+        dirs::data_dir().map(|p| p.join("Microsoft/Windows/Start Menu/Programs")),
+        std::env::var_os("PUBLIC").map(|p| PathBuf::from(p).join("Desktop")),
+        std::env::var_os("PROGRAMDATA")
+            .map(|p| PathBuf::from(p).join("Microsoft/Windows/Start Menu/Programs")),
     ];
-
     for desktop_path in desktop_paths.iter().flatten() {
-        // 查找所有.lnk快捷方式
-        if let Ok(entries) = fs::read_dir(desktop_path) {
-            for entry in entries.filter_map(Result::ok) {
-                let path = entry.path();
-
-                if path.extension().is_some_and(|ext| ext == "lnk") {
+        {
+            for entry in WalkDir::new(desktop_path)
+                .max_depth(8)
+                .follow_links(false)
+                .into_iter()
+                .filter_map(Result::ok)
+            {
+                let path = entry.path().to_path_buf();
+                if path
+                    .extension()
+                    .is_some_and(|ext| ext.eq_ignore_ascii_case("lnk"))
+                {
                     // info!("检测到快捷方式: {:?}", path);
 
                     let raw_file_name = path
@@ -676,32 +743,24 @@ fn get_desktop_shortcuts() -> Vec<AppInfo> {
                             .any(|extension| target_extension.eq_ignore_ascii_case(extension))
                             && Path::new(&target_path).exists());
 
-                    if is_valid {
-                        let lower_target_path = target_path.to_lowercase();
-                        let lower_file_name = file_name.to_lowercase();
-
-                        if !lower_target_path.contains("uninstall")
-                            && !lower_target_path.contains("unins")
-                            && !lower_file_name.contains("uninstall")
-                            && !lower_file_name.contains("remove")
-                        {
-                            // Store/packaged shortcuts are safest to launch through AppsFolder.
-                            // Classic shortcuts keep the .lnk as their launch path so Shell keeps
-                            // shortcut arguments and working-directory metadata intact.
-                            let launch_path = if is_shell_apps_folder_path(&target_path) {
-                                target_path
-                            } else {
-                                path.to_string_lossy().to_string()
-                            };
-                            apps.push(AppInfo {
-                                id: Uuid::new_v4().to_string(),
-                                title: file_name,
-                                content: launch_path,
-                                icon: None,
-                                summarize: "app".to_string(),
-                                usage_count: 0,
-                            });
-                        }
+                    if is_valid && is_launchable_candidate(&file_name, &target_path) {
+                        // Store/packaged shortcuts are safest to launch through AppsFolder.
+                        // Classic shortcuts keep the .lnk as their launch path so Shell keeps
+                        // shortcut arguments and working-directory metadata intact.
+                        let launch_path = if is_shell_apps_folder_path(&target_path) {
+                            target_path
+                        } else {
+                            path.to_string_lossy().to_string()
+                        };
+                        apps.push(AppInfo {
+                            id: Uuid::new_v4().to_string(),
+                            title: file_name,
+                            content: launch_path,
+                            icon: None,
+                            summarize: "app".to_string(),
+                            usage_count: 0,
+                            metadata: Default::default(),
+                        });
                     }
                 }
             }
@@ -856,6 +915,7 @@ fn get_windows_apps() -> Vec<AppInfo> {
                             icon: None,
                             summarize: "app".to_string(),
                             usage_count: 0,
+                            metadata: Default::default(),
                         });
                     }
                 }
@@ -868,6 +928,7 @@ fn get_windows_apps() -> Vec<AppInfo> {
                 icon: None,
                 summarize: "app".to_string(),
                 usage_count: 0,
+                metadata: Default::default(),
             });
         }
     }
@@ -947,6 +1008,7 @@ fn get_office_apps() -> Vec<AppInfo> {
                     icon: None,
                     summarize: "app".to_string(),
                     usage_count: 0,
+                    metadata: Default::default(),
                 });
             }
         }
@@ -968,6 +1030,7 @@ fn get_office_apps() -> Vec<AppInfo> {
                         icon: None,
                         summarize: "app".to_string(),
                         usage_count: 0,
+                        metadata: Default::default(),
                     });
                 } else {
                     // 尝试使用特定应用注册表项
@@ -982,6 +1045,7 @@ fn get_office_apps() -> Vec<AppInfo> {
                                 icon: None,
                                 summarize: "app".to_string(),
                                 usage_count: 0,
+                                metadata: Default::default(),
                             });
                         }
                     }
@@ -1001,6 +1065,7 @@ fn get_office_apps() -> Vec<AppInfo> {
                             icon: None,
                             summarize: "app".to_string(),
                             usage_count: 0,
+                            metadata: Default::default(),
                         });
                     }
                 }
@@ -1031,6 +1096,7 @@ fn get_office_apps() -> Vec<AppInfo> {
                         icon: None,
                         summarize: "app".to_string(),
                         usage_count: 0,
+                        metadata: Default::default(),
                     });
                 }
             }
@@ -1178,6 +1244,7 @@ fn find_modern_system_apps() -> Vec<AppInfo> {
                     icon: None,
                     summarize: "app".to_string(),
                     usage_count: 0,
+                    metadata: Default::default(),
                 });
             }
         }
@@ -1223,6 +1290,9 @@ fn get_windows_store_apps_from_start_apps() -> Result<Vec<AppInfo>, String> {
                         return None;
                     }
 
+                    if Path::new(app_id).is_absolute() && !Path::new(app_id).is_file() {
+                        return None;
+                    }
                     let content = if Path::new(app_id).exists() {
                         app_id.to_string()
                     } else if let Some(path) = resolve_known_folder_app_id(app_id) {
@@ -1253,6 +1323,11 @@ fn get_windows_store_apps_from_start_apps() -> Result<Vec<AppInfo>, String> {
                         icon: None,
                         summarize: "app".to_string(),
                         usage_count: 0,
+                        metadata: AppMetadata {
+                            aliases: vec![name.to_string()],
+                            discovery_source: "start-menu".into(),
+                            auxiliary: false,
+                        },
                     })
                 })
                 .collect();
@@ -1271,6 +1346,13 @@ fn get_windows_store_apps_from_start_apps() -> Result<Vec<AppInfo>, String> {
 }
 
 fn normalize_start_app_title(name: &str, app_id: &str, content: &str) -> String {
+    if app_id
+        .split('!')
+        .next()
+        .is_some_and(|family| family.starts_with("OpenAI.Codex_"))
+    {
+        return "Codex".to_string();
+    }
     let title = name.trim();
     let has_replacement = title.contains('\u{FFFD}');
     let visible_chars: Vec<char> = title.chars().filter(|ch| !ch.is_whitespace()).collect();
@@ -1360,6 +1442,11 @@ fn get_windows_store_app_aliases() -> Vec<AppInfo> {
                     icon: None,
                     summarize: "app".to_string(),
                     usage_count: 0,
+                    metadata: AppMetadata {
+                        aliases: Vec::new(),
+                        discovery_source: "execution-alias".into(),
+                        auxiliary: true,
+                    },
                 });
             }
         }
@@ -1386,10 +1473,6 @@ fn get_windows_store_apps() -> (Vec<AppInfo>, Option<String>) {
     if let Ok(key) = hklm.open_subkey(path) {
         if let Ok(package_names) = key.enum_keys().collect::<Result<Vec<_>, _>>() {
             for package_name in package_names {
-                // 只检查Microsoft.开头的包或其他可能的应用商店应用
-                if package_name.starts_with("Microsoft.")
-                    || package_name.contains("_8wekyb3d8bbwe")
-                    || package_name.contains(".AppX")
                 {
                     if let Ok(package_key) = key.open_subkey(&package_name) {
                         // 尝试获取应用的显示名称
@@ -1413,17 +1496,41 @@ fn get_windows_store_apps() -> (Vec<AppInfo>, Option<String>) {
                                 package_key.get_value::<String, _>("PackageRootFolder")
                             {
                                 // 尝试查找应用的可执行文件
-                                let app_exe_path = find_uwp_executable(&packdir, &appid);
+                                let app_exe_path = fs::read_to_string(
+                                    Path::new(&packdir).join("AppxManifest.xml"),
+                                )
+                                .ok()
+                                .and_then(|manifest| {
+                                    extract_executable_for_app_id_from_manifest(
+                                        &manifest,
+                                        appid.split_once('!').map(|(_, id)| id).unwrap_or(&appid),
+                                    )
+                                })
+                                .map(|relative| {
+                                    Path::new(&packdir)
+                                        .join(relative)
+                                        .to_string_lossy()
+                                        .to_string()
+                                });
 
                                 if let Some(exe_path) = app_exe_path {
                                     if Path::new(&exe_path).exists() {
                                         apps.push(AppInfo {
                                             id: Uuid::new_v4().to_string(),
-                                            title: display_name,
-                                            content: exe_path,
+                                            title: normalize_start_app_title(
+                                                &display_name,
+                                                &appid,
+                                                &exe_path,
+                                            ),
+                                            content: if appid.contains('!') {
+                                                format!("shell:AppsFolder\\{}", appid)
+                                            } else {
+                                                exe_path
+                                            },
                                             icon: None,
                                             summarize: "app".to_string(),
                                             usage_count: 0,
+                                            metadata: Default::default(),
                                         });
                                     }
                                 }
@@ -1438,64 +1545,47 @@ fn get_windows_store_apps() -> (Vec<AppInfo>, Option<String>) {
     (apps, warning)
 }
 
-// 查找 UWP 应用的可执行文件路径
-fn find_uwp_executable(package_root: &str, app_id: &str) -> Option<String> {
-    // 首先检查应用清单中的信息
-    let manifest_path = format!("{}\\AppxManifest.xml", package_root);
-    if Path::new(&manifest_path).exists() {
-        if let Ok(manifest_content) = fs::read_to_string(&manifest_path) {
-            // 检查清单中是否有应用的可执行文件信息
-            if let Some(exe_rel_path) = extract_executable_from_manifest(&manifest_content) {
-                let full_path = format!("{}\\{}", package_root, exe_rel_path);
-                if Path::new(&full_path).exists() {
-                    return Some(full_path);
-                }
+fn get_custom_scan_apps() -> Vec<AppInfo> {
+    let mut apps = Vec::new();
+    for root in db::launcher::launcher_settings()
+        .unwrap_or_default()
+        .scan_roots
+    {
+        for entry in WalkDir::new(root)
+            .max_depth(4)
+            .follow_links(false)
+            .into_iter()
+            .filter_map(Result::ok)
+            .take(20_000)
+        {
+            let path = entry.path();
+            if !entry.file_type().is_file()
+                || !path
+                    .extension()
+                    .is_some_and(|ext| ext.eq_ignore_ascii_case("exe"))
+            {
+                continue;
+            }
+            let title =
+                format_shortcut_title(&path.file_stem().unwrap_or_default().to_string_lossy());
+            let content = path.to_string_lossy().to_string();
+            if is_launchable_candidate(&title, &content) {
+                apps.push(AppInfo {
+                    id: Uuid::new_v4().to_string(),
+                    title,
+                    content,
+                    icon: None,
+                    summarize: "app".into(),
+                    usage_count: 0,
+                    metadata: AppMetadata {
+                        discovery_source: "custom-directory".into(),
+                        ..Default::default()
+                    },
+                });
             }
         }
     }
-
-    // 如果无法从清单中获取，尝试直接搜索常见的可执行文件位置
-    let common_locations = [
-        format!("{}\\*.exe", package_root),
-        format!("{}\\app\\*.exe", package_root),
-        format!("{}\\bin\\*.exe", package_root),
-    ];
-
-    for pattern in &common_locations {
-        if let Ok(paths) = glob(pattern) {
-            for entry in paths.filter_map(Result::ok) {
-                // 有些UWP应用可能有多个exe，优先选择与应用ID相关的
-                let file_name = entry
-                    .file_name()
-                    .unwrap_or_default()
-                    .to_string_lossy()
-                    .to_string();
-                if file_name.contains(app_id) || !file_name.contains("Helper") {
-                    return Some(entry.to_string_lossy().to_string());
-                }
-            }
-
-            // 如果没有找到优先匹配的，返回第一个找到的exe
-            if let Ok(paths) = glob(pattern) {
-                if let Some(first_exe) = paths.filter_map(Result::ok).next() {
-                    return Some(first_exe.to_string_lossy().to_string());
-                }
-            }
-        }
-    }
-
-    None
-}
-
-// 从应用清单XML中提取可执行文件路径
-fn extract_executable_from_manifest(manifest_content: &str) -> Option<String> {
-    if let Some(start_idx) = manifest_content.find("Executable=\"") {
-        let start = start_idx + 12; // "Executable=\"" 的长度
-        if let Some(end_idx) = manifest_content[start..].find('"') {
-            return Some(manifest_content[start..start + end_idx].to_string());
-        }
-    }
-    None
+    apps
 }
 
 // 获取已安装应用
@@ -1545,7 +1635,9 @@ pub fn get_installed_apps() -> InstalledAppsScan {
     }
 
     if spawn_app_source_scan(sender.clone(), AppScanSource::Shortcuts, || {
-        (get_desktop_shortcuts(), None)
+        let mut apps = get_desktop_shortcuts();
+        apps.extend(get_custom_scan_apps());
+        (apps, None)
     }) {
         expected.push(AppScanSource::Shortcuts);
     } else {
@@ -1627,62 +1719,40 @@ pub fn get_installed_apps() -> InstalledAppsScan {
     all_apps.extend(store_apps);
     all_apps.extend(windows_apps);
 
-    // 确保所有应用都有默认图标
-    all_apps.iter_mut().for_each(|app| {
-        if app.icon.is_none() {
-            app.icon = None;
-        }
-    });
-
-    // 去除重复应用（基于路径和标题的组合去重）
-    let mut unique_apps = Vec::new();
-    let mut seen_paths = HashSet::new();
-    let mut seen_titles = HashSet::new();
-
-    for app in all_apps {
-        // AppsFolder and manifest scanners can describe the same packaged app
-        // through different paths. Resolve both to the executable for dedupe,
-        // while preserving the AppsFolder value as the safer launch target.
-        let normalized_path = if is_shell_apps_folder_path(&app.content) {
-            resolve_shell_apps_folder_display_path(&app.content)
-                .unwrap_or_else(|| app.content.clone())
-                .to_lowercase()
-        } else {
-            app.content.to_lowercase()
-        };
-        // 标准化标题（用于去除不同路径的同名应用）
-        let normalized_title = app.title.to_lowercase().trim().to_string();
-
-        // 检查是否重复的路径
-        if seen_paths.contains(&normalized_path) {
-            continue; // 跳过相同路径的应用
-        }
-
-        // 对于Microsoft Office应用，特殊处理：只保留第一个同名应用
-        if app.title.contains("Microsoft")
-            && (app.title.contains("Word")
-                || app.title.contains("Excel")
-                || app.title.contains("PowerPoint")
-                || app.title.contains("Outlook")
-                || app.title.contains("Access")
-                || app.title.contains("Publisher")
-                || app.title.contains("OneNote"))
-        {
-            if seen_titles.contains(&app.title) {
-                continue;
-            }
-            seen_titles.insert(app.title.clone());
-        }
-        // 对于其他应用，检查标题是否重复（避免 "Snippets Code" 和 "snippets-code" 同时存在）
-        else if seen_titles.contains(&normalized_title) {
+    let mut unique_apps: Vec<AppInfo> = Vec::new();
+    let mut seen_paths: HashMap<String, usize> = HashMap::new();
+    for mut app in all_apps {
+        if !is_launchable_candidate(&app.title, &app.content) {
             continue;
         }
-
-        // 记录此路径和标题
-        seen_paths.insert(normalized_path);
-        seen_titles.insert(normalized_title);
-
-        // 添加非重复应用
+        let original_title = app.title.clone();
+        if is_shell_apps_folder_path(&app.content) {
+            let app_id = app
+                .content
+                .split_once('\\')
+                .map(|(_, id)| id)
+                .unwrap_or(&app.content);
+            app.title = normalize_start_app_title(&app.title, app_id, &app.content);
+        }
+        if original_title != app.title && !app.metadata.aliases.contains(&original_title) {
+            app.metadata.aliases.push(original_title);
+        }
+        let identity = if is_shell_apps_folder_path(&app.content) {
+            resolve_shell_apps_folder_display_path(&app.content)
+                .unwrap_or_else(|| app.content.clone())
+        } else {
+            app.content.clone()
+        }
+        .to_lowercase();
+        if let Some(&index) = seen_paths.get(&identity) {
+            for alias in std::iter::once(app.title).chain(app.metadata.aliases) {
+                if !unique_apps[index].metadata.aliases.contains(&alias) {
+                    unique_apps[index].metadata.aliases.push(alias);
+                }
+            }
+            continue;
+        }
+        seen_paths.insert(identity, unique_apps.len());
         unique_apps.push(app);
     }
 
@@ -2191,6 +2261,61 @@ mod tests {
                 "assets/Square44x44Logo.png".to_string(),
                 Some("#3143FF".to_string())
             ))
+        );
+    }
+    #[test]
+    fn candidate_filter_keeps_user_apps_and_rejects_helpers_and_missing_targets() {
+        let dir = std::env::temp_dir().join(format!("launcher-filter-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        for (file, title, keep) in [
+            ("mspaint.exe", "Paint", true),
+            ("media.exe", "Media Player", true),
+            ("unins000.exe", "Uninstall App", false),
+            ("ActionsMcpHost.exe", "ActionsMcpHost", false),
+            ("update.exe", "Updater", false),
+            ("RemovalTool.exe", "Removal Tool", true),
+        ] {
+            let path = dir.join(file);
+            std::fs::write(&path, []).unwrap();
+            assert_eq!(
+                super::is_launchable_candidate(title, &path.to_string_lossy()),
+                keep,
+                "{file}"
+            );
+        }
+        assert!(!super::is_launchable_candidate(
+            "Missing",
+            &dir.join("missing.exe").to_string_lossy()
+        ));
+        assert!(super::is_launchable_candidate(
+            "Codex",
+            "shell:AppsFolder\\OpenAI.Codex_2p2nqsd0c76g0!App"
+        ));
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn codex_title_is_corrected_only_for_its_package_identity() {
+        assert_eq!(
+            super::normalize_start_app_title("ChatGPT", "OpenAI.Codex_2p2nqsd0c76g0!App", ""),
+            "Codex"
+        );
+        assert_eq!(
+            super::normalize_start_app_title("ChatGPT", "OpenAI.ChatGPT_publisher!App", ""),
+            "ChatGPT"
+        );
+    }
+
+    #[test]
+    fn packaged_executable_lookup_never_uses_another_application_entry() {
+        let manifest = r#"<Package><Applications><Application Id="Helper" Executable="helper.exe"/><Application Id="App" Executable="codex.exe"/></Applications></Package>"#;
+        assert_eq!(
+            super::extract_executable_for_app_id_from_manifest(manifest, "App"),
+            Some("codex.exe".into())
+        );
+        assert_eq!(
+            super::extract_executable_for_app_id_from_manifest(manifest, "Missing"),
+            None
         );
     }
 }

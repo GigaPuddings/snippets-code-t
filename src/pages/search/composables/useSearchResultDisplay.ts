@@ -99,6 +99,40 @@ export const getRawSearchResultId = (item: ContentType): string => {
   return String(rawId ?? item.id);
 };
 
+export function getBookmarkResultContent(
+  item: ContentType,
+  t: ComposerTranslation
+): string {
+  const rawSources = (item.metadata as Record<string, unknown> | null)?.sources;
+  const sources =
+    item.summarize === 'bookmark' && Array.isArray(rawSources)
+      ? rawSources.filter(
+          (source): source is Record<string, unknown> =>
+            Boolean(source) && typeof source === 'object'
+        )
+      : [];
+  const source = sources[0];
+  const folders =
+    source && Array.isArray(source.folder_path)
+      ? source.folder_path
+          .filter((value): value is string => typeof value === 'string')
+          .join(' / ')
+      : '';
+  const origin = source
+    ? [source.browser, source.profile, folders]
+        .filter(
+          (value): value is string =>
+            typeof value === 'string' && Boolean(value)
+        )
+        .join(' · ')
+    : '';
+  const label =
+    sources.length > 1
+      ? `${origin} · ${t('local.sourceCount', { count: sources.length })}`
+      : origin;
+  return label ? `${label} · ${item.content}` : item.content;
+}
+
 export function useSearchResultDisplay(
   searchQuery: () => string | undefined,
   t: ComposerTranslation
@@ -147,9 +181,10 @@ export function useSearchResultDisplay(
       return `<span class="url-display">${escapeHtml(item.content)}</span>`;
     }
 
-    return shouldHighlightContent(item, item.content)
-      ? highlightText(item.content, searchQuery())
-      : escapeHtml(item.content);
+    const content = getBookmarkResultContent(item, t);
+    return shouldHighlightContent(item, content)
+      ? highlightText(content, searchQuery())
+      : escapeHtml(content);
   };
 
   const getTypeLabel = (item: ContentType): string => {

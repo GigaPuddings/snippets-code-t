@@ -3,6 +3,7 @@ mod app_setup;
 mod apps;
 mod attachment;
 mod auto_start;
+mod bookmark_bridge;
 mod bookmarks;
 mod commands;
 mod config;
@@ -68,6 +69,9 @@ use app_setup::{
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    if bookmark_bridge::run_native_host_if_requested() {
+        return;
+    }
     apply_setup_restart_delay();
 
     // 根据环境选择插件配置：
@@ -670,6 +674,16 @@ pub fn run() {
             plugins::local_launcher::add_bookmark,                     // 添加书签
             plugins::local_launcher::update_bookmark,                  // 更新书签
             plugins::local_launcher::delete_bookmark,                  // 删除书签
+            plugins::local_launcher::get_launcher_browser_bridge,
+            plugins::local_launcher::register_launcher_browser_bridge,
+            plugins::local_launcher::unregister_launcher_browser_bridge,
+            plugins::local_launcher::bind_launcher_browser_profile,
+            plugins::local_launcher::delete_browser_bookmark_sources,
+            plugins::local_launcher::refresh_launcher_index,
+            plugins::local_launcher::get_launcher_settings,
+            plugins::local_launcher::set_launcher_settings,
+            plugins::local_launcher::get_launcher_exclusions,
+            plugins::local_launcher::restore_launcher_entry,
             plugins::local_launcher::get_bookmarks,                    // 获取所有书签
             get_language,                     // 获取界面语言
             set_language,                     // 设置界面语言

@@ -35,6 +35,8 @@ pub trait DbEntity: Sized {
 
     fn summarize(&self) -> &str;
 
+    fn metadata_json(&self) -> String;
+
     // 转换为 SQL 参数（用于插入）
     fn to_insert_params(&self) -> Vec<Box<dyn rusqlite::ToSql>>;
 }
@@ -53,6 +55,7 @@ impl DbEntity for AppInfo {
             icon: row.get(3)?,
             summarize: row.get(4)?,
             usage_count: row.get(5)?,
+            metadata: serde_json::from_str(&row.get::<_, String>(6)?).unwrap_or_default(),
         })
     }
 
@@ -72,6 +75,10 @@ impl DbEntity for AppInfo {
         &self.summarize
     }
 
+    fn metadata_json(&self) -> String {
+        serde_json::to_string(&self.metadata).unwrap_or_else(|_| "{}".into())
+    }
+
     fn to_insert_params(&self) -> Vec<Box<dyn rusqlite::ToSql>> {
         vec![
             Box::new(self.id.clone()),
@@ -79,6 +86,7 @@ impl DbEntity for AppInfo {
             Box::new(self.content.clone()),
             Box::new(self.icon.clone()),
             Box::new(self.summarize.clone()),
+            Box::new(self.metadata_json()),
         ]
     }
 }
@@ -97,6 +105,10 @@ impl DbEntity for BookmarkInfo {
             icon: row.get(3)?,
             summarize: row.get(4)?,
             usage_count: row.get(5)?,
+            sources: serde_json::from_str::<serde_json::Value>(&row.get::<_, String>(6)?)
+                .ok()
+                .and_then(|value| serde_json::from_value(value.get("sources")?.clone()).ok())
+                .unwrap_or_default(),
         })
     }
 
@@ -116,6 +128,10 @@ impl DbEntity for BookmarkInfo {
         &self.summarize
     }
 
+    fn metadata_json(&self) -> String {
+        serde_json::json!({"sources": self.sources}).to_string()
+    }
+
     fn to_insert_params(&self) -> Vec<Box<dyn rusqlite::ToSql>> {
         vec![
             Box::new(self.id.clone()),
@@ -123,6 +139,7 @@ impl DbEntity for BookmarkInfo {
             Box::new(self.content.clone()),
             Box::new(self.icon.clone()),
             Box::new(self.summarize.clone()),
+            Box::new(self.metadata_json()),
         ]
     }
 }
@@ -163,14 +180,24 @@ fn select_entities_sql<T: DbEntity>(schema: &str, predicate: &str) -> String {
             t.icon,
             t.summarize,
             COALESCE(h.usage_count, 0) AS usage_count,
-            COALESCE(t.created_at, '') AS sort_created_at
+            COALESCE(t.created_at, '') AS sort_created_at,
+            COALESCE(t.metadata, '{{}}') AS metadata
          FROM {}.{} t
          LEFT JOIN main.search_history h ON h.id = {}
-         WHERE {}",
+         WHERE ({}) AND NOT EXISTS (
+             SELECT 1 FROM main.launcher_exclusions e
+             WHERE e.kind = '{kind}' AND e.target = t.content {collation}
+         )",
         schema,
         T::TABLE_NAME,
         history_key_expr::<T>(),
-        predicate
+        predicate,
+        kind = T::SUMMARIZE_TYPE,
+        collation = if T::SUMMARIZE_TYPE == "app" {
+            "COLLATE NOCASE"
+        } else {
+            ""
+        },
     )
 }
 
@@ -213,7 +240,7 @@ pub(crate) fn get_all_entities<T: DbEntity>() -> Result<Vec<T>, rusqlite::Error>
     // 使用 core.search_history 的 usage_count 排序。历史 key 与前端
     // searchRanking.getPrimarySearchHistoryKey 保持一致。
     let query = format!(
-        "SELECT id, title, content, icon, summarize, usage_count
+        "SELECT id, title, content, icon, summarize, usage_count, metadata
          FROM ({})
          ORDER BY usage_count DESC, sort_created_at DESC",
         selects.join(" UNION ALL ")
@@ -251,50 +278,6 @@ pub(crate) fn update_entity_icon<T: DbEntity>(
     Ok(())
 }
 
-// 通用计数
-pub(crate) fn count_entities<T: DbEntity>() -> Result<i64, rusqlite::Error> {
-    let conn = DbConnectionManager::get_core()?;
-    DbConnectionManager::attach_search_database(&conn)?;
-
-    let mut count = 0;
-    let core_table_exists = table_exists_in_schema(&conn, "main", T::TABLE_NAME)?;
-    if core_table_exists {
-        count += conn.query_row(
-            &format!(
-                "SELECT COUNT(*) FROM main.{} WHERE COALESCE(source_kind, 'user') <> 'scanner'",
-                T::TABLE_NAME
-            ),
-            [],
-            |row| row.get::<_, i64>(0),
-        )?;
-    }
-    if table_exists_in_schema(&conn, SEARCH_DB_SCHEMA, T::TABLE_NAME)? {
-        let query = if core_table_exists {
-            format!(
-                "SELECT COUNT(*)
-                 FROM {}.{} t
-                 WHERE COALESCE(t.source_kind, 'scanner') = 'scanner'
-                   AND NOT EXISTS (
-                      SELECT 1 FROM main.{} core
-                      WHERE COALESCE(core.source_kind, 'user') <> 'scanner'
-                        AND core.content = t.content
-                   )",
-                SEARCH_DB_SCHEMA,
-                T::TABLE_NAME,
-                T::TABLE_NAME
-            )
-        } else {
-            format!(
-                "SELECT COUNT(*) FROM {}.{} WHERE COALESCE(source_kind, 'scanner') = 'scanner'",
-                SEARCH_DB_SCHEMA,
-                T::TABLE_NAME
-            )
-        };
-        count += conn.query_row(&query, [], |row| row.get::<_, i64>(0))?;
-    }
-    Ok(count)
-}
-
 // 通用批量插入
 pub(crate) fn insert_entities<T: DbEntity>(entities: &[T]) -> Result<(), rusqlite::Error> {
     let mut conn = DbConnectionManager::get_search()?;
@@ -305,8 +288,8 @@ pub(crate) fn insert_entities<T: DbEntity>(entities: &[T]) -> Result<(), rusqlit
     }
 
     let query = format!(
-        "INSERT OR REPLACE INTO {} (id, title, content, icon, summarize, source_kind)
-         SELECT ?1, ?2, ?3, ?4, ?5, 'scanner'
+        "INSERT OR REPLACE INTO {} (id, title, content, icon, summarize, metadata, source_kind)
+         SELECT ?1, ?2, ?3, ?4, ?5, ?6, 'scanner'
          WHERE NOT EXISTS (
              SELECT 1 FROM {}.{} WHERE source_kind <> 'scanner' AND content = ?3
          )",
@@ -414,13 +397,13 @@ fn sync_entities_in_transaction<T: DbEntity>(
             "UPDATE {} SET
                  title = ?1,
                  icon = COALESCE(?2, icon),
-                 summarize = ?3
-             WHERE id = ?4 AND source_kind = 'scanner'",
+                 summarize = ?3, metadata = ?4
+             WHERE id = ?5 AND source_kind = 'scanner'",
             T::TABLE_NAME
         );
         let insert_query = format!(
-            "INSERT INTO {} (id, title, content, icon, summarize, source_kind)
-             VALUES (?1, ?2, ?3, ?4, ?5, 'scanner')",
+            "INSERT INTO {} (id, title, content, icon, summarize, metadata, source_kind)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'scanner')",
             T::TABLE_NAME
         );
         let mut update_stmt = transaction.prepare(&update_query)?;
@@ -432,6 +415,7 @@ fn sync_entities_in_transaction<T: DbEntity>(
                     entity.title(),
                     entity.icon(),
                     entity.summarize(),
+                    entity.metadata_json(),
                     existing_id
                 ])?;
             } else {
@@ -440,7 +424,8 @@ fn sync_entities_in_transaction<T: DbEntity>(
                     entity.title(),
                     entity.content(),
                     entity.icon(),
-                    entity.summarize()
+                    entity.summarize(),
+                    entity.metadata_json()
                 ])?;
             }
         }
@@ -463,7 +448,8 @@ mod tests {
                 summarize TEXT NOT NULL,
                 created_at TEXT DEFAULT (datetime('now')),
                 usage_count INTEGER DEFAULT 0,
-                source_kind TEXT NOT NULL DEFAULT 'scanner'
+                source_kind TEXT NOT NULL DEFAULT 'scanner',
+                metadata TEXT NOT NULL DEFAULT '{{}}'
             );",
             schema
         ))
@@ -478,6 +464,7 @@ mod tests {
             icon: None,
             summarize: "app".to_string(),
             usage_count: 0,
+            metadata: Default::default(),
         }
     }
 
@@ -596,5 +583,41 @@ mod tests {
             .unwrap(),
             1
         );
+    }
+    #[test]
+    fn exclusions_survive_scanner_replacement_and_restore_the_same_item() {
+        let mut conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch("ATTACH DATABASE ':memory:' AS core_db;
+            CREATE TABLE launcher_exclusions (kind TEXT, target TEXT, title TEXT, PRIMARY KEY(kind,target));
+            CREATE TABLE search_history (id TEXT PRIMARY KEY, usage_count INTEGER);").unwrap();
+        create_entity_table(&conn, "main");
+        create_entity_table(&conn, CORE_DB_SCHEMA);
+        conn.execute(
+            "INSERT INTO launcher_exclusions VALUES ('app', 'C:/Apps/Test.exe', 'Hidden')",
+            [],
+        )
+        .unwrap();
+        let mut discovered = app("first", "Test", "c:/apps/test.exe");
+        discovered.metadata.aliases = vec!["Legacy name".into()];
+        for _ in 0..2 {
+            let transaction = conn.transaction().unwrap();
+            sync_entities_in_transaction(&transaction, &[discovered.clone()], true).unwrap();
+            transaction.commit().unwrap();
+        }
+        let query = select_entities_sql::<AppInfo>("main", "1");
+        assert_eq!(
+            conn.prepare(&query)
+                .unwrap()
+                .query_map([], |_| Ok(()))
+                .unwrap()
+                .count(),
+            0
+        );
+        conn.execute("DELETE FROM launcher_exclusions", []).unwrap();
+        let query =
+            format!("SELECT id,title,content,icon,summarize,usage_count,metadata FROM ({query})");
+        let restored = conn.query_row(&query, [], AppInfo::from_row).unwrap();
+        assert_eq!(restored.metadata.aliases, ["Legacy name"]);
+        assert_eq!(restored.id, "first");
     }
 }

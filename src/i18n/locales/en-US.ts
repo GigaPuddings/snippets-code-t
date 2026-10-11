@@ -1003,6 +1003,47 @@ export default {
 
   // Local Apps/Bookmarks
   local: {
+    launcherSettings: 'Launcher settings',
+    discovery: 'App discovery',
+    showAuxiliary: 'Show auxiliary tools and execution aliases',
+    auxiliaryHint:
+      'Internal helpers and command aliases are hidden by default. Manually added apps are retained.',
+    scanRoots: 'Additional scan directories',
+    scanRootsHint:
+      'One absolute directory per line, up to 10 directories; depth limited to 4.',
+    rescan: 'Rescan',
+    rescanStarted: 'Rescan started',
+    settingsSaved: 'Launcher settings saved',
+    hiddenItems: 'Hidden items',
+    hiddenHint:
+      'Hide only in the launcher. Original apps and browser bookmarks are retained. Hidden items stay hidden after rescanning and can be restored in settings.',
+    restore: 'Restore',
+    noHiddenItems: 'No hidden items',
+    hide: 'Hide from launcher',
+    hideConfirm: 'Choose how to handle “{name}”:',
+    removeTitle: 'Remove item',
+    hiddenSuccess: 'Hidden from launcher',
+    continue: 'Continue',
+    browserConnection: 'Browser connections',
+    bridgeHint:
+      'Prepare the local connection, then load the exported chromium directory in Chrome, Edge or Brave extensions. For Firefox, temporarily load firefox/manifest.json in the debugging page. Open the extension, label this profile, connect, then pair the matching profile below.',
+    prepareBridge: 'Prepare connection and export extension',
+    refreshConnections: 'Refresh connections',
+    removeBridge: 'Remove local connection',
+    extensionExported: 'Extension exported to: {path}',
+    noBrowserConnection:
+      'No browser extension connected. Open the extension, click Connect, then refresh.',
+    selectConnection: 'Select the extension connection for this profile',
+    deleteBrowserBookmark: 'Delete original browser bookmark…',
+    browserDeleteHint:
+      'Confirm the sources to delete. The selected browser performs the operation and controls its own sync behavior. Unselected sources are retained.',
+    confirmBrowserDelete: 'Delete selected original bookmarks',
+    sourceNotConnected:
+      'This source has no paired, available browser connection.',
+    browserDeleteSuccess: 'Deleted {count} browser bookmark sources',
+    allBrowsers: 'All browsers',
+    sourceCount: '{count} sources',
+    sourceDetails: 'Bookmark source details',
     apps: 'Local Apps',
     bookmarks: 'Bookmarks',
     total: 'Total',

@@ -48,6 +48,9 @@ fn clear_workspace_plugin_config(app_handle: &AppHandle, plugin_id: &str) -> Res
 }
 
 fn clear_database_plugin_config(plugin_id: &str) -> Result<(), String> {
+    if plugin_id == "local-launcher" {
+        crate::bookmark_bridge::unregister()?;
+    }
     if plugin_id == "git-sync" {
         let conn = crate::db::DbConnectionManager::get_core().map_err(|e| e.to_string())?;
         conn.execute("DELETE FROM user_settings WHERE id = 1", [])

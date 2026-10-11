@@ -38,6 +38,53 @@ pub struct BookmarkInfo {
     pub summarize: String,
     #[serde(default)]
     pub usage_count: u32,
+    #[serde(default)]
+    pub sources: Vec<BookmarkSource>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct BookmarkSource {
+    pub browser: String,
+    pub profile: String,
+    pub profile_key: String,
+    pub node_id: String,
+    #[serde(default)]
+    pub folder_path: Vec<String>,
+    pub storage_path: String,
+    #[serde(default)]
+    pub url: String,
+    #[serde(default)]
+    pub title: String,
+}
+
+impl BookmarkSource {
+    fn new(
+        browser: &str,
+        storage: &Path,
+        node_id: String,
+        folder_path: Vec<String>,
+        url: &str,
+        title: &str,
+    ) -> Self {
+        let profile = storage.parent().unwrap_or(storage);
+        let profile_key = hex::encode(Sha256::digest(
+            profile.to_string_lossy().to_lowercase().as_bytes(),
+        ));
+        Self {
+            browser: browser.into(),
+            profile: profile
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .into(),
+            profile_key,
+            node_id,
+            folder_path,
+            storage_path: storage.to_string_lossy().into(),
+            url: url.into(),
+            title: title.into(),
+        }
+    }
 }
 
 // ============= 浏览器路径配置 =============
@@ -442,73 +489,91 @@ fn get_chromium_profile_bookmark_paths(base_path: &Path) -> Vec<PathBuf> {
     paths
 }
 
-fn read_firefox_bookmarks(connection: &Connection) -> Option<Vec<BookmarkInfo>> {
-    let mut bookmarks = Vec::new();
-    let query = "
-        SELECT b.id, b.title, p.url
-        FROM moz_bookmarks b
-        JOIN moz_places p ON b.fk = p.id
-        WHERE b.type = 1 AND p.url NOT LIKE 'place:%'
-    ";
-    let mut stmt = connection.prepare(query).ok()?;
+fn read_firefox_bookmarks(connection: &Connection, db_path: &Path) -> Option<Vec<BookmarkInfo>> {
+    let columns: HashSet<String> = connection
+        .prepare("PRAGMA table_info(moz_bookmarks)")
+        .ok()?
+        .query_map([], |row| row.get(1))
+        .ok()?
+        .filter_map(Result::ok)
+        .collect();
+    let parent = if columns.contains("parent") {
+        "b.parent"
+    } else {
+        "0"
+    };
+    let guid = if columns.contains("guid") {
+        "b.guid"
+    } else {
+        "''"
+    };
+    let query = format!(
+        "SELECT b.id, COALESCE(b.title, ''), p.url, {parent}, {guid}
+        FROM moz_bookmarks b LEFT JOIN moz_places p ON b.fk = p.id WHERE b.type IN (1, 2)"
+    );
+    let mut stmt = connection.prepare(&query).ok()?;
     let rows = stmt
         .query_map([], |row| {
             Ok((
                 row.get::<_, i64>(0)?,
-                row.get::<_, Option<String>>(1)?,
-                row.get::<_, String>(2)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, Option<String>>(2)?,
+                row.get::<_, i64>(3)?,
+                row.get::<_, String>(4)?,
             ))
         })
+        .ok()?
+        .collect::<Result<Vec<_>, _>>()
         .ok()?;
-
-    for (_id, title_opt, url) in rows.flatten() {
-        let mut title = title_opt.unwrap_or_default();
+    let folders: HashMap<i64, (String, i64)> = rows
+        .iter()
+        .filter(|row| row.2.is_none())
+        .map(|row| (row.0, (row.1.clone(), row.3)))
+        .collect();
+    let mut bookmarks = Vec::new();
+    for (_, mut title, url, mut parent, guid) in rows {
+        let source_title = title.clone();
+        let Some(url) = url.filter(|url| !url.starts_with("place:")) else {
+            continue;
+        };
         if title.is_empty() {
-            if let Some(domain_name) = get_domain_name(&url) {
-                title = domain_name;
-            }
+            title = get_domain_name(&url).unwrap_or_default();
         }
-
+        let mut folder_path = Vec::new();
+        let mut visited = HashSet::new();
+        while parent != 0 && visited.insert(parent) && visited.len() <= 64 {
+            let Some((name, next)) = folders.get(&parent) else {
+                break;
+            };
+            if !name.is_empty() {
+                folder_path.push(name.clone());
+            }
+            parent = *next;
+        }
+        folder_path.reverse();
         bookmarks.push(BookmarkInfo {
-            // Firefox row IDs are only unique within one profile. URL-based
-            // IDs remain stable across profiles and process restarts.
             id: bookmark_scanner_id(&url),
-            title,
-            content: url,
+            title: title.clone(),
+            content: url.clone(),
             icon: None,
-            summarize: "bookmark".to_string(),
+            summarize: "bookmark".into(),
             usage_count: 0,
+            sources: vec![BookmarkSource::new(
+                "Firefox",
+                db_path,
+                guid,
+                folder_path,
+                &url,
+                &source_title,
+            )],
         });
     }
     Some(bookmarks)
 }
 
-fn extract_firefox_bookmarks(db_path: &Path) -> Vec<BookmarkInfo> {
-    let bookmarks = if let Some(snapshot) = BrowserDbSnapshot::open(db_path, "snippets-places") {
-        match read_firefox_bookmarks(snapshot.connection()) {
-            Some(bookmarks) => bookmarks,
-            None => {
-                log::warn!(
-                    "[LocalLauncher] 无法查询 Firefox 书签数据库快照: {}",
-                    db_path.display()
-                );
-                Vec::new()
-            }
-        }
-    } else {
-        log::warn!(
-            "[LocalLauncher] 无法读取 Firefox 书签数据库快照: {}",
-            db_path.display()
-        );
-        Vec::new()
-    };
-
-    log::info!(
-        "[LocalLauncher] Firefox 书签文本扫描完成: path={}, count={}",
-        db_path.display(),
-        bookmarks.len()
-    );
-    bookmarks
+fn extract_firefox_bookmarks(db_path: &Path) -> Option<Vec<BookmarkInfo>> {
+    let snapshot = BrowserDbSnapshot::open(db_path, "snippets-places")?;
+    read_firefox_bookmarks(snapshot.connection(), db_path)
 }
 
 // 获取Chrome浏览器书签路径
@@ -741,8 +806,12 @@ fn append_bookmark_fingerprint_tokens(
     tokens.push(format!("source\0{}\0{}", source_kind, source_path));
     tokens.extend(bookmarks.into_iter().map(|bookmark| {
         format!(
-            "bookmark\0{}\0{}\0{}\0{}",
-            source_kind, source_path, bookmark.title, bookmark.content
+            "bookmark\0{}\0{}\0{}\0{}\0{}",
+            source_kind,
+            source_path,
+            bookmark.title,
+            bookmark.content,
+            serde_json::to_string(&bookmark.sources).unwrap_or_default()
         )
     }));
 }
@@ -754,7 +823,7 @@ fn chromium_bookmark_fingerprint_tokens(path: &Path) -> Option<Vec<String>> {
     let mut bookmarks = Vec::new();
     for root_name in ["bookmark_bar", "other", "synced"] {
         if let Some(root) = roots.get(root_name) {
-            bookmarks.extend(extract_bookmarks(root));
+            bookmarks.extend(extract_bookmarks_with_source(root, "chromium", path, &[]));
         }
     }
 
@@ -765,10 +834,10 @@ fn chromium_bookmark_fingerprint_tokens(path: &Path) -> Option<Vec<String>> {
 
 fn firefox_bookmark_fingerprint_tokens(path: &Path) -> Option<Vec<String>> {
     let bookmarks = open_readonly_browser_db(path)
-        .and_then(|connection| read_firefox_bookmarks(&connection))
+        .and_then(|connection| read_firefox_bookmarks(&connection, path))
         .or_else(|| {
             BrowserDbSnapshot::open(path, "snippets-places-fingerprint")
-                .and_then(|snapshot| read_firefox_bookmarks(snapshot.connection()))
+                .and_then(|snapshot| read_firefox_bookmarks(snapshot.connection(), path))
         })?;
 
     let mut tokens = Vec::new();
@@ -839,196 +908,154 @@ pub fn browser_bookmarks_source_fingerprint() -> String {
     fingerprint
 }
 
-// 获取浏览器书签
-pub fn get_browser_bookmarks() -> Vec<BookmarkInfo> {
+pub struct BrowserBookmarkScan {
+    pub bookmarks: Vec<BookmarkInfo>,
+    pub complete: bool,
+}
+
+// A transient browser write/lock must not turn an incomplete scan into an empty replacement.
+pub fn get_browser_bookmarks() -> BrowserBookmarkScan {
     let mut bookmarks = Vec::new();
-    let mut browser_stats = std::collections::HashMap::new();
-
-    // Chrome书签
-    for bookmarks_path in get_chrome_bookmarks_paths() {
-        let new_bookmarks = extract_chromium_bookmarks(&bookmarks_path, "Chrome");
-        let count = new_bookmarks.len();
-        bookmarks.extend(new_bookmarks);
-        *browser_stats.entry("Chrome".to_string()).or_insert(0) += count;
+    let mut complete = true;
+    let mut seen = HashSet::new();
+    for (browser, paths) in [
+        ("Chrome", get_chrome_bookmarks_paths()),
+        ("Edge", get_edge_bookmarks_paths()),
+        ("360Speed", get_360_speed_bookmarks_paths()),
+        ("QQBrowser", get_qq_browser_bookmarks_paths()),
+        ("Brave", get_brave_bookmarks_paths()),
+        ("Vivaldi", get_vivaldi_bookmarks_paths()),
+        ("Opera", get_opera_bookmarks_paths()),
+        ("ChromeCore", get_chromecore_bookmarks_paths()),
+        ("ShuangHe", get_shuanghe_bookmarks_paths()),
+        ("Firefox", get_firefox_bookmarks_files()),
+    ] {
+        for path in paths {
+            if !seen.insert(path.clone()) {
+                continue;
+            }
+            let result = if browser == "Firefox" {
+                extract_firefox_bookmarks(&path)
+            } else {
+                extract_chromium_bookmarks(&path, browser)
+            };
+            if let Some(mut items) = result {
+                bookmarks.append(&mut items);
+            } else {
+                complete = false;
+                log::warn!(
+                    "[LocalLauncher] 书签读取失败，本轮保留旧索引: {}",
+                    path.display()
+                );
+            }
+        }
     }
-
-    for bookmarks_path in get_edge_bookmarks_paths() {
-        let new_bookmarks = extract_chromium_bookmarks(&bookmarks_path, "Edge");
-        let count = new_bookmarks.len();
-        bookmarks.extend(new_bookmarks);
-        *browser_stats.entry("Edge".to_string()).or_insert(0) += count;
+    BrowserBookmarkScan {
+        bookmarks: aggregate_bookmark_sources(bookmarks),
+        complete,
     }
+}
 
-    for bookmarks_path in get_360_speed_bookmarks_paths() {
-        let new_bookmarks = extract_chromium_bookmarks(&bookmarks_path, "360Speed");
-        let count = new_bookmarks.len();
-        bookmarks.extend(new_bookmarks);
-        *browser_stats
-            .entry("360极速浏览器".to_string())
-            .or_insert(0) += count;
-    }
+fn extract_chromium_bookmarks(path: &Path, browser: &str) -> Option<Vec<BookmarkInfo>> {
+    let content = fs::read_to_string(path).ok()?;
+    let value: serde_json::Value = serde_json::from_str(&content).ok()?;
+    let roots = value.get("roots")?.as_object()?;
+    Some(
+        ["bookmark_bar", "other", "synced"]
+            .into_iter()
+            .filter_map(|key| roots.get(key))
+            .flat_map(|root| extract_bookmarks_with_source(root, browser, path, &[]))
+            .collect(),
+    )
+}
 
-    for bookmarks_path in get_qq_browser_bookmarks_paths() {
-        let new_bookmarks = extract_chromium_bookmarks(&bookmarks_path, "QQBrowser");
-        let count = new_bookmarks.len();
-        bookmarks.extend(new_bookmarks);
-        *browser_stats.entry("QQ浏览器".to_string()).or_insert(0) += count;
-    }
-
-    for bookmarks_path in get_brave_bookmarks_paths() {
-        let new_bookmarks = extract_chromium_bookmarks(&bookmarks_path, "Brave");
-        let count = new_bookmarks.len();
-        bookmarks.extend(new_bookmarks);
-        *browser_stats.entry("Brave浏览器".to_string()).or_insert(0) += count;
-    }
-
-    for bookmarks_path in get_vivaldi_bookmarks_paths() {
-        let new_bookmarks = extract_chromium_bookmarks(&bookmarks_path, "Vivaldi");
-        let count = new_bookmarks.len();
-        bookmarks.extend(new_bookmarks);
-        *browser_stats
-            .entry("Vivaldi浏览器".to_string())
-            .or_insert(0) += count;
-    }
-
-    for bookmarks_path in get_opera_bookmarks_paths() {
-        let new_bookmarks = extract_chromium_bookmarks(&bookmarks_path, "Opera");
-        let count = new_bookmarks.len();
-        bookmarks.extend(new_bookmarks);
-        *browser_stats.entry("Opera浏览器".to_string()).or_insert(0) += count;
-    }
-
-    for bookmarks_path in get_chromecore_bookmarks_paths() {
-        let new_bookmarks = extract_chromium_bookmarks(&bookmarks_path, "ChromeCore");
-        let count = new_bookmarks.len();
-        bookmarks.extend(new_bookmarks);
-        *browser_stats
-            .entry("ChromeCore浏览器".to_string())
-            .or_insert(0) += count;
-    }
-
-    for bookmarks_path in get_shuanghe_bookmarks_paths() {
-        let new_bookmarks = extract_chromium_bookmarks(&bookmarks_path, "ShuangHe");
-        let count = new_bookmarks.len();
-        bookmarks.extend(new_bookmarks);
-        *browser_stats.entry("双核浏览器".to_string()).or_insert(0) += count;
-    }
-
-    for bookmarks_path in get_firefox_bookmarks_files() {
-        let new_bookmarks = extract_firefox_bookmarks(&bookmarks_path);
-        let count = new_bookmarks.len();
-        bookmarks.extend(new_bookmarks);
-        *browser_stats.entry("Firefox".to_string()).or_insert(0) += count;
-    }
-
-    // 去除重复书签（基于URL去重，这是最准确的去重方式）
-    let mut unique_bookmarks = Vec::new();
-    let mut seen_urls = std::collections::HashSet::new();
-
+fn aggregate_bookmark_sources(bookmarks: Vec<BookmarkInfo>) -> Vec<BookmarkInfo> {
+    let mut result: Vec<BookmarkInfo> = Vec::new();
+    let mut urls = HashMap::new();
     for bookmark in bookmarks {
-        // 标准化URL（转为小写，移除尾部斜杠）
-        let normalized_url = bookmark
-            .content
-            .to_lowercase()
-            .trim_end_matches('/')
-            .to_string();
-
-        if !seen_urls.contains(&normalized_url) {
-            seen_urls.insert(normalized_url);
-            unique_bookmarks.push(bookmark);
-        }
-    }
-
-    log::info!(
-        "[LocalLauncher] 浏览器书签文本索引扫描完成: sources={:?}, unique_count={}",
-        browser_stats,
-        unique_bookmarks.len()
-    );
-    unique_bookmarks
-}
-
-// 从Chromium系列浏览器提取书签
-fn extract_chromium_bookmarks(bookmarks_path: &PathBuf, browser_name: &str) -> Vec<BookmarkInfo> {
-    let mut bookmarks = Vec::new();
-    match fs::read_to_string(bookmarks_path) {
-        Ok(content) => match serde_json::from_str::<serde_json::Value>(&content) {
-            Ok(json) => {
-                if let Some(roots) = json.get("roots") {
-                    if let Some(bookmark_bar) = roots.get("bookmark_bar") {
-                        bookmarks.extend(extract_bookmarks(bookmark_bar));
-                    }
-                    if let Some(other) = roots.get("other") {
-                        bookmarks.extend(extract_bookmarks(other));
-                    }
-                    if let Some(synced) = roots.get("synced") {
-                        bookmarks.extend(extract_bookmarks(synced));
-                    }
+        let url = bookmark.content.trim().to_string();
+        if let Some(&index) = urls.get(&url) {
+            let existing: &mut BookmarkInfo = &mut result[index];
+            for source in bookmark.sources {
+                if !existing.sources.contains(&source) {
+                    existing.sources.push(source);
                 }
             }
-            Err(error) => log::warn!(
-                "[LocalLauncher] 解析 {} 书签 JSON 失败: path={}, error={}",
-                browser_name,
-                bookmarks_path.display(),
-                error
-            ),
-        },
-        Err(error) => log::warn!(
-            "[LocalLauncher] 读取 {} 书签文件失败: path={}, error={}",
-            browser_name,
-            bookmarks_path.display(),
-            error
-        ),
-    };
-
-    log::info!(
-        "[LocalLauncher] {} 书签文本扫描完成: path={}, count={}",
-        browser_name,
-        bookmarks_path.display(),
-        bookmarks.len()
-    );
-    bookmarks
+        } else {
+            urls.insert(url, result.len());
+            result.push(bookmark);
+        }
+    }
+    result
 }
 
-// 从书签JSON提取书签信息
-fn extract_bookmarks(value: &serde_json::Value) -> Vec<BookmarkInfo> {
+fn extract_bookmarks_with_source(
+    value: &serde_json::Value,
+    browser: &str,
+    path: &Path,
+    ancestors: &[String],
+) -> Vec<BookmarkInfo> {
     let mut bookmarks = Vec::new();
-
-    if let Some(obj) = value.as_object() {
-        if let Some(type_) = obj.get("type") {
-            if type_.as_str().unwrap_or("") == "url" {
-                if let Some(url) = obj.get("url") {
-                    if let Some(name) = obj.get("name") {
-                        let url_str = url.as_str().unwrap_or("").to_string();
-                        let mut title = name.as_str().unwrap_or("").to_string();
-
-                        if title.is_empty() {
-                            if let Some(domain_name) = get_domain_name(&url_str) {
-                                title = domain_name;
-                            }
-                        }
-
-                        bookmarks.push(BookmarkInfo {
-                            id: bookmark_scanner_id(&url_str),
-                            title,
-                            content: url_str,
-                            icon: None,
-                            summarize: "bookmark".to_string(),
-                            usage_count: 0,
-                        });
-                    }
-                }
-            } else if type_.as_str().unwrap_or("") == "folder" {
-                if let Some(children) = obj.get("children") {
-                    if let Some(children_array) = children.as_array() {
-                        for child in children_array {
-                            bookmarks.extend(extract_bookmarks(child));
-                        }
-                    }
+    match value.get("type").and_then(|value| value.as_str()) {
+        Some("url") => {
+            let Some(url) = value.get("url").and_then(|value| value.as_str()) else {
+                return bookmarks;
+            };
+            let source_title = value
+                .get("name")
+                .and_then(|value| value.as_str())
+                .unwrap_or_default();
+            let title = value
+                .get("name")
+                .and_then(|value| value.as_str())
+                .filter(|name| !name.is_empty())
+                .map(str::to_string)
+                .unwrap_or_else(|| get_domain_name(url).unwrap_or_default());
+            let node_id = value
+                .get("id")
+                .and_then(|value| value.as_str())
+                .unwrap_or_default()
+                .to_string();
+            bookmarks.push(BookmarkInfo {
+                id: bookmark_scanner_id(url),
+                title: title.clone(),
+                content: url.to_string(),
+                icon: None,
+                summarize: "bookmark".into(),
+                usage_count: 0,
+                sources: if browser.is_empty() {
+                    Vec::new()
+                } else {
+                    vec![BookmarkSource::new(
+                        browser,
+                        path,
+                        node_id,
+                        ancestors.to_vec(),
+                        url,
+                        source_title,
+                    )]
+                },
+            });
+        }
+        Some("folder") => {
+            let mut folders = ancestors.to_vec();
+            if let Some(name) = value
+                .get("name")
+                .and_then(|value| value.as_str())
+                .filter(|name| !name.is_empty())
+            {
+                folders.push(name.to_string());
+            }
+            if let Some(children) = value.get("children").and_then(|value| value.as_array()) {
+                for child in children {
+                    bookmarks.extend(extract_bookmarks_with_source(
+                        child, browser, path, &folders,
+                    ));
                 }
             }
         }
+        _ => {}
     }
-
     bookmarks
 }
 
@@ -1261,5 +1288,82 @@ mod tests {
                 .expect("fingerprint after Firefox bookmark change"),
         );
         assert_ne!(original, bookmark_changed);
+    }
+    #[test]
+    fn duplicate_urls_preserve_browser_profile_folder_and_node_sources() {
+        let root = TempProfileRoot::new();
+        let document = serde_json::json!({"type":"folder", "name":"Bookmarks bar", "children":[
+            {"type":"folder", "name":"Work", "children":[{"type":"url", "id":"42", "name":"", "url":"https://example.com/Path"}]},
+            {"type":"url", "id":"43", "name":"Other", "url":"https://example.com/Path"},
+            {"type":"url", "id":"44", "name":"Lowercase", "url":"https://example.com/path"},
+            {"type":"url", "id":"45", "name":"Slash", "url":"https://example.com/Path/"}
+        ]});
+        let mut items = extract_bookmarks_with_source(
+            &document,
+            "Chrome",
+            &root.0.join("Default/Bookmarks"),
+            &[],
+        );
+        items.extend(extract_bookmarks_with_source(
+            &document,
+            "Edge",
+            &root.0.join("Profile 12/Bookmarks"),
+            &[],
+        ));
+        let merged = aggregate_bookmark_sources(items);
+        assert_eq!(merged.len(), 3);
+        let first = &merged[0];
+        assert_eq!(first.sources.len(), 4);
+        assert_eq!(first.sources[0].folder_path, ["Bookmarks bar", "Work"]);
+        assert_eq!(first.sources[0].node_id, "42");
+        assert_eq!(first.sources[0].title, ""); // Domain fallback is presentation only.
+        assert_ne!(first.sources[0].profile_key, first.sources[2].profile_key);
+    }
+
+    #[test]
+    fn firefox_provenance_uses_guids_and_retains_original_empty_titles() {
+        let connection = Connection::open_in_memory().unwrap();
+        connection.execute_batch("CREATE TABLE moz_places (id INTEGER PRIMARY KEY, url TEXT);
+            CREATE TABLE moz_bookmarks (id INTEGER PRIMARY KEY, type INTEGER, fk INTEGER, title TEXT, parent INTEGER, guid TEXT);
+            INSERT INTO moz_places VALUES (1, 'https://example.com/');
+            INSERT INTO moz_bookmarks VALUES (10, 2, NULL, 'Toolbar', 0, 'toolbar_____'), (11, 2, NULL, 'Work', 10, 'folder______'), (12, 1, 1, '', 11, 'bookmarkGUID');").unwrap();
+        let items =
+            read_firefox_bookmarks(&connection, Path::new("Profiles/Work/places.sqlite")).unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].sources[0].node_id, "bookmarkGUID");
+        assert_eq!(items[0].sources[0].folder_path, ["Toolbar", "Work"]);
+        assert_eq!(items[0].sources[0].title, "");
+        assert_eq!(items[0].title, "example");
+    }
+
+    #[test]
+    fn broken_bookmark_file_is_distinct_from_a_valid_empty_scan() {
+        let root = TempProfileRoot::new();
+        let path = root.0.join("Bookmarks");
+        fs::write(&path, "{unfinished").unwrap();
+        assert!(extract_chromium_bookmarks(&path, "Chrome").is_none());
+        fs::write(
+            &path,
+            r#"{"roots":{"bookmark_bar":{"type":"folder","children":[]}}}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            extract_chromium_bookmarks(&path, "Chrome").unwrap().len(),
+            0
+        );
+    }
+
+    #[test]
+    fn folder_move_changes_bookmark_semantic_fingerprint() {
+        let root = TempProfileRoot::new();
+        let path = root.0.join("Bookmarks");
+        let document = |folder| {
+            serde_json::json!({"roots":{"bookmark_bar":{"type":"folder", "name":folder,
+            "children":[{"type":"url","id":"42","name":"Docs","url":"https://example.com/"}]}}})
+        };
+        fs::write(&path, document("Work").to_string()).unwrap();
+        let before = chromium_bookmark_fingerprint_tokens(&path).unwrap();
+        fs::write(&path, document("Personal").to_string()).unwrap();
+        assert_ne!(before, chromium_bookmark_fingerprint_tokens(&path).unwrap());
     }
 }

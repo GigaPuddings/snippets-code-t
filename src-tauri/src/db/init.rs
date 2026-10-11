@@ -188,6 +188,28 @@ fn create_local_launcher_tables(conn: &rusqlite::Connection) -> Result<(), rusql
         [],
     )?;
 
+    for table in ["apps", "bookmarks"] {
+        let has_metadata = conn
+            .prepare(&format!("PRAGMA table_info({table})"))?
+            .query_map([], |row| row.get::<_, String>(1))?
+            .any(|column| column.is_ok_and(|column| column == "metadata"));
+        if !has_metadata {
+            conn.execute(
+                &format!("ALTER TABLE {table} ADD COLUMN metadata TEXT NOT NULL DEFAULT '{{}}'"),
+                [],
+            )?;
+        }
+    }
+    conn.execute_batch("CREATE TABLE IF NOT EXISTS launcher_exclusions (
+        kind TEXT NOT NULL, target TEXT NOT NULL, title TEXT NOT NULL,
+        PRIMARY KEY(kind, target));
+        CREATE TABLE IF NOT EXISTS launcher_preferences (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS bookmark_bridge_bindings (profile_key TEXT PRIMARY KEY, client_id TEXT NOT NULL);")?;
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS launcher_deleted_bookmark_sources (
+        profile_key TEXT NOT NULL, node_id TEXT NOT NULL, PRIMARY KEY(profile_key, node_id));",
+    )?;
+
     let _ = conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_apps_usage ON apps(usage_count DESC)",
         [],
@@ -206,7 +228,7 @@ fn create_local_launcher_tables(conn: &rusqlite::Connection) -> Result<(), rusql
     );
     conn.execute(
         "INSERT OR IGNORE INTO schema_migrations(component, version)
-         VALUES ('local-launcher', 1)",
+         VALUES ('local-launcher', 2)",
         [],
     )?;
 
@@ -288,6 +310,10 @@ pub fn clear_plugin_storage(plugin_id: &str) -> Result<(), rusqlite::Error> {
             let core = DbConnectionManager::get_core()?;
             let search = DbConnectionManager::get_search()?;
             for conn in [&core, &search] {
+                conn.execute("DROP TABLE IF EXISTS launcher_deleted_bookmark_sources", [])?;
+                conn.execute("DROP TABLE IF EXISTS launcher_exclusions", [])?;
+                conn.execute("DROP TABLE IF EXISTS launcher_preferences", [])?;
+                conn.execute("DROP TABLE IF EXISTS bookmark_bridge_bindings", [])?;
                 conn.execute("DROP TABLE IF EXISTS apps", [])?;
                 conn.execute("DROP TABLE IF EXISTS bookmarks", [])?;
                 conn.execute("DROP INDEX IF EXISTS idx_apps_usage", [])?;
@@ -577,6 +603,38 @@ mod tests {
                 .query_row("SELECT COUNT(*) FROM apps", [], |row| row.get::<_, i64>(0))
                 .unwrap(),
             0
+        );
+    }
+    #[test]
+    fn launcher_metadata_migration_is_idempotent_and_preserves_legacy_rows() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        create_core_tables(&conn).unwrap();
+        for table in ["apps", "bookmarks"] {
+            conn.execute_batch(&format!("CREATE TABLE {table} (id TEXT PRIMARY KEY, title TEXT, content TEXT, icon TEXT, summarize TEXT, created_at TEXT, usage_count INTEGER, source_kind TEXT);
+                INSERT INTO {table} VALUES ('old', 'Kept', 'target', 'cached-icon', 'app', '2020-01-01', 3, 'user');")).unwrap();
+        }
+        create_local_launcher_tables(&conn).unwrap();
+        create_local_launcher_tables(&conn).unwrap();
+        for table in ["apps", "bookmarks"] {
+            let kept: (String, String, String) = conn
+                .query_row(
+                    &format!("SELECT title, icon, metadata FROM {table} WHERE id='old'"),
+                    [],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .unwrap();
+            assert_eq!(kept, ("Kept".into(), "cached-icon".into(), "{}".into()));
+        }
+        assert!(table_exists_for_test(&conn, "launcher_exclusions"));
+        assert!(table_exists_for_test(&conn, "bookmark_bridge_bindings"));
+        assert_eq!(
+            conn.query_row(
+                "SELECT MAX(version) FROM schema_migrations WHERE component='local-launcher'",
+                [],
+                |row| row.get::<_, i64>(0)
+            )
+            .unwrap(),
+            2
         );
     }
 }

@@ -6,6 +6,14 @@
         <CustomButton
           unstyled
           class="ui-icon-button ui-action--muted"
+          :icon="Settings"
+          :title="$t('local.launcherSettings')"
+          :aria-label="$t('local.launcherSettings')"
+          @click="openSettings()"
+        />
+        <CustomButton
+          unstyled
+          class="ui-icon-button ui-action--muted"
           :aria-label="isEditMode ? $t('local.done') : $t('local.edit')"
           :title="isEditMode ? $t('local.done') : $t('local.edit')"
           :aria-pressed="isEditMode"
@@ -40,6 +48,20 @@
 
         <!-- 搜索和操作 -->
         <div class="header-right">
+          <el-select
+            v-if="activeTab === 'bookmark'"
+            v-model="browserFilter"
+            clearable
+            class="mr-2 w-32"
+            :placeholder="$t('local.allBrowsers')"
+          >
+            <el-option
+              v-for="browser in browserOptions"
+              :key="browser"
+              :label="browser"
+              :value="browser"
+            />
+          </el-select>
           <div class="search-wrapper">
             <Search class="search-icon" width="16" height="16" />
             <el-input
@@ -170,7 +192,13 @@
               type="button"
               class="item-content"
               :disabled="isEditMode"
-              :title="item.content"
+              :title="
+                item.sources?.length
+                  ? item.sources.map(bookmarkSourceLabel).join('\n') +
+                    '\n' +
+                    item.content
+                  : item.content
+              "
               @click="handleItemClick(item)"
             >
               <div class="item-icon">
@@ -211,11 +239,31 @@
                     width="14"
                     height="14"
                   />
-                  <span>{{ item.content }}</span>
+                  <span>
+                    {{
+                      activeTab === 'bookmark' && item.sources?.length
+                        ? bookmarkSourceLabel(item.sources[0])
+                        : item.content
+                    }}
+                  </span>
+                  <span v-if="item.sources?.length > 1" class="shrink-0">
+                    {{
+                      $t('local.sourceCount', { count: item.sources.length })
+                    }}
+                  </span>
                 </div>
               </div>
             </button>
             <div class="item-actions">
+              <CustomButton
+                v-if="item.sources?.length"
+                unstyled
+                class="ui-icon-button ui-action--muted item-edit"
+                :icon="Info"
+                :title="$t('local.sourceDetails')"
+                :aria-label="$t('local.sourceDetails')"
+                @click.stop="sourceDetails = item"
+              />
               <CustomButton
                 v-if="!isEditMode"
                 unstyled
@@ -229,8 +277,8 @@
                 v-if="isEditMode"
                 type="danger"
                 text
-                :aria-label="$t('local.delete')"
-                :title="$t('local.delete')"
+                :aria-label="$t('local.hide')"
+                :title="$t('local.hide')"
                 :icon="Delete"
                 @click.stop="handleDelete(item)"
               />
@@ -248,19 +296,67 @@
       @delete="handleDeleteFromDialog"
     />
 
-    <!-- 删除确认对话框 -->
     <ConfirmDialog
       v-model="showDeleteDialog"
-      :title="$t('local.deleteTitle')"
-      :confirm-text="$t('common.confirm')"
+      :title="$t('local.removeTitle')"
+      :confirm-text="
+        deleteMode === 'browser' ? $t('local.continue') : $t('local.hide')
+      "
       :cancel-text="$t('common.cancel')"
-      type="danger"
+      type="warning"
+      :loading="deleteBusy"
       @confirm="confirmDelete"
     >
-      <div>
-        {{ $t('local.deleteConfirm', { name: deleteTarget?.title || '' }) }}
-      </div>
+      <p>{{ $t('local.hideConfirm', { name: deleteTarget?.title || '' }) }}</p>
+      <p class="mt-2 text-ui-caption text-ui-muted">
+        {{ $t('local.hiddenHint') }}
+      </p>
+      <el-radio-group
+        v-if="deleteTarget?.sources?.length"
+        v-model="deleteMode"
+        class="mt-3 flex flex-col items-start"
+      >
+        <el-radio value="hide">{{ $t('local.hide') }}</el-radio>
+        <el-radio value="browser">
+          {{ $t('local.deleteBrowserBookmark') }}
+        </el-radio>
+      </el-radio-group>
     </ConfirmDialog>
+    <LauncherSettingsDialog
+      v-model="showSettings"
+      :bookmarks="bookmarks"
+      :initial-tab="settingsTab"
+      @changed="loadData"
+    />
+    <BrowserBookmarkDeleteDialog
+      v-model="showBrowserDelete"
+      :bookmark="deleteTarget"
+      @changed="loadData"
+      @configure="openSettings('browser')"
+    />
+    <CommonDialog
+      :model-value="Boolean(sourceDetails)"
+      :title="$t('local.sourceDetails')"
+      width="620px"
+      @update:model-value="!$event && (sourceDetails = null)"
+    >
+      <p class="mb-3 text-ui font-medium">{{ sourceDetails?.title }}</p>
+      <div class="max-h-80 space-y-2 overflow-y-auto">
+        <div
+          v-for="source in sourceDetails?.sources || []"
+          :key="bookmarkSourceKey(source)"
+          class="rounded-ui bg-ui-card p-3"
+        >
+          <p class="text-ui font-medium">{{ bookmarkSourceLabel(source) }}</p>
+          <p class="mt-1 break-all text-ui-caption text-ui-muted">
+            {{ source.url }}
+          </p>
+          <p class="mt-1 break-all text-ui-caption text-ui-muted">
+            {{ source.storage_path }}
+          </p>
+        </div>
+      </div>
+    </CommonDialog>
   </main>
 </template>
 
@@ -281,10 +377,19 @@ import FolderOpen from '~icons/lucide/folder-open';
 import Link from '~icons/lucide/link';
 import Search from '~icons/lucide/search';
 import LoadingIcon from '~icons/lucide/loader-circle';
+import Settings from '~icons/lucide/settings';
+import Info from '~icons/lucide/info';
 import { RecycleScroller } from 'vue-virtual-scroller';
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css';
 import EditDialog from './components/EditDialog.vue';
-import { ConfirmDialog, CustomButton } from '@/components/UI';
+import { CommonDialog, ConfirmDialog, CustomButton } from '@/components/UI';
+import LauncherSettingsDialog from './components/LauncherSettingsDialog.vue';
+import BrowserBookmarkDeleteDialog from './components/BrowserBookmarkDeleteDialog.vue';
+import {
+  bookmarkSourceLabel,
+  bookmarkSourceKey,
+  type LauncherEntry
+} from '../../types';
 import { getPrimarySearchHistoryKey } from '@/search/ranking';
 import {
   refreshRecycleScroller,
@@ -296,23 +401,8 @@ defineOptions({
   keepAlive: true
 });
 
-interface AppInfo {
-  id: string;
-  title: string;
-  content: string;
-  icon?: string | null;
-  summarize: string;
-  usage_count: number;
-}
-
-interface BookmarkInfo {
-  id: string;
-  title: string;
-  content: string;
-  icon?: string | null;
-  summarize: string;
-  usage_count: number;
-}
+type AppInfo = LauncherEntry;
+type BookmarkInfo = LauncherEntry;
 
 interface EditSubmitData {
   id?: string;
@@ -366,7 +456,29 @@ const editDialogRef = ref();
 const currentEditData = ref<AppInfo | BookmarkInfo | null>(null);
 const showDeleteDialog = ref(false);
 const deleteTarget = ref<AppInfo | BookmarkInfo | null>(null);
-const deleteFromDialog = ref(false);
+const deleteMode = ref<'hide' | 'browser'>('hide');
+const deleteBusy = ref(false);
+const showBrowserDelete = ref(false);
+const showSettings = ref(false);
+const settingsTab = ref('discovery');
+const sourceDetails = ref<LauncherEntry | null>(null);
+const browserFilter = ref('');
+const matchingIds = ref<Set<string> | null>(null);
+let searchVersion = 0;
+let searchTimer: ReturnType<typeof setTimeout> | undefined;
+const browserOptions = computed(() =>
+  [
+    ...new Set(
+      bookmarks.value.flatMap(
+        (bookmark) => bookmark.sources?.map((source) => source.browser) || []
+      )
+    )
+  ].sort()
+);
+const openSettings = (tab = 'discovery') => {
+  settingsTab.value = tab;
+  showSettings.value = true;
+};
 const localContentRef = ref<HTMLElement | null>(null);
 const scrollerRef = ref<RecycleScrollerInstance | null>(null);
 const listItemSize = ref(64);
@@ -422,18 +534,36 @@ const localizedScanStage = computed(() => {
   return t('progress.title');
 });
 
-// 搜索过滤
-const filteredList = computed(() => {
-  if (!searchQuery.value.trim()) {
-    return currentList.value;
-  }
-
-  const query = searchQuery.value.toLowerCase();
-  return currentList.value.filter(
+// Use the same backend name/alias/pinyin rules as global search.
+const filteredList = computed(() =>
+  currentList.value.filter(
     (item) =>
-      item.title.toLowerCase().includes(query) ||
-      item.content.toLowerCase().includes(query)
-  );
+      (!searchQuery.value.trim() || matchingIds.value?.has(item.id)) &&
+      (activeTab.value !== 'bookmark' ||
+        !browserFilter.value ||
+        item.sources?.some((source) => source.browser === browserFilter.value))
+  )
+);
+watch([searchQuery, activeTab, currentList], () => {
+  const version = ++searchVersion;
+  clearTimeout(searchTimer);
+  if (!searchQuery.value.trim()) {
+    matchingIds.value = null;
+    return;
+  }
+  matchingIds.value = new Set();
+  searchTimer = setTimeout(async () => {
+    try {
+      const matches = await invoke<Array<{ id: string }>>(
+        activeTab.value === 'app' ? 'search_apps' : 'search_bookmarks',
+        { query: searchQuery.value.trim() }
+      );
+      if (version === searchVersion)
+        matchingIds.value = new Set(matches.map((item) => item.id));
+    } catch (error) {
+      if (version === searchVersion) modal.error(String(error));
+    }
+  }, 120);
 });
 
 watch(
@@ -468,6 +598,11 @@ const loadBookmarks = async () => {
 
 const loadData = async () => {
   await Promise.all([loadApps(), loadBookmarks()]);
+  if (deleteTarget.value?.summarize === 'bookmark') {
+    deleteTarget.value =
+      bookmarks.value.find((item) => item.id === deleteTarget.value?.id) ||
+      null;
+  }
 };
 
 const resetScanState = () => {
@@ -598,7 +733,7 @@ const handleSubmit = async (data: EditSubmitData) => {
 // 删除
 const handleDelete = (item: AppInfo | BookmarkInfo) => {
   deleteTarget.value = item;
-  deleteFromDialog.value = false;
+  deleteMode.value = 'hide';
   showDeleteDialog.value = true;
 };
 
@@ -611,28 +746,32 @@ const handleDeleteFromDialog = (id: string) => {
 
   if (item) {
     deleteTarget.value = item;
-    deleteFromDialog.value = true;
+    deleteMode.value = 'hide';
     showDeleteDialog.value = true;
   }
 };
 
 const confirmDelete = async () => {
-  if (!deleteTarget.value) return;
-
+  if (!deleteTarget.value || deleteBusy.value) return;
+  if (deleteMode.value === 'browser' && deleteTarget.value.sources?.length) {
+    showDeleteDialog.value = false;
+    showBrowserDelete.value = true;
+    return;
+  }
+  deleteBusy.value = true;
   try {
-    if (activeTab.value === 'app') {
-      await invoke('delete_app', { id: deleteTarget.value.id });
-      modal.success(t('local.deleteSuccess', { type: t('local.apps') }));
-    } else {
-      await invoke('delete_bookmark', { id: deleteTarget.value.id });
-      modal.success(t('local.deleteSuccess', { type: t('local.bookmarks') }));
-    }
+    await invoke(
+      deleteTarget.value.summarize === 'app' ? 'delete_app' : 'delete_bookmark',
+      { id: deleteTarget.value.id }
+    );
+    modal.success(t('local.hiddenSuccess'));
     await loadData();
     showDeleteDialog.value = false;
     deleteTarget.value = null;
   } catch (error) {
-    console.error('Delete failed:', error);
-    modal.error(t('local.deleteFailed'));
+    modal.error(String(error));
+  } finally {
+    deleteBusy.value = false;
   }
 };
 
@@ -719,6 +858,7 @@ const setupListResizeObserver = async () => {
   listResizeObserver.observe(localContentRef.value);
 };
 
+let pageReady = false;
 onMounted(async () => {
   await setupListResizeObserver();
   // 先监听再恢复快照，避免页面挂载期间漏掉完成或取消事件。
@@ -726,9 +866,22 @@ onMounted(async () => {
   await checkScanStatus();
   // 加载数据
   await loadData();
+  await invoke('refresh_launcher_index', { force: false }).catch((error) =>
+    console.error(error)
+  );
+  pageReady = true;
+});
+
+onActivated(() => {
+  if (!pageReady) return;
+  void loadData();
+  void invoke('refresh_launcher_index', { force: false }).catch(console.error);
 });
 
 onUnmounted(() => {
+  pageReady = false;
+  searchVersion += 1;
+  clearTimeout(searchTimer);
   if (unlistenProgress) unlistenProgress();
   if (unlistenComplete) unlistenComplete();
   if (unlistenCancelled) unlistenCancelled();

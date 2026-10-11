@@ -1,0 +1,6 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>Snippets Code 书签连接</title>
+<style>body{width:290px;padding:16px;font:14px system-ui;color:#202423;background:#f8faf9}h1{font-size:17px;margin:0 0 12px}label{display:block;margin:12px 0 5px}input,select,button{box-sizing:border-box;width:100%;padding:9px;border:1px solid #d9dfdc;border-radius:8px;background:white;color:inherit}button{cursor:pointer;margin-top:12px}p{color:#68706c;line-height:1.5;overflow-wrap:anywhere}@media(prefers-color-scheme:dark){body{background:#202423;color:#e6eae8}input,select,button{background:#2c3330;border-color:#424b46}p{color:#b0bbb5}}</style>
+<h1>Snippets Code 书签连接</h1><p>仅处理你在启动器中确认的原书签删除。请给当前浏览器配置文件起一个容易识别的名称，然后在启动器中绑定。</p>
+<label for="browser">浏览器</label><select id="browser"><option>Chrome</option><option>Edge</option><option>Brave</option><option>Firefox</option></select>
+<label for="profile">配置文件名称</label><input id="profile" maxlength="80" placeholder="例如：Chrome · 工作配置">
+<button id="connect">连接</button><button id="disconnect">断开连接</button><p id="status" role="status"></p><script src="popup.js"></script></html>

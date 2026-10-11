@@ -7,6 +7,7 @@ mod desktop_files;
 mod entity;
 mod icon_cache;
 mod init;
+pub mod launcher;
 mod reset;
 mod search_engines;
 mod search_history;
@@ -33,7 +34,7 @@ pub use apps::{
 // 重新导出书签相关函数
 pub use bookmarks::{add_bookmark, delete_bookmark, get_bookmarks, update_bookmark};
 pub use bookmarks::{
-    count_bookmarks, get_all_bookmarks, insert_bookmarks, replace_bookmarks, update_bookmark_icon,
+    count_bookmarks, get_all_bookmarks, replace_bookmarks, update_bookmark_icon,
     update_bookmark_icon_silent,
 };
 

@@ -221,6 +221,7 @@ fn apply_local_launcher_runtime_change(app_handle: &AppHandle, enabled: bool) {
         crate::icon::init_app_and_bookmark_icons(app_handle);
     } else {
         crate::icon::cancel_app_and_bookmark_icons();
+        crate::bookmark_bridge::disconnect();
         crate::plugins::local_launcher::invalidate_apps_cache();
         crate::plugins::local_launcher::invalidate_bookmarks_cache();
     }
