@@ -12,37 +12,22 @@ static BOOKMARKS_CACHE: LazyLock<Mutex<Option<Vec<BookmarkInfo>>>> =
 
 fn require_local_launcher_plugin(app_handle: &tauri::AppHandle) -> Result<(), String> {
     crate::app_config::require_plugin_enabled(app_handle, "local-launcher")?;
+    crate::bookmarks::cleanup_legacy_bridge();
     db::ensure_plugin_storage("local-launcher").map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn get_launcher_browser_bridge(
+pub fn get_browser_bookmark_delete_status(
     app_handle: tauri::AppHandle,
-) -> Result<crate::bookmark_bridge::BridgeStatus, String> {
+    id: String,
+) -> Result<Vec<crate::bookmarks::BookmarkDeleteStatus>, String> {
     require_local_launcher_plugin(&app_handle)?;
-    crate::bookmark_bridge::status()
-}
-
-#[tauri::command]
-pub fn register_launcher_browser_bridge(app_handle: tauri::AppHandle) -> Result<String, String> {
-    require_local_launcher_plugin(&app_handle)?;
-    crate::bookmark_bridge::register()
-}
-
-#[tauri::command]
-pub fn unregister_launcher_browser_bridge(app_handle: tauri::AppHandle) -> Result<(), String> {
-    require_local_launcher_plugin(&app_handle)?;
-    crate::bookmark_bridge::unregister()
-}
-
-#[tauri::command]
-pub fn bind_launcher_browser_profile(
-    app_handle: tauri::AppHandle,
-    profile_key: String,
-    client_id: String,
-) -> Result<(), String> {
-    require_local_launcher_plugin(&app_handle)?;
-    crate::bookmark_bridge::bind_profile(&profile_key, &client_id)
+    let bookmark = db::get_all_bookmarks()
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .find(|bookmark| bookmark.id == id)
+        .ok_or("书签已不存在，请刷新列表")?;
+    Ok(crate::bookmarks::deletion_status(&bookmark.sources))
 }
 
 #[derive(Deserialize, Clone, PartialEq, Eq, Serialize)]
@@ -54,6 +39,7 @@ pub struct BookmarkSourceSelection {
 pub struct BookmarkDeleteResult {
     deleted: Vec<BookmarkSourceSelection>,
     errors: Vec<String>,
+    backups: Vec<String>,
 }
 
 #[tauri::command]
@@ -86,24 +72,29 @@ pub async fn delete_browser_bookmark_sources(
         }
     }
     tauri::async_runtime::spawn_blocking(move || {
-        let mut result = BookmarkDeleteResult { deleted: Vec::new(), errors: Vec::new() };
-        for source in selected {
-            if let Err(error) = crate::app_config::require_plugin_enabled(&app_handle, "local-launcher") {
-                result.errors.push(error); break;
-            }
-            let outcome = crate::bookmark_bridge::delete_source(&source).and_then(|()| {
-                let conn = db::DbConnectionManager::get_core().map_err(|e| e.to_string())?;
-                conn.execute("INSERT OR IGNORE INTO launcher_deleted_bookmark_sources(profile_key, node_id) VALUES (?1, ?2)", rusqlite::params![source.profile_key, source.node_id]).map_err(|e| e.to_string())?;
-                Ok(())
-            });
-            match outcome {
-                Ok(()) => result.deleted.push(BookmarkSourceSelection { profile_key: source.profile_key, node_id: source.node_id }),
-                Err(error) => result.errors.push(format!("{} · {}: {}", source.browser, source.profile, error)),
-            }
+        let (deleted, mut errors, backups) = crate::bookmarks::delete_sources(&selected, || {
+            crate::app_config::require_plugin_enabled(&app_handle, "local-launcher")
+        });
+        if let Err(error) = db::remove_browser_bookmark_sources(&deleted) {
+            errors.push(format!(
+                "原书签已删除，启动器索引更新失败，请重新扫描: {error}"
+            ));
         }
         invalidate_bookmarks_cache();
-        Ok(result)
-    }).await.map_err(|e| e.to_string())?
+        Ok(BookmarkDeleteResult {
+            deleted: deleted
+                .into_iter()
+                .map(|source| BookmarkSourceSelection {
+                    profile_key: source.profile_key,
+                    node_id: source.node_id,
+                })
+                .collect(),
+            errors,
+            backups,
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 pub fn invalidate_apps_cache() {

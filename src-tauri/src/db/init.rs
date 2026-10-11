@@ -200,14 +200,13 @@ fn create_local_launcher_tables(conn: &rusqlite::Connection) -> Result<(), rusql
             )?;
         }
     }
-    conn.execute_batch("CREATE TABLE IF NOT EXISTS launcher_exclusions (
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS launcher_exclusions (
         kind TEXT NOT NULL, target TEXT NOT NULL, title TEXT NOT NULL,
         PRIMARY KEY(kind, target));
         CREATE TABLE IF NOT EXISTS launcher_preferences (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-        CREATE TABLE IF NOT EXISTS bookmark_bridge_bindings (profile_key TEXT PRIMARY KEY, client_id TEXT NOT NULL);")?;
-    conn.execute_batch(
-        "CREATE TABLE IF NOT EXISTS launcher_deleted_bookmark_sources (
-        profile_key TEXT NOT NULL, node_id TEXT NOT NULL, PRIMARY KEY(profile_key, node_id));",
+        DROP TABLE IF EXISTS bookmark_bridge_bindings;
+        DROP TABLE IF EXISTS launcher_deleted_bookmark_sources;",
     )?;
 
     let _ = conn.execute(
@@ -310,10 +309,8 @@ pub fn clear_plugin_storage(plugin_id: &str) -> Result<(), rusqlite::Error> {
             let core = DbConnectionManager::get_core()?;
             let search = DbConnectionManager::get_search()?;
             for conn in [&core, &search] {
-                conn.execute("DROP TABLE IF EXISTS launcher_deleted_bookmark_sources", [])?;
                 conn.execute("DROP TABLE IF EXISTS launcher_exclusions", [])?;
                 conn.execute("DROP TABLE IF EXISTS launcher_preferences", [])?;
-                conn.execute("DROP TABLE IF EXISTS bookmark_bridge_bindings", [])?;
                 conn.execute("DROP TABLE IF EXISTS apps", [])?;
                 conn.execute("DROP TABLE IF EXISTS bookmarks", [])?;
                 conn.execute("DROP INDEX IF EXISTS idx_apps_usage", [])?;
@@ -626,7 +623,7 @@ mod tests {
             assert_eq!(kept, ("Kept".into(), "cached-icon".into(), "{}".into()));
         }
         assert!(table_exists_for_test(&conn, "launcher_exclusions"));
-        assert!(table_exists_for_test(&conn, "bookmark_bridge_bindings"));
+        assert!(!table_exists_for_test(&conn, "bookmark_bridge_bindings"));
         assert_eq!(
             conn.query_row(
                 "SELECT MAX(version) FROM schema_migrations WHERE component='local-launcher'",

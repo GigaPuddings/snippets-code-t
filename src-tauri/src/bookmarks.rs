@@ -15,6 +15,9 @@ use std::sync::{Mutex, Once};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
+mod deletion;
+pub use deletion::{cleanup_legacy_bridge, delete_sources, deletion_status, BookmarkDeleteStatus};
+
 // 从URL提取域名作为标题
 fn get_domain_name(url_str: &str) -> Option<String> {
     url::Url::parse(url_str).ok().and_then(|u| {

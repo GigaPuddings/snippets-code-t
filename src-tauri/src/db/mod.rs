@@ -34,8 +34,8 @@ pub use apps::{
 // 重新导出书签相关函数
 pub use bookmarks::{add_bookmark, delete_bookmark, get_bookmarks, update_bookmark};
 pub use bookmarks::{
-    count_bookmarks, get_all_bookmarks, replace_bookmarks, update_bookmark_icon,
-    update_bookmark_icon_silent,
+    count_bookmarks, get_all_bookmarks, remove_browser_bookmark_sources, replace_bookmarks,
+    update_bookmark_icon, update_bookmark_icon_silent,
 };
 
 // 重新导出搜索引擎相关函数

@@ -3,7 +3,6 @@ mod app_setup;
 mod apps;
 mod attachment;
 mod auto_start;
-mod bookmark_bridge;
 mod bookmarks;
 mod commands;
 mod config;
@@ -69,7 +68,13 @@ use app_setup::{
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    if bookmark_bridge::run_native_host_if_requested() {
+    // Old installed extensions must not reopen the app after their transport is retired.
+    if std::env::args().nth(1).is_some_and(|argument| {
+        argument.starts_with("chrome-extension://")
+            || std::path::Path::new(&argument)
+                .file_name()
+                .is_some_and(|name| name == "firefox-host.json")
+    }) {
         return;
     }
     apply_setup_restart_delay();
@@ -674,10 +679,7 @@ pub fn run() {
             plugins::local_launcher::add_bookmark,                     // 添加书签
             plugins::local_launcher::update_bookmark,                  // 更新书签
             plugins::local_launcher::delete_bookmark,                  // 删除书签
-            plugins::local_launcher::get_launcher_browser_bridge,
-            plugins::local_launcher::register_launcher_browser_bridge,
-            plugins::local_launcher::unregister_launcher_browser_bridge,
-            plugins::local_launcher::bind_launcher_browser_profile,
+            plugins::local_launcher::get_browser_bookmark_delete_status,
             plugins::local_launcher::delete_browser_bookmark_sources,
             plugins::local_launcher::refresh_launcher_index,
             plugins::local_launcher::get_launcher_settings,

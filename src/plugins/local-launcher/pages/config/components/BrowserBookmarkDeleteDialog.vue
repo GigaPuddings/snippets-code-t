@@ -1,66 +1,97 @@
 <template>
   <CommonDialog
     v-model="visible"
-    :title="$t('local.deleteBrowserBookmark')"
+    :title="$t('local.removeTitle')"
     width="620px"
     :show-close="!busy"
     :close-on-press-escape="!busy"
   >
-    <p class="mb-2 text-ui font-medium">{{ bookmark?.title }}</p>
-    <p class="mb-4 text-ui-caption leading-6 text-ui-muted">
-      {{ $t('local.browserDeleteHint') }}
-    </p>
-    <el-checkbox-group
-      v-model="selected"
-      class="flex max-h-72 flex-col gap-2 overflow-y-auto"
+    <p class="mb-3 text-ui font-medium">{{ bookmark?.title }}</p>
+    <el-radio-group
+      v-model="mode"
+      class="mb-3 flex flex-wrap gap-2"
+      :disabled="busy"
     >
-      <div
-        v-for="source in bookmark?.sources || []"
-        :key="bookmarkSourceKey(source)"
-        class="rounded-ui bg-ui-card p-3"
+      <el-radio value="browser">
+        {{ $t('local.deleteBrowserBookmark') }}
+      </el-radio>
+      <el-radio value="hide">{{ $t('local.hide') }}</el-radio>
+    </el-radio-group>
+    <template v-if="mode === 'browser'">
+      <p class="mb-2 text-ui-caption leading-6 text-ui-muted">
+        {{ $t('local.browserDeleteHint') }}
+      </p>
+      <p class="mb-3 text-ui-caption leading-6 text-ui-muted">
+        {{ $t('local.browserDeleteSyncHint') }}
+      </p>
+      <el-checkbox-group
+        v-model="selected"
+        class="flex max-h-[45vh] flex-col gap-2 overflow-y-auto"
       >
-        <el-checkbox
-          :value="bookmarkSourceKey(source)"
-          :disabled="!isConnected(source) || busy"
+        <div
+          v-for="source in bookmark?.sources || []"
+          :key="bookmarkSourceKey(source)"
+          class="rounded-ui bg-ui-card p-3"
         >
-          {{ bookmarkSourceLabel(source) }}
-        </el-checkbox>
-        <p class="mt-1 break-all text-ui-caption text-ui-muted">
-          {{ source.url }}
+          <el-checkbox
+            :value="bookmarkSourceKey(source)"
+            :disabled="busy || !statusFor(source)?.available"
+          >
+            {{ bookmarkSourceLabel(source) }}
+          </el-checkbox>
+          <p
+            class="mt-1 truncate text-ui-caption text-ui-muted"
+            :title="source.url"
+          >
+            {{ source.url }}
+          </p>
+          <p
+            class="mt-1 truncate text-ui-caption text-ui-muted"
+            :title="source.storage_path"
+          >
+            {{ source.storage_path }}
+          </p>
+          <p
+            v-if="statusFor(source)?.reason"
+            class="mt-1 text-ui-caption text-ui-muted"
+          >
+            {{ statusFor(source)?.reason }}
+          </p>
+        </div>
+      </el-checkbox-group>
+      <div class="mt-3 flex items-center justify-between gap-3">
+        <p class="text-ui-caption text-ui-muted">
+          {{ error || $t('local.bookmarkBackupHint') }}
         </p>
-        <p
-          class="mt-1 truncate text-ui-caption text-ui-muted"
-          :title="source.storage_path"
+        <CustomButton
+          size="small"
+          :loading="checking"
+          :disabled="busy"
+          @click="refreshStatus"
         >
-          {{ source.storage_path }}
-        </p>
-        <p
-          v-if="!isConnected(source)"
-          class="mt-1 text-ui-caption text-ui-muted"
-        >
-          {{
-            supportsBrowserBridge(source.browser, bridge)
-              ? $t('local.sourceNotConnected')
-              : $t('local.bridgeUnsupported', { browser: source.browser })
-          }}
-        </p>
+          {{ $t('local.recheckBrowser') }}
+        </CustomButton>
       </div>
-    </el-checkbox-group>
-    <CustomButton class="mt-3" :disabled="busy" @click="configure">
-      {{ $t('local.browserConnection') }}
-    </CustomButton>
+    </template>
+    <p v-else class="text-ui-caption leading-6 text-ui-muted">
+      {{ $t('local.hiddenHint') }}
+    </p>
     <template #footer>
       <div class="flex justify-end gap-2">
         <CustomButton :disabled="busy" @click="visible = false">
           {{ $t('common.cancel') }}
         </CustomButton>
         <CustomButton
-          type="danger"
-          :disabled="!selected.length"
+          :type="mode === 'browser' ? 'danger' : 'default'"
+          :disabled="mode === 'browser' && !ready.length"
           :loading="busy"
           @click="submit"
         >
-          {{ $t('local.confirmBrowserDelete') }}
+          {{
+            mode === 'browser'
+              ? $t('local.confirmBrowserDelete')
+              : $t('local.hide')
+          }}
         </CustomButton>
       </div>
     </template>
@@ -75,10 +106,9 @@ import modal from '@/utils/modal';
 import {
   bookmarkSourceKey,
   bookmarkSourceLabel,
-  supportsBrowserBridge,
   type LauncherEntry,
   type BookmarkSource,
-  type BridgeStatus
+  type BookmarkDeleteStatus
 } from '../../../types';
 
 const props = defineProps<{
@@ -88,58 +118,105 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:modelValue': [value: boolean];
   changed: [];
-  configure: [];
 }>();
 const { t } = useI18n();
 const visible = computed({
   get: () => props.modelValue,
   set: (value) => emit('update:modelValue', value)
 });
+const mode = ref<'hide' | 'browser'>('browser');
 const selected = ref<string[]>([]);
 const busy = ref(false);
-const bridge = ref<BridgeStatus>({ clients: [], bindings: {} });
-const isConnected = (source: BookmarkSource): boolean =>
-  Boolean(
-    source.node_id &&
-      source.url &&
-      bridge.value.clients.some(
-        (client) =>
-          client.id === bridge.value.bindings[source.profile_key] &&
-          client.browser === source.browser
-      )
+const checking = ref(false);
+const error = ref('');
+const status = ref<BookmarkDeleteStatus[]>([]);
+const statusFor = (source: BookmarkSource): BookmarkDeleteStatus | undefined =>
+  status.value.find(
+    (item) => bookmarkSourceKey(item) === bookmarkSourceKey(source)
   );
-const configure = (): void => {
-  visible.value = false;
-  emit('configure');
+const ready = computed(() =>
+  (props.bookmark?.sources || []).filter(
+    (source) =>
+      selected.value.includes(bookmarkSourceKey(source)) &&
+      statusFor(source)?.available
+  )
+);
+const refreshStatus = async (): Promise<void> => {
+  if (
+    checking.value ||
+    busy.value ||
+    !props.bookmark ||
+    mode.value !== 'browser'
+  )
+    return;
+  const id = props.bookmark.id;
+  checking.value = true;
+  try {
+    const result = await invoke<BookmarkDeleteStatus[]>(
+      'get_browser_bookmark_delete_status',
+      { id }
+    );
+    if (props.bookmark?.id === id) {
+      status.value = result;
+      error.value = '';
+    }
+  } catch (failure) {
+    status.value = [];
+    error.value = String(failure);
+  } finally {
+    checking.value = false;
+  }
 };
+let timer: ReturnType<typeof setInterval> | undefined;
+let generation = 0;
 watch(
   () => props.modelValue,
   async (value) => {
+    const revision = ++generation;
+    clearInterval(timer);
+    timer = undefined;
     if (!value) return;
-    selected.value = [];
-    bridge.value = { clients: [], bindings: {} };
-    try {
-      bridge.value = await invoke<BridgeStatus>('get_launcher_browser_bridge');
-    } catch (error) {
-      modal.error(String(error));
-    }
+    mode.value = 'browser';
+    status.value = [];
+    // One source needs no extra selection. Multiple sources require an explicit choice.
+    selected.value =
+      props.bookmark?.sources?.length === 1
+        ? [bookmarkSourceKey(props.bookmark.sources[0])]
+        : [];
+    await refreshStatus();
+    if (props.modelValue && revision === generation)
+      timer = setInterval(refreshStatus, 2000);
   }
 );
+onUnmounted(() => {
+  generation++;
+  clearInterval(timer);
+});
+
 const submit = async (): Promise<void> => {
-  if (busy.value || !props.bookmark) return;
-  const sources = (props.bookmark.sources || [])
-    .filter(
-      (source) =>
-        selected.value.includes(bookmarkSourceKey(source)) &&
-        isConnected(source)
-    )
-    .map(({ profile_key, node_id }) => ({ profile_key, node_id }));
-  if (!sources.length) return;
+  if (
+    busy.value ||
+    !props.bookmark ||
+    (mode.value === 'browser' && !ready.value.length)
+  )
+    return;
+  const sources = ready.value.map(({ profile_key, node_id }) => ({
+    profile_key,
+    node_id
+  }));
   busy.value = true;
   try {
+    if (mode.value === 'hide') {
+      await invoke('delete_bookmark', { id: props.bookmark.id });
+      modal.success(t('local.hiddenSuccess'));
+      emit('changed');
+      visible.value = false;
+      return;
+    }
     const result = await invoke<{
       deleted: Array<Pick<BookmarkSource, 'profile_key' | 'node_id'>>;
       errors: string[];
+      backups: string[];
     }>('delete_browser_bookmark_sources', { id: props.bookmark.id, sources });
     if (result.deleted.length) {
       modal.success(
@@ -151,10 +228,13 @@ const submit = async (): Promise<void> => {
       (key) =>
         !result.deleted.some((source) => bookmarkSourceKey(source) === key)
     );
-    if (result.errors.length) modal.warning(result.errors.join('\n'));
-    else visible.value = false;
-  } catch (error) {
-    modal.error(String(error));
+    if (result.errors.length) {
+      error.value = result.errors.join('\n');
+      modal.warning(error.value);
+    } else visible.value = false;
+  } catch (failure) {
+    error.value = String(failure);
+    modal.error(error.value);
   } finally {
     busy.value = false;
   }

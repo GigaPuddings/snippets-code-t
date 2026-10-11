@@ -299,9 +299,7 @@
     <ConfirmDialog
       v-model="showDeleteDialog"
       :title="$t('local.removeTitle')"
-      :confirm-text="
-        deleteMode === 'browser' ? $t('local.continue') : $t('local.hide')
-      "
+      :confirm-text="$t('local.hide')"
       :cancel-text="$t('common.cancel')"
       type="warning"
       :loading="deleteBusy"
@@ -311,20 +309,9 @@
       <p class="mt-2 text-ui-caption text-ui-muted">
         {{ $t('local.hiddenHint') }}
       </p>
-      <el-radio-group
-        v-if="deleteTarget?.sources?.length"
-        v-model="deleteMode"
-        class="mt-3 flex flex-col items-start"
-      >
-        <el-radio value="hide">{{ $t('local.hide') }}</el-radio>
-        <el-radio value="browser">
-          {{ $t('local.deleteBrowserBookmark') }}
-        </el-radio>
-      </el-radio-group>
     </ConfirmDialog>
     <LauncherSettingsDialog
       v-model="showSettings"
-      :bookmarks="bookmarks"
       :initial-tab="settingsTab"
       @changed="loadData"
     />
@@ -332,7 +319,6 @@
       v-model="showBrowserDelete"
       :bookmark="deleteTarget"
       @changed="loadData"
-      @configure="openSettings('browser')"
     />
     <CommonDialog
       :model-value="Boolean(sourceDetails)"
@@ -456,7 +442,6 @@ const editDialogRef = ref();
 const currentEditData = ref<AppInfo | BookmarkInfo | null>(null);
 const showDeleteDialog = ref(false);
 const deleteTarget = ref<AppInfo | BookmarkInfo | null>(null);
-const deleteMode = ref<'hide' | 'browser'>('hide');
 const deleteBusy = ref(false);
 const showBrowserDelete = ref(false);
 const showSettings = ref(false);
@@ -733,8 +718,8 @@ const handleSubmit = async (data: EditSubmitData) => {
 // 删除
 const handleDelete = (item: AppInfo | BookmarkInfo) => {
   deleteTarget.value = item;
-  deleteMode.value = 'hide';
-  showDeleteDialog.value = true;
+  if (item.sources?.length) showBrowserDelete.value = true;
+  else showDeleteDialog.value = true;
 };
 
 // Delete from dialog
@@ -746,18 +731,13 @@ const handleDeleteFromDialog = (id: string) => {
 
   if (item) {
     deleteTarget.value = item;
-    deleteMode.value = 'hide';
-    showDeleteDialog.value = true;
+    if (item.sources?.length) showBrowserDelete.value = true;
+    else showDeleteDialog.value = true;
   }
 };
 
 const confirmDelete = async () => {
   if (!deleteTarget.value || deleteBusy.value) return;
-  if (deleteMode.value === 'browser' && deleteTarget.value.sources?.length) {
-    showDeleteDialog.value = false;
-    showBrowserDelete.value = true;
-    return;
-  }
   deleteBusy.value = true;
   try {
     await invoke(
