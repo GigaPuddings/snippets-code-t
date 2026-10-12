@@ -5,7 +5,8 @@ import path from 'path';
 import { execFileSync } from 'child_process';
 import {
   getReleaseAssetDownloadUrl,
-  getReleaseForTag
+  getReleaseForTag,
+  uploadDraftReleaseAsset
 } from './github-release.mjs';
 
 const require = createRequire(import.meta.url);
@@ -61,12 +62,11 @@ async function main() {
       releaseId
     });
 
-    // 获取完整的 release 信息
-    const { data: fullRelease } = await octokit.repos.getRelease({
-      owner,
-      repo,
-      release_id: release.id
-    });
+    if (!release.draft) {
+      throw new Error(
+        `Refusing to overwrite update metadata on published release ${tag}`
+      );
+    }
 
     // 构建文件路径 - 本地构建的文件不带 _windows 后缀
     const basePath = path.resolve('./src-tauri/target/release/bundle');
@@ -81,6 +81,13 @@ async function main() {
 
     if (!setupAsset) {
       throw new Error('Setup file not found in release assets');
+    }
+
+    const signatureAsset = release.assets.find(
+      (asset) => asset.name === `${setupFileName}.sig`
+    );
+    if (!signatureAsset) {
+      throw new Error('Signature file not found in release assets');
     }
 
     const expectedTag = `v${tauriConfig.version}`;
@@ -112,7 +119,7 @@ async function main() {
     const latestJson = {
       version: tauriConfig.version,
       notes: releaseNotes,
-      pub_date: fullRelease.published_at || new Date().toISOString(),
+      pub_date: release.published_at || new Date().toISOString(),
       platforms: {
         'windows-x86_64': {
           // Draft release assets use an unstable `untagged-*` URL. Build the
@@ -128,36 +135,20 @@ async function main() {
       }
     };
 
-    // 检查是否已存在 latest.json
-    const existingLatestJson = release.assets.find(
-      (asset) => asset.name === 'latest.json'
-    );
-
-    if (existingLatestJson) {
-      // 如果存在，先删除
-      await octokit.repos.deleteReleaseAsset({
-        owner,
-        repo,
-        asset_id: existingLatestJson.id
-      });
-    }
-
     // 上传新的 latest.json
     const latestJsonContent = JSON.stringify(latestJson, null, 2);
-    await octokit.repos.uploadReleaseAsset({
+    await uploadDraftReleaseAsset({
+      octokit,
       owner,
       repo,
-      release_id: release.id,
+      release,
       name: 'latest.json',
       data: latestJsonContent,
-      headers: {
-        'content-type': 'application/json',
-        'content-length': Buffer.byteLength(latestJsonContent)
-      }
+      contentType: 'application/json'
     });
 
     // 更新发布说明
-    if (!fullRelease.body) {
+    if (!release.body) {
       await octokit.repos.updateRelease({
         owner,
         repo,
@@ -167,11 +158,7 @@ async function main() {
     }
 
     console.log(`✨ 成功上传 ${expectedTag} 的 latest.json`);
-    console.log(
-      release.draft
-        ? 'latest.json 已附加到草稿 Release，等待工作流完成后正式发布'
-        : 'latest.json 已附加到正式 Release'
-    );
+    console.log('latest.json 已附加到草稿 Release，等待工作流完成后正式发布');
   } catch (error) {
     console.error('❌ 错误:', error);
     process.exit(1);

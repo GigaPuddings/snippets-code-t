@@ -3,7 +3,10 @@ import {
   createReminderDraft,
   normalizeWeekdays,
   reminderPayload,
-  reminderStatus
+  reminderStatus,
+  reminderCountdown,
+  reminderCompleted,
+  reminderSchedule
 } from './reminders';
 
 const card: AlarmCard = {
@@ -57,5 +60,18 @@ describe('reminder editing and presentation', () => {
         Date.parse('2026-10-13T08:30:00+08:00')
       )
     ).toEqual(['urgent']);
+  });
+  it('distinguishes consumed one-off reminders from paused reminders with future dates', () => {
+    const translate = (key: string): string => key;
+    const completed = { ...card, specific_dates: null };
+    expect(reminderCompleted(completed)).toBe(true);
+    expect(reminderStatus(completed)).toEqual(['completed']);
+    expect(reminderCountdown(completed, translate)).toBe('alarm.completed');
+    expect(reminderSchedule(completed, translate)).toBe('alarm.completedDates');
+    expect(reminderCompleted(card)).toBe(false);
+    expect(reminderCountdown(card, translate)).toBe('alarm.paused');
+    expect(reminderCompleted({ ...completed, alarm_type: 'Daily' })).toBe(
+      false
+    );
   });
 });

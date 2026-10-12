@@ -1103,7 +1103,23 @@ export default {
     weekly: '每周',
     specificDate: '指定日期',
     repeatReminder: '重复提醒',
-    pauseTime: '暂停时间',
+    pauseTime: '稍后提醒',
+    titlePlaceholder: '例如：休息一下、参加会议',
+    timeLabel: '提醒时间',
+    weekdayPrompt: '选择提醒的星期',
+    scheduleHint: '按本机时间提醒；“稍后提醒”是到时弹窗中的延后时长。',
+    completedEditHint: '此计划已结束。请设置未来日期，保存后通过卡片开关启用。',
+    sound: '提示音',
+    previewSound: '试听专用提示音',
+    soundUnavailable: '提示音设置或试听未完成，请稍后重试。',
+    filterLabel: '筛选提醒状态',
+    showAll: '全部',
+    active: '进行中',
+    enabled: '启用提醒',
+    completed: '已结束',
+    completedDates: '指定日期计划已结束',
+    reschedule: '编辑提醒计划',
+    noMatchingReminders: '暂无此状态的提醒',
     saveSuccess: '提醒已保存',
     deleteFailed: '删除失败',
     toggleFailed: '切换提醒状态失败',
@@ -1416,8 +1432,9 @@ export default {
 
   // 通知提醒
   notification: {
-    title: '代办提醒',
-    confirm: '确认',
+    title: '待办提醒',
+    confirm: '知道了',
+    closeHint: '关闭本次提示，不更改提醒计划',
     remindLater: '{minutes}分钟后提醒'
   },
 

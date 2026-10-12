@@ -1777,7 +1777,7 @@ pub fn create_notification_window_unified(ntype: NotificationType) -> Option<Web
     let scale_factor = monitor.scale_factor();
 
     // 窗口大小和边距 (逻辑像素)
-    let (window_width, window_height) = (360.0, 164.0);
+    let (window_width, window_height) = (320.0, 164.0);
     let taskbar_height = 40.0;
     let margin = 16.0;
 

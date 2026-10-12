@@ -1150,6 +1150,25 @@ export default {
     specificDate: 'Specific Date',
     repeatReminder: 'Repeat',
     pauseTime: 'Snooze Time',
+    titlePlaceholder: 'For example: Take a break or join a meeting',
+    timeLabel: 'Time',
+    weekdayPrompt: 'Choose reminder days',
+    scheduleHint:
+      'Uses local time. Snooze sets the delay offered when the reminder arrives.',
+    completedEditHint:
+      'This schedule has ended. Choose future dates, then enable the card after saving.',
+    sound: 'Sound',
+    previewSound: 'Preview reminder chime',
+    soundUnavailable:
+      'Sound settings or playback failed. Please retry shortly.',
+    filterLabel: 'Filter reminder status',
+    showAll: 'All',
+    active: 'Active',
+    enabled: 'Enable reminder',
+    completed: 'Finished',
+    completedDates: 'Date-specific schedule has ended',
+    reschedule: 'Edit reminder schedule',
+    noMatchingReminders: 'No reminders with this status',
     saveSuccess: 'Reminder saved',
     deleteFailed: 'Delete failed',
     toggleFailed: 'Failed to change reminder status',
@@ -1486,7 +1505,8 @@ export default {
   // Notification
   notification: {
     title: 'Reminder',
-    confirm: 'Confirm',
+    confirm: 'Got it',
+    closeHint: 'Dismiss this alert without changing the schedule',
     remindLater: 'Remind me in {minutes} minutes'
   },
 

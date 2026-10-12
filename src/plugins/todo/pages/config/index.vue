@@ -49,89 +49,153 @@
         {{ $t('alarm.retry') }}
       </CustomButton>
     </section>
-    <div v-if="alarmCards.length > 0" class="alarm-grid" :aria-busy="loading">
-      <div
-        class="ui-card alarm-card"
-        v-for="item in alarmCards"
-        :key="item.id"
-        :class="reminderStatus(item)"
-      >
-        <button
-          type="button"
-          class="alarm-card-content"
-          :class="{ 'is-edit': isEdit }"
-          :disabled="isEdit"
-          :aria-label="`${$t('alarm.editAlarm')}: ${item.title}`"
-          @click="editAlarmCard(item)"
-        >
-          <div class="time">{{ item.time }}</div>
-          <div class="info">
-            <div class="time-left">
-              <remind width="14" height="14" />
-              <span>{{ reminderCountdown(item, t) }}</span>
-            </div>
-            <div class="title" :title="item.title">{{ item.title }}</div>
-            <div class="alarm-type">
-              <span v-if="item.alarm_type === 'Daily'" class="type-badge">
-                {{ $t('alarm.daily') }}
-              </span>
-              <span
-                v-else-if="item.alarm_type === 'SpecificDate'"
-                class="type-badge"
-              >
-                {{ formatSpecificDates(item.specific_dates) }}
-              </span>
-              <span v-else class="type-badge">
-                {{ $t('alarm.weekly') }}
-              </span>
-            </div>
-          </div>
-          <div v-if="item.alarm_type === 'Weekly'" class="weekdays">
-            <template v-for="weekday in weekdays" :key="weekday.value">
-              <span
-                :class="[
-                  'weekday',
-                  item.weekdays.includes(weekday.value) ? 'active-weekday' : ''
-                ]"
-              >
-                {{ weekday.label }}
-              </span>
-            </template>
-          </div>
-
-          <div v-else-if="item.alarm_type === 'Daily'">
-            <span class="daily-text">{{ $t('alarm.dailyRepeat') }}</span>
-          </div>
-
-          <div v-else-if="item.alarm_type === 'SpecificDate'">
-            <span class="date-info">
-              {{
-                $t('alarm.totalDates', {
-                  count: (item.specific_dates || []).length
-                })
-              }}
-            </span>
-          </div>
-        </button>
-        <div class="toggle">
-          <el-switch
-            v-if="!isEdit"
-            :model-value="item.is_active"
-            :disabled="pendingToggles.has(item.id)"
-            :aria-label="item.title"
-            @change="toggleAlarmCard(item)"
-          />
-          <CustomButton
-            v-else
-            type="danger"
-            text
-            :icon="Delete"
-            :aria-label="`${$t('local.delete')}: ${item.title}`"
-            @click="deleteAlarmCard(item)"
-          />
-        </div>
+    <div class="plugin-config-toolbar">
+      <el-segmented
+        v-model="statusFilter"
+        :options="statusOptions"
+        :aria-label="$t('alarm.filterLabel')"
+      />
+      <div class="flex items-center gap-2 text-ui-caption text-ui-muted">
+        <component
+          :is="soundEnabled ? Volume2 : VolumeX"
+          width="16"
+          height="16"
+          aria-hidden="true"
+        />
+        <span id="todo-sound-label">{{ $t('alarm.sound') }}</span>
+        <CustomSwitch
+          :model-value="soundEnabled"
+          :disabled="!soundReady || soundBusy"
+          aria-labelledby="todo-sound-label"
+          @change="changeSound"
+        />
+        <CustomButton
+          unstyled
+          class="ui-icon-button ui-action--muted"
+          :icon="Play"
+          :disabled="
+            !soundReady || !soundEnabled || soundBusy || soundPreviewing
+          "
+          :title="$t('alarm.previewSound')"
+          :aria-label="$t('alarm.previewSound')"
+          @click="previewSound"
+        />
       </div>
     </div>
+    <div
+      v-if="soundError"
+      class="mb-3 flex items-center justify-between gap-3 text-ui-caption text-ui-muted"
+      role="alert"
+      :title="soundError"
+    >
+      <span>{{ $t('alarm.soundUnavailable') }}</span>
+      <CustomButton
+        :disabled="soundBusy"
+        size="small"
+        @click="reloadSoundSettings"
+      >
+        {{ $t('alarm.retry') }}
+      </CustomButton>
+    </div>
+    <section
+      v-if="alarmCards.length > 0"
+      class="min-h-0 flex-1 overflow-y-auto"
+      :aria-busy="loading"
+    >
+      <div
+        v-if="visibleCards.length"
+        class="grid gap-3 pb-3 [grid-template-columns:repeat(auto-fill,minmax(min(100%,224px),320px))]"
+      >
+        <article
+          v-for="item in visibleCards"
+          :key="item.id"
+          class="ui-card relative overflow-hidden"
+          :class="{ 'text-ui-muted': !item.is_active }"
+        >
+          <button
+            type="button"
+            class="block w-full rounded-ui p-4 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+            :disabled="isEdit"
+            :aria-label="`${$t('alarm.editAlarm')}: ${item.title}`"
+            @click="editAlarmCard(item)"
+          >
+            <h2
+              class="mb-3 min-h-5 pr-14 text-ui font-medium line-clamp-2"
+              :title="item.title"
+            >
+              {{ item.title }}
+            </h2>
+            <div class="mb-2 flex flex-wrap items-baseline gap-2">
+              <span
+                class="text-[28px] font-semibold leading-none tabular-nums"
+                :class="item.is_active ? 'text-ui-heading' : 'text-ui-muted'"
+              >
+                {{ item.time }}
+              </span>
+              <span
+                class="inline-flex items-center gap-1 rounded-ui bg-ui-card-hover px-2 py-1 text-ui-caption"
+                :class="
+                  reminderStatus(item).includes('urgent')
+                    ? 'text-primary'
+                    : 'text-ui-muted'
+                "
+              >
+                <CheckSmall
+                  v-if="reminderCompleted(item)"
+                  width="13"
+                  height="13"
+                />
+                <Remind v-else width="13" height="13" />
+                {{ reminderCountdown(item, t) }}
+              </span>
+            </div>
+            <p
+              class="m-0 truncate text-ui-caption text-ui-muted"
+              :title="reminderSchedule(item, t)"
+            >
+              {{ reminderSchedule(item, t) }}
+            </p>
+          </button>
+          <div class="absolute right-3 top-3">
+            <CustomButton
+              v-if="isEdit"
+              unstyled
+              class="ui-icon-button ui-action--muted text-[var(--el-color-danger)]"
+              :icon="Delete"
+              :disabled="deleteBusy"
+              :aria-label="`${$t('local.delete')}: ${item.title}`"
+              @click="deleteAlarmCard(item)"
+            />
+            <CustomButton
+              v-else-if="reminderCompleted(item)"
+              unstyled
+              class="ui-icon-button ui-action--muted"
+              :icon="Write"
+              :title="$t('alarm.reschedule')"
+              :aria-label="$t('alarm.reschedule')"
+              @click="editAlarmCard(item)"
+            />
+            <CustomSwitch
+              v-else
+              :model-value="item.is_active"
+              :disabled="pendingToggles.has(item.id) || saveBusy"
+              :aria-label="`${$t('alarm.enabled')}: ${item.title}`"
+              @change="toggleAlarmCard(item)"
+            />
+          </div>
+        </article>
+      </div>
+      <div
+        v-else
+        class="flex h-full min-h-40 flex-col items-center justify-center gap-3 text-ui-muted"
+      >
+        <Remind width="24" height="24" aria-hidden="true" />
+        <p>{{ $t('alarm.noMatchingReminders') }}</p>
+        <CustomButton @click="statusFilter = 'all'">
+          {{ $t('alarm.showAll') }}
+        </CustomButton>
+      </div>
+    </section>
     <section
       v-else
       class="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-4 pb-10 text-center"
@@ -199,12 +263,21 @@ import Plus from '~icons/lucide/plus';
 import CheckSmall from '~icons/lucide/check';
 import Delete from '~icons/lucide/trash-2';
 import Remind from '~icons/lucide/bell';
+import Volume2 from '~icons/lucide/volume-2';
+import VolumeX from '~icons/lucide/volume-x';
+import Play from '~icons/lucide/play';
 import { useI18n } from 'vue-i18n';
 import AlarmEditDialog from './components/AlarmEditDialog.vue';
 import { invoke } from '@tauri-apps/api/core';
-import { ConfirmDialog, CustomButton } from '@/components/UI';
+import { ConfirmDialog, CustomButton, CustomSwitch } from '@/components/UI';
 import modal from '@/utils/modal';
-import { WEEKDAYS, reminderStatus, reminderCountdown } from '../../reminders';
+import {
+  reminderCompleted,
+  reminderSchedule,
+  reminderStatus,
+  reminderCountdown
+} from '../../reminders';
+import { useReminderSound } from './useReminderSound';
 import { useReminderList } from './useReminderList';
 
 const { t } = useI18n();
@@ -215,21 +288,39 @@ const deleteTarget = ref<AlarmCard | null>(null);
 const saveBusy = ref(false);
 const deleteBusy = ref(false);
 const pendingToggles = ref(new Set<string>());
-const weekdays = computed(() =>
-  WEEKDAYS.map((value) => ({
-    value,
-    label: t(`alarm.weekdays.${value.toLowerCase()}`)
-  }))
-);
 const isEdit = ref(false);
-
-// 格式化多个日期显示
-const formatSpecificDates = (dates: string[] | null | undefined): string => {
-  if (!dates || dates.length === 0) return t('alarm.notSet');
-  if (dates.length === 1) return dates[0];
-  if (dates.length <= 3) return dates.join(', ');
-  return t('alarm.totalDates', { count: dates.length });
-};
+const {
+  enabled: soundEnabled,
+  ready: soundReady,
+  busy: soundBusy,
+  previewing: soundPreviewing,
+  error: soundError,
+  load: reloadSoundSettings,
+  change: changeSound,
+  preview: previewSound
+} = useReminderSound();
+const statusFilter = ref<'all' | 'active' | 'paused' | 'completed'>('all');
+const statusOptions = computed(() => [
+  { label: t('alarm.showAll'), value: 'all' },
+  { label: t('alarm.active'), value: 'active' },
+  { label: t('alarm.paused'), value: 'paused' },
+  { label: t('alarm.completed'), value: 'completed' }
+]);
+const visibleCards = computed(() =>
+  alarmCards.value.filter((card) => {
+    const completed = reminderCompleted(card);
+    switch (statusFilter.value) {
+      case 'active':
+        return card.is_active;
+      case 'paused':
+        return !card.is_active && !completed;
+      case 'completed':
+        return completed;
+      default:
+        return true;
+    }
+  })
+);
 const currentEditCard = ref<AlarmCard | null>(null);
 const alarmEditDialogRef = ref<InstanceType<typeof AlarmEditDialog> | null>(
   null
@@ -325,95 +416,3 @@ const closePageDialogs = (): void => {
 onDeactivated(closePageDialogs);
 onUnmounted(closePageDialogs);
 </script>
-
-<style scoped lang="scss">
-.todo-container {
-  .alarm-grid {
-    @apply grid min-h-0 gap-3 overflow-y-auto p-0.5;
-
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
-  }
-
-  .alarm-card {
-    @apply relative min-w-0 select-none;
-
-    &.disabled {
-      @apply opacity-60;
-    }
-
-    &.expired {
-      background: var(--el-color-danger-light-9);
-
-      .time {
-        color: var(--el-color-danger);
-      }
-    }
-
-    &.urgent {
-      background: var(--el-color-warning-light-9);
-
-      .time {
-        color: var(--el-color-warning);
-      }
-    }
-
-    .alarm-card-content {
-      @apply block h-full min-h-[160px] w-full rounded-ui border-0 bg-transparent p-4 text-left text-ui-main;
-
-      &:focus-visible {
-        outline: 2px solid var(--el-color-primary);
-        outline-offset: -2px;
-      }
-    }
-
-    .time {
-      @apply mb-2 pr-14 text-2xl font-semibold tabular-nums text-ui-heading;
-    }
-
-    .info {
-      @apply mb-3;
-
-      .title {
-        @apply mb-1 truncate text-ui font-medium text-ui-main;
-      }
-
-      .time-left {
-        @apply mb-2 flex items-center gap-1.5 text-ui-caption text-ui-muted;
-      }
-
-      .alarm-type {
-        @apply mt-2;
-      }
-
-      .type-badge {
-        @apply text-ui-caption text-ui-muted;
-      }
-    }
-
-    .weekdays {
-      @apply flex flex-wrap gap-1;
-
-      .weekday {
-        @apply rounded-ui px-1.5 py-0.5 text-ui-caption text-ui-muted;
-      }
-
-      .active-weekday {
-        @apply bg-ui-card-hover text-ui-main;
-      }
-    }
-
-    .toggle {
-      @apply absolute top-3 right-3;
-    }
-
-    .daily-text,
-    .date-info {
-      @apply text-ui-caption text-ui-muted;
-    }
-  }
-
-  .is-edit {
-    @apply opacity-65;
-  }
-}
-</style>

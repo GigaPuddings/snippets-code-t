@@ -1,187 +1,212 @@
 <template>
   <CommonDialog
     v-model="dialogVisible"
-    :center="true"
     :show-close="false"
-    width="min(420px, calc(100vw - 32px))"
-    class="alarm-edit-dialog"
+    :draggable="false"
+    width="min(360px, calc(100vw - 32px))"
+    custom-class="todo-edit-dialog"
     :close-on-click-modal="false"
     :close-on-press-escape="!saving"
   >
     <template #header>
-      <div class="title-container">
-        <span>
+      <div class="flex items-center justify-between gap-3">
+        <span class="text-ui font-semibold text-ui-heading">
           {{ props.editData ? $t('alarm.editAlarm') : $t('alarm.addAlarm') }}
         </span>
-        <delete
-          v-if="props.editData && !saving"
-          class="delete-icon"
-          width="20"
-          height="20"
-          @click="handleDelete"
+        <CustomButton
+          unstyled
+          class="ui-icon-button ui-action--muted"
+          :icon="Close"
+          :disabled="saving"
+          :aria-label="$t('common.close')"
+          @click="dialogVisible = false"
         />
       </div>
     </template>
-    <div class="alarm-edit-form">
-      <div class="time-picker mb-2">
-        <div class="flex justify-center items-center gap-4">
-          <div class="time-unit">
-            <up
-              class="cursor-pointer"
-              width="20"
-              height="20"
-              @click="adjustTime('hour', 1)"
+    <form class="space-y-4" @submit.prevent="handleSubmit">
+      <div>
+        <label
+          for="todo-reminder-title"
+          class="mb-1.5 block text-ui-caption font-medium text-ui-main"
+        >
+          {{ $t('alarm.title') }}
+        </label>
+        <el-input
+          id="todo-reminder-title"
+          v-model="formData.title"
+          :disabled="saving"
+          :maxlength="200"
+          :placeholder="$t('alarm.titlePlaceholder')"
+          autofocus
+        />
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label
+            for="todo-reminder-time"
+            class="mb-1.5 block text-ui-caption font-medium text-ui-main"
+          >
+            {{ $t('alarm.timeLabel') }}
+          </label>
+          <el-config-provider :locale="datePickerLocale">
+            <el-time-picker
+              id="todo-reminder-time"
+              v-model="selectedTime"
+              format="HH:mm"
+              value-format="HH:mm"
+              :clearable="false"
+              :disabled="saving"
+              class="!w-full"
             />
-            <div class="time-value">{{ formData.hour }}</div>
-            <down
-              class="cursor-pointer"
-              width="20"
-              height="20"
-              @click="adjustTime('hour', -1)"
+          </el-config-provider>
+        </div>
+        <div>
+          <label
+            id="todo-snooze-label"
+            class="mb-1.5 block text-ui-caption font-medium text-ui-main"
+          >
+            {{ $t('alarm.pauseTime') }}
+          </label>
+          <el-select
+            v-model="formData.reminderTime"
+            :disabled="saving"
+            aria-labelledby="todo-snooze-label"
+            class="w-full"
+          >
+            <el-option
+              v-for="minutes in ['5', '10', '15', '30']"
+              :key="minutes"
+              :label="`${minutes} ${$t('alarm.minutes')}`"
+              :value="minutes"
             />
-          </div>
-          <div class="text-2xl font-bold select-none">:</div>
-          <div class="time-unit">
-            <up
-              class="cursor-pointer"
-              width="20"
-              height="20"
-              @click="adjustTime('minute', 1)"
-            />
-            <div class="time-value">{{ formData.minute }}</div>
-            <down
-              class="cursor-pointer"
-              width="20"
-              height="20"
-              @click="adjustTime('minute', -1)"
-            />
-          </div>
+          </el-select>
         </div>
       </div>
-
-      <div class="alarm-title-input transparent-input">
-        <edit-two width="20" height="20" />
-        <el-tooltip effect="light" :content="$t('alarm.title')" placement="top">
-          <el-input
-            class="title-input"
-            v-model="formData.title"
-            :disabled="saving"
-            :maxlength="200"
-            :placeholder="$t('alarm.title')"
-          />
-        </el-tooltip>
-      </div>
-
-      <div class="alarm-type-selection">
-        <span class="alarm-type-title">{{ $t('alarm.alarmType') }}</span>
-        <div class="alarm-type-options">
+      <div>
+        <span
+          id="todo-repeat-label"
+          class="mb-1.5 block text-ui-caption font-medium text-ui-main"
+        >
+          {{ $t('alarm.repeatReminder') }}
+        </span>
+        <div
+          class="grid grid-cols-3 gap-1 rounded-ui bg-ui-card p-1"
+          role="group"
+          aria-labelledby="todo-repeat-label"
+        >
           <button
+            v-for="type in alarmTypes"
+            :key="type.value"
             type="button"
             :disabled="saving"
             :aria-pressed="formData.alarmType === type.value"
-            v-for="type in alarmTypes"
-            :key="type.value"
-            :class="[
-              'type-item',
-              formData.alarmType === type.value ? 'active' : ''
-            ]"
+            class="min-h-8 rounded-ui px-2 text-ui-caption transition-colors hover:bg-ui-card-hover disabled:opacity-50"
+            :class="
+              formData.alarmType === type.value
+                ? 'bg-ui-selected font-medium text-ui-main'
+                : 'text-ui-muted'
+            "
             @click="formData.alarmType = type.value"
           >
             {{ type.label }}
           </button>
         </div>
       </div>
-
-      <div
-        v-if="formData.alarmType === 'SpecificDate'"
-        class="alarm-date-picker"
-      >
-        <calendar width="20" height="20" />
-        <el-config-provider :locale="datePickerLocale">
-          <el-date-picker
-            v-model="formData.specificDates"
-            :disabled="saving"
-            type="dates"
-            :placeholder="$t('alarm.selectDates')"
-            format="YYYY-MM-DD"
-            value-format="YYYY-MM-DD"
-            class="date-picker"
-          />
-        </el-config-provider>
-      </div>
-
-      <div v-if="formData.alarmType === 'Weekly'" class="alarm-repeat-section">
-        <span class="repeat-section-title">
-          {{ $t('alarm.repeatReminder') }}
+      <div v-if="formData.alarmType === 'Weekly'">
+        <span
+          id="todo-weekdays-label"
+          class="mb-1.5 block text-ui-caption text-ui-muted"
+        >
+          {{ $t('alarm.weekdayPrompt') }}
         </span>
-        <div class="repeat-section-weekdays">
+        <div
+          class="grid grid-cols-7 gap-1"
+          role="group"
+          aria-labelledby="todo-weekdays-label"
+        >
           <button
+            v-for="day in weekdays"
+            :key="day.value"
             type="button"
             :disabled="saving"
             :aria-pressed="formData.weekdays.includes(day.value)"
-            v-for="day in weekdays"
-            :key="day.value"
-            :class="[
-              'day-item',
-              formData.weekdays.includes(day.value) ? 'active' : ''
-            ]"
+            class="h-8 rounded-ui text-ui-caption transition-colors hover:bg-ui-card-hover disabled:opacity-50"
+            :class="
+              formData.weekdays.includes(day.value)
+                ? 'bg-ui-selected font-medium text-ui-main'
+                : 'text-ui-muted'
+            "
             @click="toggleWeekday(day.value)"
           >
             {{ day.label }}
           </button>
         </div>
       </div>
-
-      <div class="alarm-pause-time transparent-input">
-        <alarm-clock width="20" height="20" />
-        <el-tooltip
-          effect="light"
-          :content="$t('alarm.pauseTime')"
-          placement="top"
+      <div v-else-if="formData.alarmType === 'SpecificDate'">
+        <span
+          id="todo-dates-label"
+          class="mb-1.5 block text-ui-caption text-ui-muted"
         >
-          <el-select
-            v-model="formData.reminderTime"
+          {{ $t('alarm.selectDates') }}
+        </span>
+        <el-config-provider :locale="datePickerLocale">
+          <el-date-picker
+            v-model="formData.specificDates"
             :disabled="saving"
-            class="reminder-time-select"
-            :placeholder="$t('alarm.pauseTime')"
-          >
-            <el-option :label="`5 ${$t('alarm.minutes')}`" value="5" />
-            <el-option :label="`10 ${$t('alarm.minutes')}`" value="10" />
-            <el-option :label="`15 ${$t('alarm.minutes')}`" value="15" />
-            <el-option :label="`30 ${$t('alarm.minutes')}`" value="30" />
-          </el-select>
-        </el-tooltip>
+            :disabled-date="disabledDate"
+            type="dates"
+            :placeholder="$t('alarm.selectDates')"
+            format="YYYY-MM-DD"
+            value-format="YYYY-MM-DD"
+            aria-labelledby="todo-dates-label"
+            class="!w-full"
+          />
+        </el-config-provider>
       </div>
-    </div>
-
+      <p class="m-0 text-ui-caption leading-relaxed text-ui-muted">
+        {{
+          $t(
+            props.editData && reminderCompleted(props.editData)
+              ? 'alarm.completedEditHint'
+              : 'alarm.scheduleHint'
+          )
+        }}
+      </p>
+      <button
+        type="submit"
+        class="hidden"
+        tabindex="-1"
+        aria-hidden="true"
+      ></button>
+    </form>
     <template #footer>
-      <div class="dialog-footer">
-        <CustomButton type="primary" :loading="saving" @click="handleSubmit">
-          <save width="18" height="18" />
-          <span class="ml-1">{{ $t('common.save') }}</span>
-        </CustomButton>
+      <div class="flex items-center justify-between gap-2">
         <CustomButton
-          type="default"
+          v-if="props.editData"
+          unstyled
+          class="ui-icon-button ui-action--muted text-[var(--el-color-danger)]"
+          :icon="Delete"
           :disabled="saving"
-          @click="dialogVisible = false"
-        >
-          <close width="18" height="18" />
-          <span class="ml-1">{{ $t('common.cancel') }}</span>
-        </CustomButton>
+          :aria-label="$t('common.delete')"
+          @click="handleDelete"
+        />
+        <span v-else></span>
+        <div class="flex items-center gap-2">
+          <CustomButton :disabled="saving" @click="dialogVisible = false">
+            {{ $t('common.cancel') }}
+          </CustomButton>
+          <CustomButton type="primary" :loading="saving" @click="handleSubmit">
+            {{ $t('common.save') }}
+          </CustomButton>
+        </div>
       </div>
     </template>
   </CommonDialog>
 </template>
 
 <script setup lang="ts">
-import Up from '~icons/lucide/chevron-up';
-import Down from '~icons/lucide/chevron-down';
 import Delete from '~icons/lucide/trash-2';
-import EditTwo from '~icons/lucide/square-pen';
-import AlarmClock from '~icons/lucide/alarm-clock';
-import Save from '~icons/lucide/save';
 import Close from '~icons/lucide/x';
-import Calendar from '~icons/lucide/calendar';
 import dayjs from 'dayjs';
 import { CustomButton, CommonDialog } from '@/components/UI';
 import { useI18n } from 'vue-i18n';
@@ -190,7 +215,8 @@ import en from 'element-plus/es/locale/lang/en';
 import {
   WEEKDAYS,
   createReminderDraft,
-  reminderPayload
+  reminderPayload,
+  reminderCompleted
 } from '../../../reminders';
 import modal from '@/utils/modal';
 
@@ -221,12 +247,17 @@ const alarmTypes = computed(() => [
 const handleDelete = (): void => {
   if (props.editData && !saving.value) emit('delete', props.editData);
 };
-const adjustTime = (type: 'hour' | 'minute', delta: number): void => {
-  if (saving.value) return;
-  const limit = type === 'hour' ? 24 : 60;
-  const value = (Number(formData.value[type]) + delta + limit) % limit;
-  formData.value[type] = value.toString().padStart(2, '0');
-};
+const selectedTime = computed({
+  get: (): string => `${formData.value.hour}:${formData.value.minute}`,
+  set: (value: string): void => {
+    if (!value) return;
+    const [hour, minute] = value.split(':');
+    formData.value.hour = hour;
+    formData.value.minute = minute;
+  }
+});
+const disabledDate = (date: Date): boolean =>
+  dayjs(date).isBefore(dayjs().startOf('day'));
 const toggleWeekday = (day: string): void => {
   const days = formData.value.weekdays;
   const index = days.indexOf(day);
@@ -289,101 +320,3 @@ defineExpose({
   }
 });
 </script>
-
-<style scoped lang="scss">
-.title-container {
-  @apply flex items-center justify-between select-none;
-
-  .delete-icon {
-    @apply cursor-pointer text-red-500;
-  }
-}
-
-.time-picker {
-  @apply mb-1;
-}
-
-.time-unit {
-  @apply flex flex-col items-center;
-
-  .time-value {
-    @apply text-4xl font-bold my-1 select-none;
-  }
-}
-
-.day-item {
-  @apply px-[8px] py-[4px] rounded-full cursor-pointer text-sm border transition-colors;
-
-  &:hover {
-    @apply bg-content;
-  }
-
-  &.active {
-    @apply bg-active text-white hover:bg-[--el-button-hover-bg-color];
-  }
-}
-
-.alarm-edit-form {
-  @apply flex flex-col gap-2 py-2;
-}
-
-.alarm-title-input {
-  @apply flex items-center gap-2;
-
-  .title-input {
-    @apply border rounded-md shadow-sm;
-  }
-}
-
-.alarm-repeat-section {
-  .repeat-section-title {
-    @apply text-sm text-panel-text-secondary select-none;
-  }
-
-  .repeat-section-weekdays {
-    @apply flex flex-wrap gap-2 mt-1 select-none;
-  }
-}
-
-.alarm-pause-time {
-  @apply flex items-center gap-2;
-
-  .reminder-time-select {
-    @apply border rounded-md shadow-sm;
-  }
-}
-
-.alarm-type-selection {
-  .alarm-type-title {
-    @apply text-sm text-panel-text-secondary select-none;
-  }
-
-  .alarm-type-options {
-    @apply flex flex-wrap gap-2 mt-1 select-none;
-  }
-
-  .type-item {
-    @apply px-[8px] py-[4px] rounded-full cursor-pointer text-sm border transition-colors;
-
-    &:hover {
-      @apply bg-content;
-    }
-
-    &.active {
-      @apply bg-active text-white hover:bg-[--el-button-hover-bg-color];
-    }
-  }
-}
-
-.alarm-date-picker {
-  @apply flex items-center gap-2;
-
-  .date-picker {
-    @apply border rounded-md shadow-sm;
-  }
-}
-
-.dialog-footer {
-  @apply flex items-center justify-end gap-3;
-}
-</style>

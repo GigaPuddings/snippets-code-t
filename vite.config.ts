@@ -13,7 +13,7 @@ import {
 const host = process.env.TAURI_DEV_HOST;
 
 // https://vitejs.dev/config/
-export default defineConfig(async ({ command }) => {
+export default defineConfig(async ({ command, mode }) => {
   const generateTypeDeclarations =
     command === 'serve' || process.env.VITE_GENERATE_PLUGIN_DTS === 'true';
 
@@ -65,6 +65,12 @@ export default defineConfig(async ({ command }) => {
         '@': resolve(__dirname, './src'),
         '@tauri': resolve(__dirname, './src-tauri')
       }
+    },
+
+    // WebView can retain optimized module URLs from an earlier dev session.
+    // Refresh that graph at startup; leave test/build cache reuse intact.
+    optimizeDeps: {
+      force: command === 'serve' && mode !== 'test'
     },
 
     // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`

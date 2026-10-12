@@ -5,6 +5,7 @@ use tauri::Emitter;
 
 mod schedule;
 mod service;
+mod sound;
 pub use service::{start_alarm_service, stop_alarm_service};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -42,26 +43,35 @@ pub struct AlarmCard {
 }
 
 pub(crate) fn play_reminder_sound(app_handle: &tauri::AppHandle) {
-    use windows::Win32::Media::Audio::{
-        PlaySoundW, SND_ALIAS, SND_ASYNC, SND_NODEFAULT, SND_NOSTOP, SND_SYSTEM,
-    };
-
-    if !crate::app_config::is_plugin_enabled(app_handle, "todo") {
-        return;
+    if let Err(error) = sound::play(app_handle) {
+        log::debug!("[Todo] {error}");
     }
+}
 
-    // Use the user's system notification sound and volume without blocking or
-    // restarting a sound already playing for a simultaneous reminder.
-    let played = unsafe {
-        PlaySoundW(
-            windows::core::w!("SystemNotification"),
-            None,
-            SND_ALIAS | SND_ASYNC | SND_NODEFAULT | SND_NOSTOP | SND_SYSTEM,
-        )
-    };
-    if !played.as_bool() {
-        log::debug!("[Todo] 系统提示音未播放：声音未配置、音频设备不可用或已有提示音正在播放");
+#[tauri::command]
+pub fn get_todo_sound_enabled(app_handle: tauri::AppHandle) -> Result<bool, String> {
+    crate::app_config::require_plugin_enabled(&app_handle, "todo")?;
+    Ok(sound::enabled(&app_handle))
+}
+
+#[tauri::command]
+pub fn set_todo_sound_enabled(app_handle: tauri::AppHandle, enabled: bool) -> Result<(), String> {
+    crate::app_config::require_plugin_enabled(&app_handle, "todo")?;
+    let previous = sound::enabled(&app_handle);
+    if let Err(error) =
+        crate::json_config::set_app_config_value(&app_handle, sound::SETTING_KEY, enabled)
+    {
+        // The existing config manager updates memory before saving. Restore it
+        // too if persistence fails, so the displayed and effective settings agree.
+        let _ = crate::json_config::set_app_config_value(&app_handle, sound::SETTING_KEY, previous);
+        return Err(error);
     }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn preview_todo_sound(app_handle: tauri::AppHandle) -> Result<(), String> {
+    sound::play(&app_handle)
 }
 
 fn serialize_weekdays<S: serde::Serializer>(

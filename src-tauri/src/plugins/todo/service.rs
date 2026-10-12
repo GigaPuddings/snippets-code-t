@@ -118,9 +118,12 @@ fn system_notification(app: &tauri::AppHandle, title: &str) -> Result<(), String
         .builder()
         .title("Snippets Code")
         .body(title)
-        .sound("Default")
+        // With this project's notification backend, omitting the sound emits
+        // <audio silent="true"/> on Windows. Use only our bundled chime.
         .show()
-        .map_err(|error| error.to_string())
+        .map_err(|error| error.to_string())?;
+    super::play_reminder_sound(app);
+    Ok(())
 }
 
 fn check_alarms(app: &tauri::AppHandle, generation: u64) -> Result<bool, String> {
@@ -161,9 +164,17 @@ fn check_alarms(app: &tauri::AppHandle, generation: u64) -> Result<bool, String>
         if !db::take_snooze(&alarm.id).map_err(|error| error.to_string())? {
             continue;
         }
-        if let Err(error) = system_notification(app, &alarm.title) {
-            db::queue_snooze(&alarm).map_err(|error| error.to_string())?;
-            return Err(error);
+        let created = create_notification_window_unified(NotificationType::Reminder {
+            body: alarm.title.clone(),
+            reminder_time: None,
+            alarm_id: alarm.alarm_id.clone(),
+        })
+        .is_some();
+        if !created {
+            if let Err(error) = system_notification(app, &alarm.title) {
+                db::queue_snooze(&alarm).map_err(|error| error.to_string())?;
+                return Err(error);
+            }
         }
         changed = true;
     }

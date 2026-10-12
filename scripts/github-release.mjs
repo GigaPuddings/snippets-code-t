@@ -66,3 +66,42 @@ export async function getReleaseForTag({
   }
   return release;
 }
+
+// A rebuilt installer and its signature must replace the old draft assets
+// together. Published versions are immutable here; release a new version instead.
+export async function uploadDraftReleaseAsset({
+  octokit,
+  owner,
+  repo,
+  release,
+  name,
+  data,
+  contentType
+}) {
+  if (!release.draft) {
+    throw new Error(
+      `Refusing to replace assets on published release ${release.tag_name}`
+    );
+  }
+
+  const existingAsset = release.assets.find((asset) => asset.name === name);
+  if (existingAsset) {
+    await octokit.repos.deleteReleaseAsset({
+      owner,
+      repo,
+      asset_id: existingAsset.id
+    });
+  }
+
+  return octokit.repos.uploadReleaseAsset({
+    owner,
+    repo,
+    release_id: release.id,
+    name,
+    data,
+    headers: {
+      'content-type': contentType,
+      'content-length': Buffer.byteLength(data)
+    }
+  });
+}

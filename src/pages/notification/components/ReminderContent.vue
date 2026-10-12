@@ -1,29 +1,44 @@
 <template>
-  <div class="reminder-content">
-    <div class="notification-header">
-      <div class="header-left">
-        <div class="icon-wrapper">
-          <BellRing
-            width="20"
-            height="20"
-            class="text-[var(--el-color-primary)]"
-          />
-        </div>
-        <h2 class="title">{{ $t('notification.title') }}</h2>
-      </div>
-      <button
-        type="button"
-        class="titlebar-button"
-        :disabled="loading"
-        :aria-label="$t('common.close')"
-        @click="$emit('close')"
+  <div class="flex min-h-0 flex-1 flex-col">
+    <header
+      class="mb-3 flex shrink-0 items-center justify-between gap-3"
+      data-tauri-drag-region
+    >
+      <div
+        class="flex items-center gap-2 text-ui-caption font-medium text-ui-muted"
+        data-tauri-drag-region
       >
-        <CloseSmall class="close-icon" width="20" height="20" />
-      </button>
+        <BellRing width="16" height="16" aria-hidden="true" />
+        <h2 class="m-0 text-ui-caption font-medium">
+          {{ $t('notification.title') }}
+        </h2>
+      </div>
+      <CustomButton
+        unstyled
+        class="ui-icon-button ui-action--muted !h-6 !w-6"
+        :icon="CloseSmall"
+        :disabled="loading"
+        :aria-label="$t('notification.closeHint')"
+        :title="$t('notification.closeHint')"
+        @click="$emit('close')"
+      />
+    </header>
+    <div
+      class="min-h-0 flex-1 overflow-y-auto whitespace-pre-wrap break-words text-ui font-semibold leading-relaxed text-ui-heading"
+      :title="body"
+    >
+      {{ body }}
     </div>
-    <div class="notification-body" :title="body">{{ body }}</div>
   </div>
-  <div class="notification-button-group">
+  <div class="mt-3 flex shrink-0 items-center justify-end gap-2">
+    <CustomButton
+      v-if="reminderTime"
+      :loading="loading"
+      size="small"
+      @click="$emit('remind')"
+    >
+      {{ $t('notification.remindLater', { minutes: reminderTime }) }}
+    </CustomButton>
     <CustomButton
       type="primary"
       size="small"
@@ -32,24 +47,12 @@
     >
       {{ $t('notification.confirm') }}
     </CustomButton>
-    <CustomButton
-      v-if="reminderTime"
-      :loading="loading"
-      size="small"
-      @click="$emit('remind')"
-    >
-      <template #icon>
-        <AlarmClock width="16" height="16" />
-      </template>
-      {{ $t('notification.remindLater', { minutes: reminderTime }) }}
-    </CustomButton>
   </div>
 </template>
 
 <script setup lang="ts">
 import CloseSmall from '~icons/lucide/x';
 import BellRing from '~icons/lucide/bell-ring';
-import AlarmClock from '~icons/lucide/alarm-clock';
 import { CustomButton } from '@/components/UI';
 
 defineProps<{
@@ -64,47 +67,3 @@ defineEmits<{
   remind: [];
 }>();
 </script>
-
-<style scoped lang="scss">
-.notification-header {
-  @apply flex justify-between items-center mb-2;
-
-  padding-bottom: 2px;
-}
-
-.header-left {
-  @apply flex items-center gap-2;
-}
-
-.icon-wrapper {
-  @apply flex items-center justify-center rounded-full p-1;
-
-  background: var(--app-ui-selected-bg);
-}
-
-.title {
-  @apply text-base font-medium text-panel;
-}
-
-.reminder-content {
-  @apply flex-1;
-}
-
-.notification-body {
-  @apply text-sm text-ui-main whitespace-pre-wrap break-words line-clamp-2;
-
-  padding: 0 4px;
-}
-
-.notification-button-group {
-  @apply flex justify-end gap-2 mt-1;
-}
-
-.titlebar-button {
-  @apply flex items-center justify-center rounded-full hover:bg-panel-hover-bg w-6 h-6 transition-all duration-200;
-}
-
-.close-icon {
-  @apply text-panel-text-secondary;
-}
-</style>

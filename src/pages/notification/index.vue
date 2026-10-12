@@ -1,6 +1,6 @@
 <template>
   <main
-    class="flex h-full w-full flex-col justify-between rounded-ui border border-ui bg-ui-card p-3 font-ui text-ui-main shadow-workspace-panel"
+    class="flex h-full w-full flex-col justify-between rounded-ui border border-ui bg-[var(--settings-surface)] p-4 font-ui text-ui-main shadow-workspace-panel"
   >
     <ReminderContent
       :body="state.body"
@@ -12,7 +12,7 @@
     />
     <p
       v-if="remindError"
-      class="my-1 shrink-0 truncate text-xs text-red-500"
+      class="my-1 shrink-0 truncate text-ui-caption text-[var(--el-color-danger)]"
       role="alert"
       :title="remindError"
     >

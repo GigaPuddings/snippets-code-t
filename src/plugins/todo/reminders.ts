@@ -63,7 +63,17 @@ export function reminderPayload(
   };
 }
 
+export function reminderCompleted(card: AlarmCard): boolean {
+  // The scheduler consumes all dates and disables a completed one-off reminder.
+  return (
+    card.alarm_type === 'SpecificDate' &&
+    !card.is_active &&
+    (card.specific_dates?.length ?? 0) === 0
+  );
+}
+
 export function reminderStatus(card: AlarmCard, now = Date.now()): string[] {
+  if (reminderCompleted(card)) return ['completed'];
   if (!card.is_active) return ['disabled'];
   if (card.alarm_type === 'SpecificDate' && card.next_alarm_at === null)
     return ['expired'];
@@ -80,6 +90,7 @@ export function reminderCountdown(
   t: Translate,
   now = Date.now()
 ): string {
+  if (reminderCompleted(card)) return t('alarm.completed');
   if (!card.is_active) return t('alarm.paused');
   if (card.next_alarm_at === undefined) return card.time_left;
   if (!card.next_alarm_at)
@@ -93,4 +104,18 @@ export function reminderCountdown(
   if (minutes >= 60)
     return t('alarm.hoursLeft', { count: Math.ceil(minutes / 60) });
   return t('alarm.minutesLeft', { count: minutes });
+}
+
+export function reminderSchedule(card: AlarmCard, t: Translate): string {
+  if (reminderCompleted(card)) return t('alarm.completedDates');
+  if (card.alarm_type === 'Daily') return t('alarm.dailyRepeat');
+  if (card.alarm_type === 'Weekly') {
+    return `${t('alarm.weekly')} · ${normalizeWeekdays(card.weekdays)
+      .map((day) => t(`alarm.weekdays.${day.toLowerCase()}`))
+      .join(' / ')}`;
+  }
+  const dates = card.specific_dates ?? [];
+  return dates.length === 1
+    ? dates[0]
+    : t('alarm.totalDates', { count: dates.length });
 }

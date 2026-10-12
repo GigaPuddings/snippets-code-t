@@ -262,6 +262,9 @@ impl AppConfigManager {
             "local-ai" => {
                 self.config.extra.remove("local_ai_chat_histories");
             }
+            "todo" => {
+                self.config.extra.remove("todo_sound_enabled");
+            }
             _ => {}
         }
     }

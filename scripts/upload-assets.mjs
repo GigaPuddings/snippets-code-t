@@ -2,7 +2,10 @@ import { createRequire } from 'module';
 import { Octokit } from '@octokit/rest';
 import fs from 'fs';
 import path from 'path';
-import { getReleaseForTag } from './github-release.mjs';
+import {
+  getReleaseForTag,
+  uploadDraftReleaseAsset
+} from './github-release.mjs';
 
 const require = createRequire(import.meta.url);
 const tauriConfig = require('../src-tauri/tauri.conf.json');
@@ -23,25 +26,14 @@ async function uploadFile(release, filePath, fileName) {
       ? 'text/plain'
       : 'application/octet-stream';
 
-    const existingAsset = release.assets.find(
-      (asset) => asset.name === fileName
-    );
-
-    if (existingAsset) {
-      console.log(`⚠️  文件已存在，跳过: ${fileName}`);
-      return;
-    }
-
-    await octokit.repos.uploadReleaseAsset({
+    await uploadDraftReleaseAsset({
+      octokit,
       owner,
       repo,
-      release_id: release.id,
+      release,
       name: fileName,
       data: fileContent,
-      headers: {
-        'content-type': contentType,
-        'content-length': fileContent.length
-      }
+      contentType
     });
 
     console.log(`✅ 已上传: ${fileName}`);
@@ -53,6 +45,12 @@ async function uploadFile(release, filePath, fileName) {
 
 async function main() {
   try {
+    const expectedTag = `v${tauriConfig.version}`;
+    if (tag !== expectedTag) {
+      throw new Error(
+        `Release tag mismatch: expected ${expectedTag}, got ${tag}`
+      );
+    }
     // 获取 release
     const release = await getReleaseForTag({
       octokit,
@@ -62,6 +60,12 @@ async function main() {
       releaseId
     });
 
+    if (!release.draft) {
+      throw new Error(
+        `Refusing to upload a new build to published release ${tag}`
+      );
+    }
+
     console.log(`📦 正在上传资产到 Release: ${release.name}`);
 
     // 构建文件路径 - 本地构建的文件本来就不带 _windows 后缀
@@ -70,20 +74,28 @@ async function main() {
     const setupFilePath = path.join(basePath, setupFileName);
     const sigFilePath = `${setupFilePath}.sig`;
 
-    // 上传安装文件
-    if (fs.existsSync(setupFilePath)) {
-      await uploadFile(release, setupFilePath, setupFileName);
-    } else {
-      console.error(`❌ 文件不存在: ${setupFilePath}`);
-      process.exit(1);
+    // Validate both files before changing remote assets. A missing signature
+    // must not leave a new installer paired with the old build's signature.
+    for (const filePath of [setupFilePath, sigFilePath]) {
+      if (!fs.existsSync(filePath) || fs.statSync(filePath).size === 0) {
+        throw new Error(`构建文件不存在或为空: ${filePath}`);
+      }
     }
 
-    // 上传签名文件
-    if (fs.existsSync(sigFilePath)) {
-      await uploadFile(release, sigFilePath, `${setupFileName}.sig`);
-    } else {
-      console.warn(`⚠️  签名文件不存在: ${sigFilePath}`);
+    // Remove draft metadata before replacing the installer/signature pair.
+    const existingMetadata = release.assets.find(
+      (asset) => asset.name === 'latest.json'
+    );
+    if (existingMetadata) {
+      await octokit.repos.deleteReleaseAsset({
+        owner,
+        repo,
+        asset_id: existingMetadata.id
+      });
     }
+
+    await uploadFile(release, setupFilePath, setupFileName);
+    await uploadFile(release, sigFilePath, `${setupFileName}.sig`);
 
     console.log('✨ 所有文件上传完成');
   } catch (error) {

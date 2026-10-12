@@ -563,6 +563,9 @@ pub fn run() {
             set_data_dir_from_setup,          // 从设置向导保存数据目录
             uninstall::refresh_uninstall_cleanup_paths, // 刷新 Windows 卸载清理路径
             plugins::todo::get_alarm_cards,                  // 获取代办提醒卡片
+            plugins::todo::get_todo_sound_enabled,
+            plugins::todo::set_todo_sound_enabled,
+            plugins::todo::preview_todo_sound,
             plugins::todo::add_alarm_card,                   // 添加代办提醒卡片
             plugins::todo::update_alarm_card,                // 更新代办提醒卡片
             plugins::todo::delete_alarm_card,                // 删除代办提醒卡片

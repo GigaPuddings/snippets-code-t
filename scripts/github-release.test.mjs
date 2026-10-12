@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   getReleaseAssetDownloadUrl,
-  getReleaseForTag
+  getReleaseForTag,
+  uploadDraftReleaseAsset
 } from './github-release.mjs';
 
 function createOctokit(overrides = {}) {
@@ -9,7 +10,9 @@ function createOctokit(overrides = {}) {
     repos: {
       getRelease: vi.fn(),
       getReleaseByTag: vi.fn(),
-      listReleases: vi.fn()
+      listReleases: vi.fn(),
+      deleteReleaseAsset: vi.fn(),
+      uploadReleaseAsset: vi.fn()
     },
     paginate: vi.fn(),
     ...overrides
@@ -68,6 +71,99 @@ describe('getReleaseForTag', () => {
         releaseId: '42'
       })
     ).rejects.toThrow('expected v2.2.2, got v2.2.1');
+  });
+});
+
+describe('uploadDraftReleaseAsset', () => {
+  const assetOptions = {
+    owner: 'GigaPuddings',
+    repo: 'snippets-code-t',
+    release: {
+      id: 42,
+      tag_name: 'v2.2.10',
+      draft: true,
+      assets: [{ id: 7, name: 'setup.exe', size: 4 }]
+    },
+    name: 'setup.exe',
+    data: Buffer.from('new build'),
+    contentType: 'application/octet-stream'
+  };
+
+  it('replaces a previous draft build instead of skipping the new installer', async () => {
+    const octokit = createOctokit();
+    await uploadDraftReleaseAsset({ ...assetOptions, octokit });
+    expect(octokit.repos.deleteReleaseAsset).toHaveBeenCalledWith({
+      owner: assetOptions.owner,
+      repo: assetOptions.repo,
+      asset_id: 7
+    });
+    expect(octokit.repos.uploadReleaseAsset).toHaveBeenCalledWith(
+      expect.objectContaining({
+        release_id: 42,
+        name: 'setup.exe',
+        data: assetOptions.data
+      })
+    );
+    expect(
+      octokit.repos.deleteReleaseAsset.mock.invocationCallOrder[0]
+    ).toBeLessThan(
+      octokit.repos.uploadReleaseAsset.mock.invocationCallOrder[0]
+    );
+  });
+
+  it('uploads a missing draft asset and calculates UTF-8 byte length', async () => {
+    const octokit = createOctokit();
+    const data = JSON.stringify({ notes: '发布说明' });
+    await uploadDraftReleaseAsset({
+      ...assetOptions,
+      octokit,
+      name: 'latest.json',
+      data,
+      contentType: 'application/json'
+    });
+    expect(octokit.repos.deleteReleaseAsset).not.toHaveBeenCalled();
+    expect(octokit.repos.uploadReleaseAsset).toHaveBeenCalledWith(
+      expect.objectContaining({
+        headers: {
+          'content-type': 'application/json',
+          'content-length': Buffer.byteLength(data)
+        }
+      })
+    );
+  });
+
+  it('refuses to modify installers or metadata on a published release', async () => {
+    const octokit = createOctokit();
+    await expect(
+      uploadDraftReleaseAsset({
+        ...assetOptions,
+        octokit,
+        release: { ...assetOptions.release, draft: false }
+      })
+    ).rejects.toThrow('published release');
+    expect(octokit.repos.deleteReleaseAsset).not.toHaveBeenCalled();
+    expect(octokit.repos.uploadReleaseAsset).not.toHaveBeenCalled();
+  });
+
+  it('stops when removing an old asset fails', async () => {
+    const octokit = createOctokit();
+    octokit.repos.deleteReleaseAsset.mockRejectedValue(
+      new Error('delete failed')
+    );
+    await expect(
+      uploadDraftReleaseAsset({ ...assetOptions, octokit })
+    ).rejects.toThrow('delete failed');
+    expect(octokit.repos.uploadReleaseAsset).not.toHaveBeenCalled();
+  });
+
+  it('propagates upload failure so the workflow cannot publish incomplete assets', async () => {
+    const octokit = createOctokit();
+    octokit.repos.uploadReleaseAsset.mockRejectedValue(
+      new Error('upload failed')
+    );
+    await expect(
+      uploadDraftReleaseAsset({ ...assetOptions, octokit })
+    ).rejects.toThrow('upload failed');
   });
 });
 
