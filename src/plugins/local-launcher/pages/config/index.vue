@@ -348,9 +348,16 @@
                 v-if="isEditMode"
                 type="danger"
                 text
-                :aria-label="$t('local.hide')"
-                :title="$t('local.hide')"
+                :aria-label="
+                  $t(item.summarize === 'app' ? 'local.delete' : 'local.hide')
+                "
+                :title="
+                  $t(item.summarize === 'app' ? 'local.delete' : 'local.hide')
+                "
                 :icon="Delete"
+                :disabled="
+                  deleteBusy || (item.summarize === 'app' && indexRunning)
+                "
                 @click.stop="handleDelete(item)"
               />
             </div>
@@ -370,15 +377,32 @@
     <ConfirmDialog
       v-model="showDeleteDialog"
       :title="$t('local.removeTitle')"
-      :confirm-text="$t('local.hide')"
+      :confirm-text="
+        $t(deleteTarget?.summarize === 'app' ? 'local.delete' : 'local.hide')
+      "
       :cancel-text="$t('common.cancel')"
       type="warning"
       :loading="deleteBusy"
       @confirm="confirmDelete"
     >
-      <p>{{ $t('local.hideConfirm', { name: deleteTarget?.title || '' }) }}</p>
+      <p>
+        {{
+          $t(
+            deleteTarget?.summarize === 'app'
+              ? 'local.deleteAppRecordConfirm'
+              : 'local.hideConfirm',
+            { name: deleteTarget?.title || '' }
+          )
+        }}
+      </p>
       <p class="mt-2 text-ui-caption text-ui-muted">
-        {{ $t('local.hiddenHint') }}
+        {{
+          $t(
+            deleteTarget?.summarize === 'app'
+              ? 'local.deleteAppRecordHint'
+              : 'local.hiddenHint'
+          )
+        }}
       </p>
     </ConfirmDialog>
     <LauncherSettingsDialog
@@ -455,7 +479,10 @@ import {
   bookmarkSourceKey,
   type LauncherEntry
 } from '../../types';
-import { getPrimarySearchHistoryKey } from '@/search/ranking';
+import {
+  createLauncherListRefresh,
+  launchLauncherEntry
+} from '../../listRefresh';
 import {
   refreshRecycleScroller,
   type RecycleScrollerInstance
@@ -630,25 +657,12 @@ const filteredList = computed(() =>
         item.sources?.some((source) => source.browser === browserFilter.value))
   )
 );
-watch([searchQuery, activeTab, currentList], () => {
-  const version = ++searchVersion;
+watch([searchQuery, activeTab, browserFilter], () => {
+  searchVersion += 1;
   clearTimeout(searchTimer);
-  if (!searchQuery.value.trim()) {
-    matchingIds.value = null;
-    return;
-  }
-  matchingIds.value = new Set();
-  searchTimer = setTimeout(async () => {
-    try {
-      const matches = await invoke<Array<{ id: string }>>(
-        activeTab.value === 'app' ? 'search_apps' : 'search_bookmarks',
-        { query: searchQuery.value.trim() }
-      );
-      if (version === searchVersion)
-        matchingIds.value = new Set(matches.map((item) => item.id));
-    } catch (error) {
-      if (version === searchVersion) modal.error(String(error));
-    }
+  matchingIds.value = searchQuery.value.trim() ? new Set() : null;
+  searchTimer = setTimeout(() => {
+    void loadData(true);
   }, 120);
 });
 
@@ -661,33 +675,41 @@ watch(
   { flush: 'post' }
 );
 
-// 加载数据
-const loadApps = async () => {
-  try {
-    const result = await invoke<AppInfo[]>('get_apps');
-    apps.value = result || [];
-  } catch (error) {
-    console.error('加载应用失败:', error);
-    modal.error(t('local.loadFailed', { type: t('local.apps') }));
+// Live updates preserve row positions; only explicit queries/navigation reorder.
+const listRefresh = createLauncherListRefresh(
+  apps,
+  bookmarks,
+  (kind, error) => {
+    console.error('加载启动器列表失败:', error);
+    modal.error(
+      t('local.loadFailed', {
+        type: t(kind === 'app' ? 'local.apps' : 'local.bookmarks')
+      })
+    );
   }
-};
-
-const loadBookmarks = async () => {
-  try {
-    const result = await invoke<BookmarkInfo[]>('get_bookmarks');
-    bookmarks.value = result || [];
-  } catch (error) {
-    console.error('加载书签失败:', error);
-    modal.error(t('local.loadFailed', { type: t('local.bookmarks') }));
-  }
-};
-
-const loadData = async () => {
-  await Promise.all([loadApps(), loadBookmarks()]);
+);
+const loadData = async (reorder = false): Promise<void> => {
+  if (!(await listRefresh.refresh(reorder))) return;
   if (deleteTarget.value?.summarize === 'bookmark') {
     deleteTarget.value =
       bookmarks.value.find((item) => item.id === deleteTarget.value?.id) ||
       null;
+  }
+  const version = ++searchVersion;
+  const query = searchQuery.value.trim();
+  if (!query) {
+    matchingIds.value = null;
+    return;
+  }
+  try {
+    const matches = await invoke<Array<{ id: string }>>(
+      activeTab.value === 'app' ? 'search_apps' : 'search_bookmarks',
+      { query }
+    );
+    if (version === searchVersion)
+      matchingIds.value = new Set(matches.map((item) => item.id));
+  } catch (error) {
+    if (version === searchVersion) modal.error(String(error));
   }
 };
 
@@ -733,38 +755,15 @@ const handleEdit = (item: AppInfo | BookmarkInfo) => {
   editDialogRef.value?.open();
 };
 
-// 点击项目（非编辑模式）
-const handleItemClick = async (item: AppInfo | BookmarkInfo) => {
+// Record successful launches without moving the list underneath the pointer.
+const handleItemClick = async (item: AppInfo | BookmarkInfo): Promise<void> => {
   try {
-    // 记录使用历史：与快速搜索窗口使用同一套稳定 key（app:path:* / bookmark:url:*），
-    // 保证两侧的使用次数统计写入同一条记录
-    const source = activeTab.value === 'app' ? 'app' : 'bookmark';
-    const historyKey = getPrimarySearchHistoryKey({
-      id: item.id,
-      title: item.title,
-      content: item.content,
-      summarize: source,
-      metadata: { source }
-    });
-    await invoke('add_search_history', { id: historyKey });
-
-    // 打开应用或书签
-    if (activeTab.value === 'app') {
-      await invoke('open_app_command', { appPath: item.content });
-    } else {
-      await invoke('open_url', { url: item.content });
-    }
-
-    // 重新加载数据以更新排序
-    await loadData();
+    await launchLauncherEntry(item);
   } catch (error) {
-    console.error(
-      `打开${activeTab.value === 'app' ? '应用' : '书签'}失败:`,
-      error
-    );
+    console.error('打开启动器项目失败:', error);
     modal.error(
       t('local.openFailed', {
-        type: activeTab.value === 'app' ? t('local.apps') : t('local.bookmarks')
+        type: t(item.summarize === 'app' ? 'local.apps' : 'local.bookmarks')
       })
     );
   }
@@ -846,7 +845,11 @@ const confirmDelete = async () => {
       deleteTarget.value.summarize === 'app' ? 'delete_app' : 'delete_bookmark',
       { id: deleteTarget.value.id }
     );
-    modal.success(t('local.hiddenSuccess'));
+    modal.success(
+      deleteTarget.value.summarize === 'app'
+        ? t('local.deleteAppRecordSuccess')
+        : t('local.hiddenSuccess')
+    );
     await loadData();
     showDeleteDialog.value = false;
     deleteTarget.value = null;
@@ -956,8 +959,8 @@ onMounted(async () => {
   // 先监听再恢复快照，避免页面挂载期间漏掉完成或取消事件。
   await setupScanListeners();
   await checkScanStatus();
-  // 加载数据
-  await loadData();
+  // Load the current ranking on entry.
+  await loadData(true);
   await invoke('refresh_launcher_index', { force: false }).catch((error) =>
     console.error(error)
   );
@@ -966,12 +969,13 @@ onMounted(async () => {
 
 onActivated(() => {
   if (!pageReady) return;
-  void loadData();
+  void loadData(true);
   void checkScanStatus();
   void invoke('refresh_launcher_index', { force: false }).catch(console.error);
 });
 
 onUnmounted(() => {
+  listRefresh.dispose();
   pageReady = false;
   searchVersion += 1;
   clearTimeout(searchTimer);

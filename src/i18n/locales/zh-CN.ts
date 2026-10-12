@@ -994,6 +994,10 @@ export default {
     hideConfirm: '选择如何处理“{name}”：',
     removeTitle: '移除项目',
     hiddenSuccess: '已从启动器隐藏',
+    deleteAppRecordConfirm: '确定删除“{name}”的检索记录吗？',
+    deleteAppRecordSuccess: '已删除应用检索记录',
+    deleteAppRecordHint:
+      '只移除启动器中的记录，不会卸载应用或添加隐藏标记。下次重新检索时，仍可被发现的应用会重新出现。',
     continue: '继续',
     deleteBrowserBookmark: '删除浏览器原书签…',
     browserDeleteHint:

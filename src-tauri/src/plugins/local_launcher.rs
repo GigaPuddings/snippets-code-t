@@ -163,6 +163,12 @@ pub fn update_app(
 #[tauri::command]
 pub fn delete_app(app_handle: tauri::AppHandle, id: String) -> Result<(), String> {
     require_local_launcher_plugin(&app_handle)?;
+    if crate::window::get_active_scan_progress_states()
+        .iter()
+        .any(|task| task.owner == "local-launcher" && task.task == "index")
+    {
+        return Err("应用正在重新检索，请完成后再删除检索记录".into());
+    }
     db::delete_app(id)
 }
 

@@ -4,6 +4,7 @@ use crate::db::entity::{
 };
 use crate::db::DbConnectionManager;
 use crate::plugins::local_launcher::invalidate_apps_cache;
+use rusqlite::OptionalExtension;
 
 // ============= 应用相关数据库操作 =============
 
@@ -189,9 +190,40 @@ pub fn update_app(
 
 // 删除单个应用
 pub fn delete_app(id: String) -> Result<(), String> {
-    super::launcher::hide_launcher_entry("app", &id)?;
+    let mut conn = DbConnectionManager::get_core().map_err(|error| error.to_string())?;
+    DbConnectionManager::attach_search_database(&conn).map_err(|error| error.to_string())?;
+    remove_app_entry(&mut conn, &id).map_err(|error| error.to_string())?;
     invalidate_apps_cache();
     Ok(())
+}
+
+fn remove_app_entry(conn: &mut rusqlite::Connection, id: &str) -> rusqlite::Result<()> {
+    let transaction = conn.transaction()?;
+    let target: String = transaction
+        .query_row(
+            "SELECT content FROM main.apps WHERE id = ?1
+         UNION ALL SELECT content FROM search_db.apps WHERE id = ?1 LIMIT 1",
+            [id],
+            |row| row.get(0),
+        )
+        .optional()?
+        .ok_or(rusqlite::Error::QueryReturnedNoRows)?;
+    transaction.execute("DELETE FROM main.apps WHERE id = ?1", [id])?;
+    // Remove a scanned counterpart underneath an edited/manual item as well.
+    transaction.execute(
+        "DELETE FROM search_db.apps WHERE id = ?1 OR (source_kind = 'scanner' AND
+         RTRIM(REPLACE(LOWER(TRIM(content)), '\\', '/'), '/') =
+         RTRIM(REPLACE(LOWER(TRIM(?2)), '\\', '/'), '/'))",
+        rusqlite::params![id, target],
+    )?;
+    transaction.execute(
+        "DELETE FROM main.launcher_exclusions WHERE kind = 'app' AND
+         RTRIM(REPLACE(LOWER(TRIM(target)), '\\', '/'), '/') =
+         RTRIM(REPLACE(LOWER(TRIM(?1)), '\\', '/'), '/')",
+        [&target],
+    )?;
+    // Keep usage history and source fingerprints. A subsequent rescan can insert it again.
+    transaction.commit()
 }
 
 // 获取所有应用（Tauri command 版本）
@@ -202,6 +234,99 @@ pub fn get_apps() -> Result<Vec<AppInfo>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn deletion_fixture() -> rusqlite::Connection {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch(r"ATTACH DATABASE ':memory:' AS search_db;
+            CREATE TABLE apps (id TEXT PRIMARY KEY, content TEXT NOT NULL, source_kind TEXT);
+            CREATE TABLE search_db.apps (id TEXT PRIMARY KEY, content TEXT NOT NULL, source_kind TEXT);
+            CREATE TABLE launcher_exclusions (kind TEXT, target TEXT, title TEXT, PRIMARY KEY(kind, target));
+            CREATE TABLE search_history (id TEXT PRIMARY KEY, usage_count INTEGER);
+            INSERT INTO search_db.apps VALUES ('scan', 'C:\Apps\Test.exe', 'scanner'), ('other', 'C:\Apps\Other.exe', 'scanner');
+            INSERT INTO search_history VALUES ('app:path:c:/apps/test.exe', 42);").unwrap();
+        conn
+    }
+
+    #[test]
+    fn deleting_scanner_record_keeps_history_and_allows_discovery_again_without_hiding() {
+        let mut conn = deletion_fixture();
+        remove_app_entry(&mut conn, "scan").unwrap();
+        assert_eq!(
+            conn.query_row("SELECT count(*) FROM search_db.apps", [], |row| row
+                .get::<_, i64>(0))
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            conn.query_row("SELECT count(*) FROM launcher_exclusions", [], |row| row
+                .get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            conn.query_row("SELECT usage_count FROM search_history", [], |row| row
+                .get::<_, i64>(0))
+                .unwrap(),
+            42
+        );
+        conn.execute(
+            r"INSERT INTO search_db.apps VALUES ('rediscovered', 'C:\Apps\Test.exe', 'scanner')",
+            [],
+        )
+        .unwrap();
+        assert_eq!(conn.query_row(r"SELECT count(*) FROM search_db.apps WHERE content = 'C:\Apps\Test.exe'
+            AND NOT EXISTS(SELECT 1 FROM launcher_exclusions WHERE kind = 'app' AND target = content)", [], |row| row.get::<_, i64>(0)).unwrap(), 1);
+    }
+
+    #[test]
+    fn deleting_override_removes_scanned_counterpart_but_keeps_other_manual_items_and_hidden_rules()
+    {
+        let mut conn = deletion_fixture();
+        conn.execute_batch(r"INSERT INTO apps VALUES ('manual', 'c:/apps/test.exe', 'user'), ('manual-copy', 'c:/apps/test.exe', 'user');
+            INSERT INTO launcher_exclusions VALUES ('app', 'C:\Apps\Test.exe', 'Old rule'), ('app', 'C:\Apps\Other.exe', 'Keep hidden');").unwrap();
+        remove_app_entry(&mut conn, "manual").unwrap();
+        assert_eq!(
+            conn.query_row("SELECT id FROM apps", [], |row| row.get::<_, String>(0))
+                .unwrap(),
+            "manual-copy"
+        );
+        assert_eq!(
+            conn.query_row("SELECT id FROM search_db.apps", [], |row| row
+                .get::<_, String>(0))
+                .unwrap(),
+            "other"
+        );
+        assert_eq!(
+            conn.query_row("SELECT title FROM launcher_exclusions", [], |row| row
+                .get::<_, String>(0))
+                .unwrap(),
+            "Keep hidden"
+        );
+    }
+
+    #[test]
+    fn deletion_failures_roll_back_the_manual_item_and_never_report_missing_ids_as_success() {
+        let mut conn = deletion_fixture();
+        assert!(remove_app_entry(&mut conn, "missing").is_err());
+        conn.execute(
+            r"INSERT INTO apps VALUES ('manual', 'C:\Apps\Test.exe', 'user')",
+            [],
+        )
+        .unwrap();
+        conn.execute_batch("CREATE TRIGGER search_db.prevent_delete BEFORE DELETE ON apps BEGIN SELECT RAISE(ABORT, 'blocked'); END;").unwrap();
+        assert!(remove_app_entry(&mut conn, "manual").is_err());
+        assert_eq!(
+            conn.query_row("SELECT count(*) FROM apps", [], |row| row.get::<_, i64>(0))
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            conn.query_row("SELECT count(*) FROM search_db.apps", [], |row| row
+                .get::<_, i64>(0))
+                .unwrap(),
+            2
+        );
+    }
     #[test]
     fn old_helper_rows_are_filtered_but_explicit_manual_entries_are_preserved() {
         let mut app = AppInfo {

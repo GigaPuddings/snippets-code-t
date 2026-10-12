@@ -1036,6 +1036,10 @@ export default {
     hideConfirm: 'Choose how to handle “{name}”:',
     removeTitle: 'Remove item',
     hiddenSuccess: 'Hidden from launcher',
+    deleteAppRecordConfirm: 'Delete the indexed record for “{name}”?',
+    deleteAppRecordSuccess: 'App index entry deleted',
+    deleteAppRecordHint:
+      'Removes the launcher record without uninstalling or hiding the app. A later rescan can discover it again.',
     continue: 'Continue',
     deleteBrowserBookmark: 'Delete original browser bookmark…',
     browserDeleteHint:
