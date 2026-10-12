@@ -110,19 +110,7 @@ declare global {
     | 'tool';
 
   // 代办提醒类型
-  interface AlarmCard {
-    id: string;
-    time: string;
-    title: string;
-    weekdays: string[];
-    reminder_time: string;
-    is_active: boolean;
-    created_at: Date;
-    updated_at: Date;
-    time_left: string;
-    alarm_type: 'Daily' | 'Weekly' | 'SpecificDate';
-    specific_dates?: string[] | null;
-  }
+  type AlarmCard = import('./database').AlarmCard;
 
   // 搜索筛选条件接口
   interface SearchFilter {

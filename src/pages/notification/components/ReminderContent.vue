@@ -11,17 +11,33 @@
         </div>
         <h2 class="title">{{ $t('notification.title') }}</h2>
       </div>
-      <div class="titlebar-button" @click="$emit('close')">
+      <button
+        type="button"
+        class="titlebar-button"
+        :disabled="loading"
+        :aria-label="$t('common.close')"
+        @click="$emit('close')"
+      >
         <CloseSmall class="close-icon" width="20" height="20" />
-      </div>
+      </button>
     </div>
-    <div class="notification-body">{{ body }}</div>
+    <div class="notification-body" :title="body">{{ body }}</div>
   </div>
   <div class="notification-button-group">
-    <CustomButton type="primary" size="small" @click="$emit('confirm')">
+    <CustomButton
+      type="primary"
+      size="small"
+      :disabled="loading"
+      @click="$emit('confirm')"
+    >
       {{ $t('notification.confirm') }}
     </CustomButton>
-    <CustomButton v-if="reminderTime" size="small" @click="$emit('remind')">
+    <CustomButton
+      v-if="reminderTime"
+      :loading="loading"
+      size="small"
+      @click="$emit('remind')"
+    >
       <template #icon>
         <AlarmClock width="16" height="16" />
       </template>
@@ -39,6 +55,7 @@ import { CustomButton } from '@/components/UI';
 defineProps<{
   body: string;
   reminderTime?: string;
+  loading?: boolean;
 }>();
 
 defineEmits<{
@@ -62,7 +79,7 @@ defineEmits<{
 .icon-wrapper {
   @apply flex items-center justify-center rounded-full p-1;
 
-  background: rgb(64 150 255 / 10%);
+  background: var(--app-ui-selected-bg);
 }
 
 .title {
@@ -74,7 +91,7 @@ defineEmits<{
 }
 
 .notification-body {
-  @apply text-sm text-panel-text-secondary whitespace-nowrap overflow-hidden text-ellipsis;
+  @apply text-sm text-ui-main whitespace-pre-wrap break-words line-clamp-2;
 
   padding: 0 4px;
 }

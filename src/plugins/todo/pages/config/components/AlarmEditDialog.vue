@@ -3,9 +3,10 @@
     v-model="dialogVisible"
     :center="true"
     :show-close="false"
-    width="auto"
+    width="min(420px, calc(100vw - 32px))"
     class="alarm-edit-dialog"
-    :style="dialogStyle"
+    :close-on-click-modal="false"
+    :close-on-press-escape="!saving"
   >
     <template #header>
       <div class="title-container">
@@ -13,7 +14,7 @@
           {{ props.editData ? $t('alarm.editAlarm') : $t('alarm.addAlarm') }}
         </span>
         <delete
-          v-if="props.editData"
+          v-if="props.editData && !saving"
           class="delete-icon"
           width="20"
           height="20"
@@ -64,6 +65,8 @@
           <el-input
             class="title-input"
             v-model="formData.title"
+            :disabled="saving"
+            :maxlength="200"
             :placeholder="$t('alarm.title')"
           />
         </el-tooltip>
@@ -72,7 +75,10 @@
       <div class="alarm-type-selection">
         <span class="alarm-type-title">{{ $t('alarm.alarmType') }}</span>
         <div class="alarm-type-options">
-          <div
+          <button
+            type="button"
+            :disabled="saving"
+            :aria-pressed="formData.alarmType === type.value"
             v-for="type in alarmTypes"
             :key="type.value"
             :class="[
@@ -82,7 +88,7 @@
             @click="formData.alarmType = type.value"
           >
             {{ type.label }}
-          </div>
+          </button>
         </div>
       </div>
 
@@ -91,15 +97,15 @@
         class="alarm-date-picker"
       >
         <calendar width="20" height="20" />
-        <el-config-provider :locale="zhCnLocale">
+        <el-config-provider :locale="datePickerLocale">
           <el-date-picker
-            v-model="specificDatesValue"
+            v-model="formData.specificDates"
+            :disabled="saving"
             type="dates"
             :placeholder="$t('alarm.selectDates')"
             format="YYYY-MM-DD"
             value-format="YYYY-MM-DD"
             class="date-picker"
-            @change="handleDateChange"
           />
         </el-config-provider>
       </div>
@@ -109,17 +115,20 @@
           {{ $t('alarm.repeatReminder') }}
         </span>
         <div class="repeat-section-weekdays">
-          <div
+          <button
+            type="button"
+            :disabled="saving"
+            :aria-pressed="formData.weekdays.includes(day.value)"
             v-for="day in weekdays"
-            :key="day"
+            :key="day.value"
             :class="[
               'day-item',
-              formData.weekdays.includes(day) ? 'active' : ''
+              formData.weekdays.includes(day.value) ? 'active' : ''
             ]"
-            @click="toggleWeekday(day)"
+            @click="toggleWeekday(day.value)"
           >
-            {{ day }}
-          </div>
+            {{ day.label }}
+          </button>
         </div>
       </div>
 
@@ -132,6 +141,7 @@
         >
           <el-select
             v-model="formData.reminderTime"
+            :disabled="saving"
             class="reminder-time-select"
             :placeholder="$t('alarm.pauseTime')"
           >
@@ -146,11 +156,15 @@
 
     <template #footer>
       <div class="dialog-footer">
-        <CustomButton type="primary" @click="handleSubmit">
+        <CustomButton type="primary" :loading="saving" @click="handleSubmit">
           <save width="18" height="18" />
           <span class="ml-1">{{ $t('common.save') }}</span>
         </CustomButton>
-        <CustomButton type="default" @click="dialogVisible = false">
+        <CustomButton
+          type="default"
+          :disabled="saving"
+          @click="dialogVisible = false"
+        >
           <close width="18" height="18" />
           <span class="ml-1">{{ $t('common.cancel') }}</span>
         </CustomButton>
@@ -172,276 +186,106 @@ import dayjs from 'dayjs';
 import { CustomButton, CommonDialog } from '@/components/UI';
 import { useI18n } from 'vue-i18n';
 import zhCn from 'element-plus/es/locale/lang/zh-cn';
+import en from 'element-plus/es/locale/lang/en';
+import {
+  WEEKDAYS,
+  createReminderDraft,
+  reminderPayload
+} from '../../../reminders';
 import modal from '@/utils/modal';
 
-const { t } = useI18n();
-
-/**
- * 弹窗宽度：监听窗口实时变化，用 ref + resize 保持响应
- * min(vw, px) 限制最大宽度，两侧至少各留 16px 边距
- */
-const dialogStyle = ref({ width: 'min(28vw, 480px)' });
-
-const calcWidth = () => {
-  const w = window.innerWidth;
-  if (w < 768) return 'min(52vw, 440px)';
-  if (w < 900) return 'min(48vw, 500px)';
-  if (w >= 900) return 'min(38vw, 420px)';
-  return 'min(38vw, 420px)';
-};
-
-onMounted(() => {
-  dialogStyle.value = { width: calcWidth() };
-  window.addEventListener('resize', calcWidthAndUpdate);
-});
-
-onUnmounted(() => {
-  window.removeEventListener('resize', calcWidthAndUpdate);
-});
-
-const calcWidthAndUpdate = () => {
-  dialogStyle.value = { width: calcWidth() };
-};
-
-interface FormData {
-  hour: string;
-  minute: string;
-  title: string;
-  weekdays: string[];
-  reminderTime: string;
-  alarmType: 'Daily' | 'Weekly' | 'SpecificDate';
-  specificDates: string[];
-}
-
+const { t, locale } = useI18n();
 const props = defineProps<{
   editData?: AlarmCard | null;
+  save: (card: Partial<AlarmCard>) => Promise<void>;
 }>();
-
-const emit = defineEmits(['submit', 'delete']);
+const emit = defineEmits<{ delete: [card: AlarmCard] }>();
 const dialogVisible = ref(false);
-const weekdays = computed(() => [
-  t('alarm.weekdays.mon'),
-  t('alarm.weekdays.tue'),
-  t('alarm.weekdays.wed'),
-  t('alarm.weekdays.thu'),
-  t('alarm.weekdays.fri'),
-  t('alarm.weekdays.sat'),
-  t('alarm.weekdays.sun')
-]);
-
+const saving = ref(false);
+const formData = ref(createReminderDraft(null));
+const datePickerLocale = computed(() =>
+  locale.value.startsWith('zh') ? zhCn : en
+);
+const weekdays = computed(() =>
+  WEEKDAYS.map((value) => ({
+    value,
+    label: t(`alarm.weekdays.${value.toLowerCase()}`)
+  }))
+);
 const alarmTypes = computed(() => [
   { label: t('alarm.daily'), value: 'Daily' as const },
   { label: t('alarm.weekly'), value: 'Weekly' as const },
   { label: t('alarm.specificDate'), value: 'SpecificDate' as const }
 ]);
 
-const specificDatesValue = ref<string[]>([dayjs().format('YYYY-MM-DD')]);
-const zhCnLocale = zhCn;
-
-const handleDateChange = (dates: string[]) => {
-  formData.value.specificDates = dates || [];
+const handleDelete = (): void => {
+  if (props.editData && !saving.value) emit('delete', props.editData);
 };
-const now = dayjs();
-const formData = ref<FormData>({
-  hour: now.format('HH'),
-  minute: now.format('mm'),
-  title: '',
-  weekdays: [],
-  reminderTime: '5',
-  alarmType: 'Weekly',
-  specificDates: [now.format('YYYY-MM-DD')]
-});
-
-watch(
-  () => props.editData,
-  (newValue, _oldValue) => {
-    if (newValue) {
-      const specificDates = (newValue as any).specific_dates || [
-        now.format('YYYY-MM-DD')
-      ];
-      formData.value = {
-        hour: newValue.time.split(':')[0],
-        minute: newValue.time.split(':')[1],
-        title: newValue.title,
-        weekdays: newValue.weekdays,
-        reminderTime: newValue.reminder_time,
-        alarmType: (newValue as any).alarm_type || 'Weekly',
-        specificDates: Array.isArray(specificDates)
-          ? specificDates
-          : [specificDates]
-      };
-      specificDatesValue.value = Array.isArray(specificDates)
-        ? specificDates
-        : [specificDates];
-    } else {
-      const currentDate = [now.format('YYYY-MM-DD')];
-      formData.value = {
-        hour: now.format('HH'),
-        minute: now.format('mm'),
-        title: '',
-        weekdays: [],
-        reminderTime: '5',
-        alarmType: 'Weekly',
-        specificDates: currentDate
-      };
-      specificDatesValue.value = currentDate;
-    }
-  },
-  {
-    immediate: true
-  }
-);
-
-watch(specificDatesValue, (newDates) => {
-  if (newDates) {
-    formData.value.specificDates = newDates;
-  }
-});
-const handleDelete = () => {
-  if (props.editData) {
-    emit('delete', props.editData);
-    dialogVisible.value = false;
-  }
+const adjustTime = (type: 'hour' | 'minute', delta: number): void => {
+  if (saving.value) return;
+  const limit = type === 'hour' ? 24 : 60;
+  const value = (Number(formData.value[type]) + delta + limit) % limit;
+  formData.value[type] = value.toString().padStart(2, '0');
 };
-
-const adjustTime = (type: 'hour' | 'minute', delta: number) => {
-  if (type === 'hour') {
-    let newHour = parseInt(formData.value.hour) + delta;
-    if (newHour > 23) newHour = 0;
-    if (newHour < 0) newHour = 23;
-    formData.value.hour = newHour.toString().padStart(2, '0');
-  } else {
-    let newMinute = parseInt(formData.value.minute) + delta;
-    if (newMinute > 59) newMinute = 0;
-    if (newMinute < 0) newMinute = 59;
-    formData.value.minute = newMinute.toString().padStart(2, '0');
-  }
+const toggleWeekday = (day: string): void => {
+  const days = formData.value.weekdays;
+  const index = days.indexOf(day);
+  if (index < 0) days.push(day);
+  else days.splice(index, 1);
 };
-
-const toggleWeekday = (day: string) => {
-  const index = formData.value.weekdays.indexOf(day);
-  if (index === -1) {
-    formData.value.weekdays.push(day);
-  } else {
-    formData.value.weekdays.splice(index, 1);
-  }
-};
-
 const validateForm = (): string | null => {
-  if (!formData.value.title.trim()) {
-    return t('alarm.titleRequired');
-  }
-
-  const hour = parseInt(formData.value.hour);
-  const minute = parseInt(formData.value.minute);
-  if (isNaN(hour) || hour < 0 || hour > 23) {
+  const draft = formData.value;
+  if (!draft.title.trim()) return t('alarm.titleRequired');
+  if (!/^\d{2}$/.test(draft.hour) || Number(draft.hour) > 23)
     return t('alarm.hourError');
-  }
-  if (isNaN(minute) || minute < 0 || minute > 59) {
+  if (!/^\d{2}$/.test(draft.minute) || Number(draft.minute) > 59)
     return t('alarm.minuteError');
-  }
-
-  if (
-    formData.value.alarmType === 'Weekly' &&
-    formData.value.weekdays.length === 0
-  ) {
+  if (draft.alarmType === 'Weekly' && draft.weekdays.length === 0)
     return t('alarm.weekdayRequired');
-  }
-
-  if (formData.value.alarmType === 'SpecificDate') {
-    if (
-      !formData.value.specificDates ||
-      formData.value.specificDates.length === 0
-    ) {
-      return t('alarm.dateRequired');
-    }
-
-    const now = dayjs();
-    for (const dateStr of formData.value.specificDates) {
-      const selectedDate = dayjs(dateStr);
-      const selectedDateTime = selectedDate.hour(hour).minute(minute);
-
-      if (selectedDateTime.isBefore(now)) {
-        return t('alarm.dateExpired', { date: dateStr });
+  if (draft.alarmType === 'SpecificDate') {
+    if (!draft.specificDates?.length) return t('alarm.dateRequired');
+    const time = `${draft.hour}:${draft.minute}`;
+    for (const date of draft.specificDates) {
+      const parsed = dayjs(`${date}T${time}:00`);
+      const unchanged =
+        props.editData?.specific_dates?.includes(date) &&
+        props.editData.time === time;
+      if (
+        !parsed.isValid() ||
+        parsed.format('YYYY-MM-DD') !== date ||
+        (parsed.isBefore(dayjs()) && !unchanged)
+      ) {
+        return t('alarm.dateExpired', { date });
       }
     }
   }
-
   return null;
 };
-
-const handleSubmit = () => {
+const handleSubmit = async (): Promise<void> => {
+  if (saving.value) return;
   const error = validateForm();
   if (error) {
     modal.error(error);
     return;
   }
-
-  let weeks: string[] = [];
-
-  if (formData.value.alarmType === 'Weekly') {
-    weeks =
-      formData.value.weekdays.length > 0
-        ? formData.value.weekdays
-        : weekdays.value;
-  } else if (formData.value.alarmType === 'Daily') {
-    weeks = weekdays.value;
+  saving.value = true;
+  try {
+    await props.save(reminderPayload(formData.value, props.editData ?? null));
+    dialogVisible.value = false;
+    modal.success(t('alarm.saveSuccess'));
+  } catch (error) {
+    modal.error(`${t('alarm.saveFailed')}: ${String(error)}`);
+  } finally {
+    saving.value = false;
   }
-
-  emit('submit', {
-    id: props.editData?.id || '',
-    time: `${formData.value.hour}:${formData.value.minute}`,
-    title: formData.value.title.trim() || t('alarm.defaultTitle'),
-    weekdays: weeks,
-    reminder_time: formData.value.reminderTime,
-    is_active: true,
-    alarm_type: formData.value.alarmType,
-    specific_dates:
-      formData.value.alarmType === 'SpecificDate'
-        ? formData.value.specificDates
-        : null
-  });
-  dialogVisible.value = false;
 };
-
-const resetForm = () => {
-  const now = dayjs();
-  const currentDates = [now.format('YYYY-MM-DD')];
-  formData.value = {
-    hour: now.format('HH'),
-    minute: now.format('mm'),
-    title: '',
-    weekdays: [],
-    reminderTime: '5',
-    alarmType: 'Weekly',
-    specificDates: currentDates
-  };
-  specificDatesValue.value = currentDates;
-};
-
 defineExpose({
-  open: () => {
-    if (props.editData) {
-      const specificDate =
-        (props.editData as any).specific_date || dayjs().format('YYYY-MM-DD');
-      formData.value = {
-        hour: props.editData.time.split(':')[0],
-        minute: props.editData.time.split(':')[1],
-        title: props.editData.title,
-        weekdays: props.editData.weekdays,
-        reminderTime: props.editData.reminder_time,
-        alarmType: (props.editData as any).alarm_type || 'Weekly',
-        specificDates: Array.isArray(specificDate)
-          ? specificDate
-          : [specificDate]
-      };
-      specificDatesValue.value = Array.isArray(specificDate)
-        ? specificDate
-        : [specificDate];
-    } else {
-      resetForm();
-    }
+  open: (): void => {
+    formData.value = createReminderDraft(props.editData ?? null);
     dialogVisible.value = true;
+  },
+  close: (): void => {
+    dialogVisible.value = false;
   }
 });
 </script>

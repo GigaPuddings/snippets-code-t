@@ -1761,6 +1761,7 @@ pub enum NotificationType {
     Reminder {
         body: String,
         reminder_time: Option<i64>,
+        alarm_id: Option<String>,
     },
 }
 
@@ -1776,7 +1777,7 @@ pub fn create_notification_window_unified(ntype: NotificationType) -> Option<Web
     let scale_factor = monitor.scale_factor();
 
     // 窗口大小和边距 (逻辑像素)
-    let (window_width, window_height) = (300.0, 126.0);
+    let (window_width, window_height) = (360.0, 164.0);
     let taskbar_height = 40.0;
     let margin = 16.0;
 
@@ -1793,6 +1794,7 @@ pub fn create_notification_window_unified(ntype: NotificationType) -> Option<Web
         NotificationType::Reminder {
             body,
             reminder_time,
+            alarm_id,
         } => {
             let mut params = vec![
                 format!("label={}", urlencoding::encode(&label)),
@@ -1800,6 +1802,9 @@ pub fn create_notification_window_unified(ntype: NotificationType) -> Option<Web
             ];
             if let Some(time) = reminder_time {
                 params.push(format!("reminder_time={}", time));
+            }
+            if let Some(id) = alarm_id {
+                params.push(format!("alarm_id={}", urlencoding::encode(id)));
             }
             format!("/#/notification?{}", params.join("&"))
         }
@@ -1850,6 +1855,8 @@ pub fn create_notification_window_unified(ntype: NotificationType) -> Option<Web
     let start_x_anim = start_x;
 
     let mut on_ready: Option<WindowReadyCallback> = Some(Box::new(move |window| {
+        // This callback is consumed once when the reminder window is ready.
+        crate::plugins::todo::play_reminder_sound(window.app_handle());
         let window_handle = window.clone();
         std::thread::spawn(move || {
             if with_animation {
@@ -1889,15 +1896,6 @@ pub fn create_notification_window_unified(ntype: NotificationType) -> Option<Web
     }
 
     Some(window)
-}
-
-// 创建代办提醒通知窗口（兼容旧接口）
-pub fn create_notification_window(body: &str, reminder_time: Option<i64>) -> WebviewWindow {
-    create_notification_window_unified(NotificationType::Reminder {
-        body: body.to_string(),
-        reminder_time,
-    })
-    .expect("Failed to create notification window")
 }
 
 // 处理窗口事件的函数

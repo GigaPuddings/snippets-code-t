@@ -340,6 +340,8 @@ pub fn clear_plugin_storage(plugin_id: &str) -> Result<(), rusqlite::Error> {
         }
         "todo" => {
             let conn = DbConnectionManager::get_core()?;
+            conn.execute("DROP TABLE IF EXISTS alarm_snoozes", [])?;
+            conn.execute("DROP TABLE IF EXISTS alarm_firings", [])?;
             conn.execute("DROP TABLE IF EXISTS alarm_cards", [])?;
         }
         _ => {}
@@ -365,7 +367,7 @@ fn create_search_engines_table(conn: &rusqlite::Connection) -> Result<(), rusqli
     Ok(())
 }
 
-fn create_alarm_cards_table(conn: &rusqlite::Connection) -> Result<(), rusqlite::Error> {
+pub(super) fn create_alarm_cards_table(conn: &rusqlite::Connection) -> Result<(), rusqlite::Error> {
     // 创建 alarm_cards 表
     conn.execute(
         "CREATE TABLE IF NOT EXISTS alarm_cards (
@@ -381,6 +383,19 @@ fn create_alarm_cards_table(conn: &rusqlite::Connection) -> Result<(), rusqlite:
             specific_dates TEXT
         )",
         [],
+    )?;
+
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS alarm_firings (
+        alarm_id TEXT PRIMARY KEY REFERENCES alarm_cards(id) ON DELETE CASCADE,
+        occurrence_at INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS alarm_snoozes (
+        id TEXT PRIMARY KEY,
+        alarm_id TEXT REFERENCES alarm_cards(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        due_at INTEGER NOT NULL
+    );",
     )?;
 
     Ok(())
@@ -502,6 +517,8 @@ mod tests {
             "user_settings",
             "search_engines",
             "alarm_cards",
+            "alarm_firings",
+            "alarm_snoozes",
         ] {
             assert!(table_exists_for_test(&core, table));
             assert!(!table_exists_for_test(&search, table));

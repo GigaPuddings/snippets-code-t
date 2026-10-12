@@ -100,20 +100,18 @@ export interface Bookmark {
  * 提醒卡片接口
  */
 export interface AlarmCard {
-  /** 提醒 ID */
-  id: number;
-  /** 提醒时间 */
+  id: string;
   time: string;
-  /** 提醒标题 */
   title: string;
-  /** 星期几（用于每周提醒） */
-  weekdays?: string;
-  /** 提醒类型：每日、每周或指定日期 */
-  alarm_type: 'daily' | 'weekly' | 'specific';
-  /** 指定日期（用于特定日期提醒） */
-  specific_dates?: string;
-  /** 创建时间 */
-  created_at?: string;
+  weekdays: string[];
+  reminder_time: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  time_left: string;
+  next_alarm_at?: string | null;
+  alarm_type: 'Daily' | 'Weekly' | 'SpecificDate';
+  specific_dates?: string[] | null;
 }
 
 /**

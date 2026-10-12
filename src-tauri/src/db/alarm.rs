@@ -2,6 +2,9 @@ use crate::db::DbConnectionManager;
 use crate::plugins::todo::AlarmCard;
 use chrono::{DateTime, Local};
 
+mod runtime;
+pub use runtime::*;
+
 // ============= 提醒卡片相关数据库操作 =============
 
 fn parse_alarm_datetime(id: &str, field: &str, value: String) -> DateTime<Local> {
@@ -57,6 +60,7 @@ pub fn get_all_alarm_cards() -> Result<Vec<AlarmCard>, rusqlite::Error> {
             created_at,
             updated_at,
             time_left: "".to_string(), // This is a calculated field
+            next_alarm_at: None,
             alarm_type,
             specific_dates: {
                 let dates_str: Option<String> = row.get(9).ok();
@@ -80,7 +84,12 @@ pub fn get_all_alarm_cards() -> Result<Vec<AlarmCard>, rusqlite::Error> {
 
 // 添加或更新提醒卡片
 pub fn add_or_update_alarm_card(card: &AlarmCard) -> Result<(), rusqlite::Error> {
-    let conn = DbConnectionManager::get_core()?;
+    let mut conn = DbConnectionManager::get_core()?;
+    save_on(&mut conn, card)
+}
+
+fn save_on(conn: &mut rusqlite::Connection, card: &AlarmCard) -> Result<(), rusqlite::Error> {
+    let transaction = conn.transaction()?;
     let weekdays_str = serde_json::to_string(&card.weekdays).unwrap_or_else(|error| {
         log::warn!(
             "[Todo] 提醒 {} 的 weekdays 序列化失败，已按空列表保存: {}",
@@ -95,8 +104,13 @@ pub fn add_or_update_alarm_card(card: &AlarmCard) -> Result<(), rusqlite::Error>
         crate::plugins::todo::AlarmType::SpecificDate => "SpecificDate",
     };
 
-    conn.execute(
-        "INSERT OR REPLACE INTO alarm_cards (id, time, title, weekdays, reminder_time, is_active, created_at, updated_at, alarm_type, specific_dates) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+    transaction.execute(
+        "INSERT INTO alarm_cards (id, time, title, weekdays, reminder_time, is_active, created_at, updated_at, alarm_type, specific_dates)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+         ON CONFLICT(id) DO UPDATE SET time = excluded.time, title = excluded.title,
+         weekdays = excluded.weekdays, reminder_time = excluded.reminder_time,
+         is_active = excluded.is_active, updated_at = excluded.updated_at,
+         alarm_type = excluded.alarm_type, specific_dates = excluded.specific_dates",
         rusqlite::params![
             card.id,
             card.time,
@@ -110,26 +124,29 @@ pub fn add_or_update_alarm_card(card: &AlarmCard) -> Result<(), rusqlite::Error>
             card.specific_dates.as_ref().map(|dates| dates.join(",")),
         ],
     )?;
+    if !card.is_active {
+        transaction.execute("DELETE FROM alarm_snoozes WHERE alarm_id = ?1", [&card.id])?;
+    }
+    transaction.commit()?;
     Ok(())
 }
 
 // 删除提醒卡片
 pub fn delete_alarm_card_by_id(id: &str) -> Result<(), rusqlite::Error> {
-    let conn = DbConnectionManager::get_core()?;
-    conn.execute(
+    delete_on(&mut DbConnectionManager::get_core()?, id)
+}
+
+fn delete_on(conn: &mut rusqlite::Connection, id: &str) -> Result<(), rusqlite::Error> {
+    let transaction = conn.transaction()?;
+    transaction.execute("DELETE FROM alarm_snoozes WHERE alarm_id = ?1", [id])?;
+    transaction.execute("DELETE FROM alarm_firings WHERE alarm_id = ?1", [id])?;
+    let deleted = transaction.execute(
         "DELETE FROM alarm_cards WHERE id = ?1",
         rusqlite::params![id],
     )?;
-    Ok(())
-}
-
-// 切换提醒卡片的激活状态
-#[allow(dead_code)]
-pub fn toggle_alarm_card_active(id: &str) -> Result<(), rusqlite::Error> {
-    let conn = DbConnectionManager::get_core()?;
-    conn.execute(
-        "UPDATE alarm_cards SET is_active = NOT is_active WHERE id = ?1",
-        rusqlite::params![id],
-    )?;
+    if deleted == 0 {
+        return Err(rusqlite::Error::QueryReturnedNoRows);
+    }
+    transaction.commit()?;
     Ok(())
 }

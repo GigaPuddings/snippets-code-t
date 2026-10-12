@@ -43,6 +43,10 @@ pub use search_engines::{get_all_search_engines, replace_all_search_engines};
 
 // 重新导出提醒卡片相关函数
 pub use alarm::{add_or_update_alarm_card, delete_alarm_card_by_id, get_all_alarm_cards};
+pub use alarm::{
+    claim_alarm_occurrence, clear_snoozes, due_snoozes, finish_specific_occurrence, has_snoozes,
+    queue_snooze, release_alarm_occurrence, take_snooze, SnoozedAlarm,
+};
 
 // 重新导出搜索历史相关函数
 // pub use search_history::cleanup_old_search_history;

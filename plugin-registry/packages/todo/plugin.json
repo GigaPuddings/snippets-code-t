@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "todo",
-  "version": "2.0.18",
+  "version": "2.0.19",
   "kind": "local",
   "name": {
     "i18nKey": "plugins.todo.name",
@@ -24,14 +24,14 @@
   "permissions": [
     "command:*"
   ],
-  "compatibleAppVersion": ">=2.2.7",
+  "compatibleAppVersion": ">=2.2.10",
   "entry": {
     "frontend": "dist/frontend.js",
     "styles": [
-      "dist/assets/runtime-entry-DtTokcn9.css"
+      "dist/assets/runtime-entry-lLIpIVtu.css"
     ]
   },
-  "minAppVersion": "2.2.7",
+  "minAppVersion": "2.2.10",
   "repository": "https://github.com/GigaPuddings/snippets-code-plugin-todo",
-  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-todo/releases/tag/2.0.18"
+  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-todo/releases/tag/2.0.19"
 }

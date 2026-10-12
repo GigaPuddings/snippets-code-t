@@ -2581,9 +2581,13 @@ mod tests {
         let fixture = AppFixture::new();
         let target = fixture.executable("Custom Chrome.exe");
         let shortcut = fixture.shortcut("Google Chrome.lnk", &target, "--custom", "", false);
+        let resolved = super::resolve_shortcut(std::path::Path::new(&shortcut))
+            .expect("resolve the shortcut's actual target");
+        // The shell may expand Windows 8.3 aliases in the temporary directory.
+        // Compare the files rather than the spelling of their paths.
         assert_eq!(
-            super::resolve_shortcut(std::path::Path::new(&shortcut)),
-            Some(target)
+            std::fs::canonicalize(resolved).unwrap(),
+            std::fs::canonicalize(target).unwrap()
         );
     }
 
