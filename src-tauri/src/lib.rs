@@ -682,6 +682,7 @@ pub fn run() {
             plugins::local_launcher::get_browser_bookmark_delete_status,
             plugins::local_launcher::delete_browser_bookmark_sources,
             plugins::local_launcher::refresh_launcher_index,
+            plugins::local_launcher::get_launcher_index_state,
             plugins::local_launcher::get_launcher_settings,
             plugins::local_launcher::set_launcher_settings,
             plugins::local_launcher::get_launcher_exclusions,

@@ -973,6 +973,17 @@ export default {
     scanRootsHint: '每行一个绝对目录，最多 10 个；扫描深度为 4 层。',
     rescan: '重新扫描',
     rescanStarted: '已开始重新扫描',
+    rescanComplete: '检索完成',
+    rescanPartial: '检索部分完成',
+    rescanFailed: '检索失败',
+    rescanCounts: '当前可用 {apps} 个应用、{bookmarks} 个书签',
+    rescanRetry: '重新检索',
+    rescanRunning: '正在检索…',
+    rescanSaveHint: '重新检索会先保存当前配置；配置无效时不会启动检索。',
+    rescanPartialHint:
+      '部分来源未更新；未成功更新的来源保留上次索引，可重新检索。',
+    rescanNotificationFailed: '系统通知未送达，检索结果已保留在此处。',
+    rescanPhases: '阶段 {current}/{total}',
     settingsSaved: '启动器设置已保存',
     hiddenItems: '隐藏的项目',
     hiddenHint:
@@ -990,7 +1001,7 @@ export default {
     confirmBrowserDelete: '确认删除所选原书签',
     browserDeleteSuccess: '已删除 {count} 个原书签来源，原文件已自动备份',
     browserDeleteSyncHint:
-      '此操作只修改本机书签文件。账号同步可能重新合并云端数据，不能保证删除云端或其他设备的书签。',
+      '已同步的书签会记录待同步的删除操作。浏览器下次启动并完成账号同步后，删除可能同步到云端及其他设备；当前成功提示仅确认本机写入。',
     bookmarkBackupHint:
       '备份位置：%LOCALAPPDATA%\\SnippetsCode\\BookmarkBackups；浏览器状态会自动检查。',
     recheckBrowser: '重新检查',

@@ -94,7 +94,14 @@
           </div>
           <div class="scan-status__metrics">
             <span v-if="scanTotal > 0" class="scan-status__count">
-              {{ scanCurrent }} / {{ scanTotal }}
+              {{
+                scanTask === 'index'
+                  ? $t('local.rescanPhases', {
+                      current: scanCurrent,
+                      total: scanTotal
+                    })
+                  : `${scanCurrent} / ${scanTotal}`
+              }}
             </span>
             <span class="scan-status__percent">
               {{ scanTotal > 0 ? `${scanPercent}%` : '…' }}
@@ -108,6 +115,63 @@
           ></div>
         </div>
       </div>
+      <section
+        v-if="
+          indexResult &&
+          !indexRunning &&
+          (indexResult.manual || indexResult.status !== 'success')
+        "
+        class="mt-3 rounded-ui bg-ui-card p-3"
+        role="status"
+        aria-live="polite"
+      >
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-ui font-medium">{{ indexNotice?.title }}</p>
+            <p class="mt-1 text-ui-caption text-ui-muted">
+              {{
+                $t('local.rescanCounts', {
+                  apps: indexResult.appsCount ?? '—',
+                  bookmarks: indexResult.bookmarksCount ?? '—'
+                })
+              }}
+            </p>
+            <p
+              v-if="indexResult.status !== 'success'"
+              class="mt-1 text-ui-caption text-ui-muted"
+            >
+              {{ $t('local.rescanPartialHint') }}
+            </p>
+            <ul
+              v-if="indexResult.errors.length"
+              class="mt-2 max-h-28 space-y-1 overflow-y-auto text-ui-caption text-ui-muted"
+            >
+              <li
+                v-for="(error, index) in indexResult.errors"
+                :key="index"
+                class="break-all"
+              >
+                {{ error }}
+              </li>
+            </ul>
+            <p
+              v-if="indexResult.notificationError"
+              class="mt-1 text-ui-caption text-ui-muted"
+            >
+              {{ $t('local.rescanNotificationFailed') }}
+            </p>
+          </div>
+          <CustomButton
+            v-if="indexResult.status !== 'success'"
+            class="shrink-0"
+            size="small"
+            :disabled="indexRunning"
+            @click="retryIndex"
+          >
+            {{ $t('local.rescanRetry') }}
+          </CustomButton>
+        </div>
+      </section>
     </div>
 
     <!-- 内容区域 -->
@@ -134,7 +198,14 @@
         <div class="indexing-progress">
           <div class="indexing-progress__meta">
             <span v-if="scanTotal > 0">
-              {{ scanCurrent }} / {{ scanTotal }}
+              {{
+                scanTask === 'index'
+                  ? $t('local.rescanPhases', {
+                      current: scanCurrent,
+                      total: scanTotal
+                    })
+                  : `${scanCurrent} / ${scanTotal}`
+              }}
             </span>
             <span v-else>{{ $t('common.preparing') }}</span>
             <strong>{{ scanTotal > 0 ? `${scanPercent}%` : '…' }}</strong>
@@ -313,6 +384,9 @@
     <LauncherSettingsDialog
       v-model="showSettings"
       :initial-tab="settingsTab"
+      :scanning="indexRunning"
+      @scan-started="beginIndexRequest"
+      @scan-rejected="indexRunning = false"
       @changed="loadData"
     />
     <BrowserBookmarkDeleteDialog
@@ -351,6 +425,11 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { useI18n } from 'vue-i18n';
 import modal from '@/utils/modal';
+import {
+  formatLauncherIndexResult,
+  type LauncherIndexResult,
+  type LauncherIndexState
+} from '@/utils/launcher-index';
 
 const { t } = useI18n();
 import Edit from '~icons/lucide/square-pen';
@@ -418,6 +497,7 @@ interface ScanProgressPayload {
 
 interface ScanCompletePayload {
   owner: string;
+  task?: string;
 }
 
 interface SearchHistoryClearedPayload {
@@ -480,8 +560,29 @@ let unlistenProgress: (() => void) | null = null;
 let unlistenComplete: (() => void) | null = null;
 let unlistenCancelled: (() => void) | null = null;
 let unlistenIndexUpdated: (() => void) | null = null;
+let unlistenIndexFinished: (() => void) | null = null;
 let unlistenSearchHistoryCleared: (() => void) | null = null;
 let listResizeObserver: ResizeObserver | null = null;
+const indexRunning = ref(false);
+const indexResult = ref<LauncherIndexResult | null>(null);
+const indexNotice = computed(
+  (): ReturnType<typeof formatLauncherIndexResult> | null =>
+    indexResult.value ? formatLauncherIndexResult(indexResult.value, t) : null
+);
+const beginIndexRequest = (): void => {
+  indexRunning.value = true;
+  indexResult.value = null;
+};
+const retryIndex = async (): Promise<void> => {
+  if (indexRunning.value) return;
+  beginIndexRequest();
+  try {
+    await invoke('refresh_launcher_index');
+  } catch (error) {
+    indexRunning.value = false;
+    modal.error(String(error));
+  }
+};
 
 const currentList = computed(() => {
   return activeTab.value === 'app' ? apps.value : bookmarks.value;
@@ -606,6 +707,7 @@ const isLocalLauncherProgress = (
 
 const applyScanProgress = (payload: ScanProgressPayload) => {
   if (!isLocalLauncherProgress(payload)) return;
+  if (payload.task === 'index') indexRunning.value = true;
 
   isScanning.value = true;
   scanTask.value = payload.task;
@@ -762,13 +864,16 @@ const formatUsageCount = (count: number) => (count > 99 ? '99+' : `${count}`);
 const checkScanStatus = async () => {
   const versionBeforeHydration = scanEventVersion;
   try {
-    const states = await invoke<ScanProgressState[]>(
-      'get_scan_progress_states'
-    );
+    const [states, indexState] = await Promise.all([
+      invoke<ScanProgressState[]>('get_scan_progress_states'),
+      invoke<LauncherIndexState>('get_launcher_index_state')
+    ]);
     const state = states.find((item) => isLocalLauncherProgress(item));
 
     // 监听建立后若已收到更新事件，不再用较旧的快照覆盖实时状态。
     if (versionBeforeHydration !== scanEventVersion) return;
+    indexRunning.value = indexState.running;
+    indexResult.value = indexState.lastResult;
 
     if (state && !state.completed && state.stage) {
       applyScanProgress(state);
@@ -787,6 +892,7 @@ const setupScanListeners = async () => {
     unlistenComplete,
     unlistenCancelled,
     unlistenIndexUpdated,
+    unlistenIndexFinished,
     unlistenSearchHistoryCleared
   ] = await Promise.all([
     listen<ScanProgressPayload>('scan-progress', (event) => {
@@ -794,19 +900,25 @@ const setupScanListeners = async () => {
       scanEventVersion += 1;
       applyScanProgress(event.payload);
     }),
-    listen<ScanCompletePayload>('scan-complete', async (event) => {
+    listen<ScanCompletePayload>('scan-complete', (event) => {
       if (event.payload.owner !== LOCAL_LAUNCHER_OWNER) return;
+      if (event.payload.task && event.payload.task !== scanTask.value) return;
       scanEventVersion += 1;
       resetScanState();
-      await loadData();
     }),
     listen<ScanCompletePayload>('scan-cancelled', (event) => {
       if (event.payload.owner !== LOCAL_LAUNCHER_OWNER) return;
       scanEventVersion += 1;
       resetScanState();
+      indexRunning.value = false;
     }),
     listen('local-launcher-index-updated', async () => {
       await loadData();
+    }),
+    listen<LauncherIndexResult>('local-launcher-index-finished', (event) => {
+      scanEventVersion += 1;
+      indexRunning.value = false;
+      indexResult.value = event.payload;
     }),
     listen<SearchHistoryClearedPayload>(
       'search-history-cleared',
@@ -855,6 +967,7 @@ onMounted(async () => {
 onActivated(() => {
   if (!pageReady) return;
   void loadData();
+  void checkScanStatus();
   void invoke('refresh_launcher_index', { force: false }).catch(console.error);
 });
 
@@ -866,6 +979,7 @@ onUnmounted(() => {
   if (unlistenComplete) unlistenComplete();
   if (unlistenCancelled) unlistenCancelled();
   if (unlistenIndexUpdated) unlistenIndexUpdated();
+  if (unlistenIndexFinished) unlistenIndexFinished();
   if (unlistenSearchHistoryCleared) unlistenSearchHistoryCleared();
   listResizeObserver?.disconnect();
   listResizeObserver = null;

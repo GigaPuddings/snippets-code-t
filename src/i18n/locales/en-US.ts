@@ -1013,6 +1013,19 @@ export default {
       'One absolute directory per line, up to 10 directories; depth limited to 4.',
     rescan: 'Rescan',
     rescanStarted: 'Rescan started',
+    rescanComplete: 'Scan complete',
+    rescanPartial: 'Scan partially complete',
+    rescanFailed: 'Scan failed',
+    rescanCounts: '{apps} apps and {bookmarks} bookmarks currently available',
+    rescanRetry: 'Rescan',
+    rescanRunning: 'Scanning…',
+    rescanSaveHint:
+      'Rescanning saves the current settings first. Invalid settings prevent the scan from starting.',
+    rescanPartialHint:
+      'Some sources were not updated. Their previous index is retained; you can retry the scan.',
+    rescanNotificationFailed:
+      'The system notification could not be delivered. The scan result is retained here.',
+    rescanPhases: 'Phase {current}/{total}',
     settingsSaved: 'Launcher settings saved',
     hiddenItems: 'Hidden items',
     hiddenHint:
@@ -1031,7 +1044,7 @@ export default {
     browserDeleteSuccess:
       'Deleted {count} original bookmark sources. Original files backed up.',
     browserDeleteSyncHint:
-      'This changes local bookmark files only. Account sync may merge remote data again; deletion on other devices or in the cloud is not guaranteed.',
+      'Synced bookmarks receive a pending deletion. When the browser next starts and completes account sync, the deletion may reach the cloud and other devices. Success here confirms the local write only.',
     bookmarkBackupHint:
       'Backups: %LOCALAPPDATA%\\SnippetsCode\\BookmarkBackups. Browser status updates automatically.',
     recheckBrowser: 'Recheck',

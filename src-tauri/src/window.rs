@@ -2063,6 +2063,21 @@ pub struct ScanProgressState {
     revision: u64,
 }
 
+impl ScanProgressState {
+    fn finish(&mut self, task: &str, status: &str, stage: &str, counts: (usize, usize, usize)) {
+        self.task = task.to_string();
+        self.completed = true;
+        self.apps_count = counts.0;
+        self.bookmarks_count = counts.1;
+        self.desktop_files_count = counts.2;
+        if status == "success" {
+            self.current = self.total;
+        }
+        self.stage = stage.to_string();
+        self.revision = next_progress_revision();
+    }
+}
+
 static PROGRESS_STATES: LazyLock<Mutex<HashMap<String, ScanProgressState>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 static PROGRESS_REVISION: AtomicU64 = AtomicU64::new(0);
@@ -2217,20 +2232,45 @@ pub fn emit_scan_complete_for(
     bookmarks_count: usize,
     desktop_files_count: usize,
 ) {
+    let task = PROGRESS_STATES
+        .lock()
+        .ok()
+        .and_then(|states| states.get(owner).map(|state| state.task.clone()))
+        .unwrap_or_default();
+    emit_scan_complete_with_status_for(
+        owner,
+        &task,
+        "success",
+        &format!(
+            "扫描完成 (应用: {}, 书签: {}, 桌面文件: {})",
+            apps_count, bookmarks_count, desktop_files_count
+        ),
+        apps_count,
+        bookmarks_count,
+        desktop_files_count,
+    );
+}
+
+pub fn emit_scan_complete_with_status_for(
+    owner: &str,
+    task: &str,
+    status: &str,
+    stage: &str,
+    apps_count: usize,
+    bookmarks_count: usize,
+    desktop_files_count: usize,
+) {
     // 更新状态
     {
         let mut states = PROGRESS_STATES.lock().unwrap();
         let state = states.entry(owner.to_string()).or_default();
         state.owner = owner.to_string();
-        state.completed = true;
-        state.apps_count = apps_count;
-        state.bookmarks_count = bookmarks_count;
-        state.desktop_files_count = desktop_files_count;
-        state.stage = format!(
-            "扫描完成 (应用: {}, 书签: {}, 桌面文件: {})",
-            apps_count, bookmarks_count, desktop_files_count
+        state.finish(
+            task,
+            status,
+            stage,
+            (apps_count, bookmarks_count, desktop_files_count),
         );
-        state.revision = next_progress_revision();
     }
 
     if let Some(app) = APP.get() {
@@ -2242,6 +2282,8 @@ pub fn emit_scan_complete_for(
             "scan-complete",
             serde_json::json!({
                 "owner": owner,
+                "task": task,
+                "status": status,
                 "appsCount": apps_count,
                 "bookmarksCount": bookmarks_count,
                 "desktopFilesCount": desktop_files_count
@@ -2282,6 +2324,28 @@ pub fn clear_scan_progress_for(owner: &str) {
 }
 
 // 优化后的 GDI 截图函数
+#[cfg(test)]
+mod scan_terminal_tests {
+    use super::*;
+
+    #[test]
+    fn unsuccessful_scans_end_without_claiming_one_hundred_percent() {
+        for (status, expected) in [("partial", 3), ("failed", 3), ("success", 4)] {
+            let mut state = ScanProgressState {
+                current: 3,
+                total: 4,
+                ..Default::default()
+            };
+            state.finish("index", status, "result", (0, 0, 0));
+            assert!(state.completed);
+            assert_eq!(state.current, expected);
+            assert_eq!(state.task, "index");
+            assert_eq!(state.stage, "result");
+            assert_eq!(state.apps_count, 0);
+        }
+    }
+}
+
 fn capture_screen_gdi_optimized() -> Result<(Vec<u8>, i32, i32), String> {
     use windows::Win32::Graphics::Gdi::{
         BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDC,

@@ -7,7 +7,8 @@ const mocks = vi.hoisted(() => ({
   initializeStore: vi.fn(),
   applyTheme: vi.fn(),
   setLocale: vi.fn(),
-  dispatchEvent: vi.fn()
+  dispatchEvent: vi.fn(),
+  showMessage: vi.fn()
 }));
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -31,8 +32,10 @@ vi.mock('@tauri-apps/api/window', () => ({
 }));
 
 vi.mock('@/i18n', () => ({
-  setLocale: mocks.setLocale
+  setLocale: mocks.setLocale,
+  default: { global: { t: (key: string): string => key } }
 }));
+vi.mock('@/utils/modal', () => ({ default: { message: mocks.showMessage } }));
 
 vi.mock('@/api/markdown', () => ({
   cleanupCache: vi.fn()
@@ -77,6 +80,7 @@ describe('portable config runtime refresh', () => {
     mocks.applyTheme.mockReset();
     mocks.setLocale.mockReset();
     mocks.dispatchEvent.mockReset();
+    mocks.showMessage.mockReset();
     vi.stubGlobal('window', {
       dispatchEvent: mocks.dispatchEvent
     });
@@ -108,5 +112,32 @@ describe('portable config runtime refresh', () => {
     expect(mocks.setLocale).toHaveBeenCalledWith('zh-CN');
     expect(mocks.applyTheme).toHaveBeenCalledOnce();
     expect(mocks.dispatchEvent).toHaveBeenCalledOnce();
+  });
+
+  it('shows one manual result in the selected foreground window and ignores background jobs', async () => {
+    await setupBaseEventListeners();
+    const handler = mocks.eventHandlers.get('local-launcher-index-finished');
+    const payload = {
+      generation: 5,
+      status: 'partial',
+      appsCount: 10,
+      bookmarksCount: 0,
+      errors: ['One browser could not be read'],
+      manual: true,
+      notificationWindow: 'main',
+      notificationError: null
+    };
+    await handler?.({ payload: { ...payload, manual: false } });
+    await handler?.({ payload: { ...payload, notificationWindow: 'config' } });
+    expect(mocks.showMessage).not.toHaveBeenCalled();
+    await handler?.({ payload });
+    await handler?.({ payload });
+    expect(mocks.showMessage).toHaveBeenCalledOnce();
+    expect(mocks.showMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'warning',
+        message: expect.stringContaining(payload.errors[0])
+      })
+    );
   });
 });

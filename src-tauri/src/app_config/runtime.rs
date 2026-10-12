@@ -236,7 +236,11 @@ pub(super) fn refresh_search_plugin_index_feedback(
     }
 
     std::thread::spawn(move || match plugin_id.as_str() {
-        "local-launcher" => crate::icon::rebuild_app_and_bookmark_index(app_handle),
+        "local-launcher" => {
+            if let Err(error) = crate::icon::rebuild_app_and_bookmark_index(app_handle) {
+                log::warn!("[LocalLauncher] 无法启动插件检索任务: {error}");
+            }
+        }
         "desktop-files" => {
             let count = crate::plugins::desktop_files::refresh_desktop_files_cache_with_progress(
                 "desktop-files",

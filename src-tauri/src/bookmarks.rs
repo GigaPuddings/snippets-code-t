@@ -914,12 +914,14 @@ pub fn browser_bookmarks_source_fingerprint() -> String {
 pub struct BrowserBookmarkScan {
     pub bookmarks: Vec<BookmarkInfo>,
     pub complete: bool,
+    pub errors: Vec<String>,
 }
 
 // A transient browser write/lock must not turn an incomplete scan into an empty replacement.
 pub fn get_browser_bookmarks() -> BrowserBookmarkScan {
     let mut bookmarks = Vec::new();
     let mut complete = true;
+    let mut errors = Vec::new();
     let mut seen = HashSet::new();
     for (browser, paths) in [
         ("Chrome", get_chrome_bookmarks_paths()),
@@ -946,6 +948,10 @@ pub fn get_browser_bookmarks() -> BrowserBookmarkScan {
                 bookmarks.append(&mut items);
             } else {
                 complete = false;
+                errors.push(format!(
+                    "无法读取 {browser} 的书签文件：{}；本轮保留旧索引",
+                    path.display()
+                ));
                 log::warn!(
                     "[LocalLauncher] 书签读取失败，本轮保留旧索引: {}",
                     path.display()
@@ -956,6 +962,7 @@ pub fn get_browser_bookmarks() -> BrowserBookmarkScan {
     BrowserBookmarkScan {
         bookmarks: aggregate_bookmark_sources(bookmarks),
         complete,
+        errors,
     }
 }
 

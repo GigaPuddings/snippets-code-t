@@ -1,4 +1,5 @@
 //! Offline writes use indexed provenance, browser process checks and persistent backups.
+mod chromium_sync;
 use super::{get_all_browser_bookmark_paths, BookmarkSource};
 use md5::{Digest as Md5Digest, Md5};
 use rusqlite::{
@@ -345,6 +346,22 @@ fn edited_chromium(original: &[u8], sources: &[BookmarkSource]) -> Result<Vec<u8
     if value.get("checksum_sha256").is_some() {
         value["checksum_sha256"] = Value::String(sha256);
     }
+    if let Some(metadata) = value.get("sync_metadata") {
+        let metadata = metadata
+            .as_str()
+            .ok_or("书签同步记录格式无效，未修改原文件")?;
+        value["sync_metadata"] = Value::String(chromium_sync::record_deletions(
+            metadata,
+            &sources
+                .iter()
+                .map(|source| source.node_id.clone())
+                .collect::<Vec<_>>(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis() as u64,
+        )?);
+    }
     serde_json::to_vec_pretty(&value).map_err(|e| e.to_string())
 }
 
@@ -533,10 +550,23 @@ pub fn delete_sources(
         })();
         match result {
             Ok(backup) => {
+                log::info!(
+                    "[LocalLauncher] 已删除 {} · {} 的 {} 个原书签来源，备份: {}",
+                    browser,
+                    sources[0].profile,
+                    sources.len(),
+                    backup.display()
+                );
                 deleted.extend(sources);
                 backups.push(backup.to_string_lossy().into());
             }
-            Err(error) => errors.push(format!("{browser} · {}: {error}", sources[0].profile)),
+            Err(error) => {
+                log::warn!(
+                    "[LocalLauncher] 原书签删除失败: {browser} · {}: {error}",
+                    sources[0].profile
+                );
+                errors.push(format!("{browser} · {}: {error}", sources[0].profile));
+            }
         }
     }
     (deleted, errors, backups)
@@ -611,7 +641,7 @@ mod tests {
         )
     }
     fn document(edge: bool) -> Vec<u8> {
-        let mut value = json!({"version":1,"sync_metadata":"keep-exactly","unknown_vendor_data":{"keep":true},"roots":{
+        let mut value = json!({"version":1,"sync_metadata":"","unknown_vendor_data":{"keep":true},"roots":{
             "bookmark_bar":{"id":"1","name":"书签栏","type":"folder","children":[
                 {"id":"42","name":"中文😀","type":"url","url":"https://example.com/Path","guid":"target","unknown":"keep"},
                 {"id":"43","name":"中文😀","type":"url","url":"https://example.com/Path","guid":"other"}
@@ -648,7 +678,7 @@ mod tests {
                 1
             );
             assert_eq!(value["roots"]["bookmark_bar"]["children"][0]["id"], "43");
-            assert_eq!(value["sync_metadata"], "keep-exactly");
+            assert_eq!(value["sync_metadata"], "");
             assert_eq!(value["unknown_vendor_data"]["keep"], true);
             if edge {
                 assert_eq!(value["roots"]["workspaces_v2"]["source"], "vendor");
@@ -804,6 +834,25 @@ mod tests {
             .is_err());
             assert_eq!(fs::read(&path).unwrap(), invalid);
         }
+    }
+    #[test]
+    fn invalid_sync_metadata_prevents_a_successful_write_or_backup() {
+        let fixture = Fixture::new();
+        let path = fixture.path();
+        let mut value: Value = serde_json::from_slice(&document(false)).unwrap();
+        value["sync_metadata"] = json!("unknown-sync-format");
+        let original = serde_json::to_vec(&value).unwrap();
+        fs::write(&path, &original).unwrap();
+        let error = replace_chromium(
+            &path,
+            &[source(&path, "42")],
+            &fixture.backups(),
+            &|| Ok(()),
+        )
+        .unwrap_err();
+        assert!(error.contains("同步记录"));
+        assert_eq!(fs::read(&path).unwrap(), original);
+        assert!(!fixture.backups().exists());
     }
     #[test]
     fn process_snapshot_includes_this_process() {

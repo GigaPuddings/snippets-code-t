@@ -1,4 +1,7 @@
+mod launcher_index;
 use base64::{engine::general_purpose::STANDARD, Engine};
+pub use launcher_index::LauncherIndexResult;
+use launcher_index::{notification_target, IndexOutcome};
 use lru::LruCache;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -7,7 +10,7 @@ use std::num::NonZeroUsize;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_http::reqwest;
 use tokio::sync::Semaphore;
 use url::Url;
@@ -75,12 +78,14 @@ enum LocalLauncherIndexMode {
 struct LocalLauncherJobState {
     running: bool,
     pending: Option<LocalLauncherIndexMode>,
+    last_result: Option<LauncherIndexResult>,
 }
 
 static LOCAL_LAUNCHER_JOB_STATE: Lazy<Mutex<LocalLauncherJobState>> = Lazy::new(|| {
     Mutex::new(LocalLauncherJobState {
         running: false,
         pending: None,
+        last_result: None,
     })
 });
 
@@ -100,25 +105,75 @@ fn emit_local_launcher_index_updated(
     );
 }
 
-fn notify_local_launcher_index_complete(
-    app_handle: &AppHandle,
-    apps_count: usize,
-    bookmarks_count: usize,
-) {
-    use tauri_plugin_notification::NotificationExt;
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LauncherIndexState {
+    running: bool,
+    last_result: Option<LauncherIndexResult>,
+}
 
-    if let Err(error) = app_handle
-        .notification()
-        .builder()
-        .title("数据索引完成")
-        .body(format!(
-            "已索引 {} 个应用，{} 个书签",
-            apps_count, bookmarks_count
-        ))
-        .show()
-    {
-        log::warn!("[LocalLauncher] 显示索引完成通知失败: {}", error);
+pub fn launcher_index_state() -> Result<LauncherIndexState, String> {
+    let state = LOCAL_LAUNCHER_JOB_STATE.lock().map_err(|e| e.to_string())?;
+    Ok(LauncherIndexState {
+        running: state.pending == Some(LocalLauncherIndexMode::Force)
+            || crate::window::get_active_scan_progress_states()
+                .iter()
+                .any(|task| task.owner == "local-launcher" && task.task == "index"),
+        last_result: state.last_result.clone(),
+    })
+}
+
+fn finish_launcher_index(app_handle: &AppHandle, mut result: LauncherIndexResult) {
+    use tauri_plugin_notification::NotificationExt;
+    let english = crate::json_config::get_app_config_value::<String>(app_handle, "language")
+        .is_some_and(|language| language == "en-US");
+    let (title, body) = result.message(english);
+    log::info!(
+        "[LocalLauncher] 检索结束: generation={}, status={:?}, errors={}",
+        result.generation,
+        result.status,
+        result.errors.len()
+    );
+    for error in &result.errors {
+        log::warn!("[LocalLauncher] {error}");
     }
+    let focused = ["config", "main"].into_iter().find(|label| {
+        app_handle.get_webview_window(label).is_some_and(|window| {
+            window.is_visible().unwrap_or(false) && window.is_focused().unwrap_or(false)
+        })
+    });
+    result.notification_window = notification_target(result.manual, focused).map(str::to_string);
+    if result.manual && result.notification_window.is_none() {
+        if let Err(error) = app_handle
+            .notification()
+            .builder()
+            .title(&title)
+            .body(&body)
+            .show()
+        {
+            log::warn!("[LocalLauncher] 显示检索结果通知失败: {error}");
+            result.notification_error = Some(error.to_string());
+        }
+    }
+    if let Ok(mut state) = LOCAL_LAUNCHER_JOB_STATE.lock() {
+        state.last_result = Some(result.clone());
+    }
+    crate::window::emit_scan_complete_with_status_for(
+        "local-launcher",
+        "index",
+        result.status.as_str(),
+        &format!("{title}：{body}"),
+        result.apps_count.unwrap_or(0),
+        result.bookmarks_count.unwrap_or(0),
+        result.desktop_files_count,
+    );
+    emit_local_launcher_index_updated(
+        app_handle,
+        "index",
+        result.apps_count.unwrap_or(0),
+        result.bookmarks_count.unwrap_or(0),
+    );
+    let _ = app_handle.emit("local-launcher-index-finished", result);
 }
 
 pub fn is_icon_cache_enabled() -> bool {
@@ -919,11 +974,15 @@ pub async fn fetch_favicon_async(url: &str) -> Option<String> {
 
 // 获取应用和书签的图标
 pub fn init_app_and_bookmark_icons(app_handle: &AppHandle) {
-    schedule_app_and_bookmark_index_job(app_handle.clone(), LocalLauncherIndexMode::Startup);
+    if let Err(error) =
+        schedule_app_and_bookmark_index_job(app_handle.clone(), LocalLauncherIndexMode::Startup)
+    {
+        log::error!("[LocalLauncher] 无法启动检索任务: {error}");
+    }
 }
 
-pub fn rebuild_app_and_bookmark_index(app_handle: AppHandle) {
-    schedule_app_and_bookmark_index_job(app_handle, LocalLauncherIndexMode::Force);
+pub fn rebuild_app_and_bookmark_index(app_handle: AppHandle) -> Result<(), String> {
+    schedule_app_and_bookmark_index_job(app_handle, LocalLauncherIndexMode::Force)
 }
 
 /// Called when the quick-search window is about to open. The inexpensive source
@@ -987,16 +1046,23 @@ pub fn refresh_app_and_bookmark_index_if_changed(app_handle: AppHandle) {
                 apps_changed,
                 bookmarks_changed
             );
-            schedule_app_and_bookmark_index_job(app_handle, LocalLauncherIndexMode::Automatic);
+            if let Err(error) =
+                schedule_app_and_bookmark_index_job(app_handle, LocalLauncherIndexMode::Automatic)
+            {
+                log::warn!("[LocalLauncher] 无法启动自动检索: {error}");
+            }
         }
     });
 }
 
-fn schedule_app_and_bookmark_index_job(app_handle: AppHandle, mode: LocalLauncherIndexMode) {
+fn schedule_app_and_bookmark_index_job(
+    app_handle: AppHandle,
+    mode: LocalLauncherIndexMode,
+) -> Result<(), String> {
     let should_start = {
-        let Ok(mut state) = LOCAL_LAUNCHER_JOB_STATE.lock() else {
-            return;
-        };
+        let mut state = LOCAL_LAUNCHER_JOB_STATE
+            .lock()
+            .map_err(|error| format!("无法调度检索任务: {error}"))?;
         if state.running {
             state.pending = Some(state.pending.map_or(mode, |pending| pending.max(mode)));
             if mode == LocalLauncherIndexMode::Force {
@@ -1013,10 +1079,13 @@ fn schedule_app_and_bookmark_index_job(app_handle: AppHandle, mode: LocalLaunche
     if should_start {
         spawn_app_and_bookmark_index_job(app_handle, mode);
     }
+    Ok(())
 }
 
 fn spawn_app_and_bookmark_index_job(app_handle: AppHandle, mode: LocalLauncherIndexMode) {
     let force_rebuild = mode == LocalLauncherIndexMode::Force;
+    // Retire previous icon workers before publishing the new index progress.
+    let generation = LOCAL_LAUNCHER_JOB_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
     let pending_reset_kind = db::peek_show_progress_kind(&app_handle);
     if force_rebuild
         || matches!(
@@ -1033,7 +1102,6 @@ fn spawn_app_and_bookmark_index_job(app_handle: AppHandle, mode: LocalLauncherIn
             "",
         );
     }
-    let generation = LOCAL_LAUNCHER_JOB_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
     std::thread::spawn(move || {
         let started = std::time::Instant::now();
         log::info!(
@@ -1041,7 +1109,33 @@ fn spawn_app_and_bookmark_index_job(app_handle: AppHandle, mode: LocalLauncherIn
             generation,
             mode
         );
-        run_app_and_bookmark_initialization(&app_handle, generation, mode);
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            run_app_and_bookmark_initialization(&app_handle, generation, mode)
+        }))
+        .unwrap_or_else(|_| Err("本机检索任务异常终止，请重试".into()));
+        if local_launcher_job_active(&app_handle, generation) {
+            match outcome {
+                Ok(Some(result)) => {
+                    finish_launcher_index(&app_handle, result);
+                    load_missing_icons(app_handle.clone(), generation);
+                }
+                Err(error) => finish_launcher_index(
+                    &app_handle,
+                    LauncherIndexResult {
+                        generation,
+                        status: launcher_index::IndexStatus::Failed,
+                        apps_count: db::count_apps().ok().map(|n| n.max(0) as usize),
+                        bookmarks_count: db::count_bookmarks().ok().map(|n| n.max(0) as usize),
+                        desktop_files_count: 0,
+                        errors: vec![error],
+                        manual: force_rebuild || pending_reset_kind.is_some(),
+                        notification_window: None,
+                        notification_error: None,
+                    },
+                ),
+                Ok(None) => {}
+            }
+        }
         log::info!(
             "[LocalLauncher] 本地应用与书签后台初始化调度完成: generation={}, mode={:?}, elapsed={}ms",
             generation,
@@ -1092,14 +1186,14 @@ fn run_app_and_bookmark_initialization(
     app_handle: &AppHandle,
     generation: u64,
     mode: LocalLauncherIndexMode,
-) {
+) -> Result<Option<LauncherIndexResult>, String> {
     let force_rebuild = mode == LocalLauncherIndexMode::Force;
     if !local_launcher_job_active(app_handle, generation) {
-        return;
+        return Ok(None);
     }
     if let Err(error) = db::ensure_plugin_storage("local-launcher") {
         log::error!("[LocalLauncher] 初始化本地启动器存储失败: {}", error);
-        return;
+        return Err(format!("初始化启动器存储失败: {error}"));
     }
 
     if mode != LocalLauncherIndexMode::Automatic {
@@ -1126,6 +1220,10 @@ fn run_app_and_bookmark_initialization(
     )
     .unwrap_or(true);
 
+    if !local_launcher_job_active(app_handle, generation) {
+        return Ok(None);
+    }
+
     let pending_reset_kind = db::peek_show_progress_kind(app_handle);
     let launcher_reset_pending = force_rebuild
         || matches!(
@@ -1135,12 +1233,16 @@ fn run_app_and_bookmark_initialization(
 
     if !apps_index_stale && !bookmarks_index_stale && !launcher_reset_pending {
         load_missing_icons(app_handle.clone(), generation);
-        return;
+        return Ok(None);
     }
 
     let is_first_run = !db::is_setup_completed_internal(app_handle);
     if is_first_run {
-        return;
+        return if force_rebuild {
+            Err("请先完成应用的首次设置，再重新检索".into())
+        } else {
+            Ok(None)
+        };
     }
 
     let progress_reset_kind = if force_rebuild {
@@ -1153,7 +1255,7 @@ fn run_app_and_bookmark_initialization(
                     "[LocalLauncher] 消费重置任务失败，跳过本轮破坏性重建: {}",
                     error
                 );
-                return;
+                return Err(format!("无法读取重建任务: {error}"));
             }
         }
     } else {
@@ -1161,8 +1263,7 @@ fn run_app_and_bookmark_initialization(
     };
     let show_progress = progress_reset_kind.is_some() && !force_rebuild;
 
-    let mut apps_to_load = Vec::new();
-    let mut bookmarks_to_load = Vec::new();
+    let mut outcome = IndexOutcome::default();
 
     let reset_kind = progress_reset_kind.as_deref();
     let scan_apps = apps_index_stale || matches!(reset_kind, Some("all" | "apps" | "launcher"));
@@ -1184,9 +1285,9 @@ fn run_app_and_bookmark_initialization(
             "",
         );
         let app_scan = get_installed_apps();
-        apps_to_load = app_scan.apps;
+        let apps_to_load = app_scan.apps;
         if !local_launcher_job_active(app_handle, generation) {
-            return;
+            return Ok(None);
         }
         log::info!(
             "[LocalLauncher] 本地应用文本扫描完成: count={}, complete={}",
@@ -1196,6 +1297,10 @@ fn run_app_and_bookmark_initialization(
         current_step += 1;
 
         if !app_scan.complete {
+            outcome.errors.push(format!(
+                "应用检索不完整：{}",
+                app_scan.warning.as_deref().unwrap_or("部分来源不可用")
+            ));
             log::warn!(
                 "[LocalLauncher] 应用来源扫描不完整，合并已发现项目、保留旧索引并等待下次重试: {}",
                 app_scan.warning.as_deref().unwrap_or("未知来源错误")
@@ -1208,9 +1313,7 @@ fn run_app_and_bookmark_initialization(
                 base_steps.max(1),
                 &format!("已发现 {} 个应用", apps_to_load.len()),
             );
-            if let Err(e) = db::merge_apps(&apps_to_load) {
-                log::error!("合并部分应用数据失败: {}", e);
-            }
+            outcome.persisted("合并已检索的应用失败", db::merge_apps(&apps_to_load));
             current_step += 1;
         } else {
             crate::window::emit_scan_progress_for(
@@ -1229,15 +1332,17 @@ fn run_app_and_bookmark_initialization(
             } else {
                 db::insert_apps(&apps_to_load)
             };
-            if let Err(e) = persist_result {
-                log::error!("插入应用到数据库失败: {}", e);
-            } else {
-                let _ = db::mark_index_success_with_fingerprint(
+            if outcome.persisted("保存应用索引失败", persist_result) {
+                if let Err(error) = db::mark_index_success_with_fingerprint(
                     "apps",
                     APP_INDEX_STORAGE_SCHEMA_VERSION,
                     APP_INDEX_EXTRACTOR_VERSION,
                     Some(&apps_fingerprint),
-                );
+                ) {
+                    outcome
+                        .errors
+                        .push(format!("保存应用检索状态失败: {error}"));
+                }
             }
             current_step += 1;
         }
@@ -1253,9 +1358,9 @@ fn run_app_and_bookmark_initialization(
             "",
         );
         let bookmark_scan = get_browser_bookmarks();
-        bookmarks_to_load = bookmark_scan.bookmarks;
+        let bookmarks_to_load = bookmark_scan.bookmarks;
         if !local_launcher_job_active(app_handle, generation) {
-            return;
+            return Ok(None);
         }
         log::info!(
             "[LocalLauncher] 浏览器书签文本扫描完成: count={}",
@@ -1272,19 +1377,24 @@ fn run_app_and_bookmark_initialization(
             &format!("共 {} 个书签", bookmarks_to_load.len()),
         );
         if bookmark_scan.complete {
-            if let Err(e) = db::replace_bookmarks(&bookmarks_to_load) {
-                log::error!("保存书签索引失败: {}", e);
-            } else {
-                let _ = db::mark_index_success_with_fingerprint(
+            if outcome.persisted(
+                "保存书签索引失败",
+                db::replace_bookmarks(&bookmarks_to_load),
+            ) {
+                if let Err(error) = db::mark_index_success_with_fingerprint(
                     "bookmarks",
                     BOOKMARK_INDEX_STORAGE_SCHEMA_VERSION,
                     BOOKMARK_INDEX_EXTRACTOR_VERSION,
                     Some(&bookmarks_fingerprint),
-                );
+                ) {
+                    outcome
+                        .errors
+                        .push(format!("保存书签检索状态失败: {error}"));
+                }
             }
         } else {
             log::warn!("[LocalLauncher] 本轮书签扫描不完整，保留旧索引并等待重试");
-            bookmarks_to_load.clear();
+            outcome.errors.extend(bookmark_scan.errors);
         }
         current_step += 1;
     }
@@ -1303,98 +1413,24 @@ fn run_app_and_bookmark_initialization(
         }
         desktop_files_loaded =
             crate::plugins::desktop_files::refresh_desktop_files_cache_with_count();
-        current_step += 1;
     }
 
-    // 统计图标任务数，用于细粒度进度
-    let should_cache_icons = is_icon_cache_enabled();
-    let app_icon_tasks = if should_cache_icons {
-        apps_to_load.iter().filter(|app| app.icon.is_none()).count()
-    } else {
-        0
-    };
-    let bookmark_icon_tasks = if should_cache_icons {
-        bookmarks_to_load
-            .iter()
-            .filter(|b| b.icon.is_none())
-            .count()
-    } else {
-        0
-    };
-    let icon_tasks = app_icon_tasks + bookmark_icon_tasks;
-
-    // 发送扫描完成事件
-    let apps_loaded = apps_to_load.len();
-    let bookmarks_loaded = bookmarks_to_load.len();
-    let total_loaded = apps_loaded + bookmarks_loaded;
-    let indexed_apps_count = db::count_apps().unwrap_or(0).max(0) as usize;
-    let indexed_bookmarks_count = db::count_bookmarks().unwrap_or(0).max(0) as usize;
+    let indexed_apps_count = outcome.count("读取应用索引统计失败", db::count_apps());
+    let indexed_bookmarks_count = outcome.count("读取书签索引统计失败", db::count_bookmarks());
     if !local_launcher_job_active(app_handle, generation) {
-        return;
+        return Ok(None);
     }
-
-    if show_progress {
-        // 手动重置后：图标也纳入进度窗口（真实逐项推进）
-        if should_cache_icons && total_loaded > 0 && icon_tasks > 0 {
-            let total_steps = base_steps + icon_tasks;
-            load_icons_with_realtime_progress(
-                apps_to_load,
-                bookmarks_to_load,
-                current_step,
-                total_steps,
-            );
-        } else if total_loaded > 0 {
-            // 无图标任务时，仍保持原有完成流程
-        }
-
-        crate::window::emit_scan_complete_for(
-            "local-launcher",
-            apps_loaded,
-            bookmarks_loaded,
-            desktop_files_loaded,
-        );
-        emit_local_launcher_index_updated(
-            app_handle,
-            "index",
-            indexed_apps_count,
-            indexed_bookmarks_count,
-        );
-        notify_local_launcher_index_complete(
-            app_handle,
-            indexed_apps_count,
-            indexed_bookmarks_count,
-        );
-        load_missing_icons(app_handle.clone(), generation);
-    } else {
-        // 启动和自动增量刷新属于后台维护，不打扰用户；仅显式强制重建
-        // 在没有前台进度窗口时发送完成通知。
-        if total_loaded > 0 && mode == LocalLauncherIndexMode::Force {
-            notify_local_launcher_index_complete(
-                app_handle,
-                indexed_apps_count,
-                indexed_bookmarks_count,
-            );
-        }
-
-        crate::window::emit_scan_complete_for(
-            "local-launcher",
-            indexed_apps_count,
-            indexed_bookmarks_count,
-            desktop_files_loaded,
-        );
-        emit_local_launcher_index_updated(
-            app_handle,
-            "index",
-            indexed_apps_count,
-            indexed_bookmarks_count,
-        );
-
-        // 文本索引先完成，图标始终从数据库补齐。这样即使上次进程在书签扫描阶段
-        // 中断并留下“有应用、无图标、无书签”的半完成状态，也能自动恢复。
-        if should_cache_icons {
-            load_missing_icons(app_handle.clone(), generation);
-        }
-    }
+    Ok(Some(LauncherIndexResult {
+        generation,
+        status: outcome.status(),
+        apps_count: indexed_apps_count,
+        bookmarks_count: indexed_bookmarks_count,
+        errors: outcome.errors,
+        desktop_files_count: desktop_files_loaded,
+        manual: force_rebuild || progress_reset_kind.is_some(),
+        notification_window: None,
+        notification_error: None,
+    }))
 }
 
 // ============= 通用图标加载框架 =============
@@ -1658,181 +1694,4 @@ fn format_bookmark_progress_item(bookmark: &BookmarkInfo) -> String {
         Some(d) if !d.is_empty() => format_progress_item_name(&d, 32),
         _ => format_progress_item_name(&bookmark.title, 32),
     }
-}
-
-fn batch_update_app_icons_silent(updates: &[(String, String)]) -> Result<(), rusqlite::Error> {
-    if updates.is_empty() {
-        return Ok(());
-    }
-
-    let started = std::time::Instant::now();
-    log::info!(
-        "[IconDiag] app batch db write start: count={}",
-        updates.len()
-    );
-
-    let mut conn = db::DbConnectionManager::get_search()?;
-    let tx = conn.transaction()?;
-    {
-        let mut stmt = tx.prepare("UPDATE apps SET icon = ?1 WHERE id = ?2")?;
-        for (id, icon) in updates {
-            stmt.execute(rusqlite::params![icon, id])?;
-        }
-    }
-    tx.commit()?;
-
-    log::info!(
-        "[IconDiag] app batch db write done: count={}, elapsed={}ms",
-        updates.len(),
-        started.elapsed().as_millis()
-    );
-    Ok(())
-}
-
-fn batch_update_bookmark_icons_silent(updates: &[(String, String)]) -> Result<(), rusqlite::Error> {
-    if updates.is_empty() {
-        return Ok(());
-    }
-
-    let started = std::time::Instant::now();
-    log::info!(
-        "[IconDiag] bookmark batch db write start: count={}",
-        updates.len()
-    );
-
-    let mut conn = db::DbConnectionManager::get_search()?;
-    let tx = conn.transaction()?;
-    {
-        let mut stmt = tx.prepare("UPDATE bookmarks SET icon = ?1 WHERE id = ?2")?;
-        for (id, icon) in updates {
-            stmt.execute(rusqlite::params![icon, id])?;
-        }
-    }
-    tx.commit()?;
-
-    log::info!(
-        "[IconDiag] bookmark batch db write done: count={}, elapsed={}ms",
-        updates.len(),
-        started.elapsed().as_millis()
-    );
-    Ok(())
-}
-
-// 重置场景：在进度窗口中按“每个图标任务”更新真实进度
-fn load_icons_with_realtime_progress(
-    apps: Vec<AppInfo>,
-    bookmarks: Vec<BookmarkInfo>,
-    mut current_step: usize,
-    total_steps: usize,
-) {
-    if total_steps == 0 {
-        return;
-    }
-
-    let flow_started = std::time::Instant::now();
-    let app_tasks = apps.iter().filter(|a| a.icon.is_none()).count();
-    let bookmark_tasks = bookmarks.iter().filter(|b| b.icon.is_none()).count();
-    log::info!(
-        "[IconDiag] realtime icon loading start: app_tasks={}, bookmark_tasks={}, start_step={}, total_steps={}",
-        app_tasks,
-        bookmark_tasks,
-        current_step,
-        total_steps
-    );
-
-    // 先收集结果，再批量写库，减少锁竞争
-    let mut app_icon_updates: Vec<(String, String)> = Vec::new();
-
-    // 应用图标逐项加载进度
-    for app in apps.into_iter() {
-        if app.icon.is_some() {
-            continue;
-        }
-
-        if let Some(icon_data) = extract_app_icon(&app.content) {
-            app_icon_updates.push((app.id.clone(), icon_data));
-        }
-
-        current_step += 1;
-        let progress_item = format_progress_item_name(&app.title, 32);
-
-        crate::window::emit_scan_progress_for(
-            "local-launcher",
-            "index",
-            "正在加载应用图标...",
-            current_step.min(total_steps),
-            total_steps,
-            &progress_item,
-        );
-    }
-
-    log::info!(
-        "[IconDiag] app extract phase done: extracted={}, elapsed={}ms",
-        app_icon_updates.len(),
-        flow_started.elapsed().as_millis()
-    );
-
-    if let Err(e) = batch_update_app_icons_silent(&app_icon_updates) {
-        log::warn!("[IconDiag] app batch write failed: {}", e);
-    }
-
-    // 书签图标逐项加载进度（串行，更准确反映实时进度）
-    let mut bookmark_icon_updates: Vec<(String, String)> = Vec::new();
-
-    if !bookmarks.is_empty() {
-        log::info!(
-            "[IconDiag] bookmark phase start: total_bookmarks={}, elapsed={}ms",
-            bookmarks.len(),
-            flow_started.elapsed().as_millis()
-        );
-        let urls = bookmarks
-            .iter()
-            .filter(|bookmark| bookmark.icon.is_none())
-            .map(|bookmark| bookmark.content.clone())
-            .collect::<Vec<_>>();
-        let local_icons = get_favicons_from_browser_cache(&urls);
-
-        for bookmark in bookmarks.into_iter() {
-            if bookmark.icon.is_some() {
-                continue;
-            }
-
-            let progress_item = format_bookmark_progress_item(&bookmark);
-
-            if let Some(icon_data) = local_icons.get(&bookmark.content) {
-                bookmark_icon_updates.push((bookmark.id.clone(), icon_data.clone()));
-            }
-
-            current_step += 1;
-
-            crate::window::emit_scan_progress_for(
-                "local-launcher",
-                "index",
-                "正在加载书签图标...",
-                current_step.min(total_steps),
-                total_steps,
-                &progress_item,
-            );
-        }
-    }
-
-    log::info!(
-        "[IconDiag] bookmark extract phase done: extracted={}, elapsed={}ms",
-        bookmark_icon_updates.len(),
-        flow_started.elapsed().as_millis()
-    );
-
-    if let Err(e) = batch_update_bookmark_icons_silent(&bookmark_icon_updates) {
-        log::warn!("[IconDiag] bookmark batch write failed: {}", e);
-    }
-
-    log::info!(
-        "[IconDiag] realtime icon loading end: final_step={}/{}, total_elapsed={}ms",
-        current_step.min(total_steps),
-        total_steps,
-        flow_started.elapsed().as_millis()
-    );
-
-    crate::plugins::local_launcher::invalidate_apps_cache();
-    crate::plugins::local_launcher::invalidate_bookmarks_cache();
 }

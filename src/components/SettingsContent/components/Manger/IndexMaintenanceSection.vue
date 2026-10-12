@@ -45,7 +45,14 @@
           </div>
           <div class="shrink-0 text-right font-mono text-[11px]">
             <span v-if="task.total > 0" class="text-content">
-              {{ task.current }} / {{ task.total }}
+              {{
+                task.owner === 'local-launcher' && task.task === 'index'
+                  ? t('local.rescanPhases', {
+                      current: task.current,
+                      total: task.total
+                    })
+                  : `${task.current} / ${task.total}`
+              }}
             </span>
             <strong class="ml-2 inline-block min-w-9 text-primary">
               {{ task.total > 0 ? `${taskPercent(task)}%` : '…' }}

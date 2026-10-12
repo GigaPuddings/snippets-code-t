@@ -41,16 +41,34 @@
 
 ### 写入与恢复
 
-- Chromium：校验节点 ID、原始 URL、原始标题、文件版本及校验值；只移除选中的 URL 节点。保留 GUID、同步元数据、自定义字段和未选来源，包括 Edge 的额外根目录。重新计算 MD5 及已有的 SHA256 校验值，再使用 Windows `ReplaceFileW` 替换，不直接截断原文件。
+- Chromium：校验节点 ID、原始 URL、原始标题、文件版本及校验值；只移除选中的 URL 节点。同步记录中的对应实体转为无本地节点 ID 的 tombstone，增加待同步序号、更新修改时间，清除已删除实体的内容缓存；从未提交的本地新建实体直接移除其同步记录。账号同步状态、其他实体及未知字段逐字节保留，包括已有删除记录的顺序。不同步的书签文件保持无同步记录状态。同步格式无法识别或所选节点记录不一致时拒绝写入，不能直接清空整个 `sync_metadata`。保留其他 GUID、自定义字段和未选来源，包括 Edge 的额外根目录。重新计算 MD5 及已有的 SHA256 校验值，再使用 Windows `ReplaceFileW` 替换，不直接截断原文件。
 - Firefox：使用 SQLite Backup API 保存完整、包含 WAL 已提交数据的数据库备份，通过事务更新书签、文件夹顺序、祖先修改时间、引用计数，以及已同步节点的删除记录。任一节点变化时，当前配置文件的事务回滚。
 - 文件损坏、节点变化、占用、浏览器重新启动、备份失败或格式不支持时，返回具体原因，不报告成功。不同文件的结果独立返回，部分失败不会隐藏未删来源。
 - 恢复时先完全退出浏览器，再用备份替换对应原文件并重新扫描。Firefox 备份文件为完整 `places.sqlite`，其中也包含原浏览历史。应用不使用永久删除节点的过滤表，因此恢复后可重新检索。
 
-此方式修改本机文件。浏览器账号同步可能重新合并远端数据，不能承诺删除云端或其他设备书签；确认页明确显示此边界。保留 Chromium 同步元数据，不靠清空同步信息强行改变用户的账号同步状态。
+备份恢复针对本机文件。如果删除已被浏览器提交到账号，旧同步记录不能撤销云端删除；需要在浏览器中重新添加所需书签，再正常同步。
+
+此方式修改本机文件并为已同步实体记录待同步删除，不会联网操作浏览器账号。浏览器下次启动并完成同步后，删除可能传播到云端及其他设备；本地写入成功不代表云端提交已完成。确认页明确显示该行为。保留账号同步状态，不靠清空同步信息改变用户设置。
+
+2026-10-12 回归：旧实现只删 JSON 节点却保留该节点的未删除同步记录。Chromium 的 `SyncedBookmarkTracker` 会将这种不存在的节点 ID 判为同步记录损坏，重新合并远端数据，造成相同 GUID 的书签以新节点 ID 再次出现。修复同时提交节点删除和对应 tombstone，避免产生这类不一致。
 
 实现格式依据：[Chromium BookmarkCodec](https://chromium.googlesource.com/chromium/src/+/refs/heads/main/components/bookmarks/browser/bookmark_codec.cc)、[Firefox Bookmarks](https://searchfox.org/mozilla-central/source/toolkit/components/places/Bookmarks.sys.mjs) 与 [Firefox Places triggers](https://searchfox.org/mozilla-central/source/toolkit/components/places/nsPlacesTriggers.h)。第三方浏览器格式如与已知校验规则不一致，会拒绝写入。
 
+同步删除依据：[Chromium BookmarkModelMetadata](https://github.com/chromium/chromium/blob/main/components/sync/protocol/bookmark_model_metadata.proto)、[SyncedBookmarkTracker](https://github.com/chromium/chromium/blob/main/components/sync_bookmarks/synced_bookmark_tracker.cc) 与 [ProcessorEntityMetadata](https://github.com/chromium/chromium/blob/main/components/sync/model/processor_entity_metadata.cc)。
+
 ## 手动回归清单
+
+### 检索进度与通知
+
+- 启动及自动来源更新保持安静；手动重新检索、保存检索配置和恢复隐藏条目触发的检索才发送完成反馈。
+- 手动重新检索先校验并保存当前输入的目录和辅助工具开关，再提交一次重建任务。无效配置不会开始检索。
+- 重新检索按钮跟随实际的来源检索状态；请求返回只表示已提交，完成提示由后端终态事件产生。取消时解除忙碌状态。
+- 来源检索显示阶段进度；图标补齐单独显示逐项进度，作为后台任务继续执行，不重复发送来源检索完成通知。
+- 完整成功、部分完成、失败分别报告。应用来源不完整时合并已发现数据并保留旧条目；任一书签文件无法读取时保留旧书签索引。写入或记录检索状态失败不得报告成功。
+- 零结果也是有效结果，明确报告数量；统计读取失败显示未知，不用零代替。
+- 检索结束时配置窗口或快速搜索窗口在前台，显示该窗口内的提示；应用在后台则发送系统通知。
+- 进程内保留最后一次检索结果，启动器重新进入时恢复结果和失败原因，提供重新检索入口。系统通知发送失败时，返回启动器仍可查看结果。
+- 兼容原来的 `scan-progress` / `scan-complete` / `scan-cancelled` 事件，来源结果通过 `local-launcher-index-finished` 独立发布，避免图标任务完成改变来源检索的结果。
 
 | 场景 | 预期 |
 | --- | --- |
@@ -62,6 +80,7 @@
 | 隐藏 → 重扫 → 重启 | 保持隐藏，恢复后可见 |
 | 浏览器筛选与全局来源搜索 | 来源匹配且没有错误归属 |
 | 仅删除一个来源 | 对应浏览器节点消失，其他来源保留 |
+| Chrome 已同步书签删除 → 重新启动 → 完成同步 → 再扫描 | 所选节点保持删除，其他书签与账号同步设置不变 |
 | 浏览器仍在运行、书签改名或 URL 变化 | 阻止写入，提示关闭浏览器或重新扫描 |
 | 浏览器文件被占用、备份失败、并发变化 | 保留原文件，返回具体原因 |
 | 浅色 / 深色 / 默认窗口 | 对话框、来源详情和操作按钮沿用共享主题 |

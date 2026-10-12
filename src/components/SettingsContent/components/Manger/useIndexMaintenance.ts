@@ -53,13 +53,13 @@ async function rebuildLocalIndex(
   loading.value = true;
   try {
     await invoke('reset_software', { resetType: String(value) });
-    const successKeys: Record<string, string> = {
+    const submittedKeys: Record<string, string> = {
       apps: 'dataManager.indexAppsSuccess',
       bookmarks: 'dataManager.indexBookmarksSuccess',
       desktopFiles: 'dataManager.indexDesktopFilesSuccess',
       all: 'dataManager.indexAllSuccess'
     };
-    modal.msg(t(successKeys[String(value)] || successKeys.all));
+    modal.info(t(submittedKeys[String(value)] || submittedKeys.all));
     dialog.value = false;
   } catch (error) {
     modal.msg(`${t('dataManager.indexFailed')}: ${error}`, 'error');
@@ -160,7 +160,11 @@ export function useIndexMaintenance(): IndexMaintenanceController {
   });
 
   return {
-    localIndexLoading,
+    localIndexLoading: computed(
+      () =>
+        localIndexLoading.value ||
+        backgroundIndexTasks.value.some((task) => task.task === 'index')
+    ),
     markdownIndexLoading,
     showIndexDialog,
     backgroundIndexTasks,

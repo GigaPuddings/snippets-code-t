@@ -10,7 +10,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { setLocale, type LocaleType } from '@/i18n';
+import i18n, { setLocale, type LocaleType } from '@/i18n';
 import { cleanupCache } from '@/api/markdown';
 import { getAppConfig } from '@/api/appConfig';
 import {
@@ -19,6 +19,11 @@ import {
 } from '@/plugins/attachments/api';
 import { useConfigurationStore } from '@/store';
 import { logger } from '@/utils/logger';
+import {
+  formatLauncherIndexResult,
+  shouldShowLauncherIndexToast,
+  type LauncherIndexResult
+} from './launcher-index';
 
 export {
   closeWindowByLabel,
@@ -31,6 +36,7 @@ export {
 export interface BaseEventListeners {
   languageChange: UnlistenFn | null;
   portableConfigImported: UnlistenFn | null;
+  launcherIndexFinished: UnlistenFn | null;
 }
 
 /**
@@ -66,7 +72,8 @@ export async function setupBaseEventListeners(): Promise<BaseEventListeners> {
 
   const listeners: BaseEventListeners = {
     languageChange: null,
-    portableConfigImported: null
+    portableConfigImported: null,
+    launcherIndexFinished: null
   };
 
   // 监听语言变更事件
@@ -117,6 +124,32 @@ export async function setupBaseEventListeners(): Promise<BaseEventListeners> {
 
   logger.info(`[AppInit] [${windowLabel}] ✅ 基础事件监听器设置完成`);
 
+  let lastLauncherGeneration = -1;
+  listeners.launcherIndexFinished = await listen<LauncherIndexResult>(
+    'local-launcher-index-finished',
+    async (event) => {
+      const result = event.payload;
+      if (
+        result.generation <= lastLauncherGeneration ||
+        !shouldShowLauncherIndexToast(result, windowLabel)
+      )
+        return;
+      lastLauncherGeneration = result.generation;
+      const notice = formatLauncherIndexResult(result, (key, values) =>
+        i18n.global.t(key, values || {})
+      );
+      // Startup helpers also run in non-UI tests. Load notification styles only
+      // when a foreground result actually needs to be displayed.
+      const { default: modal } = await import('@/utils/modal');
+      modal.message({
+        message: notice.message,
+        type: notice.type,
+        duration: 5000,
+        showClose: true
+      });
+    }
+  );
+
   return listeners;
 }
 
@@ -144,4 +177,5 @@ export function cleanupBaseEventListeners(listeners: BaseEventListeners): void {
   if (listeners.portableConfigImported) {
     listeners.portableConfigImported();
   }
+  listeners.launcherIndexFinished?.();
 }

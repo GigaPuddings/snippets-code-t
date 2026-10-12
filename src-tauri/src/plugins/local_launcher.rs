@@ -338,7 +338,7 @@ pub fn set_launcher_settings(
     require_local_launcher_plugin(&app_handle)?;
     db::launcher::save_launcher_settings(&settings)?;
     invalidate_apps_cache();
-    crate::icon::rebuild_app_and_bookmark_index(app_handle);
+    crate::icon::rebuild_app_and_bookmark_index(app_handle)?;
     Ok(())
 }
 
@@ -360,7 +360,7 @@ pub fn restore_launcher_entry(
     db::launcher::restore_launcher_entry(&kind, &target)?;
     invalidate_apps_cache();
     invalidate_bookmarks_cache();
-    crate::icon::rebuild_app_and_bookmark_index(app_handle);
+    crate::icon::rebuild_app_and_bookmark_index(app_handle)?;
     Ok(())
 }
 
@@ -368,12 +368,28 @@ pub fn restore_launcher_entry(
 pub fn refresh_launcher_index(
     app_handle: tauri::AppHandle,
     force: Option<bool>,
+    settings: Option<db::launcher::LauncherSettings>,
 ) -> Result<(), String> {
     require_local_launcher_plugin(&app_handle)?;
+    if let Some(settings) = settings {
+        if force == Some(false) {
+            return Err("自动检查不能保存检索配置".into());
+        }
+        db::launcher::save_launcher_settings(&settings)?;
+        invalidate_apps_cache();
+    }
     if force.unwrap_or(true) {
-        crate::icon::rebuild_app_and_bookmark_index(app_handle);
+        crate::icon::rebuild_app_and_bookmark_index(app_handle)?;
     } else {
         crate::icon::refresh_app_and_bookmark_index_if_changed(app_handle);
     }
     Ok(())
+}
+
+#[tauri::command]
+pub fn get_launcher_index_state(
+    app_handle: tauri::AppHandle,
+) -> Result<crate::icon::LauncherIndexState, String> {
+    require_local_launcher_plugin(&app_handle)?;
+    crate::icon::launcher_index_state()
 }
