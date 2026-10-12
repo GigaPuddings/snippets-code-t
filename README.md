@@ -1,426 +1,371 @@
 # Snippets Code
 
-<div align="center">
+Snippets Code 是一个本地优先的代码片段与 Markdown 笔记工作台，使用 Vue 3、TypeScript 和 Tauri 2 构建。它面向需要整理常用代码、开发笔记和技术资料的开发者，将内容编辑、全文检索和桌面快捷操作放在同一个应用中。
 
-![Version](https://img.shields.io/badge/version-2.0.2-blue.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
-![Tauri](https://img.shields.io/badge/Tauri-2.0-orange.svg)
-![Vue](https://img.shields.io/badge/Vue-3.5-brightgreen.svg)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.6-blue.svg)
+片段和笔记保存在工作区的 Markdown 文件中，可以用外部编辑器修改，也可以通过 Git 同步插件进行版本管理。截图、翻译、录屏、应用启动器和本地 AI 等能力通过可安装插件提供。核心内容管理可在本地使用；插件下载、模型下载、在线翻译、联网搜索和更新检查会按相应功能访问网络。
 
-一个使用 Tauri 2 + Vue 3 + Rust 构建的本地优先代码片段与知识资产工作台，面向前端程序员和开发者设计。
+当前支持 Windows 桌面，发布流程使用 NSIS 生成安装包。系统主题、截图和录屏等模块依赖 Windows API，macOS 和 Linux 尚未提供对应支持。
 
-[功能特性](#功能特性) • [快速开始](#快速开始) • [技术栈](#技术栈) • [文档](#文档) • [工作台架构](docs/DEVELOPER_WORKBENCH.md) • [贡献指南](#贡献指南)
+## 目录
 
-</div>
-
----
+- [功能特性](#功能特性)
+- [技术栈](#技术栈)
+- [安装与配置](#安装与配置)
+- [使用方法](#使用方法)
+- [代码结构与模块依赖](#代码结构与模块依赖)
+- [数据存储与同步](#数据存储与同步)
+- [开发与验证](#开发与验证)
+- [贡献指南](#贡献指南)
+- [相关文档](#相关文档)
+- [许可证](#许可证)
 
 ## 功能特性
 
-### 🔍 智能搜索
-- **全局快捷键唤起**：随时随地快速搜索
-- **片段优先检索**：统一搜索代码片段、笔记和知识资产
-- **前端语义筛选**：支持 `lang:ts`、`framework:vue`、`kind:component` 等开发语义搜索
-- **开发语义识别**：围绕语言、框架、类型、标签和分类组织结果
-- **使用频率优化**：常用项目优先显示
-- **键盘导航**：完整的键盘快捷键支持
+### 工作区与内容编辑
 
-### 📝 前端片段管理
-- **Markdown 文件存储**：每个片段和笔记都是独立的 `.md` 文件，支持 VS Code 等外部编辑器
-- **工作区支持**：支持多工作区管理，可同时管理多个笔记库
-- **富文本编辑器**：基于 TipTap 的 Markdown 编辑器
-- **代码高亮**：支持多种编程语言的语法高亮
-- **前端片段组织**：可按语言、框架、语义类型、标签和分类组织 Vue、React、CSS、TypeScript 等资产
-- **复制即复用**：支持复制原始代码、Markdown fenced code、VS Code snippet JSON，并处理 `{{input:Name}}`、`{{clipboard}}` 等模板变量
-- **分类管理**：灵活的分类和标签系统，分类对应文件夹
-- **反向链接**：双向链接功能
-- **实时预览**：Markdown 实时渲染
-- **快速检索**：全文搜索，支持高级搜索语法
-- **文件监听**：自动同步外部编辑器的修改
-- **智能缓存**：优化的搜索索引，支持百万级文件快速搜索
+- 创建或选择 Markdown 工作区，并在设置中切换当前工作区。
+- 以文件夹组织分类，管理标签、收藏和内容排序；已删除内容可以从本机回收站恢复。
+- 代码片段使用 CodeMirror 6，提供语法高亮、编辑器搜索和代码复制。
+- Markdown 笔记使用 TipTap，提供可视化编辑、阅读与源码模式，以及表格、任务列表、代码块和图片支持。
+- 支持 `[[笔记标题]]` 形式的 Wikilink、大纲和反向链接，便于组织相关笔记。
+- 通过文件监听更新外部编辑器产生的修改。语言、框架、片段类型等内容元数据保存在 Markdown Frontmatter 中。
 
-### 📚 知识管理
-- **Wikilink 支持**：使用 `[[链接]]` 语法创建笔记链接
-- **反向链接面板**：查看哪些笔记链接到当前笔记
-- **未链接提及**：发现潜在的关联笔记
-- **大纲视图**：自动生成文档大纲
-- **源码模式**：直接编辑 Markdown 源码
+### 搜索与桌面操作
 
-### 🧩 官方插件增强
-- **Git 同步**：使用系统 Git 命令同步片段工作区到任意 Git 仓库（支持 GitHub、GitLab、Gitee 等）
-- **截图与 OCR**：截图标注、取色、贴图和 OCR 作为插件增强片段沉淀流程
-- **翻译**：Google、Bing、离线翻译与截图翻译按需启用
-- **搜索源扩展**：应用、书签、桌面文件和浏览器搜索源通过插件接入全局搜索
-- **提醒与主题**：Todo 提醒、系统主题等能力作为可安装插件，不挤占核心片段工作流
+- 使用全局快捷键唤起搜索窗口，也可以在主窗口中打开快速搜索。
+- 检索工作区内容，结合中文分词、模糊匹配、拼音和使用历史排序展示结果。
+- 通过插件接入应用、浏览器书签、桌面文件、搜索引擎和计算工具。
+- 支持键盘选择和执行结果；搜索服务对插件来源设置超时，部分来源失败时仍可返回其他结果。
+- 提供工作台概览、系统托盘、自定义快捷键、开机启动和应用更新功能。
+- 支持简体中文、英文，以及浅色、深色和跟随系统的应用主题。
 
-### 🎨 界面与主题
-- **现代化 UI**：基于 Element Plus 的精美界面
-- **深色模式**：支持亮色/暗色主题
-- **自动切换**：根据时间或系统自动切换主题
-- **多语言支持**：中文、英文界面
+### 官方插件
 
----
+官方功能插件与主程序分别发布。是否出现相应页面、设置项或快捷键，取决于插件是否已安装并启用。
 
-## 快速开始
+| 插件 ID | 主要能力 |
+| --- | --- |
+| `git-sync` | 工作区 Git 初始化、拉取、推送、自动同步、历史与冲突处理 |
+| `local-launcher` | 本地应用与浏览器书签管理、搜索和启动 |
+| `desktop-files` | 桌面文件索引与搜索 |
+| `search-engines` | 自定义搜索引擎、关键词快捷搜索和默认搜索入口 |
+| `quick-tools` | 搜索框中的计算、单位换算和实时汇率换算 |
+| `screenshot` | 区域截图、标注、取色、贴图、OCR 和截图翻译 |
+| `screen-recorder` | 区域录屏、剪辑及 MP4、GIF 导出 |
+| `translation` | Google、Bing、离线模型和本地 AI 翻译，以及选中文本翻译 |
+| `local-ai` | 基于 llama.cpp 与 GGUF 模型的本地对话、翻译和编辑辅助；支持将 AI 回复保存为笔记 |
+| `todo` | 待办卡片、定时提醒和通知 |
+| `system-theme` | Windows 系统主题切换、定时及日出日落切换 |
+| `wallpaper-switcher` | 本地壁纸轮换与 Wallhaven 在线壁纸 |
 
-### 系统要求
+以下依赖来自当前插件包清单。通过插件市场安装时，应用会递归安装清单中的依赖；资源包与模型的准备是不同步骤。
 
-- **操作系统**：Windows 10/11
-- **开发环境**：
-  - Node.js 18.0+
-  - pnpm 8.0+
-  - Rust 1.70+
-  - Tauri CLI 2.0+
+| 功能插件 | 清单声明的依赖 |
+| --- | --- |
+| `screenshot` | `screenshot-rapidocr`、`translation`、`local-ai` |
+| `translation` | `translation-offline-runtime` |
+| `local-ai` | `local-ai-llama-runtime` |
+| `screen-recorder` | `screen-recorder-ffmpeg` |
 
-### 安装步骤
+OCR、FFmpeg 和 llama.cpp 等运行资源通过资源包分发，不随核心安装包统一内置。离线翻译和本地 AI 还需要准备对应模型。
 
-1. **克隆仓库**
+## 技术栈
+
+下表列出当前依赖声明采用的主要版本系列。具体约束与锁定版本分别见 [package.json](package.json)、[pnpm-lock.yaml](pnpm-lock.yaml)、[Cargo.toml](src-tauri/Cargo.toml) 和 [Cargo.lock](src-tauri/Cargo.lock)。
+
+| 层级 | 技术 | 用途 |
+| --- | --- | --- |
+| 前端 | Vue 3.5、TypeScript 5.6、Vite 6 | 页面、类型检查与前端构建 |
+| 状态与路由 | Pinia 2、Vue Router 4 | 应用状态、窗口内路由和插件页面 |
+| UI 与样式 | Element Plus 2、Tailwind CSS 3、SCSS | 公共组件、布局与主题变量 |
+| 编辑器 | TipTap 3、CodeMirror 6、Shiki 4 | Markdown 编辑、代码编辑与高亮 |
+| 国际化 | Vue I18n 11 | 简体中文与英文界面 |
+| 桌面后端 | Tauri 2、Rust 2021 edition、Tokio | IPC、窗口、托盘、快捷键与后台任务 |
+| 数据 | SQLite / rusqlite、Serde JSON / YAML | 持久状态、来源索引、配置及 Frontmatter |
+| 文件与检索 | notify、walkdir、jieba-rs、fuzzy-matcher、pinyin、Rayon | 文件监听、目录扫描、分词与搜索 |
+| 验证与规范 | Vitest、ESLint、Stylelint、Prettier、Cargo test / Clippy | 单元测试、静态检查与格式化 |
+
+前端通过 Tauri IPC 调用本地 Rust 命令，应用运行不需要另行部署 Web 服务。Git 同步使用系统 Git；本地 AI 使用独立的 llama-server 进程。
+
+## 安装与配置
+
+### 安装发布版本
+
+从仓库的 [Releases](https://github.com/GigaPuddings/snippets-code-t/releases) 下载 Windows 安装程序，安装后启动应用并完成首次设置。直接使用安装包不需要 Node.js 或 Rust；使用 Git 同步时需要系统 Git。
+
+### 从源码运行
+
+开发环境需要：
+
+| 依赖 | 要求 |
+| --- | --- |
+| Windows 工具链 | MSVC C++ 构建工具与 Windows SDK；桌面运行需要 WebView2 |
+| Node.js | `^20.19.0` 或 `>=22.12.0`，与 `package.json` 的 `engines` 一致 |
+| pnpm | CI 使用 pnpm 9；安装依赖时使用仓库锁文件 |
+| Rust | stable 工具链，Windows 使用 MSVC target；仓库未声明最低 Rust 版本 |
+| Git | 克隆源码及 Git 同步使用 |
+
+仓库中的 `.nvmrc` 和 `.node-version` 目前仍固定为 `18.18.2`，与 `package.json` 不一致。使用版本管理工具时，应手动选择符合 `engines` 的 Node.js 版本；`.npmrc` 启用了 `engine-strict`。
+
 ```bash
 git clone https://github.com/GigaPuddings/snippets-code-t.git
 cd snippets-code-t
-```
-
-2. **安装依赖**
-```bash
-pnpm install
-```
-
-3. **开发模式运行**
-```bash
+pnpm install --frozen-lockfile
 pnpm tauri dev
 ```
 
-4. **构建应用**
+`pnpm tauri dev` 会启动 Vite 开发服务和 Rust 桌面程序。Vite 使用固定端口 `1420`。`pnpm dev` 只启动前端服务，涉及文件系统、窗口或其他 Tauri IPC 的功能应在桌面程序中验证。
+
+可以使用 `pnpm tauri info` 检查本机的桌面开发环境。
+
+### 首次设置
+
+1. 选择界面语言，并选择新建工作区或使用已有工作区。
+2. 确认应用数据目录。Windows 默认路径由程序所在目录计算，也可以选择可写的自定义位置。
+3. 选择 Markdown 工作区。默认位置为用户文档目录下的 `Snippets Code Workspace`，用户文档目录不可用时回退到用户主目录。
+4. 确认插件安装目录。默认插件包位于应用数据根目录下的 `packages/plugins`，也可以单独设置位置。
+5. 完成设置并重启后，在设置中配置快捷键、主题与所需插件。
+
+应用数据目录、Markdown 工作区和插件安装目录分别承担不同职责。实际路径可以在“设置 → 数据管理”中查看。
+
+### 配置插件与模型
+
+在“设置 → 插件”中安装或更新插件。当前市场安装流程要求先安装 `git-sync`，再安装其他插件；使用工作区同步前，还需要在个人中心配置 Git 仓库与连接信息。
+
+对于需要本地运行资源的插件：
+
+- 截图 OCR 需要 RapidOCR 资源；截图翻译还依赖翻译能力。
+- 录屏需要 FFmpeg 资源。
+- 离线翻译需要 Transformers.js / ONNX WASM 运行资源及翻译模型。
+- 本地 AI 需要 llama.cpp 运行资源与 GGUF 模型。在插件设置中选择模型目录、模型和运行程序；使用图像能力时还需适配模型的视觉投影文件。
+
+源码开发时，仓库提供以下可选下载命令：
+
+```bash
+pnpm rapidocr:install
+pnpm ffmpeg:install
+```
+
+下载内容分别放在 `src-tauri/resources/rapidocr` 和 `src-tauri/resources/ffmpeg`，用于开发回退路径，已被 Git 忽略。它们不是核心启动或普通编译的前置步骤。
+
+### 构建
+
+验证前端与桌面程序能否编译，可以使用与 CI 相同的命令：
+
+```bash
+pnpm tauri build --debug --no-bundle
+```
+
+生成发布安装包：
+
 ```bash
 pnpm tauri build
 ```
 
-构建产物位于 `src-tauri/target/release/bundle/`
+前端产物位于 `dist/`，默认 Rust 编译产物位于 `src-tauri/target/`，NSIS 安装包位于 `src-tauri/target/release/bundle/nsis/`。
 
-### 首次使用
+当前配置启用了更新签名产物。执行发布打包前需要设置 `TAURI_SIGNING_PRIVATE_KEY`，以及密钥需要密码时的 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`。只检查编译时可使用上面的 `--no-bundle` 命令。主程序构建与官方插件运行时构建相互独立。
 
-1. 启动应用后会显示设置向导
-2. 选择数据存储位置（推荐非系统盘）
-3. 选择界面语言
-4. 完成设置，开始使用
+## 使用方法
 
-### Markdown 存储迁移
+### 保存和复用代码片段
 
-如果您是从旧版本升级，可以将笔记迁移到 Markdown 文件存储：
+在工作区创建分类，例如 `TypeScript`，再新建代码片段，填写标题、内容和标签。例如保存以下函数，标题设为“去除数组重复项”：
 
-1. 打开设置 → 数据管理
-2. 点击"迁移到 Markdown 存储"
-3. 选择工作区文件夹
-4. 等待迁移完成
-
-**迁移后的优势**：
-- ✅ 每个笔记都是独立的 `.md` 文件
-- ✅ 可以使用任何文本编辑器（VS Code 等）
-- ✅ 支持 Git 版本控制
-- ✅ 更好的数据可移植性
-
-详细说明请查看 [数据存储与管理](docs/DATA_MANAGEMENT.md)。
-
----
-
-## 技术栈
-
-### 前端技术
-
-| 技术 | 版本 | 用途 |
-|------|------|------|
-| Vue 3 | 3.5+ | 渐进式 JavaScript 框架 |
-| TypeScript | 5.6+ | 类型安全的 JavaScript |
-| Vite | 6.0+ | 下一代前端构建工具 |
-| Pinia | 2.3+ | Vue 状态管理 |
-| Vue Router | 4.x | 路由管理 |
-| Element Plus | 2.9+ | UI 组件库 |
-| TipTap | 3.17+ | 富文本编辑器 |
-| CodeMirror | 6.x | 代码编辑器 |
-| TailwindCSS | 3.4+ | 原子化 CSS 框架 |
-| Vue I18n | 11.2+ | 国际化 |
-
-### 后端技术
-
-| 技术 | 版本 | 用途 |
-|------|------|------|
-| Tauri | 2.0+ | 跨平台桌面应用框架 |
-| Rust | 1.70+ | 系统编程语言 |
-| SQLite | 3.x | 嵌入式数据库 |
-| Tokio | 1.36+ | 异步运行时 |
-
-### 开发工具
-
-- **代码质量**：ESLint、Prettier、Stylelint
-- **Git 工作流**：Husky、Commitlint、Lint-staged
-- **包管理**：pnpm
-
----
-
-## 项目结构
-
-```
-snippets-code/
-├── src/                          # 前端源代码
-│   ├── api/                      # API 调用层
-│   │   ├── fragment.ts           # 片段 API
-│   │   ├── markdown.ts           # Markdown API
-│   │   ├── plugins.ts            # 插件包与资源 API
-│   │   ├── appConfig.ts          # 应用配置 API
-│   │   └── github.ts             # GitHub API
-│   ├── components/               # 可复用组件
-│   │   ├── TipTapEditor/         # 富文本编辑器
-│   │   │   ├── extensions/       # 编辑器扩展
-│   │   │   │   ├── LocalImage.ts # 本地图片扩展
-│   │   │   │   └── CustomEnterBehavior.ts  # 自定义回车行为
-│   │   │   ├── BacklinkPanel.vue # 反向链接面板
-│   │   │   └── ...
-│   │   ├── SettingsContent/     # 设置内容组件
-│   │   └── ...
-│   ├── pages/                    # 页面组件
-│   │   ├── search/               # 搜索页面
-│   │   ├── config/               # 配置页面与插件挂载入口
-│   │   └── ...
-│   ├── plugins/                  # 插件系统与官方插件运行时
-│   │   ├── git-sync/             # Git 同步插件
-│   │   ├── screenshot/           # 截图/OCR 插件
-│   │   ├── translation/          # 翻译插件
-│   │   ├── todo/                 # Todo 插件
-│   │   └── ...
-│   ├── hooks/                    # Composables
-│   │   ├── useFileWatcher.ts     # 文件监听 Hook
-│   │   └── ...
-│   ├── store/                    # Pinia 状态管理
-│   ├── types/                    # TypeScript 类型定义
-│   ├── utils/                    # 工具函数
-│   │   ├── error-handler.ts      # 错误处理系统
-│   │   ├── wikilink-parser.ts    # Wikilink 解析器
-│   │   ├── wikilink-updater.ts   # Wikilink 更新器
-│   │   ├── image-upload.ts       # 图片上传工具
-│   │   ├── file-sort.ts          # 文件排序工具
-│   │   ├── time-format.ts        # 时间格式化
-│   │   └── ...
-│   ├── i18n/                     # 国际化
-│   └── styles/                   # 全局样式
-├── src-tauri/                    # Rust 后端
-│   ├── src/                      # Rust 源代码
-│   │   ├── db/                   # 数据库模块
-│   │   ├── markdown/             # Markdown 文件系统（新增多个子模块）
-│   │   │   ├── commands.rs       # Markdown 操作命令
-│   │   │   ├── workspace.rs      # 工作区管理
-│   │   │   ├── workspace_manager.rs  # 工作区管理器
-│   │   │   ├── file_ops.rs       # 文件操作
-│   │   │   ├── file_system_manager.rs  # 文件系统管理
-│   │   │   ├── watcher.rs        # 文件监听
-│   │   │   ├── metadata.rs       # 元数据管理
-│   │   │   ├── migration.rs      # 数据迁移
-│   │   │   ├── index_optimized.rs  # 优化的搜索索引
-│   │   │   └── cache_manager.rs  # 缓存管理
-│   │   ├── plugins/              # 官方插件后端适配层
-│   │   ├── app_config.rs         # 应用与插件配置
-│   │   ├── git_sync.rs           # Git 同步兼容实现
-│   │   ├── translation.rs        # 翻译兼容实现
-│   │   ├── hotkey.rs             # 快捷键管理
-│   │   ├── window.rs             # 窗口管理
-│   │   ├── json_config.rs        # JSON 配置管理
-│   │   └── attachment.rs         # 附件管理
-│   ├── Cargo.toml                # Rust 依赖配置
-│   └── tauri.conf.json           # Tauri 配置
-├── docs/                         # 文档
-│   ├── ARCHITECTURE.md           # 架构文档
-│   └── CODING_STANDARDS.md       # 编码规范
-├── plugin-registry/              # 插件市场索引、官方插件包和示例包
-├── package.json                  # 前端依赖配置
-├── vite.config.ts                # Vite 配置
-├── tsconfig.json                 # TypeScript 配置
-└── README.md                     # 项目说明
+```typescript
+export function unique<T>(items: T[]): T[] {
+  return [...new Set(items)];
+}
 ```
 
----
+完成编辑后，通过搜索窗口输入“去除数组重复项”或内容关键词找到该片段。打开后可以复制选中代码，也可以使用代码编辑器菜单中的“复制全部”。
 
-## 核心功能详解
+### 连接相关笔记
 
-### 前端片段管理
+创建名为“Vue 组件约定”的笔记，再在另一篇笔记中写入：
 
-支持两种类型的内容：
+```markdown
+## 组件开发
 
-- **代码片段（Code）**：使用 CodeMirror 编辑器，支持语法高亮
-- **笔记（Note）**：使用 TipTap 富文本编辑器，支持 Markdown
+实现组件前先查看 [[Vue 组件约定]]。
 
-**特性**：
-- 分类管理和标签系统
-- 全文搜索和高级搜索语法
-- 反向链接和 Wikilink 支持
-- 导入/导出功能
-- 复制原始代码、Markdown fenced code、VS Code snippet JSON
-- 模板变量 `{{input:Name}}`、`{{clipboard}}` 复制前解析
-- `language/framework/kind` 前端语义元数据
-- 多工作区支持
+- [ ] 确认输入参数
+- [ ] 补充使用示例
+```
 
-### 搜索功能
+点击 Wikilink 可定位相关笔记，反向链接面板用于查看引用关系。需要直接调整 Markdown 时，可以切换到源码模式；也可以使用外部编辑器修改工作区文件。
 
-**搜索模式**：
-- **搜索模式**：输入关键词搜索所有内容
-- **列表模式**：按类型浏览内容
-- **标签模式**：按标签筛选
+### 使用搜索插件
 
-**片段工作流**：
-- 按语言、框架、类型、标签和分类筛选
-- 代码片段搜索结果可直接复制为多种格式
-- 应用、书签、桌面文件和搜索引擎作为插件搜索源接入
+启用 `local-launcher` 后，可以按名称搜索本机应用和浏览器书签；启用 `desktop-files` 后，桌面文件也会进入结果。上下方向键选择结果，回车执行对应操作。
 
-### 官方插件能力
+启用 `search-engines` 后，可以为搜索引擎配置关键词及包含 `%s` 的 URL 模板。若关键词设为 `g`，在搜索框输入 `g Vue watch` 即可使用该引擎检索 `Vue watch`。
 
-官方插件围绕片段工作流扩展能力，不属于核心编辑/工作区边界：
+启用 `quick-tools` 后，可在搜索框输入算式，例如 `1 + 2 * 3`，或单位换算表达式。汇率换算需要访问在线汇率数据。
 
-- **Git 同步**：同步片段工作区到任意 Git 仓库，并处理冲突、自动同步和状态展示
-- **截图与 OCR**：截图标注、取色、贴图、RapidOCR 资源包和截图翻译入口
-- **翻译**：Google、Bing、离线翻译和选中文本翻译
-- **Todo 与主题**：提醒通知、Auto Dark Mode、系统主题切换
-- **搜索源扩展**：应用、书签、桌面文件和 Web 搜索引擎
+### 同步工作区
 
----
+安装并启用 `git-sync`，在个人中心配置远程仓库，再使用拉取和推送同步内容。插件提供自动同步和冲突处理；具体同步范围见下文及[跨设备数据同步文档](docs/DATA_SYNC.md)。
 
-## 文档
+### 将 AI 回复保存为笔记
 
-### 用户文档
+安装并配置 `local-ai` 后，从标题栏进入 AI 对话，确认模型服务可用再发送消息。对需要保留的回复使用“保存为笔记”，内容会写入当前 Markdown 工作区，并保留问题、会话、模型等来源信息。操作与更新边界见 [AI 回复保存为笔记](docs/AI_REPLY_CAPTURE.md)。
 
-- [数据存储与管理](docs/DATA_MANAGEMENT.md) - 工作区文件、持久状态、索引与清理边界
-- [跨设备数据同步](docs/DATA_SYNC.md) - Git 同步范围、新设备恢复与冲突处理
-- [AI 回复保存为笔记](docs/AI_REPLY_CAPTURE.md) - 保存来源、重复保存保护与主应用／插件更新边界
+## 代码结构与模块依赖
 
-### 开发者文档
+### 目录结构
 
-- [架构文档](docs/ARCHITECTURE.md) - 详细的技术架构说明
-- [工作台架构](docs/DEVELOPER_WORKBENCH.md) - 工作区、统一搜索、插件平台与 AI 能力层
-- [编码规范](docs/CODING_STANDARDS.md) - 代码质量标准和最佳实践
-- [公共 UI 样式](docs/UI_STYLE_GUIDE.md) - 主题变量、公共组件与 Markdown 排版维护
-- [插件系统](docs/PLUGIN_SYSTEM.md) - 插件协议、权限、生命周期与依赖安装
-- [官方插件开发](docs/OFFICIAL_PLUGIN_DEVELOPMENT.md) - 构建、接入与独立发布流程
-- [原生窗口设计](docs/WINDOW_CONTENT_FIT_AND_PASSTHROUGH.md) - 内容贴合、透明区域与鼠标穿透
+```text
+snippets-code-t/
+├── src/
+│   ├── main.ts、App.vue         # 前端初始化与根组件
+│   ├── router/、layout/         # 核心路由、布局与标题栏
+│   ├── pages/                  # 搜索、配置、首次设置、更新等核心页面
+│   ├── components/             # 公共 UI、编辑器、分类与设置组件
+│   ├── api/                    # 工作区、配置、插件、AI 等 IPC 调用
+│   ├── store/                  # 配置、布局、主题、热键及插件状态
+│   ├── hooks/、composables/     # 搜索、文件监听和公共交互逻辑
+│   ├── search/                 # 统一搜索服务、来源注册表与排序
+│   ├── workbench/              # 工作台能力、概览与视图模型
+│   ├── ai/                     # AI provider、上下文、流式请求与偏好
+│   ├── plugins/                # 插件协议、宿主桥与官方插件前端源码
+│   ├── types/、utils/           # 共享类型、转换、校验与工具
+│   └── i18n/、styles/、assets/  # 语言、主题及静态资源
+├── src-tauri/
+│   ├── src/
+│   │   ├── lib.rs、app_setup.rs # Tauri 入口、状态与启动编排
+│   │   ├── commands/           # 工作区、文件系统和应用命令
+│   │   ├── markdown/           # 文件、Frontmatter、索引、监听与回收站
+│   │   ├── db/                 # 核心状态库、来源索引库及数据操作
+│   │   ├── app_config/         # 配置持久化、插件安装、校验与资源管理
+│   │   ├── plugins/            # 官方插件的 Rust 后端适配
+│   │   ├── git_sync/           # Git 命令、应用服务、仓库与冲突处理
+│   │   ├── sync_data.rs        # 可移植同步数据与配置投影
+│   │   └── window.rs、hotkey.rs、tray.rs 等
+│   ├── capabilities/          # Tauri 窗口与 API 权限配置
+│   ├── resources/             # 可选本地运行资源说明与开发回退目录
+│   ├── nsis/                  # Windows 安装及卸载相关配置
+│   └── Cargo.toml、tauri.conf.json
+├── plugin-registry/
+│   ├── marketplace/           # 应用读取的插件市场索引
+│   ├── packages/              # 官方插件清单与构建后的前端运行时
+│   └── examples/              # 示例插件与资源包模板
+├── scripts/                   # 插件构建、资源下载与发布校验脚本
+├── docs/                      # 架构、数据、UI 与插件开发文档
+├── .github/workflows/         # CI 检查与 Windows 发布流程
+├── public/                    # Vite 公共资源
+├── AGENTS.md                  # 仓库维护约定
+├── package.json、pnpm-lock.yaml
+└── README.md
+```
 
----
+前端测试与被测模块放在相邻的 `*.test.ts` 文件中；Rust 测试由 Cargo 运行。`app_config.rs` 和 `git_sync.rs` 仍承担兼容门面职责，具体逻辑已分拆到同名目录。
 
-## 代码质量标准
+### 核心模块
 
-本项目遵循严格的代码质量标准，确保代码的可维护性和可靠性。
+| 模块 | 主要入口 | 依赖与职责 |
+| --- | --- | --- |
+| 应用启动与窗口 | `src/main.ts`、`src/router/index.ts`、`src-tauri/src/lib.rs`、`src-tauri/src/app_setup.rs` | 前端挂载状态、路由和主题；后端初始化数据库、工作区、监听器、托盘与快捷键 |
+| 工作区与编辑器 | `src/api/fragment.ts`、`src/api/markdown.ts`、`src/components/TipTapEditor/`、`src/components/CodeMirrorEditor/` | 通过 IPC 调用 Rust 工作区及 Markdown 命令；文件系统是内容事实源 |
+| 统一搜索 | `src/hooks/useSearch.ts`、`src/search/`、`src-tauri/src/markdown/index_optimized.rs` | 合并 Markdown 检索与启用插件的搜索源，再去重、排序并处理超时；使用历史来自核心状态库 |
+| 插件平台 | `src/store/plugins.ts`、`src/plugins/`、`src-tauri/src/app_config/` | 加载安装包清单与运行时，注册页面、设置、搜索源、热键、标题栏和 AI 能力；后端负责包管理及执行门禁 |
+| AI 能力层 | `src/ai/`、`src/api/localAi.ts`、`src/plugins/local-ai/` | 按能力选择 provider，收集工作区、选区等上下文；现有本地 provider 调用 Rust 管理的 llama-server |
+| Git 同步 | `src/plugins/git-sync/`、`src-tauri/src/git_sync/`、`src-tauri/src/sync_data.rs` | 使用系统 Git 同步白名单内容与可移植配置；拉取后刷新内容并导入配置 |
 
-### TypeScript 类型安全
-- ✅ 启用 TypeScript 严格模式
-- ✅ 所有函数都有明确的类型定义
-- ✅ 禁止使用 `any` 类型（除非有充分理由并添加注释）
-- ✅ 使用类型守卫验证外部数据
+```mermaid
+flowchart LR
+    UI[页面与编辑器] --> Services[工作区 API、搜索服务与 AI 服务]
+    Plugins[插件运行时] --> UI
+    Plugins --> Services
+    Services --> IPC[Tauri IPC]
+    IPC --> Rust[Rust 命令与服务]
+    Rust --> Files[Markdown 与附件]
+    Rust --> State[JSON 配置与 SQLite]
+```
 
-### 代码文档
-- ✅ 所有导出函数都有 JSDoc 注释
-- ✅ JSDoc 包含参数说明、返回值说明和使用示例
-- ✅ 复杂逻辑添加行内注释说明
+文件监听器将外部变更更新到缓存和搜索索引，再通过事件通知前端。插件运行时负责能力注册，安装与启用状态决定其路由、设置和搜索来源是否可用。插件权限还需要与宿主桥、后端白名单和 `src-tauri/capabilities` 配置协调。
 
-### 错误处理
-- ✅ 使用统一的 ErrorHandler 系统处理错误
-- ✅ 所有异步操作都有错误处理
-- ✅ 提供用户友好的错误消息
+## 数据存储与同步
 
-### 代码组织
-- ✅ 组件不超过 300 行
-- ✅ 函数不超过 50 行
-- ✅ 复杂逻辑提取到 composables 或工具函数
-- ✅ 保持单一职责原则
+| 数据 | 当前存储位置与用途 |
+| --- | --- |
+| 片段与笔记 | 工作区中的 `.md` 文件，Frontmatter 保存 UUID、标题、标签、类型及其他内容元数据 |
+| 内容附件 | 工作区内的附件文件；相对路径与存储规则由附件设置控制 |
+| 应用配置 | `<data-root>/.snippets-code/app.json` |
+| 工作区布局 | `<workspace>/.snippets-code/workspace.json` |
+| 文件元数据缓存 | `<workspace>/.snippets-code/cache.json`，用于文件状态和索引维护 |
+| 核心持久状态 | `<data-root>/core.db`，包括搜索历史、用户配置及插件用户数据 |
+| 可重建来源索引 | `<data-root>/search.db`，包括应用、书签、桌面文件和图标等派生数据 |
+| 插件持久状态 | `<data-root>/state/plugins/<plugin-id>/`；具体介质按插件实现区分 |
+| 默认插件包 | `<data-root>/packages/plugins/<plugin-id>/`，可设置独立安装目录 |
+| 数据目录指针 | 平台应用数据目录中的 `path.json`，用于定位自定义数据根 |
 
-### 代码风格
-- ✅ 使用 ESLint 进行代码检查
-- ✅ 使用 Prettier 进行代码格式化
-- ✅ 遵循 Vue 3 Composition API 最佳实践
+`<data-root>` 是应用数据根目录，`<workspace>` 是当前 Markdown 工作区，两者可以分开。内容文件、不可丢失的用户状态和可重建索引具有不同生命周期；重建索引不等同于重置应用或备份数据。
 
-详细的编码规范请参见 [docs/CODING_STANDARDS.md](docs/CODING_STANDARDS.md)。
+Git 同步只提交允许的 Markdown、被引用的受管附件和同步协议文件，并投影部分通用偏好、快捷键及工作区设置。SQLite 数据库、索引缓存、本机绝对路径、Git 凭据、插件包和模型不属于同步范围。新设备仍需配置本机路径与连接信息，并安装插件、准备模型。
 
----
+完整备份需要覆盖工作区与应用持久数据。手动复制数据目录时，应先退出应用，避免只复制正在写入的 SQLite 主文件而遗漏 WAL 数据。存储、迁移与清理边界见[数据存储与管理](docs/DATA_MANAGEMENT.md)。
+
+## 开发与验证
+
+在仓库根目录执行前端检查：
+
+```bash
+pnpm typecheck
+pnpm test
+pnpm lint
+pnpm lint:style
+```
+
+在 `src-tauri` 目录执行后端检查：
+
+```bash
+cargo clippy --all-targets -- -D warnings
+cargo test
+```
+
+CI 在 Linux 上执行前端检查，在 Windows 上执行 Rust 检查和桌面编译。仅通过前端构建不足以验证原生窗口、快捷键或插件后端行为。
+
+### 官方插件开发
+
+先检查 `src/plugins` 的已有能力和相近插件。官方前端源码位于 `src/plugins/<plugin-id>`，安装清单位于 `plugin-registry/packages/<plugin-id>/plugin.json`；插件市场索引为 `plugin-registry/marketplace/marketplace.json`。
+
+插件通过宿主能力接口注册工作区访问、存储、搜索、AI、网络、剪贴板、通知和窗口等能力。新增后端行为时，同时检查插件启用状态、命令权限和后端门禁。完整接入与独立发布流程见[官方插件开发](docs/OFFICIAL_PLUGIN_DEVELOPMENT.md)。
+
+相关本地命令：
+
+```bash
+pnpm plugins:build-official
+pnpm plugins:package
+node scripts/verify-plugin-marketplace.mjs --local
+```
+
+运行时构建会更新官方插件包中的 `dist/` 和入口声明；打包输出在 `dist-plugin-packages/`。验证后清理本次生成的临时产物，不要提交 OCR、FFmpeg、llama 或模型二进制。插件版本与主程序版本独立维护，发布脚本的仓库映射位于 `scripts/plugin-release-config.mjs`。
 
 ## 贡献指南
 
-欢迎提交 Issue 和 Pull Request！
+提交修改前请阅读 [AGENTS.md](AGENTS.md) 和[编码规范](docs/CODING_STANDARDS.md)。
 
-### 提交代码前请确保
+1. 对较大功能先通过 Issue 说明使用场景、现有行为和拟修改范围；问题报告附上系统、应用及插件版本、复现步骤和相关日志。
+2. Fork 仓库，在自己的开发分支完成修改，并复用现有组件、composable、API 和插件接口。
+3. 为行为变更补充与风险相称的测试，运行相关检查。主题与公共 UI 修改需验证浅色、深色、系统主题和现有交互状态。
+4. 更新受影响的文档、i18n 文案、插件清单或配置迁移。插件、快捷键和后端权限变化应检查完整调用链。
+5. 使用 Conventional Commits 提交，例如 `fix(search): handle provider timeout` 或 `docs: update setup instructions`。可使用 `pnpm commit` 交互填写；提交信息由 Commitlint 检查。
+6. 提交 Pull Request，说明问题、最终行为、验证结果和兼容性影响。提交前检查 `git status --short`，排除无关改动与临时文件。
 
-1. 代码符合项目的编码规范
-2. 通过所有代码质量检查
-3. 添加必要的注释和文档
-4. 遵循 Conventional Commits 规范
+## 相关文档
 
-### 开发流程
-
-1. Fork 本仓库
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'feat: Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启 Pull Request
-
-### 提交信息规范
-
-使用 Conventional Commits 规范：
-
-- `feat`: 新功能
-- `fix`: 修复 bug
-- `docs`: 文档更新
-- `style`: 代码格式（不影响代码运行）
-- `refactor`: 重构
-- `perf`: 性能优化
-- `test`: 测试
-- `chore`: 构建/工具链更新
-
----
-
-## 常见问题
-
-### 如何修改全局快捷键？
-
-在应用设置中可以自定义所有快捷键。
-
-### 数据存储在哪里？
-
-首次启动时可以选择数据存储位置，默认位置为用户文档目录。
-
-### 如何备份数据？
-
-在设置 > 数据管理中可以备份和恢复数据库。
-
-### 支持哪些操作系统？
-
-目前仅支持 Windows 10/11。
-
----
-
-## 更新日志
-
-查看 [RELEASE_NOTES.md](RELEASE_NOTES.md) 了解最新版本的更新内容。
-
----
+- [数据存储与管理](docs/DATA_MANAGEMENT.md)：数据目录、持久状态、索引、迁移与清理。
+- [跨设备数据同步](docs/DATA_SYNC.md)：Git 同步范围、恢复流程和配置冲突。
+- [AI 回复保存为笔记](docs/AI_REPLY_CAPTURE.md)：笔记来源及主程序与插件的更新边界。
+- [工作台架构](docs/DEVELOPER_WORKBENCH.md)：工作区、统一搜索、插件平台和 AI 能力层。
+- [架构文档](docs/ARCHITECTURE.md)：架构说明及模块设计背景。
+- [插件系统](docs/PLUGIN_SYSTEM.md)：插件协议、能力、权限和生命周期。
+- [官方插件开发](docs/OFFICIAL_PLUGIN_DEVELOPMENT.md)：接入、构建与独立发布。
+- [公共 UI 样式](docs/UI_STYLE_GUIDE.md)：主题变量、公共组件和 Markdown 排版。
+- [原生窗口设计](docs/WINDOW_CONTENT_FIT_AND_PASSTHROUGH.md)：窗口尺寸、透明区域及鼠标穿透。
+- [更新记录](RELEASE_NOTES.md)：版本变更。
 
 ## 许可证
 
-本项目采用 [MIT](LICENSE) 许可证。
-
----
-
-## 致谢
-
-感谢以下开源项目：
-
-- [Tauri](https://tauri.app/) - 跨平台桌面应用框架
-- [Vue.js](https://vuejs.org/) - 渐进式 JavaScript 框架
-- [TipTap](https://tiptap.dev/) - 无头富文本编辑器
-- [Element Plus](https://element-plus.org/) - Vue 3 UI 组件库
-- [CodeMirror](https://codemirror.net/) - 代码编辑器
-- [Transformers.js](https://huggingface.co/docs/transformers.js) - 机器学习模型
-- [RapidOCR-json](https://github.com/hiroi-sora/RapidOCR-json) - OCR 引擎
-
----
-
-<div align="center">
-
-**[⬆ 回到顶部](#snippets-code)**
-
-Made with ❤️ by [GigaPuddings](https://github.com/GigaPuddings)
-
-</div>
+本项目采用 [Apache License 2.0](LICENSE)。第三方运行资源与模型的许可条款以各自项目为准。
