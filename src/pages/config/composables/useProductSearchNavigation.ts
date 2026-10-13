@@ -1,6 +1,11 @@
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import type { Router } from 'vue-router';
+import {
+  isNavigationFailure,
+  NavigationFailureType,
+  type RouteLocationRaw,
+  type Router
+} from 'vue-router';
 import { usePluginStore } from '@/store';
 import { getVisibleSettingsMenuItems } from '@/plugins/settings';
 import { installRuntimePluginRoutes } from '@/plugins/runtime';
@@ -14,6 +19,16 @@ export function useProductSearchNavigation(router: Router) {
   const pluginStore = usePluginStore();
   const unlisteners: Array<() => void> = [];
   let processing = false;
+  const navigate = async (target: RouteLocationRaw): Promise<void> => {
+    const failure = await router.push(target);
+    // An already-open target is successful; an aborted/cancelled transition is not.
+    if (
+      isNavigationFailure(failure) &&
+      !isNavigationFailure(failure, NavigationFailureType.duplicated)
+    ) {
+      throw failure;
+    }
+  };
   const drain = async (): Promise<void> => {
     if (processing) return;
     processing = true;
@@ -66,7 +81,7 @@ export function useProductSearchNavigation(router: Router) {
           });
           return;
         }
-        await router.push({
+        await navigate({
           name: 'LocalAiChat',
           query: { searchRequest: request.requestId }
         });
@@ -83,7 +98,7 @@ export function useProductSearchNavigation(router: Router) {
         );
         if (!tab || tab.pluginId !== (request.pluginId ?? undefined))
           throw new Error('Settings target is unavailable');
-        await router.push({ name: 'Settings', query: { tab: action.tabId } });
+        await navigate({ name: 'Settings', query: { tab: action.tabId } });
       } else {
         if (!router.hasRoute(action.routeName))
           throw new Error('Route is unavailable');
@@ -110,7 +125,7 @@ export function useProductSearchNavigation(router: Router) {
           owner !== (request.pluginId ?? undefined)
         )
           throw new Error('Route does not belong to the search source');
-        await router.push(target);
+        await navigate(target);
       }
       await invoke('finish_search_navigation', {
         requestId: request.requestId,

@@ -160,4 +160,108 @@ describe('config search navigation receiver', () => {
     await useProductSearchNavigation(target).setup();
     expect(target.currentRoute.value.path).toBe('/config/category/contentList');
   });
+  it('reports a failed lazy import and accepts another request after the resource recovers', async () => {
+    const loadSettings = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new TypeError(
+          'Failed to fetch dynamically imported module: /settings.vue'
+        )
+      )
+      .mockResolvedValue({});
+    const target = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/config/workbench', component: {} },
+        {
+          path: '/config/category/settings',
+          name: 'Settings',
+          component: loadSettings
+        }
+      ]
+    });
+    target.onError(vi.fn());
+    await target.push('/config/workbench');
+    let requestId = 'failed';
+    mocks.invoke.mockImplementation(async (command) =>
+      command === 'get_pending_search_navigation'
+        ? {
+            requestId,
+            pluginId: null,
+            action: { kind: 'settings', tabId: 'general' }
+          }
+        : undefined
+    );
+    const controller = useProductSearchNavigation(target);
+    await controller.setup();
+    expect(target.currentRoute.value.path).toBe('/config/workbench');
+    expect(mocks.invoke).toHaveBeenCalledWith('finish_search_navigation', {
+      requestId: 'failed',
+      success: false,
+      error: expect.stringContaining(
+        'Failed to fetch dynamically imported module'
+      )
+    });
+    requestId = 'retry';
+    await mocks.listen.mock.calls[0][1]();
+    expect(target.currentRoute.value.name).toBe('Settings');
+    expect(mocks.invoke).toHaveBeenCalledWith('finish_search_navigation', {
+      requestId: 'retry',
+      success: true,
+      error: null
+    });
+    controller.cleanup();
+  });
+  it('does not acknowledge a guard-aborted navigation as successful', async () => {
+    const target = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/config/category/settings', name: 'Settings', component: {} }
+      ]
+    });
+    target.beforeEach(() => false);
+    mocks.invoke.mockImplementation(async (command) =>
+      command === 'get_pending_search_navigation'
+        ? {
+            requestId: 'aborted',
+            pluginId: null,
+            action: { kind: 'settings', tabId: 'general' }
+          }
+        : undefined
+    );
+    const controller = useProductSearchNavigation(target);
+    await controller.setup();
+    expect(mocks.invoke).toHaveBeenCalledWith('finish_search_navigation', {
+      requestId: 'aborted',
+      success: false,
+      error: expect.any(String)
+    });
+    controller.cleanup();
+  });
+  it('acknowledges an already-open settings tab so main can still close', async () => {
+    const target = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/config/category/settings', name: 'Settings', component: {} }
+      ]
+    });
+    await target.push({ name: 'Settings', query: { tab: 'general' } });
+    mocks.invoke.mockImplementation(async (command) =>
+      command === 'get_pending_search_navigation'
+        ? {
+            requestId: 'duplicate',
+            pluginId: null,
+            action: { kind: 'settings', tabId: 'general' }
+          }
+        : undefined
+    );
+    const controller = useProductSearchNavigation(target);
+    await controller.setup();
+    expect(mocks.invoke).toHaveBeenCalledWith('finish_search_navigation', {
+      requestId: 'duplicate',
+      success: true,
+      error: null
+    });
+    controller.cleanup();
+  });
 });

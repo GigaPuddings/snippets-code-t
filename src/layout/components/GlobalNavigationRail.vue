@@ -109,6 +109,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { usePluginStore } from '@/store';
 import { useConfigQuickSearch } from '@/composables/useConfigQuickSearch';
 import { useUpdateAvailability } from '@/composables/useUpdateAvailability';
+import modal from '@/utils/modal';
 import {
   configNavigationTabs,
   isConfigNavigationPathActive
@@ -201,12 +202,16 @@ watch(
   }
 );
 
-const handleAccountCommand = async (command: string) => {
-  if (command === 'search') openQuickSearch();
-  else if (command === 'settings')
-    await router.push('/config/category/settings');
-  else if (command === 'userCenter')
-    await router.push('/config/category/contentList/user');
+const handleAccountCommand = async (command: string): Promise<void> => {
+  try {
+    if (command === 'search') openQuickSearch();
+    else if (command === 'settings')
+      await router.push('/config/category/settings');
+    else if (command === 'userCenter')
+      await router.push('/config/category/contentList/user');
+  } catch (error) {
+    modal.error(`${t('common.failed')}: ${String(error)}`);
+  }
 };
 
 onMounted(async () => {

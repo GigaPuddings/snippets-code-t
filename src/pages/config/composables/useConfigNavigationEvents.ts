@@ -1,5 +1,5 @@
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import type { Router } from 'vue-router';
+import type { RouteLocationRaw, Router } from 'vue-router';
 import type { Composer } from 'vue-i18n';
 import { readMarkdownFile as defaultReadMarkdownFile } from '@/api/markdown';
 import type { MarkdownFile } from '@/types';
@@ -48,6 +48,17 @@ export function useConfigNavigationEvents(deps: ConfigNavigationEventsDeps) {
   const getWindow = deps.getWindow ?? getCurrentWindow;
   const readMarkdownFile = deps.readMarkdownFile ?? defaultReadMarkdownFile;
   const unlisteners: Array<() => void> = [];
+  const navigate = async (target: RouteLocationRaw): Promise<void> => {
+    try {
+      await deps.router.push(target);
+    } catch (error) {
+      deps.modalMsg(
+        `${deps.t('common.failed')}: ${String(error)}`,
+        'error',
+        'bottom-right'
+      );
+    }
+  };
 
   const routeToFragment = (
     categoryId: unknown,
@@ -55,7 +66,7 @@ export function useConfigNavigationEvents(deps: ConfigNavigationEventsDeps) {
     query?: Record<string, string>
   ) => {
     const targetPath = `/config/category/contentList/${categoryId}/content/${encodeURIComponent(normalizePendingFragmentId(fragmentId))}`;
-    return deps.router.push({
+    return navigate({
       path: targetPath,
       query
     });
@@ -117,7 +128,7 @@ export function useConfigNavigationEvents(deps: ConfigNavigationEventsDeps) {
 
     unlisteners.push(
       await currentWindow.listen('navigate-to-settings', () => {
-        deps.router.push('/config/category/settings');
+        return navigate('/config/category/settings');
       })
     );
 
@@ -125,7 +136,7 @@ export function useConfigNavigationEvents(deps: ConfigNavigationEventsDeps) {
       await currentWindow.listen<string>(
         'navigate-to-settings-tab',
         (event) => {
-          deps.router.push({
+          return navigate({
             path: '/config/category/settings',
             query: { tab: event.payload }
           });
@@ -138,7 +149,7 @@ export function useConfigNavigationEvents(deps: ConfigNavigationEventsDeps) {
         'navigate-to-fragment',
         (event) => {
           const { fragmentId, categoryId } = event.payload;
-          routeToFragment(categoryId, fragmentId);
+          return routeToFragment(categoryId, fragmentId);
         }
       )
     );

@@ -170,4 +170,39 @@ describe('useConfigNavigationEvents', () => {
     ).toBe(true);
     expect(focusUnlisten).toHaveBeenCalledTimes(1);
   });
+  it('handles a settings import error without an unhandled rejection and permits the next attempt', async () => {
+    const router = createRouter();
+    router.push
+      .mockRejectedValueOnce(
+        new TypeError(
+          'Failed to fetch dynamically imported module: /settings.vue'
+        )
+      )
+      .mockResolvedValue(undefined);
+    const { window, listeners } = createWindow();
+    const modalMsg = vi.fn();
+    const navigationEvents = useConfigNavigationEvents({
+      router: router as any,
+      t,
+      modalMsg,
+      storage: createStorage(),
+      getWindow: () => window
+    });
+    await navigationEvents.setup();
+    await expect(
+      listeners.get('navigate-to-settings')?.({ payload: undefined })
+    ).resolves.toBeUndefined();
+    expect(modalMsg).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to fetch dynamically imported module'),
+      'error',
+      'bottom-right'
+    );
+    await listeners.get('navigate-to-settings-tab')?.({ payload: 'plugins' });
+    expect(router.push).toHaveBeenLastCalledWith({
+      path: '/config/category/settings',
+      query: { tab: 'plugins' }
+    });
+    expect(modalMsg).toHaveBeenCalledOnce();
+    navigationEvents.cleanup();
+  });
 });

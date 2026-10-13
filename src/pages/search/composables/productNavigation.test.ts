@@ -82,4 +82,30 @@ describe('cross-window product navigation', () => {
       expect.anything()
     );
   });
+  it('keeps main available while loading, ignores another request, and closes after the matching success', async () => {
+    let receive!: (event: any) => void;
+    let requestId = '';
+    mocks.listen.mockImplementation(async (_event, callback) => {
+      receive = callback;
+      return mocks.stop;
+    });
+    mocks.invoke.mockImplementation(async (command, args) => {
+      if (command === 'open_product_search_target')
+        requestId = args.request.requestId;
+    });
+    const opening = openProductSearchResult({
+      id: 'settings',
+      title: '插件管理',
+      content: '',
+      searchAction: { kind: 'settings', tabId: 'plugins' }
+    });
+    await vi.waitFor(() => expect(requestId).not.toBe(''));
+    expect(mocks.hide).not.toHaveBeenCalled();
+    receive({ payload: { requestId: 'other-request', success: true } });
+    expect(mocks.hide).not.toHaveBeenCalled();
+    receive({ payload: { requestId, success: true } });
+    await opening;
+    expect(mocks.hide).toHaveBeenCalledOnce();
+    expect(mocks.stop).toHaveBeenCalledOnce();
+  });
 });
