@@ -1777,7 +1777,7 @@ pub fn create_notification_window_unified(ntype: NotificationType) -> Option<Web
     let scale_factor = monitor.scale_factor();
 
     // 窗口大小和边距 (逻辑像素)
-    let (window_width, window_height) = (320.0, 164.0);
+    let (window_width, window_height) = (320.0, 144.0);
     let taskbar_height = 40.0;
     let margin = 16.0;
 
@@ -1834,6 +1834,9 @@ pub fn create_notification_window_unified(ntype: NotificationType) -> Option<Web
         .inner_size(window_width, window_height)
         .position(start_x, start_y)
         .decorations(false)
+        // Windows native shadows add a white border to undecorated windows.
+        // The notification draws a theme-aware border/shadow inside its canvas.
+        .shadow(false)
         .always_on_top(true)
         .resizable(false)
         .skip_taskbar(true)

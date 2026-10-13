@@ -175,6 +175,7 @@ export default {
         'recorder-green': 'var(--recorder-green)'
       },
       borderColor: {
+        ui: 'var(--settings-border)',
         // 基础面板
         panel: 'var(--categories-border-color)',
         search: 'var(--search-border-color)',
@@ -220,6 +221,7 @@ export default {
         }
       },
       boxShadow: {
+        toast: 'var(--toast-shadow)',
         'workspace-panel': 'var(--workspace-panel-shadow)',
         ocr: 'var(--ocr-shadow)',
         'ocr-panel': 'var(--ocr-panel-shadow)',

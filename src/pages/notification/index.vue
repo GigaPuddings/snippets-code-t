@@ -1,23 +1,25 @@
 <template>
-  <main
-    class="flex h-full w-full flex-col justify-between rounded-ui border border-ui bg-[var(--settings-surface)] p-4 font-ui text-ui-main shadow-workspace-panel"
-  >
-    <ReminderContent
-      :body="state.body"
-      :reminderTime="state.reminderTime"
-      :loading="reminding"
-      @close="closeWindow"
-      @confirm="closeWindow"
-      @remind="handleRemind"
-    />
-    <p
-      v-if="remindError"
-      class="my-1 shrink-0 truncate text-ui-caption text-[var(--el-color-danger)]"
-      role="alert"
-      :title="remindError"
+  <main class="h-full w-full bg-transparent p-2 font-ui text-ui-main">
+    <section
+      class="flex h-full w-full min-w-0 flex-col overflow-hidden rounded-ui-lg border border-ui bg-[var(--settings-surface)] p-3 shadow-toast"
     >
-      {{ remindError }}
-    </p>
+      <ReminderContent
+        :body="state.body"
+        :reminderTime="state.reminderTime"
+        :loading="reminding"
+        @close="closeWindow"
+        @confirm="closeWindow"
+        @remind="handleRemind"
+      />
+      <p
+        v-if="remindError"
+        class="my-1 shrink-0 truncate text-ui-caption text-[var(--el-color-danger)]"
+        role="alert"
+        :title="remindError"
+      >
+        {{ remindError }}
+      </p>
+    </section>
   </main>
 </template>
 

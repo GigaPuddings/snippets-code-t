@@ -1,7 +1,7 @@
 <template>
   <div class="flex min-h-0 flex-1 flex-col">
     <header
-      class="mb-3 flex shrink-0 items-center justify-between gap-3"
+      class="mb-2 flex shrink-0 items-center justify-between gap-3"
       data-tauri-drag-region
     >
       <div
@@ -15,7 +15,7 @@
       </div>
       <CustomButton
         unstyled
-        class="ui-icon-button ui-action--muted !h-6 !w-6"
+        class="ui-icon-button ui-action--muted !h-5 !w-5"
         :icon="CloseSmall"
         :disabled="loading"
         :aria-label="$t('notification.closeHint')"
@@ -24,13 +24,13 @@
       />
     </header>
     <div
-      class="min-h-0 flex-1 overflow-y-auto whitespace-pre-wrap break-words text-ui font-semibold leading-relaxed text-ui-heading"
+      class="min-h-0 flex-1 overflow-y-auto whitespace-pre-wrap break-words text-ui font-medium leading-relaxed text-ui-heading"
       :title="body"
     >
       {{ body }}
     </div>
   </div>
-  <div class="mt-3 flex shrink-0 items-center justify-end gap-2">
+  <div class="mt-2 flex shrink-0 items-center justify-end gap-2">
     <CustomButton
       v-if="reminderTime"
       :loading="loading"
