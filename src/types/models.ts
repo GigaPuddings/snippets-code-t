@@ -1,4 +1,5 @@
 import type { AiNoteSource } from './aiNote';
+import type { ProductSearchAction } from '@/search/productActions';
 
 /**
  * 核心数据模型类型定义
@@ -26,7 +27,12 @@ export interface ContentType {
     | 'code'
     | 'note'
     | 'file'
-    | 'tool';
+    | 'tool'
+    | 'navigation'
+    | 'settings'
+    | 'conversation'
+    | 'content';
+  searchAction?: ProductSearchAction;
   /** 图标 */
   icon?: string;
   /** 评分 */

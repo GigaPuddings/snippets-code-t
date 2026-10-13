@@ -3,6 +3,7 @@ import type { ComposerTranslation } from 'vue-i18n';
 import { useSearchResultTabs } from './useSearchResultTabs';
 
 interface UseSearchResultStateOptions {
+  preserveSelection?: () => boolean;
   onSelectionAutoChange?: (item: ContentType | null) => void;
 }
 
@@ -81,10 +82,10 @@ export function useSearchResultState(
     filteredResults,
     (currentResults, previousResults) => {
       const firstResult = currentResults[0] ?? null;
-      const previousFirstResultId = previousResults?.[0]?.id ?? null;
 
       if (
-        firstResult?.id !== previousFirstResultId ||
+        (!options.preserveSelection?.() &&
+          firstResult?.id !== previousResults?.[0]?.id) ||
         !currentResults.some((item) => item.id === selectedItemId.value)
       ) {
         selectItem(firstResult);

@@ -3,7 +3,10 @@ declare module 'vue-virtual-scroller' {
 
   export interface RecycleScrollerProps {
     items: any[];
-    itemSize: number;
+    itemSize?: number | null;
+    sizeField?: string;
+    typeField?: string;
+    emitUpdate?: boolean;
     buffer?: number;
     keyField?: string;
     direction?: 'vertical' | 'horizontal';

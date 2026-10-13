@@ -124,4 +124,31 @@ describe('useSearchKeyboard', () => {
     expect(input.blur).not.toHaveBeenCalled();
     expect(event.preventDefault).not.toHaveBeenCalled();
   });
+  it('reads the cursor position from the native input exposed by Element Plus', async () => {
+    vi.stubGlobal('KeyboardEvent', TestKeyboardEvent);
+    const input = {
+      value: 'AI',
+      selectionStart: 0,
+      selectionEnd: 0,
+      blur: vi.fn()
+    } as unknown as HTMLInputElement;
+    const result = {
+      enterListMode: vi.fn(),
+      enterTabMode: vi.fn(),
+      runSelectedPrimaryAction: vi.fn()
+    };
+    const keyboard = useSearchKeyboard({
+      searchInputRef: ref({ input } as unknown as HTMLInputElement),
+      resultRef: ref(result),
+      isSearchMode: ref(true),
+      canSwitchToList: ref(true),
+      searchResultsLength: ref(1),
+      handleEnterSearch: vi.fn()
+    });
+    await keyboard.handleKeyDown(
+      new TestKeyboardEvent('ArrowLeft') as unknown as KeyboardEvent
+    );
+    expect(result.enterTabMode).toHaveBeenCalledOnce();
+    expect(input.blur).toHaveBeenCalledOnce();
+  });
 });

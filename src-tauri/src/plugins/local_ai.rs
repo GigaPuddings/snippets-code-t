@@ -1,4 +1,5 @@
 use base64::{engine::general_purpose, Engine as _};
+mod search_index;
 use futures::StreamExt;
 use log::{info, warn};
 use reqwest::{
@@ -22,9 +23,10 @@ use std::os::windows::process::CommandExt;
 
 const PLUGIN_ID: &str = "local-ai";
 const RUNTIME_PLUGIN_ID: &str = "local-ai-llama-runtime";
-const DEFAULT_MODEL_DIR: &str = r"E:\Models\HauhauCS\Qwen3.5-4B-Uncensored-HauhauCS-Aggressive";
+// Defaults for persisted settings; model paths must be selected by the user.
 const DEFAULT_HOST: &str = "127.0.0.1";
 const DEFAULT_PORT: u16 = 39281;
+// Internal lifecycle and resource limits, not user-specific configuration.
 const HEALTH_TIMEOUT_SECS: u64 = 90;
 const IDLE_CHECK_INTERVAL_SECS: u64 = 30;
 const CHAT_PARALLEL_SLOTS: u32 = 1;
@@ -42,6 +44,7 @@ static IDLE_MONITOR_RUNNING: AtomicBool = AtomicBool::new(false);
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LocalAiConfig {
+    #[serde(default)]
     pub model_dir: String,
     pub model_path: Option<String>,
     pub mmproj_path: Option<String>,
@@ -101,7 +104,7 @@ impl Default for LocalAiConfig {
             .map(|threads| threads.get() as u32)
             .unwrap_or(4);
         Self {
-            model_dir: DEFAULT_MODEL_DIR.to_string(),
+            model_dir: String::new(),
             model_path: None,
             mmproj_path: None,
             runtime_path: None,
@@ -541,16 +544,33 @@ fn is_mmproj_file(path: &Path) -> bool {
 }
 
 fn scan_model_dir(config: &LocalAiConfig) -> LocalAiModelScan {
+    let configured_model_path = config
+        .model_path
+        .as_ref()
+        .filter(|path| Path::new(path.as_str()).is_file())
+        .cloned();
+    let configured_mmproj_path = config
+        .mmproj_path
+        .as_ref()
+        .filter(|path| Path::new(path.as_str()).is_file())
+        .cloned();
     let model_dir = PathBuf::from(&config.model_dir);
-    if !model_dir.is_dir() {
+    if config.model_dir.trim().is_empty() || !model_dir.is_dir() {
+        let message = if configured_model_path.is_some() {
+            None
+        } else if config.model_dir.trim().is_empty() {
+            Some("请先在本地 AI 设置中选择模型目录和主模型".to_string())
+        } else {
+            Some("模型目录不存在，请在本地 AI 设置中重新选择".to_string())
+        };
         return LocalAiModelScan {
             model_dir: config.model_dir.clone(),
             exists: false,
             main_models: Vec::new(),
             mmproj_models: Vec::new(),
-            selected_model_path: config.model_path.clone(),
-            selected_mmproj_path: config.mmproj_path.clone(),
-            message: Some("模型目录不存在".to_string()),
+            selected_model_path: configured_model_path,
+            selected_mmproj_path: configured_mmproj_path,
+            message,
         };
     }
 
@@ -572,18 +592,8 @@ fn scan_model_dir(config: &LocalAiConfig) -> LocalAiModelScan {
     main_models.sort();
     mmproj_models.sort();
 
-    let selected_model_path = config
-        .model_path
-        .as_ref()
-        .filter(|path| Path::new(path.as_str()).is_file())
-        .cloned()
-        .or_else(|| main_models.first().cloned());
-    let selected_mmproj_path = config
-        .mmproj_path
-        .as_ref()
-        .filter(|path| Path::new(path.as_str()).is_file())
-        .cloned()
-        .or_else(|| mmproj_models.first().cloned());
+    let selected_model_path = configured_model_path.or_else(|| main_models.first().cloned());
+    let selected_mmproj_path = configured_mmproj_path.or_else(|| mmproj_models.first().cloned());
     let message = if selected_model_path.is_none() {
         Some("未找到主模型 GGUF 文件；下载中的 .part 文件不会被加载".to_string())
     } else {
@@ -1939,6 +1949,22 @@ pub fn local_ai_get_chat_histories(
 }
 
 #[tauri::command]
+pub fn local_ai_search_chat_histories(
+    app_handle: AppHandle,
+    query: String,
+    deep_search: Option<bool>,
+    limit: Option<usize>,
+) -> Result<Vec<search_index::ChatSearchHit>, String> {
+    require_plugin(&app_handle)?;
+    search_index::query(
+        &app_handle,
+        &query,
+        deep_search.unwrap_or(false),
+        limit.unwrap_or(20),
+    )
+}
+
+#[tauri::command]
 pub fn local_ai_save_chat_history(
     app_handle: AppHandle,
     history: LocalAiChatHistory,
@@ -1951,6 +1977,7 @@ pub fn local_ai_save_chat_history(
         histories.insert(0, history);
     }
     persist_chat_histories(&app_handle, &histories)?;
+    search_index::invalidate(&app_handle);
     Ok(histories)
 }
 
@@ -1963,6 +1990,7 @@ pub fn local_ai_delete_chat_history(
     let mut histories = load_chat_histories(&app_handle);
     histories.retain(|item| item.id != history_id);
     persist_chat_histories(&app_handle, &histories)?;
+    search_index::invalidate(&app_handle);
     Ok(histories)
 }
 
@@ -1972,11 +2000,13 @@ pub fn local_ai_clear_chat_histories(
 ) -> Result<Vec<LocalAiChatHistory>, String> {
     require_plugin(&app_handle)?;
     persist_chat_histories(&app_handle, &[])?;
+    search_index::invalidate(&app_handle);
     Ok(Vec::new())
 }
 
-pub fn apply_runtime_change(_app_handle: &AppHandle, enabled: bool) {
+pub fn apply_runtime_change(app_handle: &AppHandle, enabled: bool) {
     if !enabled {
+        search_index::invalidate(app_handle);
         stop_service_now();
         return;
     }
@@ -1988,6 +2018,109 @@ pub fn stop_service_now() {
     match SERVICE_STATE.lock() {
         Ok(mut state) => stop_child_locked(&mut state),
         Err(error) => warn!("[Plugin:local-ai] stop service lock failed: {}", error),
+    }
+}
+
+#[cfg(test)]
+mod config_tests {
+    use super::{build_server_args, resolve_model_paths, scan_model_dir, LocalAiConfig};
+    use std::{fs, path::PathBuf};
+
+    struct ModelFile(PathBuf);
+
+    impl ModelFile {
+        fn new() -> Self {
+            let path = std::env::temp_dir().join(format!(
+                "snippets-local-ai-test-{}.gguf",
+                uuid::Uuid::new_v4()
+            ));
+            fs::write(&path, b"GGUF test fixture").unwrap();
+            Self(path)
+        }
+    }
+
+    impl Drop for ModelFile {
+        fn drop(&mut self) {
+            let _ = fs::remove_file(&self.0);
+        }
+    }
+
+    #[test]
+    fn unconfigured_model_returns_settings_guidance_instead_of_a_machine_path() {
+        let config = LocalAiConfig::default();
+        assert!(config.model_dir.is_empty());
+        assert!(config.model_path.is_none());
+        let scan = scan_model_dir(&config);
+        assert!(!scan.exists);
+        assert!(scan.selected_model_path.is_none());
+        assert!(scan.main_models.is_empty());
+        assert!(resolve_model_paths(&config).unwrap_err().contains("设置"));
+    }
+
+    #[test]
+    fn missing_directory_field_does_not_discard_other_saved_settings() {
+        let mut json = serde_json::to_value(LocalAiConfig {
+            port: 41001,
+            ctx_size: 8192,
+            ..LocalAiConfig::default()
+        })
+        .unwrap();
+        json.as_object_mut().unwrap().remove("modelDir");
+        let config: LocalAiConfig = serde_json::from_value(json).unwrap();
+        assert!(config.model_dir.is_empty());
+        assert_eq!(config.port, 41001);
+        assert_eq!(config.ctx_size, 8192);
+    }
+
+    #[test]
+    fn saved_user_model_paths_are_preserved_even_when_a_drive_is_unavailable() {
+        let config = LocalAiConfig {
+            model_dir: "user-selected-models".into(),
+            model_path: Some("user-selected-models/main.gguf".into()),
+            mmproj_path: Some("user-selected-models/mmproj.gguf".into()),
+            ..LocalAiConfig::default()
+        };
+        let json = serde_json::to_string(&config).unwrap();
+        let loaded: LocalAiConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(loaded.model_dir, config.model_dir);
+        assert_eq!(loaded.model_path, config.model_path);
+        assert_eq!(loaded.mmproj_path, config.mmproj_path);
+    }
+
+    #[test]
+    fn nonexistent_model_selection_is_not_reported_as_ready() {
+        for model_dir in [
+            String::new(),
+            "   ".into(),
+            uuid::Uuid::new_v4().to_string(),
+        ] {
+            let config = LocalAiConfig {
+                model_dir,
+                model_path: Some(format!("{}.gguf", uuid::Uuid::new_v4())),
+                ..LocalAiConfig::default()
+            };
+            let scan = scan_model_dir(&config);
+            assert!(!scan.exists);
+            assert!(scan.selected_model_path.is_none());
+            assert!(resolve_model_paths(&config).is_err());
+        }
+    }
+
+    #[test]
+    fn explicit_model_file_and_connection_settings_are_used_without_default_directory() {
+        let model = ModelFile::new();
+        let config = LocalAiConfig {
+            model_path: Some(model.0.to_string_lossy().into_owned()),
+            host: "localhost".into(),
+            port: 41001,
+            ..LocalAiConfig::default()
+        };
+        let (selected, _) = resolve_model_paths(&config).unwrap();
+        assert_eq!(selected, model.0);
+        let args = build_server_args(&config, &selected, None);
+        assert!(args.windows(2).any(|arg| arg == ["--host", "localhost"]));
+        assert!(args.windows(2).any(|arg| arg == ["--port", "41001"]));
+        assert!(scan_model_dir(&config).message.is_none());
     }
 }
 

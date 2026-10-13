@@ -36,7 +36,10 @@ export interface RuntimeSettingsRegistration {
 export interface RuntimeSearchProviderRegistration {
   source: string;
   phase?: SearchSourceProviderPhase;
-  search(query: string): Promise<SearchSourceResult[]>;
+  search(
+    query: string,
+    options?: { deepSearch: boolean }
+  ): Promise<SearchSourceResult[]>;
 }
 
 export interface RuntimeTitlebarActionRegistration {
@@ -78,6 +81,7 @@ export interface PluginStorageCapability {
 }
 
 export interface PluginSearchCapability {
+  readonly supportsProductActions?: boolean;
   registerProvider(provider: RuntimeSearchProviderRegistration): void;
 }
 
@@ -216,6 +220,7 @@ const createStorageCapability = (
 const createSearchCapability = (
   host: PluginCapabilityHost
 ): PluginSearchCapability => ({
+  supportsProductActions: true,
   registerProvider(provider: RuntimeSearchProviderRegistration): void {
     host.registerSearchProvider(provider);
   }

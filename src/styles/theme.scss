@@ -100,21 +100,21 @@
   --el-button-hover-border-color: var(--el-color-primary);
 
   // ==================== 搜索窗口主题变量 ====================
-  --search-bg-color: #f9fafc;
-  --search-text-color: #111827;
-  --search-info-text-color: #7b8494;
-  --search-border-color: #d9e2ef;
-  --search-input-bg: #f9fafc;
-  --search-placeholder: #7b8494;
-  --search-result-hover: #f3f7ff;
-  --search-result-active: #edf4ff;
-  --search-result-active-border: #c9d8ff;
-  --search-result-accent: #5f74f3;
-  --search-card-bg: #fff;
-  --search-soft-bg: #f6f9fe;
-  --search-border: #d9e2ef;
+  --search-bg-color: var(--settings-surface);
+  --search-text-color: var(--workspace-nav-text);
+  --search-info-text-color: var(--workspace-nav-muted);
+  --search-border-color: var(--settings-border);
+  --search-input-bg: var(--workspace-nav-bg);
+  --search-placeholder: var(--workspace-nav-muted);
+  --search-result-hover: var(--workspace-nav-selected);
+  --search-result-active: var(--workspace-nav-selected);
+  --search-result-active-border: var(--settings-border);
+  --search-result-accent: var(--workspace-nav-accent);
+  --search-card-bg: var(--settings-surface);
+  --search-soft-bg: var(--workspace-nav-bg);
+  --search-border: var(--settings-border);
   --search-preview-editor-bg: var(--search-bg-color);
-  --search-preview-status-bg: #f6f9fe;
+  --search-preview-status-bg: var(--workspace-nav-bg);
 
   // ==================== 编辑器主题变量 ====================
   --editor-bg: #fff;
@@ -308,21 +308,21 @@ html.dark {
   --categories-border-color-rgb: 54, 54, 54;
 
   // ==================== 搜索窗口深色主题变量 ====================
-  --search-bg-color: #202020;
-  --search-text-color: #fcfcfc;
-  --search-info-text-color: #949494;
-  --search-border-color: #363636;
-  --search-input-bg: #2c2c2c;
-  --search-placeholder: #666;
-  --search-result-hover: #363636;
-  --search-result-active: #24304a;
-  --search-result-active-border: #5266d9;
-  --search-result-accent: #7d91f6;
-  --search-card-bg: #242424;
-  --search-soft-bg: #292929;
-  --search-border: #363636;
+  --search-bg-color: var(--settings-surface);
+  --search-text-color: var(--workspace-nav-text);
+  --search-info-text-color: var(--workspace-nav-muted);
+  --search-border-color: var(--settings-border);
+  --search-input-bg: var(--workspace-nav-bg);
+  --search-placeholder: var(--workspace-nav-muted);
+  --search-result-hover: var(--workspace-nav-selected);
+  --search-result-active: var(--workspace-nav-selected);
+  --search-result-active-border: var(--settings-border);
+  --search-result-accent: var(--workspace-nav-accent);
+  --search-card-bg: var(--settings-surface);
+  --search-soft-bg: var(--workspace-nav-bg);
+  --search-border: var(--settings-border);
   --search-preview-editor-bg: var(--search-bg-color);
-  --search-preview-status-bg: #292929;
+  --search-preview-status-bg: var(--workspace-nav-bg);
 
   // ==================== 编辑器深色主题变量 ====================
   --editor-bg: #1e1e1e;

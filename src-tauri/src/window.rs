@@ -920,7 +920,7 @@ fn search_window_spec() -> WindowSpec {
         url: "/",
         title: "搜索",
         width: 700.0,
-        height: 58.0,
+        height: 86.0,
         resizable: false,
         transparent: true,
         shadow: false,
@@ -1532,6 +1532,34 @@ pub fn activate_config_window() {
     }
 
     hotkey_config();
+}
+
+// Search keeps its query until config acknowledges the requested action.
+pub fn activate_config_for_search_navigation() -> Result<(), String> {
+    disarm_search_focus_restore();
+    cancel_startup_transition_for_user_action("product_search_navigation");
+    let spec = WindowSpec {
+        label: "config",
+        url: "/#/config/workbench",
+        title: "配置",
+        width: 1180.0,
+        height: 696.0,
+        resizable: true,
+        transparent: true,
+        shadow: true,
+        always_on_top: false,
+        ready_event: None,
+    };
+    let window = WindowManager::get_or_create_with_behavior(
+        &spec,
+        WindowShowBehavior::AlwaysShow,
+        Some(Box::new(|window| {
+            let _ = window.emit("product-search-navigation", ());
+        })),
+    )
+    .map_err(|error| error.to_string())?;
+    ensure_config_cleanup_listener(&window);
+    Ok(())
 }
 
 // 划词翻译快捷键处理

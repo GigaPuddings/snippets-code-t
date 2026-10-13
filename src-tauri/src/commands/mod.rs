@@ -3,10 +3,12 @@
 pub mod app_shell;
 pub mod diagnostics;
 pub mod file_system;
+pub mod search_navigation;
 pub mod workspace;
 
 // 重新导出所有命令
 pub use app_shell::*;
 pub use diagnostics::*;
 pub use file_system::*;
+pub use search_navigation::*;
 pub use workspace::*;

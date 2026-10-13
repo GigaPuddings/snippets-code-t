@@ -545,6 +545,10 @@ pub fn run() {
             get_hotkey_config_map,            // 获取动态快捷键配置
             commands::hotkey_config_command,  // 快捷键配置
             commands::activate_config_window_command,  // 激活配置窗口并等待首屏
+            commands::open_product_search_target,
+            commands::get_pending_search_navigation,
+            commands::finish_search_navigation,
+            commands::cancel_search_navigation,
             commands::hotkey_update_command,  // 快捷键更新
             plugins::local_launcher::open_app_command,                 // 打开应用
             plugins::local_launcher::open_app_as_admin_command,        // 以管理员身份打开应用
@@ -608,6 +612,7 @@ pub fn run() {
             plugins::local_ai::local_ai_cancel_chat_stream,         // 取消本地 AI 流式聊天
             plugins::local_ai::local_ai_read_attachment_files,      // 读取本地 AI 附件
             plugins::local_ai::local_ai_get_chat_histories,         // 获取聊天历史
+            plugins::local_ai::local_ai_search_chat_histories,
             plugins::local_ai::local_ai_save_chat_history,          // 保存聊天历史
             plugins::local_ai::local_ai_delete_chat_history,        // 删除聊天历史
             plugins::local_ai::local_ai_clear_chat_histories,       // 清空聊天历史

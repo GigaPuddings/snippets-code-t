@@ -186,7 +186,8 @@
                   <input
                     v-model="config.modelDir"
                     class="setting-input"
-                    @change="scanModels"
+                    :placeholder="t('localAi.modelDirPlaceholder')"
+                    @change="changeModelDir"
                   />
                   <CustomButton size="small" plain @click="chooseModelDir">
                     {{ t('common.browse') }}
@@ -694,6 +695,12 @@ const scanModels = async () => {
   if (!config.value.mmprojPath && modelScan.value.selectedMmprojPath)
     config.value.mmprojPath = modelScan.value.selectedMmprojPath;
 };
+const changeModelDir = async () => {
+  if (!config.value) return;
+  config.value.modelPath = undefined;
+  config.value.mmprojPath = undefined;
+  await scanModels();
+};
 const refreshAll = async () => {
   loading.value = true;
   try {
@@ -735,9 +742,7 @@ const chooseModelDir = async () => {
   });
   if (!selected || Array.isArray(selected) || !config.value) return;
   config.value.modelDir = selected;
-  config.value.modelPath = undefined;
-  config.value.mmprojPath = undefined;
-  await scanModels();
+  await changeModelDir();
 };
 const chooseRuntime = async () => {
   const selected = await open({

@@ -1369,6 +1369,19 @@ export default {
 
   // Advanced Search
   search: {
+    globalPlaceholder: 'Search features, settings, notes and plugin content…',
+    developerWorkbench: 'Developer workbench',
+    openConfig: 'Open configuration',
+    functionLocation: 'Feature · Open page',
+    settingsLocation: 'Settings · Open settings page',
+    accountLocation: 'Settings and account · Profile',
+    newChatDescription: 'Feature · Start an empty conversation',
+    askAiShort: 'Ask AI',
+    loadingSources: 'Searching…',
+    partialResults: 'Some sources are slow. Available results are shown.',
+    chatNavigationQueued:
+      'The selected conversation will open after the current reply finishes.',
+    conversationMissing: 'This conversation was deleted. Search again.',
     filterByDate: 'Filter by Date',
     createdDate: 'Created Date',
     updatedDate: 'Updated Date',
@@ -1898,6 +1911,19 @@ export default {
 
   // Search Result
   searchResult: {
+    functions: 'Features',
+    settings: 'Settings',
+    content: 'Content',
+    more: 'More',
+    conversations: 'AI conversations',
+    documents: 'Notes and snippets',
+    bestMatch: 'Best match',
+    recentActions: 'Recent and quick actions',
+    newChatAction: '↵ New chat',
+    navigate: 'Pages and settings',
+    open: 'Open',
+    select: 'Select',
+    close: 'Close',
     all: 'All',
     apps: 'Apps',
     bookmarks: 'Bookmarks',
@@ -2581,6 +2607,8 @@ export default {
     modelRuntimeDesc:
       'Choose the main GGUF model, optional mmproj file, and llama-server runtime',
     modelDir: 'Model Dir',
+    modelDirPlaceholder:
+      'Choose the local directory containing your GGUF models',
     mainModel: 'Main Model',
     mmprojModel: 'mmproj',
     mainModelConfigured: 'Main model configured',

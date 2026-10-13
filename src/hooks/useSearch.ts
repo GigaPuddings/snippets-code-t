@@ -15,7 +15,7 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type { ContentType, SearchEngine } from '@/types';
 import { ErrorHandler, ErrorType } from '@/utils/error-handler';
 import { usePluginStore } from '@/store';
-import modal from '@/utils/modal';
+import { buildProductSearchCatalog } from '@/search/productCatalog';
 import {
   removeDisabledPluginResults,
   runUniversalSearch,
@@ -31,8 +31,6 @@ import {
 } from '@/plugins/search-engines/searchRuntime';
 
 export { removeDisabledPluginResults } from '@/search/universalSearch';
-
-const SEARCH_DEGRADATION_NOTICE_COOLDOWN_MS = 30_000;
 
 /**
  * 搜索功能配置选项
@@ -60,6 +58,8 @@ export interface UseSearchReturn {
   deepSearchEnabled: Ref<boolean>;
   /** 是否有搜索结果（计算属性） */
   hasResults: ComputedRef<boolean>;
+  isSearching: Ref<boolean>;
+  degradedSources: Ref<UniversalSearchDegradedSource[]>;
   /** 处理回车键搜索 */
   handleEnterSearch: () => Promise<void>;
   /** 清除搜索 */
@@ -86,7 +86,7 @@ export interface UseSearchReturn {
  */
 export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
   const {
-    debounceMs = 300,
+    debounceMs = 150,
     initialQuery = '',
     initialDeepSearch = false
   } = options;
@@ -108,7 +108,9 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
   let unlistenSearchHistoryCleared: UnlistenFn | null = null;
   let isSearchActive = true;
   let searchRequestVersion = 0;
-  let lastSearchDegradationNoticeAt = 0;
+  const isSearching = ref(false);
+  const degradedSources = ref<UniversalSearchDegradedSource[]>([]);
+  let unlistenPluginContentUpdates: UnlistenFn | null = null;
 
   const hasResults = computed(() => searchResults.value.length > 0);
 
@@ -185,51 +187,13 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
     });
   };
 
-  const showSearchDegradationNotice = (
-    degradedSources: UniversalSearchDegradedSource[] | undefined
-  ): void => {
-    const timedOutSources = (degradedSources ?? []).filter(
-      (source) => source.reason === 'timeout'
-    );
-    if (timedOutSources.length === 0) return;
-
-    const now = Date.now();
-    if (
-      now - lastSearchDegradationNoticeAt <
-      SEARCH_DEGRADATION_NOTICE_COOLDOWN_MS
-    ) {
-      return;
-    }
-
-    lastSearchDegradationNoticeAt = now;
-    const sourceNames = Array.from(
-      new Set(
-        timedOutSources.map((source) => `${source.pluginId}:${source.source}`)
-      )
-    );
-    const visibleSourceNames = sourceNames.slice(0, 3);
-    const hiddenCount = sourceNames.length - visibleSourceNames.length;
-    const sources =
-      hiddenCount > 0
-        ? `${visibleSourceNames.join(', ')} +${hiddenCount}`
-        : visibleSourceNames.join(', ');
-
-    modal.msg(
-      String(
-        i18n.global.t('search.providerDegraded', {
-          sources
-        })
-      ),
-      'warning',
-      'top-right',
-      4000
-    );
-  };
-
   /**
    * 防抖搜索函数
    */
   const debouncedSearch = debounce(async (requestVersion: number) => {
+    if (!isLatestSearchRequest(requestVersion)) return;
+    isSearching.value = true;
+    degradedSources.value = [];
     try {
       const text = searchText.value.trim();
       const response = await runUniversalSearch(
@@ -239,6 +203,15 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
         },
         {
           invoke,
+          navigationItems: buildProductSearchCatalog(
+            (key) => String(i18n.global.t(key)),
+            pluginStore.plugins,
+            (id) => pluginStore.isEnabled(id)
+          ),
+          onPartialResponse: (response) => {
+            if (isLatestSearchRequest(requestVersion))
+              searchResults.value = response.items;
+          },
           isPluginEnabled: (pluginId) => pluginStore.isEnabled(pluginId),
           shouldContinue: () => isLatestSearchRequest(requestVersion),
           onProviderError: (providerError) => {
@@ -284,7 +257,7 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
       if (!isLatestSearchRequest(requestVersion)) return;
 
       searchResults.value = response.items;
-      showSearchDegradationNotice(response.degradedSources);
+      degradedSources.value = response.degradedSources ?? [];
     } catch (error) {
       if (!isLatestSearchRequest(requestVersion)) return;
 
@@ -295,13 +268,13 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
         timestamp: new Date()
       });
       searchResults.value = [];
+    } finally {
+      if (isLatestSearchRequest(requestVersion)) isSearching.value = false;
     }
   }, debounceMs);
 
   const refreshCurrentSearch = (): void => {
-    if (searchText.value.trim()) {
-      debouncedSearch(nextSearchRequest());
-    }
+    debouncedSearch(nextSearchRequest());
   };
 
   /**
@@ -387,6 +360,13 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
     try {
       await pluginStore.initialize();
       await syncSearchEngineRuntime();
+      refreshCurrentSearch();
+      unlistenPluginContentUpdates = await listen<{ pluginId: string }>(
+        'plugin-search-content-changed',
+        ({ payload }) => {
+          if (pluginStore.isEnabled(payload.pluginId)) refreshCurrentSearch();
+        }
+      );
       unlistenLocalLauncherUpdates = await listen(
         'local-launcher-index-updated',
         refreshCurrentSearch
@@ -407,6 +387,7 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
   watch(
     () => [
       pluginStore.runtimeRevision,
+      i18n.global.locale.value,
       ...searchPluginIds.map((pluginId) => pluginStore.isEnabled(pluginId))
     ],
     async () => {
@@ -418,9 +399,7 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
           (pluginId) => pluginStore.isEnabled(pluginId)
         );
         await syncSearchEngineRuntime();
-        if (searchText.value.trim()) {
-          debouncedSearch(nextSearchRequest());
-        }
+        refreshCurrentSearch();
       } catch (error) {
         ErrorHandler.handle(error, {
           type: ErrorType.API_ERROR,
@@ -436,6 +415,7 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
     nextSearchRequest();
     debouncedSearch.cancel();
     cleanupSearchEngineUpdates();
+    unlistenPluginContentUpdates?.();
     unlistenLocalLauncherUpdates?.();
     unlistenLocalLauncherUpdates = null;
     unlistenSearchHistoryCleared?.();
@@ -448,6 +428,8 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
     searchEngines,
     deepSearchEnabled,
     hasResults,
+    isSearching,
+    degradedSources,
     handleEnterSearch,
     clearSearch,
     toggleDeepSearch,

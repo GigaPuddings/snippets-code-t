@@ -1299,6 +1299,18 @@ export default {
 
   // 高级搜索
   search: {
+    globalPlaceholder: '搜索功能、设置、笔记和插件内容…',
+    developerWorkbench: '开发者工作台',
+    openConfig: '打开配置窗口',
+    functionLocation: '功能 · 打开页面',
+    settingsLocation: '设置 · 打开对应设置页',
+    accountLocation: '设置与账户 · 个人中心',
+    newChatDescription: '功能 · 新建一个空白对话',
+    askAiShort: '询问 AI',
+    loadingSources: '正在检索…',
+    partialResults: '部分搜索源响应较慢，已展示可用结果。',
+    chatNavigationQueued: '当前回复结束后，将打开所选对话。',
+    conversationMissing: '这条对话已被删除，请重新搜索。',
     filterByDate: '按日期筛选',
     createdDate: '创建日期',
     updatedDate: '更新日期',
@@ -1813,6 +1825,19 @@ export default {
 
   // 搜索结果
   searchResult: {
+    functions: '功能',
+    settings: '设置',
+    content: '内容',
+    more: '更多',
+    conversations: 'AI 对话记录',
+    documents: '笔记与片段',
+    bestMatch: '最佳匹配',
+    recentActions: '最近使用与常用入口',
+    newChatAction: '↵ 新建',
+    navigate: '页面与设置',
+    open: '打开',
+    select: '选择',
+    close: '关闭',
     all: '全部',
     apps: '应用',
     bookmarks: '书签',
@@ -2471,6 +2496,7 @@ export default {
     modelRuntimeDesc:
       '选择 GGUF 主模型、可选 mmproj 文件和 llama-server 运行时',
     modelDir: '模型目录',
+    modelDirPlaceholder: '请选择存放 GGUF 模型的本地目录',
     mainModel: '主模型',
     mmprojModel: 'mmproj',
     mainModelConfigured: '主模型已配置',

@@ -10,7 +10,11 @@ import {
   getEnabledSearchSourceProviders,
   searchSourceRegistry
 } from '@/plugins/search-providers';
-import { rankSearchResults, type SearchHistoryMeta } from '@/search/ranking';
+import {
+  rankSearchResults,
+  getPrimarySearchHistoryKey,
+  type SearchHistoryMeta
+} from '@/search/ranking';
 import {
   DEFAULT_SEARCH_PROVIDER_TIMEOUT_MS,
   getUniversalSearchSourcePluginId
@@ -19,6 +23,10 @@ import type {
   SearchSourceRegistration,
   SearchSourceRegistry
 } from './sourceRegistry';
+import {
+  getSearchResultPluginId,
+  isProductSearchAction
+} from './productActions';
 
 export { UNIVERSAL_SEARCH_SOURCES } from './sourceCatalog';
 
@@ -50,6 +58,8 @@ export interface UniversalSearchCommandError {
 }
 
 export interface UniversalSearchRuntime {
+  navigationItems?: ContentType[];
+  onPartialResponse?: (response: UniversalSearchResponse) => void;
   invoke?: typeof tauriInvoke;
   providers?: SearchSourceRegistration[];
   registry?: SearchSourceRegistry;
@@ -120,9 +130,9 @@ export const removeDisabledPluginResults = (
   isPluginEnabled: (pluginId: string) => boolean
 ): ContentType[] =>
   results.filter((item) => {
-    const pluginId = getUniversalSearchSourcePluginId(
-      getUniversalSearchResultSource(item)
-    );
+    const pluginId =
+      getSearchResultPluginId(item) ??
+      getUniversalSearchSourcePluginId(getUniversalSearchResultSource(item));
     return !pluginId || isPluginEnabled(pluginId);
   });
 
@@ -253,7 +263,8 @@ const loadSearchHistory = async (
 const searchProvider = async (
   provider: SearchSourceRegistration,
   text: string,
-  runtime: UniversalSearchRuntime
+  runtime: UniversalSearchRuntime,
+  deepSearch: boolean
 ): Promise<ProviderSearchOutput> => {
   const registry =
     runtime.registry ?? (runtime.providers ? undefined : searchSourceRegistry);
@@ -261,7 +272,11 @@ const searchProvider = async (
   registry?.markSearching(provider, startedAt);
 
   try {
-    const result = await runProviderWithOptionalTimeout(provider, text);
+    const result = await runProviderWithOptionalTimeout(
+      provider,
+      text,
+      deepSearch
+    );
     registry?.markSuccess(provider, startedAt);
     return {
       provider,
@@ -286,9 +301,10 @@ const searchProvider = async (
 
 const runProviderWithOptionalTimeout = (
   provider: SearchSourceRegistration,
-  text: string
+  text: string,
+  deepSearch: boolean
 ): Promise<SearchSourceResult[]> => {
-  const searchPromise = provider.search(text);
+  const searchPromise = provider.search(text, { deepSearch });
   const timeoutMs = getProviderTimeoutMs(provider);
 
   if (timeoutMs <= 0) {
@@ -330,7 +346,30 @@ const getProviderSourceResultItems = (
 
   return items
     .filter(isContentType)
-    .map((item, index) => withUniversalSearchSource(item, source, index));
+    .filter(
+      (item) =>
+        !['navigation', 'settings', 'conversation'].includes(
+          item.summarize ?? ''
+        ) || isProductSearchAction(item.searchAction)
+    )
+    .filter(
+      (item) =>
+        item.searchAction === undefined ||
+        isProductSearchAction(item.searchAction)
+    )
+    .map((item, index) =>
+      withUniversalSearchSource(
+        {
+          ...item,
+          metadata: {
+            ...item.metadata,
+            plugin_id: String(providerOutput.provider.pluginId)
+          }
+        },
+        source,
+        index
+      )
+    );
 };
 
 const getProviderSearchItems = (
@@ -416,7 +455,31 @@ export const runUniversalSearch = async (
   runtime: UniversalSearchRuntime
 ): Promise<UniversalSearchResponse> => {
   const text = request.text.trim();
+  const navigationItems = removeDisabledPluginResults(
+    runtime.navigationItems ?? [],
+    runtime.isPluginEnabled
+  ).map((item, index) =>
+    withUniversalSearchSource(item, item.summarize ?? 'navigation', index)
+  );
   if (!text) {
+    if (navigationItems.length) {
+      const history = createSearchHistoryMap(
+        await loadSearchHistory('', runtime)
+      );
+      if (!shouldKeepSearching(runtime)) return { intent: 'empty', items: [] };
+      const score = (item: ContentType) =>
+        history.get(getPrimarySearchHistoryKey(item))?.last_used_at ?? '';
+      const ordered = navigationItems
+        .slice()
+        .sort((a, b) => score(b).localeCompare(score(a)));
+      return {
+        intent: 'empty',
+        items: removeDisabledPluginResults(
+          ordered.slice(0, 6),
+          runtime.isPluginEnabled
+        )
+      };
+    }
     return { intent: 'empty', items: [] };
   }
 
@@ -437,13 +500,33 @@ export const runUniversalSearch = async (
     runtime.providers?.filter((provider) =>
       runtime.isPluginEnabled(String(provider.pluginId))
     ) ?? getEnabledSearchSourceProviders(runtime.isPluginEnabled);
+  const query = text.toLowerCase();
+  const rankingOptions = {
+    deepSearch: request.deepSearch,
+    preferRelevance: Boolean(runtime.navigationItems)
+  };
+  const completedItems: ContentType[] = [...navigationItems];
+  let historyMap = new Map<string, SearchHistoryMeta>();
+  const publish = (): void => {
+    if (!shouldKeepSearching(runtime)) return;
+    runtime.onPartialResponse?.({
+      intent: 'results',
+      items: rankSearchResults(
+        removeDisabledPluginResults(completedItems, runtime.isPluginEnabled),
+        query,
+        historyMap,
+        rankingOptions
+      )
+    });
+  };
+  publish();
 
   const preflightProviders = enabledProviders.filter(
     (provider) => getProviderPhase(provider) === 'preflight'
   );
   const preflightProviderResults = await Promise.all(
     preflightProviders.map((provider) =>
-      searchProvider(provider, text, runtime)
+      searchProvider(provider, text, runtime, request.deepSearch)
     )
   );
   if (!shouldKeepSearching(runtime)) {
@@ -460,7 +543,12 @@ export const runUniversalSearch = async (
     );
   }
 
-  const query = text.toLowerCase();
+  const historyPromise = loadSearchHistory(query, runtime).then((history) => {
+    historyMap = createSearchHistoryMap(history);
+    publish();
+    return history;
+  });
+
   const resultProviders = enabledProviders.filter(
     (provider) => getProviderPhase(provider) === 'results'
   );
@@ -468,10 +556,16 @@ export const runUniversalSearch = async (
     (provider) => getProviderPhase(provider) === 'append'
   );
   const providerSearches = resultProviders.map((provider) =>
-    searchProvider(provider, text, runtime)
+    searchProvider(provider, text, runtime, request.deepSearch).then(
+      (result) => {
+        completedItems.push(...getProviderSearchItems([result]));
+        publish();
+        return result;
+      }
+    )
   );
   const appendProviderSearches = appendProviders.map((provider) =>
-    searchProvider(provider, text, runtime)
+    searchProvider(provider, text, runtime, request.deepSearch)
   );
 
   const [
@@ -480,18 +574,29 @@ export const runUniversalSearch = async (
     appendProviderResultGroups,
     history
   ] = await Promise.all([
-    searchMarkdown(query, runtime),
+    searchMarkdown(query, runtime).then((items) => {
+      completedItems.push(
+        ...items.map((item, index) =>
+          withUniversalSearchSource(item, 'markdown', index)
+        )
+      );
+      publish();
+      return items;
+    }),
     Promise.all(providerSearches),
     Promise.all(appendProviderSearches),
-    loadSearchHistory(query, runtime)
+    historyPromise
   ]);
   if (!shouldKeepSearching(runtime)) {
     return { intent: 'results', items: [] };
   }
 
-  const results = markdownResults.map((item, index) =>
-    withUniversalSearchSource(item, 'markdown', index)
-  );
+  const results = [
+    ...navigationItems,
+    ...markdownResults.map((item, index) =>
+      withUniversalSearchSource(item, 'markdown', index)
+    )
+  ];
   results.push(
     ...getProviderSearchItems(
       preflightProviderResults,
@@ -505,10 +610,13 @@ export const runUniversalSearch = async (
     {
       intent: 'results',
       items: [
-        ...rankSearchResults(results, query, createSearchHistoryMap(history), {
-          deepSearch: request.deepSearch
-        }),
-        ...appendResults
+        ...rankSearchResults(
+          removeDisabledPluginResults(results, runtime.isPluginEnabled),
+          query,
+          createSearchHistoryMap(history),
+          rankingOptions
+        ),
+        ...removeDisabledPluginResults(appendResults, runtime.isPluginEnabled)
       ]
     },
     preflightProviderResults,

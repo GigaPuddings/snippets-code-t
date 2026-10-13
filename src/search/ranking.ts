@@ -7,6 +7,7 @@ export interface SearchHistoryMeta {
 
 export interface SearchMatchOptions {
   deepSearch: boolean;
+  preferRelevance?: boolean;
 }
 
 interface RankedSearchItem {
@@ -210,7 +211,13 @@ const pushUniqueKey = (keys: string[], key: unknown): void => {
 export const getSearchHistoryKeys = (item: ContentType): string[] => {
   const source = getSource(item);
   const keys: string[] = [];
-
+  if (item.searchAction) {
+    pushUniqueKey(
+      keys,
+      `product:${String(item.metadata?.plugin_id ?? 'core')}:${source}:${getRawId(item)}`
+    );
+    return keys;
+  }
   pushUniqueKey(keys, getRawId(item));
   pushUniqueKey(keys, item.id);
 
@@ -245,6 +252,7 @@ export const getSearchHistoryKeys = (item: ContentType): string[] => {
 export const getPrimarySearchHistoryKey = (item: ContentType): string => {
   const source = getSource(item);
   const keys = getSearchHistoryKeys(item);
+  if (item.searchAction) return keys.at(-1) ?? getRawId(item);
   const hasStableHistoryKey =
     source === 'app' ||
     source === 'bookmark' ||
@@ -399,6 +407,12 @@ export const calculateSearchRelevance = (
   const backendScore = getBackendScore(item);
 
   let score = Math.min(backendScore, options.deepSearch ? 200 : 80);
+  const aliases = Array.isArray(item.metadata?.search_aliases)
+    ? item.metadata.search_aliases.map(normalizeSearchValue)
+    : [];
+  if (aliases.includes(normalizedQuery)) score += 9000;
+  else if (aliases.some((alias) => alias.startsWith(normalizedQuery)))
+    score += 3000;
 
   if (source === 'quick-tools' || item.summarize === 'tool') score += 12000;
 
@@ -481,6 +495,18 @@ export const isRelevantSearchResult = (
   const normalizedQuery = normalizeSearchValue(query);
   if (!normalizedQuery) return false;
 
+  const aliases = Array.isArray(item.metadata?.search_aliases)
+    ? item.metadata.search_aliases.map(normalizeSearchValue)
+    : [];
+  if (
+    aliases.some((alias) =>
+      /^[a-z0-9\s-]+$/i.test(normalizedQuery)
+        ? alias.split(/[\s-]+/).some((word) => word.startsWith(normalizedQuery))
+        : alias.includes(normalizedQuery)
+    )
+  )
+    return true;
+
   if (getSource(item) === 'quick-tools' || item.summarize === 'tool') {
     return true;
   }
@@ -532,6 +558,13 @@ export const rankSearchResults = (
         // 1. 标题完全匹配优先：历史记录不应淹没精确匹配
         if (a.exactTitleMatch !== b.exactTitleMatch) {
           return a.exactTitleMatch ? -1 : 1;
+        }
+
+        if (options.preferRelevance) {
+          const relevanceDelta =
+            calculateSearchRelevance(b.item, query, options) -
+            calculateSearchRelevance(a.item, query, options);
+          if (relevanceDelta !== 0) return relevanceDelta;
         }
 
         // 2. 有使用记录的条目整体排在无记录之前。

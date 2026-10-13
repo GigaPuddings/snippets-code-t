@@ -4,6 +4,7 @@ import { getPrimarySearchHistoryKey } from '@/search/ranking';
 import { getSearchResultLaunchPath } from './useSearchResultPaths';
 import { modal } from '@/utils/modal';
 import { openSearchResultInConfig } from './openConfigContent';
+import { openProductSearchResult } from './productNavigation';
 
 interface UseSearchResultActionsOptions {
   onClearSearch: () => void;
@@ -116,7 +117,33 @@ export function useSearchResultActions(options: UseSearchResultActionsOptions) {
     await closeSearchWindow();
   }
 
-  async function runPrimaryAction(item: ContentType) {
+  let running = false;
+  async function runPrimaryAction(item: ContentType): Promise<void> {
+    if (running) return;
+    running = true;
+    try {
+      await runItemAction(item);
+    } finally {
+      running = false;
+    }
+  }
+
+  async function runItemAction(item: ContentType) {
+    if (item.searchAction) {
+      try {
+        await openProductSearchResult(item);
+        await invoke('add_search_history', {
+          id: getPrimarySearchHistoryKey(item)
+        }).catch((error) =>
+          logger.error('[搜索窗口] Failed to add search history:', error)
+        );
+        options.onClearSearch();
+      } catch (error) {
+        logger.error('[搜索窗口] Navigation failed:', error);
+        modal.error(String(error));
+      }
+      return;
+    }
     try {
       await invoke('add_search_history', {
         id: getPrimarySearchHistoryKey(item)

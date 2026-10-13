@@ -67,17 +67,11 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
-import Data from '~icons/lucide/database';
-import EnterTheKeyboard from '~icons/lucide/keyboard';
-import SettingTwo from '~icons/lucide/settings';
-import Brain from '~icons/lucide/brain';
-import Puzzle from '~icons/lucide/puzzle';
-import Terminal from '~icons/lucide/square-terminal';
-import WorkbenchIcon from '~icons/lucide/layout-dashboard';
 import {
+  coreSettingsMenuItems,
+  getVisibleSettingsMenuItems,
   pluginSettingsComponents,
-  pluginSettingsMenuItems,
-  type PluginSettingsMenuItem
+  pluginSettingsMenuItems
 } from '@/plugins/settings';
 import { useLayoutStore, usePluginStore } from '@/store';
 import { defineAsyncComponent } from 'vue';
@@ -94,50 +88,19 @@ const layoutStore = useLayoutStore();
 /** Git 插件启用后即显示设置入口；必要配置在个人中心完成，不能再把入口藏起来。 */
 const canShowGitSyncTab = computed(() => pluginStore.isEnabled('git-sync'));
 
-const coreMenuItems: PluginSettingsMenuItem[] = [
-  { id: 'workbench', labelKey: 'settings.workbench.menu', icon: WorkbenchIcon },
-  { id: 'general', labelKey: 'settings.general', icon: SettingTwo },
-  { id: 'ai', labelKey: 'settings.ai.menu', icon: Brain },
-  { id: 'plugins', labelKey: 'plugins.title', icon: Puzzle },
-  { id: 'shortcut', labelKey: 'shortcut.title', icon: EnterTheKeyboard },
-  { id: 'data', labelKey: 'dataManager.title', icon: Data },
-  { id: 'developer', labelKey: 'settings.developer.menu', icon: Terminal }
-];
-
 const menuItems = computed(() => {
   pluginStore.runtimeRevision;
-
-  const allMenuItems = [...coreMenuItems, ...pluginSettingsMenuItems];
-
-  return allMenuItems
-    .filter((item) => {
-      if (item.id === 'gitSync' && !canShowGitSyncTab.value) {
-        return false;
-      }
-
-      const plugin = item.pluginId
-        ? pluginStore.plugins.find(
-            (candidate) => candidate.id === item.pluginId
-          )
-        : pluginStore.plugins.find((candidate) =>
-            candidate.settingsTabs?.includes(item.id)
-          );
-      if (item.pluginId) {
-        return !!plugin && pluginStore.isEnabled(plugin.id);
-      }
-      return !plugin || pluginStore.isEnabled(plugin.id);
-    })
-    .map((item) => {
-      const translated = t(item.labelKey);
-      return {
-        id: item.id,
-        label:
-          translated === item.labelKey
-            ? (item.label ?? translated)
-            : translated,
-        icon: item.icon
-      };
-    });
+  return getVisibleSettingsMenuItems(pluginStore.plugins, (id) =>
+    pluginStore.isEnabled(id)
+  ).map((item) => {
+    const translated = t(item.labelKey);
+    return {
+      id: item.id,
+      label:
+        translated === item.labelKey ? (item.label ?? translated) : translated,
+      icon: item.icon
+    };
+  });
 });
 
 const activeTab = ref('general');
@@ -148,7 +111,7 @@ watch(activeTab, async () => {
 });
 const menuGroups = computed(() => {
   const visibleItems = menuItems.value;
-  const coreIds = new Set(coreMenuItems.map((item) => item.id));
+  const coreIds = new Set(coreSettingsMenuItems.map((item) => item.id));
   return [
     {
       id: 'application',
@@ -184,6 +147,7 @@ const Developer = defineAsyncComponent(
 );
 
 const getSettingsTabPluginId = (tabId: string): string | null => {
+  if (coreSettingsMenuItems.some((item) => item.id === tabId)) return null;
   const item = pluginSettingsMenuItems.find(
     (candidate) => candidate.id === tabId
   );
@@ -223,11 +187,13 @@ const switchTab = (tabId: string) => {
   const item = pluginSettingsMenuItems.find(
     (candidate) => candidate.id === tabId
   );
-  const plugin = item?.pluginId
-    ? pluginStore.plugins.find((candidate) => candidate.id === item.pluginId)
-    : pluginStore.plugins.find((candidate) =>
-        candidate.settingsTabs?.includes(tabId)
-      );
+  const plugin = coreSettingsMenuItems.some((core) => core.id === tabId)
+    ? undefined
+    : item?.pluginId
+      ? pluginStore.plugins.find((candidate) => candidate.id === item.pluginId)
+      : pluginStore.plugins.find((candidate) =>
+          candidate.settingsTabs?.includes(tabId)
+        );
   if (item?.pluginId && !plugin) {
     activeTab.value = 'plugins';
     if (!loadedTabs.value.includes('plugins')) {

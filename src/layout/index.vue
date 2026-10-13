@@ -11,6 +11,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { logger } from '@/utils/logger';
 import { useRouter } from 'vue-router';
 import type { ConfigContentNavigationPayload } from '@/pages/search/composables/openConfigContent';
+import { useProductSearchNavigation } from '@/pages/config/composables/useProductSearchNavigation';
 import {
   markPendingLocalAiPromptForNewChat,
   PENDING_LOCAL_AI_PROMPT_STORAGE_KEY
@@ -18,6 +19,7 @@ import {
 
 const store = useConfigurationStore();
 const router = useRouter();
+const productSearchNavigation = useProductSearchNavigation(router);
 const isConfigWindow = getCurrentWindow().label === 'config';
 let unlistenConfigContentNavigation: UnlistenFn | null = null;
 let unlistenLocalAiNavigation: UnlistenFn | null = null;
@@ -67,6 +69,7 @@ const normalizeFragmentId = (id: unknown): string =>
 
 onMounted(async () => {
   if (isConfigWindow) {
+    await productSearchNavigation.setup();
     // Layout also renders inside the quick-search WebView. Cross-window
     // navigation must only be consumed by config, otherwise the search window
     // itself is routed into the target page and can steal one-time payloads.
@@ -143,6 +146,7 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  productSearchNavigation.cleanup();
   unlistenConfigContentNavigation?.();
   unlistenConfigContentNavigation = null;
   unlistenLocalAiNavigation?.();

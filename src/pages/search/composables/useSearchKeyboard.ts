@@ -83,7 +83,11 @@ export function useSearchKeyboard(
     // 只在搜索框模式下处理键盘事件
     if (!isSearchMode.value) return;
 
-    const input = searchInputRef.value;
+    const inputView = searchInputRef.value as
+      | (HTMLInputElement & { input?: HTMLInputElement })
+      | null;
+    // Element Plus exposes the actual input on its component instance.
+    const input = inputView?.input ?? inputView;
     if (!input) return;
 
     switch (e.code) {

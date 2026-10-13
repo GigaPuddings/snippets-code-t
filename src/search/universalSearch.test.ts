@@ -196,7 +196,7 @@ describe('runUniversalSearch', () => {
       }
     );
 
-    expect(provider.search).toHaveBeenCalledWith('code');
+    expect(provider.search).toHaveBeenCalledWith('code', { deepSearch: false });
     expect(invoke).toHaveBeenCalledWith('search_markdown_files_optimized', {
       query: 'code'
     });

@@ -1,54 +1,8 @@
-import FilePdfOne from '~icons/lucide/file-text';
 import FileText from '~icons/lucide/file-text';
 import Folder from '~icons/lucide/folder';
 import { escapeHtml, highlightText } from '@/utils/text';
 import type { ComposerTranslation } from 'vue-i18n';
 import type { Component } from 'vue';
-
-const FILE_ICON_TEXT_MAP: Record<string, string> = {
-  pdf: 'PDF',
-  txt: 'TXT',
-  log: 'TXT',
-  md: 'MD',
-  markdown: 'MD',
-  csv: 'CSV',
-  ini: 'INI',
-  env: 'ENV',
-  toml: 'TOML',
-  json: 'JSON',
-  yml: 'YML',
-  yaml: 'YAML',
-  xml: 'XML',
-  html: 'HTML',
-  htm: 'HTML',
-  js: 'JS',
-  ts: 'TS',
-  tsx: 'TSX',
-  jsx: 'JSX',
-  vue: 'VUE',
-  css: 'CSS',
-  scss: 'SCSS',
-  less: 'LESS',
-  py: 'PY',
-  rs: 'RS',
-  go: 'GO',
-  java: 'JAVA',
-  c: 'C',
-  cc: 'C++',
-  cpp: 'C++',
-  h: 'H',
-  hpp: 'H',
-  sql: 'SQL',
-  sh: 'SH',
-  bash: 'SH',
-  png: 'IMG',
-  jpg: 'IMG',
-  jpeg: 'IMG',
-  gif: 'IMG',
-  webp: 'IMG',
-  bmp: 'IMG',
-  svg: 'SVG'
-};
 
 const TEXT_FILE_EXTENSIONS = new Set([
   'txt',
@@ -60,40 +14,6 @@ const TEXT_FILE_EXTENSIONS = new Set([
   'env',
   'toml'
 ]);
-const STRUCTURED_FILE_EXTENSIONS = new Set(['json', 'yml', 'yaml', 'xml']);
-const WEB_FILE_EXTENSIONS = new Set(['html', 'htm']);
-const CODE_FILE_EXTENSIONS = new Set([
-  'js',
-  'ts',
-  'tsx',
-  'jsx',
-  'vue',
-  'css',
-  'scss',
-  'less',
-  'py',
-  'rs',
-  'go',
-  'java',
-  'c',
-  'cc',
-  'cpp',
-  'h',
-  'hpp',
-  'sql',
-  'sh',
-  'bash'
-]);
-const MEDIA_FILE_EXTENSIONS = new Set([
-  'png',
-  'jpg',
-  'jpeg',
-  'gif',
-  'webp',
-  'bmp',
-  'svg'
-]);
-
 export const getRawSearchResultId = (item: ContentType): string => {
   const rawId = (item.metadata as Record<string, unknown> | null)?.raw_id;
   return String(rawId ?? item.id);
@@ -177,6 +97,15 @@ export function useSearchResultDisplay(
   };
 
   const getDisplayContentHighlighted = (item: ContentType): string => {
+    if (item.summarize === 'conversation') {
+      const date = item.updated_at
+        ? new Date(item.updated_at).toLocaleString()
+        : '';
+      return escapeHtml(
+        [t('searchResult.conversations'), date].filter(Boolean).join(' · ')
+      );
+    }
+    if (item.searchAction) return escapeHtml(item.content);
     if (getRawSearchResultId(item) === 'url-open') {
       return `<span class="url-display">${escapeHtml(item.content)}</span>`;
     }
@@ -188,6 +117,10 @@ export function useSearchResultDisplay(
   };
 
   const getTypeLabel = (item: ContentType): string => {
+    if (item.summarize === 'navigation') return t('searchResult.functions');
+    if (item.summarize === 'settings') return t('searchResult.settings');
+    if (item.summarize === 'conversation')
+      return t('searchResult.conversations');
     if (item.summarize === 'app') return t('searchResult.apps');
     if (item.summarize === 'bookmark') return t('searchResult.bookmarks');
     if (item.summarize === 'file') return t('searchResult.files');
@@ -213,37 +146,17 @@ export function useSearchResultDisplay(
     return ext?.toLowerCase() ?? '';
   };
 
-  const getFileIconText = (item: ContentType): string =>
-    FILE_ICON_TEXT_MAP[getFileExtension(item)] ?? '📁';
-
   const getFileIconComponent = (item: ContentType): Component => {
     const ext = getFileExtension(item);
-    if (ext === 'pdf') return FilePdfOne;
+    if (ext === 'pdf') return FileText;
     if (TEXT_FILE_EXTENSIONS.has(ext)) return FileText;
     return Folder;
-  };
-
-  const getFileIconClass = (item: ContentType): string => {
-    const ext = getFileExtension(item);
-    const classes = ['file-icon-default'];
-
-    if (ext === 'pdf') classes.push('file-icon-pdf');
-    else if (TEXT_FILE_EXTENSIONS.has(ext)) classes.push('file-icon-text');
-    else if (STRUCTURED_FILE_EXTENSIONS.has(ext))
-      classes.push('file-icon-structured');
-    else if (WEB_FILE_EXTENSIONS.has(ext)) classes.push('file-icon-web');
-    else if (CODE_FILE_EXTENSIONS.has(ext)) classes.push('file-icon-code');
-    else if (MEDIA_FILE_EXTENSIONS.has(ext)) classes.push('file-icon-media');
-
-    return classes.join(' ');
   };
 
   return {
     getDisplayTitle,
     getDisplayContentHighlighted,
     getTypeLabel,
-    getFileIconComponent,
-    getFileIconText,
-    getFileIconClass
+    getFileIconComponent
   };
 }

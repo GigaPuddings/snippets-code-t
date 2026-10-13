@@ -42,6 +42,7 @@ import {
   type RuntimeWindowShortcutRegistration
 } from './capabilities';
 import {
+  coreSettingsMenuItems,
   pluginSettingsComponents,
   pluginSettingsMenuItems,
   type PluginSettingsMenuItem
@@ -50,9 +51,11 @@ import { titlebarPluginActions, type TitlebarPluginAction } from './titlebar';
 import { pluginWindowShortcuts, type PluginWindowShortcut } from './windows';
 import { pluginHostComponents } from './host-components';
 import { logger } from '@/utils/logger';
+import { getUniversalSearchSourceDescriptor } from '@/search/sourceCatalog';
 import {
   assertCanInvokeBackendCommand,
-  assertCanInvokeCommand
+  assertCanInvokeCommand,
+  canUseCapability
 } from './permissions';
 
 type VueAsyncRouteComponent = RouteComponent & {
@@ -754,6 +757,15 @@ const createRuntimeContext = (
   };
 
   const registerSettingsTab = (tab: RuntimeSettingsRegistration): void => {
+    if (
+      pluginSettingsMenuItems.some(
+        (item) =>
+          item.id === tab.id && item.pluginId && item.pluginId !== plugin.id
+      )
+    )
+      throw new Error(`设置项 ${tab.id} 已由其他插件注册`);
+    if (coreSettingsMenuItems.some((item) => item.id === tab.id))
+      throw new Error(`插件不能覆盖内置设置项 ${tab.id}`);
     const labelKey = tab.labelKey ?? `plugins.${plugin.id}.${tab.id}`;
     const item: PluginSettingsMenuItem = {
       id: tab.id,
@@ -783,11 +795,41 @@ const createRuntimeContext = (
   const registerSearchProvider = (
     provider: RuntimeSearchProviderRegistration
   ): void => {
+    const source = provider.source.trim();
+    const legacyDeclared =
+      getUniversalSearchSourceDescriptor(source)?.pluginId === plugin.id &&
+      Boolean(plugin.manifest.capabilities?.searchSources?.length);
+    if (
+      !canUseCapability(plugin, 'search', 'register') &&
+      !plugin.manifest.capabilities?.searchSources?.includes(source) &&
+      !legacyDeclared
+    ) {
+      throw new Error(`插件 ${plugin.id} 未声明搜索源 ${source}`);
+    }
     const nextProvider = {
       pluginId: plugin.id,
       source: provider.source,
       phase: provider.phase,
-      search: provider.search
+      search: async (query, options) => {
+        const groups = await provider.search(query, options);
+        return groups
+          .filter((group) => {
+            const descriptor = getUniversalSearchSourceDescriptor(group.source);
+            return !descriptor || descriptor.pluginId === plugin.id;
+          })
+          .map((group) => ({
+            ...group,
+            items: group.items.filter((item) => {
+              const action = item.searchAction;
+              if (!action) return true;
+              if (action.kind === 'new-chat' || action.kind === 'conversation')
+                return plugin.id === 'local-ai';
+              if (action.kind === 'settings')
+                return plugin.settingsTabs?.includes(action.tabId) ?? false;
+              return plugin.routeNames?.includes(action.routeName) ?? false;
+            })
+          }));
+      }
     } satisfies SearchSourceProvider;
     registerSearchSourceProvider(nextProvider);
     appendCapability(plugin, 'searchSources', provider.source);

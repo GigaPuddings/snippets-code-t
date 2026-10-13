@@ -16,5 +16,8 @@ export interface SearchSourceProvider {
   pluginId: PluginId;
   source: string;
   phase?: SearchSourceProviderPhase;
-  search(query: string): Promise<SearchSourceResult[]>;
+  search(
+    query: string,
+    options?: { deepSearch: boolean }
+  ): Promise<SearchSourceResult[]>;
 }

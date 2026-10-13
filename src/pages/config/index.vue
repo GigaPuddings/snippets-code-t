@@ -114,7 +114,12 @@ const shouldKeepAliveConfigChild = (
 const getConfigChildKey = (currentRoute: RouteLocationNormalizedLoaded) => {
   const pluginId = getPluginRouteId(currentRoute);
   if (pluginId) {
-    return `${currentRoute.fullPath}:${pluginId}:${pluginStore.runtimeRevision}`;
+    // Chat handles search requests reactively; a query change must not cancel a reply.
+    const routeKey =
+      currentRoute.name === 'LocalAiChat'
+        ? currentRoute.path
+        : currentRoute.fullPath;
+    return `${routeKey}:${pluginId}:${pluginStore.runtimeRevision}`;
   }
 
   const record = getConfigChildRecord(currentRoute);

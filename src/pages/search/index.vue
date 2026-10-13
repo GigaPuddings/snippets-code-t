@@ -8,11 +8,10 @@ import { useSearchKeyboard } from './composables/useSearchKeyboard';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { ErrorHandler, ErrorType } from '@/utils/error-handler';
 import Result from './components/Result.vue';
-import ArrowRight from '~icons/lucide/arrow-right';
+import SearchInputIcon from '~icons/lucide/search';
 import Search from '~icons/lucide/search';
 import { useI18n } from 'vue-i18n';
 import { usePluginStore } from '@/store';
-import aiChatSparkleIcon from '@/assets/ai-chat-sparkle-icon.png';
 import {
   markPendingLocalAiPromptForNewChat,
   PENDING_LOCAL_AI_PROMPT_MODE_STORAGE_KEY,
@@ -26,6 +25,8 @@ const {
   searchResults,
   deepSearchEnabled,
   hasResults,
+  isSearching,
+  degradedSources,
   handleEnterSearch,
   clearSearch,
   toggleDeepSearch
@@ -189,163 +190,146 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <main ref="searchRef" data-tauri-drag-region class="main">
-    <section class="search-command-surface">
-      <section class="search">
-        <el-input
-          ref="searchInputRef"
-          class="input"
-          v-model="searchText"
-          @keydown="handleSearchKeyDown"
-          @focus="handleInputFocus"
-        />
-        <button
-          type="button"
-          class="deep-search-toggle"
-          :class="{ active: deepSearchEnabled }"
-          :title="
-            deepSearchEnabled
-              ? t('search.deepSearchOn')
-              : t('search.deepSearchOff')
-          "
-          :aria-label="t('search.deepSearch')"
-          :aria-pressed="deepSearchEnabled"
-          @mousedown.prevent
-          @click="toggleDeepSearch"
-        >
-          <Search width="16" height="16" />
-        </button>
-        <img
-          src="@tauri/icons/icon.png"
-          class="home"
-          loading="eager"
-          @click="handleGoConfig"
-        />
+  <main ref="searchRef" data-tauri-drag-region class="search-window-canvas">
+    <section class="main">
+      <section class="search-command-surface">
+        <section class="search">
+          <SearchInputIcon
+            class="ml-2 shrink-0 text-search-secondary"
+            width="20"
+            height="20"
+          />
+          <el-input
+            ref="searchInputRef"
+            class="input"
+            v-model="searchText"
+            :placeholder="t('search.globalPlaceholder')"
+            aria-controls="quick-search-results"
+            @keydown="handleSearchKeyDown"
+            @focus="handleInputFocus"
+          />
+          <button
+            type="button"
+            class="deep-search-toggle"
+            :class="{ active: deepSearchEnabled }"
+            :title="
+              deepSearchEnabled
+                ? t('search.deepSearchOn')
+                : t('search.deepSearchOff')
+            "
+            :aria-label="t('search.deepSearch')"
+            :aria-pressed="deepSearchEnabled"
+            @mousedown.prevent
+            @click="toggleDeepSearch"
+          >
+            <Search width="16" height="16" />
+          </button>
+          <button
+            type="button"
+            class="home"
+            :aria-label="t('search.openConfig')"
+            @click="handleGoConfig"
+          >
+            <img
+              src="@tauri/icons/icon.png"
+              class="h-6 w-6 object-contain"
+              alt=""
+            />
+          </button>
+        </section>
       </section>
-      <button
-        v-if="showAiEntry"
-        type="button"
-        class="ai-chat-entry"
-        @mousedown.prevent
-        @click="openAiChat"
+      <p
+        v-if="isSearching && !hasResults"
+        class="px-3 py-2 text-ui-caption text-search-secondary"
+        role="status"
       >
-        <span class="ai-chat-entry-icon" aria-hidden="true">
-          <img :src="aiChatSparkleIcon" alt="" />
-        </span>
-        <span class="ai-chat-entry-copy">
-          <span class="ai-chat-entry-title">{{ t('search.askAi') }}</span>
-          <span class="ai-chat-entry-query">“{{ aiPrompt }}”</span>
-        </span>
-        <kbd class="ai-chat-entry-shortcut" aria-hidden="true">Ctrl Enter</kbd>
-        <ArrowRight class="ai-chat-entry-arrow" width="18" height="18" />
-      </button>
+        {{ t('search.loadingSources') }}
+      </p>
+      <p
+        v-if="degradedSources.length"
+        class="px-3 py-1 text-ui-caption text-search-secondary"
+        role="status"
+      >
+        {{ t('search.partialResults') }}
+      </p>
+      <p
+        v-if="searchText.trim() && !isSearching && !hasResults"
+        class="px-3 py-4 text-ui-caption text-search-secondary"
+      >
+        {{ t('search.noResults') }}
+      </p>
+      <Result
+        ref="resultRef"
+        :results="searchResults"
+        :searchQuery="searchText"
+        :onClearSearch="clearSearch"
+        :class="{ hidden: !hasResults }"
+        @back-to-search="handleBackToSearch"
+        @close="getCurrentWindow().hide()"
+      >
+        <template #aiAction>
+          <button
+            v-if="showAiEntry"
+            type="button"
+            class="ml-auto inline-flex min-w-0 items-center gap-1"
+            @mousedown.prevent
+            @click="openAiChat"
+          >
+            <kbd
+              class="rounded border border-search px-1 py-0.5 font-ui text-[10px]"
+            >
+              Ctrl Enter
+            </kbd>
+            <span class="truncate">{{ t('search.askAiShort') }}</span>
+          </button>
+        </template>
+      </Result>
     </section>
-    <Result
-      ref="resultRef"
-      :results="searchResults"
-      :searchQuery="searchText"
-      :onClearSearch="clearSearch"
-      :class="{ hidden: !hasResults }"
-      @back-to-search="handleBackToSearch"
-    />
   </main>
 </template>
 
 <style lang="scss" scoped>
-.search .input :deep(.el-input__wrapper) {
-  @apply bg-transparent shadow-none;
-}
-
-:deep(.el-input__inner) {
-  color: var(--search-text);
-
-  &::placeholder {
-    color: var(--search-placeholder);
-  }
+.search-window-canvas {
+  @apply bg-transparent p-2;
 }
 
 .main {
-  /* 拖拽手势 */
-  @apply relative bg-search rounded-md p-2 border-[0.1rem] border-search box-border;
+  @apply relative box-border rounded-ui-lg border border-ui bg-search p-3 font-ui shadow-toast;
+}
 
-  .search {
-    @apply flex items-center border-b border-search;
+.search-command-surface {
+  @apply flex flex-col;
+}
 
-    .input {
-      @apply rounded-sm mr-2 py-[2px] text-base text-search;
-    }
+.search {
+  @apply flex h-11 items-center gap-1 rounded-ui border border-search bg-[var(--search-input-bg)];
+}
 
-    .deep-search-toggle {
-      @apply flex items-center justify-center w-8 h-8 mr-2 rounded-md text-search-secondary bg-transparent border border-transparent cursor-pointer;
+.input {
+  @apply min-w-0 flex-1 text-ui text-search;
+}
 
-      transition:
-        color 0.18s ease,
-        background-color 0.18s ease,
-        border-color 0.18s ease;
+.input :deep(.el-input__wrapper) {
+  @apply bg-transparent shadow-none;
+}
 
-      &:hover,
-      &.active {
-        @apply bg-search-hover text-search border-search;
-      }
-    }
+.input :deep(.el-input__inner) {
+  font-size: var(--app-ui-font-size);
+  color: var(--search-text-color);
+}
 
-    .home {
-      @apply p-1 w-9 h-9 rounded-md opacity-90 hover:opacity-100 cursor-pointer;
-    }
-  }
+.deep-search-toggle,
+.home {
+  @apply flex h-8 w-8 shrink-0 items-center justify-center rounded-ui bg-transparent text-search-secondary;
+}
 
-  .search-command-surface {
-    @apply flex flex-col;
-  }
+.deep-search-toggle:hover,
+.deep-search-toggle.active,
+.home:hover {
+  @apply bg-search-hover text-search;
+}
 
-  .ai-chat-entry {
-    @apply flex h-11 w-full items-center gap-3 bg-search px-4 text-left text-search;
-
-    transition:
-      background-color 0.18s ease,
-      border-color 0.18s ease,
-      box-shadow 0.18s ease;
-
-    &:focus-visible {
-      @apply outline-none;
-
-      box-shadow: 0 0 0 2px
-        color-mix(in srgb, var(--search-result-accent) 28%, transparent);
-    }
-  }
-
-  .ai-chat-entry-icon {
-    @apply inline-flex h-5 w-5 flex-shrink-0 items-center justify-center;
-
-    img {
-      @apply block h-full w-full object-contain;
-    }
-  }
-
-  .ai-chat-entry-copy {
-    @apply flex min-w-0 flex-1 items-center gap-3 text-[13px] leading-none;
-  }
-
-  .ai-chat-entry-title {
-    @apply flex-shrink-0 font-semibold text-search;
-  }
-
-  .ai-chat-entry-query {
-    @apply truncate font-medium text-search-secondary;
-  }
-
-  .ai-chat-entry-shortcut {
-    @apply inline-flex h-6 flex-shrink-0 items-center justify-center rounded-md border border-search bg-search-hover px-2 font-sans text-[10px] font-medium leading-none text-search-secondary;
-
-    box-shadow: 0 1px 2px rgb(15 23 42 / 5%);
-  }
-
-  .ai-chat-entry-arrow {
-    @apply ml-0.5 flex-shrink-0 text-search-secondary;
-  }
-
-  :deep(.hidden) {
-    display: none;
-  }
+.main :deep(.hidden) {
+  display: none;
 }
 </style>

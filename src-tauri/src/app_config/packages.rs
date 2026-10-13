@@ -11,6 +11,30 @@ use tauri::{command, AppHandle};
 
 const PLUGIN_INSTALL_METADATA_FILE: &str = ".install-meta.json";
 
+pub fn plugin_declares_capability(
+    app_handle: &AppHandle,
+    plugin_id: &str,
+    field: &str,
+    id: &str,
+) -> bool {
+    installed_plugin_packages_internal(app_handle)
+        .unwrap_or_default()
+        .iter()
+        .any(|package| {
+            package
+                .manifest
+                .get("id")
+                .and_then(serde_json::Value::as_str)
+                == Some(plugin_id)
+                && package
+                    .manifest
+                    .get("capabilities")
+                    .and_then(|capabilities| capabilities.get(field))
+                    .and_then(serde_json::Value::as_array)
+                    .is_some_and(|ids| ids.iter().any(|value| value.as_str() == Some(id)))
+        })
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LocalPluginPackage {

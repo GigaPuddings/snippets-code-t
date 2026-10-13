@@ -4,6 +4,9 @@ export type UniversalSearchDomain =
   | 'files'
   | 'bookmarks'
   | 'tools'
+  | 'navigation'
+  | 'settings'
+  | 'conversations'
   | 'web';
 
 export interface UniversalSearchSourceDescriptor {
@@ -17,6 +20,14 @@ export interface UniversalSearchSourceDescriptor {
 export const DEFAULT_SEARCH_PROVIDER_TIMEOUT_MS = 2500;
 
 export const UNIVERSAL_SEARCH_SOURCES: UniversalSearchSourceDescriptor[] = [
+  { source: 'navigation', domain: 'navigation', priority: 95 },
+  { source: 'settings', domain: 'settings', priority: 90 },
+  {
+    source: 'local-ai-conversations',
+    domain: 'conversations',
+    pluginId: 'local-ai',
+    priority: 75
+  },
   { source: 'markdown', domain: 'workspace', priority: 80 },
   {
     source: 'local-launcher',

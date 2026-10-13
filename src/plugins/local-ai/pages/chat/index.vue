@@ -834,6 +834,8 @@
 <script setup lang="ts">
 import type { ObjectDirective } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRoute } from 'vue-router';
+import type { ProductSearchNavigationRequest } from '@/search/productActions';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import Brain from '~icons/lucide/brain';
@@ -978,6 +980,9 @@ const composerFocused = ref(false);
 const currentStreamRequestId = ref<string | null>(null);
 const currentStreamingMessage = shallowRef<ChatMessage | null>(null);
 let promptTransferReady = false;
+const route = useRoute();
+let productNavigationRunning = false;
+let queuedProductNavigation: ProductSearchNavigationRequest | null = null;
 let queuedTransferredPrompt: string | null = null;
 let queuedPromptFromSearch = false;
 let queuedNewChatRequest = false;
@@ -1331,7 +1336,14 @@ const focusComposer = async (): Promise<void> => {
 };
 watch(draft, resizeComposerInput, { flush: 'post' });
 watch(navigationLocked, (locked) => {
-  if (!locked) flushQueuedTransferredPrompt();
+  if (!locked) {
+    flushQueuedTransferredPrompt();
+    if (queuedProductNavigation) {
+      const request = queuedProductNavigation;
+      queuedProductNavigation = null;
+      void applyProductNavigation(request, true);
+    }
+  }
 });
 watch(
   draft,
@@ -1514,9 +1526,10 @@ const persistHistory = async (current: ChatHistoryView | null) => {
     messages: current.messages
   } as PersistedChatHistory);
 };
-function createNewChat(): void {
+function createNewChat(requestedId?: unknown): void {
   if (navigationLocked.value) return;
   const next = createHistory();
+  if (typeof requestedId === 'string') next.id = requestedId;
   histories.value.unshift(next);
   activeHistoryId.value = next.id;
   draft.value = '';
@@ -1549,6 +1562,78 @@ const openHistory = (id: string) => {
   // The history watcher already scrolls a newly selected conversation.
   if (!changingHistory) forceScrollToBottom();
 };
+
+async function applyProductNavigation(
+  request: ProductSearchNavigationRequest,
+  wasQueued = false
+): Promise<void> {
+  const finish = (success: boolean, error: string | null = null) =>
+    invoke('finish_search_navigation', {
+      requestId: request.requestId,
+      success,
+      error
+    });
+  if (navigationLocked.value) {
+    queuedProductNavigation = request;
+    await finish(true);
+    modal.msg(t('search.chatNavigationQueued'), 'info');
+    return;
+  }
+  try {
+    await refreshHistories();
+    if (!wasQueued) {
+      const pending = await invoke<ProductSearchNavigationRequest | null>(
+        'get_pending_search_navigation'
+      );
+      if (pending?.requestId !== request.requestId) return;
+    }
+    if (request.action.kind === 'conversation') {
+      const id = request.action.conversationId;
+      if (!histories.value.some((history) => history.id === id))
+        throw new Error(t('search.conversationMissing'));
+      openHistory(id);
+    } else if (request.action.kind === 'new-chat') {
+      const id = `chat-search-${request.requestId}`;
+      if (histories.value.some((history) => history.id === id)) openHistory(id);
+      else {
+        createNewChat(id);
+        await persistHistory(activeHistory.value);
+      }
+    } else throw new Error('Invalid chat action');
+    await finish(true);
+  } catch (error) {
+    if (wasQueued) modal.msg(String(error), 'error');
+    else await finish(false, String(error));
+  }
+}
+
+async function handleProductNavigation(): Promise<void> {
+  if (
+    !promptTransferReady ||
+    productNavigationRunning ||
+    typeof route.query.searchRequest !== 'string'
+  )
+    return;
+  productNavigationRunning = true;
+  try {
+    const request = await invoke<ProductSearchNavigationRequest | null>(
+      'get_pending_search_navigation'
+    );
+    if (
+      request?.requestId === route.query.searchRequest &&
+      request.pluginId === 'local-ai'
+    )
+      await applyProductNavigation(request);
+  } finally {
+    productNavigationRunning = false;
+  }
+}
+watch(
+  () => route.query.searchRequest,
+  () => {
+    void handleProductNavigation();
+  }
+);
 const deleteHistoryItem = async (id: string) => {
   if (navigationLocked.value) return;
   const deletingActiveHistory = activeHistoryId.value === id;
@@ -2411,6 +2496,7 @@ onMounted(async () => {
       applyNewChatRequest();
     }
   }
+  await handleProductNavigation();
   statusTimer = setInterval(() => {
     refreshStatus().catch((error) =>
       logger.warn('[LocalAI] status timer failed', error)

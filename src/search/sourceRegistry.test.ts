@@ -175,4 +175,12 @@ describe('SearchSourceRegistry', () => {
       registry.register(provider({ pluginId: 'bad-plugin', source: ' ' }))
     ).toThrow('缺少 source');
   });
+  it('does not revive health records when a removed provider finishes late', () => {
+    const registry = new SearchSourceRegistry();
+    const entry = provider({ pluginId: 'extension', source: 'records' });
+    registry.register(entry);
+    registry.unregisterPlugin('extension');
+    registry.markSuccess(entry, 1, 2);
+    expect(registry.getStates()).toEqual([]);
+  });
 });

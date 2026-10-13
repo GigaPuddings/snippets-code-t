@@ -1,6 +1,7 @@
 import { computed, type MaybeRefOrGetter, toValue } from 'vue';
 import type { ComposerTranslation } from 'vue-i18n';
 import { usePluginStore } from '@/store';
+import { getSearchResultPluginId as getOwner } from '@/search/productActions';
 
 type SearchResultTabValue = SummarizeType;
 
@@ -32,6 +33,35 @@ const SEARCH_RESULT_TAB_DEFINITIONS: SearchResultTabDefinition[] = [
     labelKey: 'searchResult.all',
     value: 'text',
     alwaysVisible: true
+  },
+  {
+    labelKey: 'searchResult.functions',
+    value: 'navigation',
+    matcher: (item) => item.summarize === 'navigation',
+    alwaysVisible: true
+  },
+  {
+    labelKey: 'searchResult.settings',
+    value: 'settings',
+    matcher: (item) => item.summarize === 'settings',
+    alwaysVisible: true
+  },
+  {
+    labelKey: 'searchResult.content',
+    value: 'content',
+    matcher: (item) =>
+      item.summarize === 'conversation' ||
+      (!['app', 'bookmark', 'file', 'tool', 'search'].includes(
+        item.summarize ?? ''
+      ) &&
+        (item.type === 'code' || item.type === 'note')),
+    alwaysVisible: true
+  },
+  {
+    labelKey: 'searchResult.conversations',
+    value: 'conversation',
+    matcher: (item) => item.summarize === 'conversation',
+    pluginId: 'local-ai'
   },
   {
     labelKey: 'searchResult.apps',
@@ -73,12 +103,13 @@ const SEARCH_RESULT_TAB_DEFINITIONS: SearchResultTabDefinition[] = [
 ];
 
 const getResultPluginId = (item: ContentType): string | undefined =>
+  getOwner(item) ??
   SEARCH_RESULT_TAB_DEFINITIONS.find(
     (definition) => definition.pluginId && definition.matcher?.(item)
   )?.pluginId;
 
-const getRowKey = (item: ContentType, index: number) =>
-  `${String(item.id)}-${item.summarize ?? 'text'}-${index}`;
+const getRowKey = (item: ContentType) =>
+  `${getOwner(item) ?? 'core'}:${String(item.id)}:${item.summarize ?? 'text'}`;
 
 export function useSearchResultTabs(
   results: MaybeRefOrGetter<ContentType[]>,
@@ -96,13 +127,13 @@ export function useSearchResultTabs(
       groupedResults.set(definition.value, []);
     }
 
-    sourceResults.forEach((item, index) => {
+    sourceResults.forEach((item) => {
       const pluginId = getResultPluginId(item);
       if (pluginId && !pluginStore.isEnabled(pluginId)) return;
 
       const resultWithKey = {
         ...item,
-        __rowKey: getRowKey(item, index)
+        __rowKey: getRowKey(item)
       };
 
       groupedResults.get('text')?.push(resultWithKey);

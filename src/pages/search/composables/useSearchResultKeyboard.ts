@@ -132,6 +132,20 @@ export function useSearchResultKeyboard(
   };
 
   const handleKeyEvent = (event: KeyboardEvent) => {
+    if (event.defaultPrevented || event.isComposing) return;
+    if (event.repeat && ['Enter', 'NumpadEnter'].includes(event.code)) {
+      preventKey(event);
+      return;
+    }
+    const altShortcutIndex =
+      event.altKey && !event.ctrlKey && !event.metaKey
+        ? getShortcutIndex(event)
+        : -1;
+    if (altShortcutIndex >= 0) {
+      preventKey(event);
+      if (!event.repeat) selectAndRunShortcutItem(altShortcutIndex);
+      return;
+    }
     const target = event.target as HTMLElement | null;
     const isPreviewPanel = Boolean(target?.closest?.('.preview-panel'));
     if (isPreviewPanel && event.code !== 'Enter') {
@@ -155,7 +169,7 @@ export function useSearchResultKeyboard(
     const shortcutIndex = getShortcutIndex(event);
     if (shortcutIndex >= 0) {
       preventKey(event);
-      selectAndRunShortcutItem(shortcutIndex);
+      if (!event.repeat) selectAndRunShortcutItem(shortcutIndex);
       return;
     }
 
@@ -171,17 +185,6 @@ export function useSearchResultKeyboard(
       preventKey(event);
       handleResultTabSwitch(event.code === 'ArrowRight' ? 1 : -1);
       return;
-    }
-
-    if (event.altKey && !event.ctrlKey && !event.metaKey) {
-      if (
-        shortcutIndex >= 0 &&
-        shortcutIndex < options.visibleShortcutItems.value.length
-      ) {
-        preventKey(event);
-        selectAndRunShortcutItem(shortcutIndex);
-        return;
-      }
     }
 
     if (options.isListMode.value) {

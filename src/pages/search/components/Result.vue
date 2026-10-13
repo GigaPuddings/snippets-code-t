@@ -1,17 +1,49 @@
 <template>
-  <div class="result-layout" :class="{ empty: !results.length }">
+  <div
+    class="result-layout"
+    :class="{ empty: !results.length }"
+    :style="{ height: results.length ? `${listHeight + 74}px` : '0px' }"
+  >
     <section v-if="results.length" class="top-bar glass-content">
       <div class="tabs-group">
-        <template v-for="item in resultTabs" :key="item.value">
+        <button
+          v-for="item in primaryTabs"
+          :key="item.value"
+          class="tab"
+          :class="{ active: item.value === activeTab }"
+          type="button"
+          @click="switchTab(item.value)"
+        >
+          {{ item.label }}
+        </button>
+        <el-dropdown trigger="click" @command="switchTab">
           <button
-            class="tab"
-            :class="{ active: item.value === activeTab }"
             type="button"
-            @click="switchTab(item.value)"
+            class="tab"
+            :class="{
+              active: !primaryTabs.some((tab) => tab.value === activeTab)
+            }"
           >
-            <span>{{ item.label }}</span>
+            {{ moreLabel }}
+            <ChevronDown width="14" height="14" />
           </button>
-        </template>
+          <template #dropdown>
+            <el-dropdown-menu
+              class="max-h-[min(240px,calc(100vh_-_160px))] overflow-y-auto"
+            >
+              <el-dropdown-item
+                v-for="item in moreTabs"
+                :key="item.value"
+                :command="item.value"
+              >
+                {{ item.label }}
+                <span class="ml-3 text-ui-caption text-[var(--settings-muted)]">
+                  {{ item.count }}
+                </span>
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </div>
       <div class="top-bar-right">
         <span v-if="activeTabCount > 0" class="result-count">
@@ -36,16 +68,6 @@
         >
           <PreviewOpen v-if="previewPanelVisible" width="15" height="15" />
           <PreviewCloseOne v-else width="15" height="15" />
-        </button>
-        <button class="return-hint" type="button" @click="emit('backToSearch')">
-          <span class="hint-key">Tab</span>
-          <span class="hint-text">
-            {{
-              isListMode
-                ? t('searchResult.backToResults')
-                : t('searchResult.backToSearch')
-            }}
-          </span>
         </button>
       </div>
     </section>
@@ -74,17 +96,42 @@
           :class="{ collapsed: !previewPanelVisible }"
           :aria-hidden="!previewPanelVisible"
         >
-          <InlinePreview ref="inlinePreviewRef" :item="selectedItem" />
+          <InlinePreview
+            ref="inlinePreviewRef"
+            :item="selectedItem"
+            @primary-action="handlePrimaryAction"
+          />
         </section>
       </div>
     </transition>
+    <footer v-if="results.length" class="search-keyboard-footer">
+      <span class="inline-flex items-center gap-1">
+        <kbd>↑</kbd>
+        <kbd>↓</kbd>
+        {{ t('searchResult.select') }}
+      </span>
+      <span class="inline-flex items-center gap-1">
+        <kbd>↵</kbd>
+        {{ t('searchResult.open') }}
+      </span>
+      <slot name="aiAction"></slot>
+      <button
+        type="button"
+        class="ml-auto inline-flex items-center gap-1"
+        @click="emit('close')"
+      >
+        <kbd>Esc</kbd>
+        {{ t('searchResult.close') }}
+      </button>
+    </footer>
   </div>
 </template>
 
 <script lang="ts" setup>
 import ResultList from './ResultList.vue';
+import ChevronDown from '~icons/lucide/chevron-down';
+import { buildSearchRenderRows } from '@/search/resultGroups';
 import InlinePreview from './InlinePreview.vue';
-import { useFocusMode } from '@/hooks/useFocusMode';
 import { useSearchResultTabs } from '../composables/useSearchResultTabs';
 import { useI18n } from 'vue-i18n';
 import PreviewCloseOne from '~icons/lucide/panel-right-open';
@@ -104,9 +151,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   backToSearch: [];
+  close: [];
 }>();
-
-const { isListMode } = useFocusMode();
 
 const resultListRef = ref<InstanceType<typeof ResultList> | null>(null);
 const inlinePreviewRef = ref<InstanceType<typeof InlinePreview> | null>(null);
@@ -122,6 +168,39 @@ const {
 } = useSearchResultTabs(() => props.results, t);
 const activeTabCount = computed(() => getTabCount(activeTab.value));
 const activeTabResults = computed(() => getTabResults(activeTab.value));
+
+const primaryTabs = computed(() =>
+  resultTabs.value.filter((tab) =>
+    ['text', 'navigation', 'settings', 'content'].includes(tab.value)
+  )
+);
+const moreTabs = computed(() =>
+  resultTabs.value.filter((tab) => !primaryTabs.value.includes(tab))
+);
+const moreLabel = computed(
+  () =>
+    moreTabs.value.find((tab) => tab.value === activeTab.value)?.label ??
+    t('searchResult.more')
+);
+const maximumListHeight = Math.min(
+  450,
+  Math.max(220, window.screen.availHeight - 180)
+);
+const listHeight = computed(() => {
+  const rows = buildSearchRenderRows(
+    activeTabResults.value,
+    activeTab.value === 'text',
+    !props.searchQuery?.trim()
+  );
+  const last = rows.at(-1);
+  return Math.min(
+    maximumListHeight,
+    Math.max(
+      previewPanelVisible.value ? 300 : 104,
+      last ? last.offset + last.size : 104
+    )
+  );
+});
 
 onMounted(async (): Promise<void> => {
   const revisionAtLoad = previewVisibilityRevision;
@@ -182,7 +261,9 @@ const ensurePreviewSelection = () => {
 
   const tabResults = activeTabResults.value;
   const selectedId = selectedItem.value?.id;
-  if (selectedId != null && tabResults.some((item) => item.id === selectedId)) {
+  const currentSelection = tabResults.find((item) => item.id === selectedId);
+  if (currentSelection) {
+    selectedItem.value = currentSelection;
     return;
   }
 
@@ -219,151 +300,72 @@ defineExpose({
 
 <style lang="scss" scoped>
 .result-layout {
-  @apply flex flex-col min-h-0;
+  @apply flex min-h-0 flex-col;
 
-  height: 392px;
-  transition:
-    height 0.18s ease,
-    min-height 0.18s ease,
-    opacity 0.18s ease;
-
-  &.empty {
-    height: 0;
-    min-height: 0;
-    overflow: hidden;
-    pointer-events: none;
-    opacity: 0;
-  }
+  transition: height 0.15s ease;
 }
 
-.result-drawer-enter-active,
-.result-drawer-leave-active {
-  transition: all 0.18s ease;
+.result-layout.empty {
+  @apply pointer-events-none overflow-hidden opacity-0;
 }
 
-.result-drawer-enter-from,
-.result-drawer-leave-to {
-  max-height: 0;
-  opacity: 0;
-  transform: translateY(-8px);
-}
-
-// 7px
 .top-bar {
-  @apply flex items-center justify-between px-3 pb-[0.4375rem] rounded-tl-lg rounded-tr-lg border-b border-search flex-shrink-0;
+  @apply flex h-10 shrink-0 items-center justify-between gap-2 px-1;
+}
 
-  .tabs-group {
-    @apply flex items-center gap-2 min-w-0 overflow-x-auto overflow-y-hidden flex-nowrap;
+.tabs-group {
+  @apply flex min-w-0 items-center gap-1;
+}
 
-    scrollbar-width: none;
+.top-bar-right {
+  @apply flex shrink-0 items-center gap-2;
+}
 
-    &::-webkit-scrollbar {
-      display: none;
-    }
-  }
+.tab {
+  @apply inline-flex items-center gap-1 whitespace-nowrap rounded-ui border-0 bg-transparent px-2.5 py-1.5 font-ui text-ui text-search-secondary;
+}
 
-  .top-bar-right {
-    @apply flex items-center gap-3 shrink-0;
-  }
+.tab:hover,
+.tab.active {
+  @apply bg-search-hover text-search;
+}
 
-  .preview-panel-toggle {
-    @apply inline-flex h-7 w-7 items-center justify-center rounded-md border border-transparent bg-transparent text-search-secondary;
+.preview-panel-toggle {
+  @apply flex h-7 w-7 items-center justify-center rounded-ui bg-transparent text-search-secondary;
+}
 
-    transition:
-      color 0.18s ease,
-      background-color 0.18s ease,
-      border-color 0.18s ease;
+.preview-panel-toggle:hover,
+.preview-panel-toggle.active {
+  @apply bg-search-hover text-search;
+}
 
-    &:hover,
-    &.active {
-      @apply border-search bg-search-hover text-search;
-    }
-
-    &:focus-visible {
-      @apply outline-none;
-
-      box-shadow: 0 0 0 2px
-        color-mix(in srgb, var(--search-result-accent) 28%, transparent);
-    }
-  }
-
-  .result-count {
-    @apply text-xs text-search-secondary whitespace-nowrap;
-  }
-
-  .tab {
-    @apply inline-flex items-center gap-2 px-3 py-1.5 text-sm text-search-secondary cursor-pointer rounded-md bg-transparent border border-transparent whitespace-nowrap flex-none;
-
-    .tab-count {
-      @apply text-[11px] px-1.5 py-0.5 rounded bg-search text-search-secondary;
-
-      border: 1px solid var(--search-secondary);
-    }
-
-    &.active {
-      @apply bg-search-hover border-search;
-
-      color: var(--search-result-accent);
-
-      .tab-count {
-        @apply bg-search text-search;
-
-        border-color: var(--search-text);
-      }
-    }
-  }
-
-  .tab-shortcut {
-    @apply text-[11px] text-search-secondary hidden sm:inline;
-  }
-
-  .return-hint {
-    @apply flex items-center gap-1 text-xs cursor-pointer bg-transparent border-0 p-0;
-
-    .hint-key {
-      @apply px-1.5 py-0.5 rounded font-medium border;
-    }
-
-    .hint-text {
-      @apply text-panel-text-secondary;
-    }
-  }
+.result-count {
+  @apply whitespace-nowrap text-ui-caption text-search-secondary;
 }
 
 .result-container {
-  @apply flex gap-0 min-h-0 flex-1 overflow-hidden;
+  @apply flex min-h-0 flex-1 overflow-hidden;
+}
 
-  .result-pane {
-    @apply min-h-0 min-w-0 overflow-hidden;
+.result-pane {
+  @apply min-h-0 min-w-0 flex-1 overflow-hidden;
+}
 
-    flex: 1 1 50%;
-    transition: flex-basis 0.22s ease;
+.preview-pane {
+  @apply min-h-0 overflow-hidden border-l border-search;
 
-    &.expanded {
-      flex-basis: 100%;
-    }
-  }
+  flex: 0 0 48%;
+}
 
-  .preview-pane {
-    @apply relative min-h-0 overflow-hidden;
+.preview-pane.collapsed {
+  @apply hidden;
+}
 
-    flex: 0 0 50%;
-    max-width: 50%;
-    opacity: 1;
-    transition:
-      flex-basis 0.22s ease,
-      max-width 0.22s ease,
-      opacity 0.16s ease,
-      transform 0.22s ease;
-    transform: translateX(0);
+.search-keyboard-footer {
+  @apply mt-1 flex h-8 shrink-0 items-center gap-3 border-t border-search px-1 text-ui-caption text-search-secondary;
+}
 
-    &.collapsed {
-      flex-basis: 0;
-      max-width: 0;
-      pointer-events: none;
-      opacity: 0;
-      transform: translateX(12px);
-    }
-  }
+kbd {
+  @apply rounded border border-search px-1 py-0.5 font-ui text-[10px];
 }
 </style>

@@ -38,6 +38,8 @@ declare global {
     id: string | number;
     title: string;
     content: string;
+    file_path?: string;
+    searchAction?: import('../search/productActions').ProductSearchAction;
     summarize?: SummarizeType;
     icon?: string;
     score?: number;
@@ -107,7 +109,11 @@ declare global {
     | 'code'
     | 'note'
     | 'file'
-    | 'tool';
+    | 'tool'
+    | 'navigation'
+    | 'settings'
+    | 'conversation'
+    | 'content';
 
   // 代办提醒类型
   type AlarmCard = import('./database').AlarmCard;

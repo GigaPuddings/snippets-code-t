@@ -12,11 +12,14 @@ search entry, reads the first results, extracts page text through the browser,
 and instructs the local model to summarize and cite only evidence returned for
 that turn.
 
-Default model directory:
+Model paths are not preconfigured. Open **Settings → Local AI**, choose the local
+directory containing your GGUF models, select the main model and optional mmproj,
+then save the configuration. Existing saved paths are preserved when upgrading.
 
-```text
-E:\Models\HauhauCS\Qwen3.5-4B-Uncensored-HauhauCS-Aggressive
-```
+Configuration is stored in `state/plugins/local-ai/local-ai.json` under the app's
+configured data directory. The default loopback host and port are fallbacks for
+these settings; lifecycle intervals, parallel slots, and attachment limits are
+internal resource policies.
 
 Runtime resources:
 

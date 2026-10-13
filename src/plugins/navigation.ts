@@ -12,6 +12,7 @@ export interface ConfigNavigationTab {
   labelKey: string;
   icon: Component;
   path: string;
+  routeName: string;
   pluginId?: PluginId;
 }
 
@@ -23,18 +24,21 @@ export const isConfigNavigationPathActive = (
 export const configNavigationTabs: ConfigNavigationTab[] = [
   {
     id: 'workbench',
+    routeName: 'Workbench',
     labelKey: 'nav.workbench',
     icon: Workbench,
     path: '/config/workbench'
   },
   {
     id: 'workspace',
+    routeName: 'Welcome',
     labelKey: 'nav.workspace',
     icon: Library,
     path: '/config/category/contentList'
   },
   {
     id: 'launcher',
+    routeName: 'Local',
     labelKey: 'nav.launcher',
     icon: Application,
     path: '/config/local',
@@ -42,6 +46,7 @@ export const configNavigationTabs: ConfigNavigationTab[] = [
   },
   {
     id: 'webSearch',
+    routeName: 'Retrieve',
     labelKey: 'nav.webSearch',
     icon: MessageSearch,
     path: '/config/retrieve',
@@ -49,6 +54,7 @@ export const configNavigationTabs: ConfigNavigationTab[] = [
   },
   {
     id: 'todo',
+    routeName: 'Todo',
     labelKey: 'nav.todo',
     icon: Notepad,
     path: '/config/todo',
@@ -56,6 +62,7 @@ export const configNavigationTabs: ConfigNavigationTab[] = [
   },
   {
     id: 'aiChat',
+    routeName: 'LocalAiChat',
     labelKey: 'nav.aiChat',
     icon: MessageCircleMore,
     path: '/config/local-ai/chat',

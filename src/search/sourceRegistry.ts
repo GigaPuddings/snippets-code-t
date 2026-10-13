@@ -176,6 +176,7 @@ export class SearchSourceRegistry {
     const source = provider.source.trim();
     const key = providerKey(String(provider.pluginId), source);
     const previous = this.states.get(key);
+    if (!this.providers.has(key)) return;
     const descriptor = getUniversalSearchSourceDescriptor(source);
     const phase = provider.phase ?? 'results';
     const priority =

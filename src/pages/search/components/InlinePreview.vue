@@ -1,7 +1,44 @@
 <template>
   <aside class="preview-panel glass-content">
     <div v-if="item" class="preview-body">
-      <template v-if="isQuickToolResult">
+      <section
+        v-if="item.searchAction"
+        class="flex h-full min-h-0 flex-col gap-4 p-4"
+      >
+        <span class="text-ui-caption font-medium text-search-secondary">
+          {{
+            item.summarize === 'conversation'
+              ? t('searchResult.conversations')
+              : t('searchResult.navigate')
+          }}
+        </span>
+        <h2 class="break-words text-ui font-medium text-search">
+          {{ item.title }}
+        </h2>
+        <span
+          v-if="item.updated_at"
+          class="text-ui-caption text-search-secondary"
+        >
+          {{ new Date(item.updated_at).toLocaleString() }}
+        </span>
+        <p
+          class="min-h-0 overflow-y-auto whitespace-pre-wrap break-words text-ui leading-relaxed text-search-secondary"
+        >
+          {{ item.content }}
+        </p>
+        <CustomButton
+          class="self-start"
+          size="small"
+          @click="$emit('primaryAction', item)"
+        >
+          {{
+            item.searchAction.kind === 'new-chat'
+              ? t('searchResult.newChatAction')
+              : t('searchResult.open')
+          }}
+        </CustomButton>
+      </section>
+      <template v-else-if="isQuickToolResult">
         <div class="quick-tool-preview">
           <div class="quick-tool-header">
             <div class="quick-tool-title-wrap">
@@ -316,6 +353,7 @@ import type { ContentType } from '@/types/models';
 import CodeMirrorEditor from '@/components/CodeMirrorEditor/index.vue';
 import { getSearchResultIcon } from '../composables/useSearchResultIcon';
 import { getPrimarySearchHistoryKey } from '@/search/ranking';
+import { CustomButton } from '@/components/UI';
 import {
   getSearchResultDisplayPath,
   getSearchResultLaunchPath,
@@ -325,6 +363,7 @@ import {
 const props = defineProps<{
   item: ContentType | null;
 }>();
+defineEmits<{ primaryAction: [item: ContentType] }>();
 
 const { t } = useI18n();
 const store = useConfigurationStore();

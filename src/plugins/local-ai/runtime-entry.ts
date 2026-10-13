@@ -4,6 +4,7 @@ import SettingTwo from '~icons/lucide/settings';
 import type { PluginFrontendRuntimeContext } from '../runtime';
 import { localAiProvider } from '@/ai';
 import '@/styles/plugin-config.scss';
+import { createChatSearchProvider } from './searchProvider';
 
 export const activate = (context: PluginFrontendRuntimeContext): void => {
   context.ai.registerProvider(localAiProvider);
@@ -19,6 +20,9 @@ export const activate = (context: PluginFrontendRuntimeContext): void => {
     icon: SettingTwo,
     component: defineAsyncComponent(() => import('./settings/index.vue'))
   });
+  if (context.search.supportsProductActions) {
+    context.search.registerProvider(createChatSearchProvider(context.api));
+  }
 };
 
 export default activate;
