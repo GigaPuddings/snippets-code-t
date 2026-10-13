@@ -42,6 +42,8 @@ export interface UseSearchOptions {
   initialQuery?: string;
   /** 是否默认启用深度检索 */
   initialDeepSearch?: boolean;
+  /** 空输入时是否检索近期与常用入口 */
+  showRecentActionsOnEmpty?: boolean;
 }
 
 /**
@@ -88,7 +90,8 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
   const {
     debounceMs = 150,
     initialQuery = '',
-    initialDeepSearch = false
+    initialDeepSearch = false,
+    showRecentActionsOnEmpty = true
   } = options;
 
   const searchText = ref(initialQuery);
@@ -209,7 +212,12 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
             (id) => pluginStore.isEnabled(id)
           ),
           onPartialResponse: (response) => {
-            if (isLatestSearchRequest(requestVersion))
+            // During an index refresh keep existing results until the complete
+            // response arrives, so a temporary menu-only response cannot reset a page.
+            if (
+              isLatestSearchRequest(requestVersion) &&
+              searchResults.value.length === 0
+            )
               searchResults.value = response.items;
           },
           isPluginEnabled: (pluginId) => pluginStore.isEnabled(pluginId),
@@ -274,7 +282,15 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
   }, debounceMs);
 
   const refreshCurrentSearch = (): void => {
-    debouncedSearch(nextSearchRequest());
+    const requestVersion = nextSearchRequest();
+    if (!searchText.value.trim() && !showRecentActionsOnEmpty) {
+      debouncedSearch.cancel();
+      searchResults.value = [];
+      isSearching.value = false;
+      degradedSources.value = [];
+      return;
+    }
+    debouncedSearch(requestVersion);
   };
 
   /**
@@ -342,11 +358,9 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
   };
 
   watch(searchText, () => {
-    // 输入内容改变后立即卸载上一轮虚拟结果列表。仅重置 scrollTop 会让
-    // RecycleScroller 继续复用旧行，异步结果回来时可能保留过期的 slot index，
-    // 从而造成快捷键编号间断。新结果返回后列表会从首行重新挂载。
+    // 查询变化时清空上一轮候选，避免旧查询的选中项和快捷键编号残留。
     searchResults.value = [];
-    debouncedSearch(nextSearchRequest());
+    refreshCurrentSearch();
   });
 
   watch(deepSearchEnabled, () => {
