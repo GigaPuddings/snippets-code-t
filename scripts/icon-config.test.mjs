@@ -3,7 +3,9 @@ import { test } from 'vitest';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
-import { build, createServer } from 'vite';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { build, createServer, resolveConfig } from 'vite';
 import { createSSRApp, h } from 'vue';
 import { renderToString } from 'vue/server-renderer';
 import { createIconPlugins, createIconResolver } from './icon-config.mjs';
@@ -103,14 +105,20 @@ test('automatic Vue component resolution uses the same collection rules', () => 
 
 test('workspace icons are served as JavaScript by the development server', async () => {
   const root = fileURLToPath(new URL('../', import.meta.url));
-  const server = await createServer({
-    root,
-    configFile: join(root, 'vite.config.ts'),
-    logLevel: 'silent',
-    server: { host: '127.0.0.1', port: 0, strictPort: false, hmr: false },
-    optimizeDeps: { noDiscovery: true, include: [] }
-  });
+  // AutoImport injects Vue dependencies even with include: [], so this server
+  // can still prebundle. Never let it write into the application's dev cache.
+  const cacheDir = await mkdtemp(join(tmpdir(), 'snippets-code-icon-test-'));
+  let server;
   try {
+    server = await createServer({
+      root,
+      configFile: join(root, 'vite.config.ts'),
+      cacheDir,
+      logLevel: 'silent',
+      server: { host: '127.0.0.1', port: 0, strictPort: false, hmr: false },
+      optimizeDeps: { noDiscovery: true, include: [] }
+    });
+    assert.equal(server.config.cacheDir, cacheDir.replaceAll('\\', '/'));
     await server.listen();
     const address = server.httpServer.address();
     const origin = `http://127.0.0.1:${address.port}`;
@@ -138,6 +146,28 @@ test('workspace icons are served as JavaScript by the development server', async
       }
     }
   } finally {
-    await server.close();
+    await server?.close();
+    await rm(cacheDir, { recursive: true, force: true });
   }
 }, 60_000);
+
+test('verification configurations cannot overwrite development prebundles', async () => {
+  const root = fileURLToPath(new URL('../', import.meta.url));
+  const options = {
+    root,
+    configFile: join(root, 'vite.config.ts'),
+    logLevel: 'silent'
+  };
+  const [development, testConfig, production] = await Promise.all([
+    resolveConfig(options, 'serve', 'development'),
+    resolveConfig(options, 'serve', 'test'),
+    resolveConfig(options, 'build', 'production')
+  ]);
+  assert.equal(
+    new Set([development.cacheDir, testConfig.cacheDir, production.cacheDir])
+      .size,
+    3
+  );
+  assert.equal(development.optimizeDeps.force, true);
+  assert.equal(testConfig.optimizeDeps.force, false);
+}, 30_000);

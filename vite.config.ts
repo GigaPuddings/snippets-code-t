@@ -18,6 +18,13 @@ export default defineConfig(async ({ command, mode }) => {
     command === 'serve' || process.env.VITE_GENERATE_PLUGIN_DTS === 'true';
 
   return {
+    // Concurrent verification must not replace a running WebView's prebundles.
+    // Integration tests that create their own server also supply a temp cacheDir.
+    cacheDir: resolve(
+      __dirname,
+      'node_modules/.vite',
+      mode === 'test' ? 'test' : command === 'build' ? 'build' : 'development'
+    ),
     plugins: [
       vue(),
       ...createIconPlugins(),
