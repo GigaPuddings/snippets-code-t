@@ -1918,7 +1918,11 @@ export default {
     conversations: 'AI conversations',
     documents: 'Notes and snippets',
     bestMatch: 'Best match',
-    recentActions: 'Recent and quick actions',
+    pagination: 'Search result pages',
+    previousPage: 'Previous page',
+    nextPage: 'Next page',
+    pageRange: '{start}–{end} / {total}',
+    pageStatus: 'Showing results {start} to {end} of {total}',
     newChatAction: '↵ New chat',
     navigate: 'Pages and settings',
     open: 'Open',
@@ -1952,6 +1956,8 @@ export default {
   searchPreview: {
     showPanel: 'Show Preview Panel',
     hidePanel: 'Hide Preview Panel',
+    saveVisibilityFailed:
+      'Could not save the preview preference. Please try again.',
     expandPreview: 'Expand Preview',
     collapsePreview: 'Collapse Preview',
     availableActions: 'Available Actions',

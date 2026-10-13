@@ -91,4 +91,48 @@ describe('useSearchResultTabs plugin lifecycle', () => {
     expect(resultTabs.getTabCount('file')).toBe(1);
     expect(resultTabs.tabs.value.map((tab) => tab.value)).toContain('file');
   });
+  it('puts launcher categories first and reuses functions and settings in More', () => {
+    const pluginStore = usePluginStore();
+    pluginStore.installedPlugins = [
+      createPlugin('local-launcher', 'Local launcher')
+    ];
+    pluginStore.enabled['local-launcher'] = true;
+    const resultTabs = useSearchResultTabs(
+      [
+        createResult('app', 'app', 'app'),
+        createResult('bookmark', 'bookmark', 'bookmark'),
+        { id: 'note', title: 'Note', content: '', type: 'note' },
+        createResult('page', 'core', 'navigation'),
+        createResult('settings', 'core', 'settings')
+      ],
+      t
+    );
+    expect(resultTabs.primaryTabs.value.map((tab) => tab.value)).toEqual([
+      'text',
+      'app',
+      'bookmark',
+      'content'
+    ]);
+    expect(resultTabs.moreTabs.value.map((tab) => tab.value)).toEqual([
+      'navigation',
+      'settings',
+      'code',
+      'note'
+    ]);
+    expect(resultTabs.tabs.value.map((tab) => tab.value)).toEqual([
+      ...resultTabs.primaryTabs.value.map((tab) => tab.value),
+      ...resultTabs.moreTabs.value.map((tab) => tab.value)
+    ]);
+    expect(resultTabs.getTabCount('app')).toBe(1);
+    expect(resultTabs.getTabCount('bookmark')).toBe(1);
+    expect(resultTabs.getTabCount('content')).toBe(1);
+    expect(resultTabs.getTabCount('navigation')).toBe(1);
+    expect(resultTabs.getTabCount('settings')).toBe(1);
+    pluginStore.enabled['local-launcher'] = false;
+    expect(resultTabs.primaryTabs.value.map((tab) => tab.value)).toEqual([
+      'text',
+      'content'
+    ]);
+    expect(resultTabs.getTabCount('text')).toBe(3);
+  });
 });

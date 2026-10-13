@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildSearchRenderRows } from './resultGroups';
+import { orderSearchResults } from './resultGroups';
 import type { ContentType } from '@/types';
 
 const item = (
@@ -15,42 +15,39 @@ describe('grouped quick search rows', () => {
       item('settings', 'settings'),
       item('page', 'navigation')
     ];
-    const rows = buildSearchRenderRows(input, true, false);
-    const results = rows.flatMap((row) => (row.kind === 'result' ? [row] : []));
-    expect(results.map((row) => row.item.id)).toEqual([
+    const results = orderSearchResults(input, true);
+    expect(results.map((entry) => entry.id)).toEqual([
       'chat',
       'page',
       'settings',
       'note'
     ]);
-    expect(results.map((row) => row.index)).toEqual([0, 1, 2, 3]);
-    expect(rows[0].offset).toBe(0);
-    for (let i = 1; i < rows.length; i++)
-      expect(rows[i].offset).toBe(rows[i - 1].offset + rows[i - 1].size);
+    expect(results).toHaveLength(input.length);
   });
   it('keeps files and applications out of document groups even with legacy code types', () => {
-    const rows = buildSearchRenderRows(
+    const results = orderSearchResults(
       [
         item('page', 'navigation'),
         item('file', 'file', 'code'),
         item('app', 'app', 'code')
       ],
-      true,
-      false
+      true
     );
-    expect(
-      rows.flatMap((row) => (row.kind === 'heading' ? [row.labelKey] : []))
-    ).toEqual([
-      'searchResult.bestMatch',
-      'searchResult.apps',
-      'searchResult.files'
-    ]);
+    expect(results.map((entry) => entry.id)).toEqual(['page', 'app', 'file']);
   });
-  it('renders one recent-actions heading for an empty query', () => {
-    expect(
-      buildSearchRenderRows([item('page', 'navigation')], true, true).filter(
-        (row) => row.kind === 'heading'
-      )
-    ).toHaveLength(1);
+  it('keeps the category view in its original order without heading rows', () => {
+    const input = [item('note', 'note', 'note'), item('page', 'navigation')];
+    expect(orderSearchResults(input, false)).toEqual(input);
+    expect(orderSearchResults([], true)).toEqual([]);
+  });
+
+  it('retains every result when the query spans many groups', () => {
+    const input = Array.from({ length: 69 }, (_, index) =>
+      item(String(index), index % 2 ? 'settings' : 'note', 'note')
+    );
+    const results = orderSearchResults(input, true);
+    expect(results[0]).toBe(input[0]);
+    expect(new Set(results.map((entry) => entry.id)).size).toBe(69);
+    expect(results).toHaveLength(69);
   });
 });

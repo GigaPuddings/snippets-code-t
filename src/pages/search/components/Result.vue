@@ -1,10 +1,6 @@
 <template>
-  <div
-    class="result-layout"
-    :class="{ empty: !results.length }"
-    :style="{ height: results.length ? `${listHeight + 74}px` : '0px' }"
-  >
-    <section v-if="results.length" class="top-bar glass-content">
+  <div class="result-layout">
+    <section class="top-bar glass-content">
       <div class="tabs-group">
         <button
           v-for="item in primaryTabs"
@@ -50,7 +46,25 @@
           {{ activeTabCount }} {{ t('searchResult.total') }}
         </span>
         <button
-          class="preview-panel-toggle"
+          class="search-option-toggle"
+          type="button"
+          :class="{ active: deepSearchEnabled }"
+          :title="
+            deepSearchEnabled
+              ? t('search.deepSearchOn')
+              : t('search.deepSearchOff')
+          "
+          :aria-label="t('search.deepSearch')"
+          :aria-pressed="deepSearchEnabled"
+          @mousedown.prevent
+          @keydown.enter.stop
+          @keydown.space.stop
+          @click="emit('toggleDeepSearch')"
+        >
+          <ScanSearch width="16" height="16" />
+        </button>
+        <button
+          class="search-option-toggle"
           type="button"
           :class="{ active: previewPanelVisible }"
           :title="
@@ -64,6 +78,9 @@
               : t('searchPreview.showPanel')
           "
           :aria-pressed="previewPanelVisible"
+          @mousedown.prevent
+          @keydown.enter.stop
+          @keydown.space.stop
           @click="togglePreviewPanel"
         >
           <PreviewOpen v-if="previewPanelVisible" width="15" height="15" />
@@ -71,6 +88,7 @@
         </button>
       </div>
     </section>
+    <slot name="status"></slot>
 
     <transition name="result-drawer">
       <div v-if="results.length" class="result-container">
@@ -83,12 +101,12 @@
             :results="results"
             :search-query="searchQuery"
             :on-clear-search="onClearSearch"
-            :item-size="52"
             @back-to-search="emit('backToSearch')"
             @selection-change="handleSelectionChange"
             @tab-change="handleTabChange"
             @primary-action="handlePrimaryAction"
             @preview-toggle="handlePreviewToggle"
+            @page-change="pagination = $event"
           />
         </section>
         <section
@@ -104,25 +122,67 @@
         </section>
       </div>
     </transition>
-    <footer v-if="results.length" class="search-keyboard-footer">
-      <span class="inline-flex items-center gap-1">
-        <kbd>↑</kbd>
-        <kbd>↓</kbd>
-        {{ t('searchResult.select') }}
-      </span>
-      <span class="inline-flex items-center gap-1">
-        <kbd>↵</kbd>
-        {{ t('searchResult.open') }}
-      </span>
-      <slot name="aiAction"></slot>
-      <button
-        type="button"
-        class="ml-auto inline-flex items-center gap-1"
-        @click="emit('close')"
+    <footer
+      v-if="results.length"
+      class="search-keyboard-footer"
+      @keydown.enter.stop
+      @keydown.space.stop
+    >
+      <div class="footer-navigation-hints">
+        <span class="footer-hint">
+          <kbd>↑</kbd>
+          <kbd>↓</kbd>
+          {{ t('searchResult.select') }}
+        </span>
+        <span class="footer-hint">
+          <kbd>↵</kbd>
+          {{ t('searchResult.open') }}
+        </span>
+      </div>
+      <nav
+        v-if="pagination.total > 0"
+        class="search-pagination"
+        :aria-label="t('searchResult.pagination')"
+        @keydown.enter.stop
+        @keydown.space.stop
       >
-        <kbd>Esc</kbd>
-        {{ t('searchResult.close') }}
-      </button>
+        <CustomButton
+          unstyled
+          class="pagination-button"
+          :disabled="pagination.index === 0"
+          :aria-label="t('searchResult.previousPage')"
+          :title="t('searchResult.previousPage')"
+          @mousedown.prevent
+          @click="resultListRef?.changePage(-1)"
+        >
+          <ChevronLeft width="14" height="14" />
+        </CustomButton>
+        <span
+          class="whitespace-nowrap font-medium tabular-nums text-search-heading"
+          role="status"
+          :aria-label="t('searchResult.pageStatus', pagination)"
+        >
+          {{ t('searchResult.pageRange', pagination) }}
+        </span>
+        <CustomButton
+          unstyled
+          class="pagination-button"
+          :disabled="pagination.index + 1 >= pagination.count"
+          :aria-label="t('searchResult.nextPage')"
+          :title="t('searchResult.nextPage')"
+          @mousedown.prevent
+          @click="resultListRef?.changePage(1)"
+        >
+          <ChevronRight width="14" height="14" />
+        </CustomButton>
+      </nav>
+      <div class="footer-actions">
+        <slot name="aiAction"></slot>
+        <button type="button" class="footer-close" @click="emit('close')">
+          <kbd>Esc</kbd>
+          {{ t('searchResult.close') }}
+        </button>
+      </div>
     </footer>
   </div>
 </template>
@@ -130,7 +190,14 @@
 <script lang="ts" setup>
 import ResultList from './ResultList.vue';
 import ChevronDown from '~icons/lucide/chevron-down';
-import { buildSearchRenderRows } from '@/search/resultGroups';
+import ChevronLeft from '~icons/lucide/chevron-left';
+import ChevronRight from '~icons/lucide/chevron-right';
+import ScanSearch from '~icons/lucide/scan-search';
+import { CustomButton } from '@/components/UI';
+import {
+  QUICK_SEARCH_PAGE_SIZE,
+  type SearchResultPage
+} from '../composables/useSearchResultPagination';
 import InlinePreview from './InlinePreview.vue';
 import { useSearchResultTabs } from '../composables/useSearchResultTabs';
 import { useI18n } from 'vue-i18n';
@@ -140,18 +207,21 @@ import {
   getQuickSearchPreviewVisible,
   setQuickSearchPreviewVisible
 } from '@/api/appConfig';
+import modal from '@/utils/modal';
 
 const { t } = useI18n();
 
 const props = defineProps<{
   results: ContentType[];
   searchQuery?: string;
+  deepSearchEnabled: boolean;
   onClearSearch: () => void;
 }>();
 
 const emit = defineEmits<{
   backToSearch: [];
   close: [];
+  toggleDeepSearch: [];
 }>();
 
 const resultListRef = ref<InstanceType<typeof ResultList> | null>(null);
@@ -159,49 +229,31 @@ const inlinePreviewRef = ref<InstanceType<typeof InlinePreview> | null>(null);
 const activeTab = ref<SummarizeType>('text');
 const selectedItem = ref<ContentType | null>(null);
 const previewPanelVisible = ref(false);
+const pagination = ref<SearchResultPage>({
+  index: 0,
+  count: 0,
+  size: QUICK_SEARCH_PAGE_SIZE,
+  start: 0,
+  end: 0,
+  total: 0
+});
 let previewVisibilityRevision = 0;
 let previewVisibilityPersistence = Promise.resolve();
 const {
   tabs: resultTabs,
+  primaryTabs,
+  moreTabs,
   getTabCount,
   getTabResults
 } = useSearchResultTabs(() => props.results, t);
 const activeTabCount = computed(() => getTabCount(activeTab.value));
 const activeTabResults = computed(() => getTabResults(activeTab.value));
 
-const primaryTabs = computed(() =>
-  resultTabs.value.filter((tab) =>
-    ['text', 'navigation', 'settings', 'content'].includes(tab.value)
-  )
-);
-const moreTabs = computed(() =>
-  resultTabs.value.filter((tab) => !primaryTabs.value.includes(tab))
-);
 const moreLabel = computed(
   () =>
     moreTabs.value.find((tab) => tab.value === activeTab.value)?.label ??
     t('searchResult.more')
 );
-const maximumListHeight = Math.min(
-  450,
-  Math.max(220, window.screen.availHeight - 180)
-);
-const listHeight = computed(() => {
-  const rows = buildSearchRenderRows(
-    activeTabResults.value,
-    activeTab.value === 'text',
-    !props.searchQuery?.trim()
-  );
-  const last = rows.at(-1);
-  return Math.min(
-    maximumListHeight,
-    Math.max(
-      previewPanelVisible.value ? 300 : 104,
-      last ? last.offset + last.size : 104
-    )
-  );
-});
-
 onMounted(async (): Promise<void> => {
   const revisionAtLoad = previewVisibilityRevision;
   try {
@@ -222,6 +274,7 @@ function togglePreviewPanel(): void {
     .then(() => setQuickSearchPreviewVisible(visible))
     .catch((error) => {
       console.error('[快速搜索] 保存预览面板状态失败:', error);
+      modal.error(t('searchPreview.saveVisibilityFailed'));
     });
 }
 
@@ -267,7 +320,7 @@ const ensurePreviewSelection = () => {
     return;
   }
 
-  selectedItem.value = tabResults[0] ?? results[0] ?? null;
+  selectedItem.value = tabResults[0] ?? null;
 };
 
 watch(() => props.results, ensurePreviewSelection, { immediate: true });
@@ -300,17 +353,11 @@ defineExpose({
 
 <style lang="scss" scoped>
 .result-layout {
-  @apply flex min-h-0 flex-col;
-
-  transition: height 0.15s ease;
-}
-
-.result-layout.empty {
-  @apply pointer-events-none overflow-hidden opacity-0;
+  @apply flex min-h-0 flex-1 flex-col overflow-hidden;
 }
 
 .top-bar {
-  @apply flex h-10 shrink-0 items-center justify-between gap-2 px-1;
+  @apply mb-1 flex h-11 shrink-0 items-center justify-between gap-2 px-1;
 }
 
 .tabs-group {
@@ -322,21 +369,27 @@ defineExpose({
 }
 
 .tab {
-  @apply inline-flex items-center gap-1 whitespace-nowrap rounded-ui border-0 bg-transparent px-2.5 py-1.5 font-ui text-ui text-search-secondary;
+  @apply inline-flex h-8 items-center gap-1 whitespace-nowrap rounded-ui border border-transparent bg-transparent px-2.5 font-ui text-ui font-medium text-search-secondary;
 }
 
-.tab:hover,
-.tab.active {
+.tab:hover {
   @apply bg-search-hover text-search;
 }
 
-.preview-panel-toggle {
+.tab.active {
+  @apply border-search-active bg-search-active text-search-accent;
+}
+
+.search-option-toggle {
   @apply flex h-7 w-7 items-center justify-center rounded-ui bg-transparent text-search-secondary;
 }
 
-.preview-panel-toggle:hover,
-.preview-panel-toggle.active {
+.search-option-toggle:hover {
   @apply bg-search-hover text-search;
+}
+
+.search-option-toggle.active {
+  @apply bg-search-active text-search-accent;
 }
 
 .result-count {
@@ -362,10 +415,50 @@ defineExpose({
 }
 
 .search-keyboard-footer {
-  @apply mt-1 flex h-8 shrink-0 items-center gap-3 border-t border-search px-1 text-ui-caption text-search-secondary;
+  @apply mt-1 grid h-10 shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 border-t border-search bg-search-footer px-1 text-ui-caption leading-none text-search-secondary;
 }
 
-kbd {
-  @apply rounded border border-search px-1 py-0.5 font-ui text-[10px];
+.footer-navigation-hints {
+  @apply flex min-w-0 items-center gap-3;
+}
+
+.footer-actions {
+  @apply flex min-w-0 items-center justify-end gap-3;
+}
+
+.footer-close {
+  @apply inline-flex h-6 shrink-0 items-center gap-1 border-l border-search pl-3;
+}
+
+.footer-close:hover {
+  @apply text-search-heading;
+}
+
+.footer-hint {
+  @apply inline-flex h-6 shrink-0 items-center gap-1 whitespace-nowrap;
+}
+
+.search-pagination {
+  @apply inline-flex shrink-0 items-center justify-self-center gap-1;
+}
+
+.pagination-button {
+  @apply flex h-6 w-6 items-center justify-center rounded-ui bg-transparent text-search-secondary;
+
+  &:hover:not(:disabled) {
+    @apply bg-search-hover text-search;
+  }
+
+  &:disabled {
+    @apply cursor-default opacity-40;
+  }
+
+  &:focus-visible {
+    @apply outline outline-1 outline-offset-1 outline-[var(--search-result-accent)];
+  }
+}
+
+.search-keyboard-footer :deep(kbd) {
+  @apply inline-flex h-5 shrink-0 items-center justify-center rounded border border-search px-1 font-ui text-[10px] leading-none;
 }
 </style>

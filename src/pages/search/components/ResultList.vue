@@ -1,122 +1,94 @@
 <template>
-  <main
-    class="result-list glass-content"
-    :class="{ 'has-results': hasVisibleResults }"
-  >
+  <main class="result-list glass-content">
     <div v-if="!hasVisibleResults" class="empty-state">
       <p class="text-ui font-medium text-search">{{ t('search.noResults') }}</p>
       <p class="mt-2 text-ui-caption text-search-secondary">
         {{ t('search.suggestRelax') }}
       </p>
     </div>
-    <RecycleScroller
+    <div
       v-else
-      ref="scrollerRef"
+      ref="listViewportRef"
       id="quick-search-results"
       class="result"
-      :key="activeTab"
-      :items="renderRows"
-      size-field="size"
-      type-field="kind"
-      :buffer="itemSize * 2"
-      :emit-update="true"
-      key-field="__rowKey"
       role="listbox"
       :aria-label="t('searchResult.all')"
-      @scroll.passive="syncShortcutWindowFromScroll"
-      @update="handleScrollerUpdate"
-      v-slot="{ item: row }"
+      @wheel="handleWheel"
     >
-      <h2 v-if="row.kind === 'heading'" class="result-group-heading">
-        {{ t(row.labelKey) }}
-      </h2>
       <div
-        v-else
+        v-for="(item, index) in pageItems"
+        :key="getResultKey(item)"
         class="item"
-        :class="{ active: row.item.id === activeItemId }"
+        :class="{ active: item.id === activeItemId }"
         role="option"
-        :aria-selected="row.item.id === activeItemId"
-        :id="`quick-result-${encodeURIComponent(String(row.item.id))}`"
-        @click="handleItemClick(row.item)"
+        :aria-selected="item.id === activeItemId"
+        :id="'quick-result-' + encodeURIComponent(String(item.id))"
+        @click="handleItemClick(item)"
       >
         <div class="icon-wrapper">
           <component
-            v-if="row.item.summarize === 'file' && !row.item.icon"
-            :is="getFileIconComponent(row.item)"
+            v-if="item.summarize === 'file' && !item.icon"
+            :is="getFileIconComponent(item)"
             class="icon text-search-secondary"
           />
           <component
-            v-else-if="getIconState(row.item).component"
-            :is="getIconState(row.item).component"
+            v-else-if="getIconState(item).component"
+            :is="getIconState(item).component"
             class="icon text-search-secondary"
           />
           <img
-            v-else-if="getIconState(row.item).src"
-            :src="getIconState(row.item).src"
+            v-else-if="getIconState(item).src"
+            :src="getIconState(item).src"
             class="icon"
             alt=""
-            @error="handleIconError(row.item)"
+            @error="handleIconError(item)"
             loading="eager"
             decoding="async"
           />
           <span v-else class="text-ui-caption text-search-secondary">
-            {{ getIconState(row.item).fallbackText }}
+            {{ getIconState(item).fallbackText }}
           </span>
         </div>
         <div class="content">
-          <div class="title" v-html="getDisplayTitle(row.item)"></div>
-          <p class="text" v-html="getDisplayContentHighlighted(row.item)"></p>
+          <div class="title" v-html="getDisplayTitle(item)"></div>
+          <p class="text">
+            <span>{{ getTypeLabel(item) }}</span>
+            <template v-if="getDisplayContentHighlighted(item, false)">
+              <span class="mx-1">·</span>
+              <span v-html="getDisplayContentHighlighted(item, false)"></span>
+            </template>
+          </p>
         </div>
         <div class="item-actions">
           <span
-            v-if="
-              row.item.searchAction?.kind === 'new-chat' &&
-              row.item.id === activeItemId
-            "
-            class="text-ui-caption text-search-secondary"
+            v-if="activeTab === 'text' && page.index === 0 && index === 0"
+            class="best-match"
           >
-            {{ t('searchResult.newChatAction') }}
+            {{ t('searchResult.bestMatch') }}
           </span>
-          <kbd
-            v-else-if="
-              row.index >= visibleShortcutStart &&
-              row.index < visibleShortcutEnd
-            "
-            class="shortcut-key"
-          >
-            Alt {{ row.index - visibleShortcutStart + 1 }}
-          </kbd>
-          <ChevronRight
-            v-else-if="row.item.searchAction"
-            class="text-search-secondary"
-            width="15"
-            height="15"
-          />
+          <kbd class="shortcut-key">Alt {{ index + 1 }}</kbd>
         </div>
       </div>
-    </RecycleScroller>
+    </div>
   </main>
 </template>
+
 <script lang="ts" setup>
 import { useConfigurationStore } from '@/store';
-import ChevronRight from '~icons/lucide/chevron-right';
-import { buildSearchRenderRows } from '@/search/resultGroups';
-import { RecycleScroller } from 'vue-virtual-scroller';
-import 'vue-virtual-scroller/dist/vue-virtual-scroller.css';
+import { orderSearchResults } from '@/search/resultGroups';
 import { useFocusMode } from '@/hooks/useFocusMode';
 import { useSearchResultActions } from '../composables/useSearchResultActions';
 import { useSearchResultDisplay } from '../composables/useSearchResultDisplay';
 import { getSearchResultIcon } from '../composables/useSearchResultIcon';
 import { useSearchResultKeyboard } from '../composables/useSearchResultKeyboard';
 import { useSearchResultState } from '../composables/useSearchResultState';
-import { useI18n } from 'vue-i18n';
 import {
-  refreshRecycleScroller,
-  type RecycleScrollerInstance
-} from '@/utils/recycleScroller';
+  useSearchResultPagination,
+  type SearchResultPage
+} from '../composables/useSearchResultPagination';
+import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
-
 const store = useConfigurationStore();
 const {
   currentMode,
@@ -131,7 +103,6 @@ const props = defineProps<{
   results: ContentType[];
   searchQuery?: string;
   onClearSearch: () => void;
-  itemSize?: number;
 }>();
 
 const emit = defineEmits<{
@@ -140,18 +111,12 @@ const emit = defineEmits<{
   tabChange: [tab: SummarizeType];
   primaryAction: [item: ContentType];
   previewToggle: [];
+  pageChange: [page: SearchResultPage];
 }>();
 
-interface ResultScrollerRef extends RecycleScrollerInstance {
-  $el: HTMLElement;
-  scrollToPosition: (position: number) => void;
-}
-
-const scrollerRef = ref<ResultScrollerRef | null>(null);
-const visibleShortcutStart = ref(0);
-const visibleResultRows = 6;
-const visibleShortcutEnd = ref(visibleResultRows);
-const itemSize = computed(() => props.itemSize ?? 52);
+const listViewportRef = ref<HTMLElement | null>(null);
+let viewportResizeObserver: ResizeObserver | null = null;
+const hasNavigatedResults = ref(false);
 const {
   tabs,
   activeTab,
@@ -163,169 +128,98 @@ const {
   ensureValidTab,
   syncSelectionWithResults
 } = useSearchResultState(() => props.results, t, {
-  preserveSelection: () => !isSearchMode.value,
+  preserveSelection: () => !isSearchMode.value || hasNavigatedResults.value,
   onSelectionAutoChange: (item) => {
-    store.id = item?.id ? String(item.id) : '';
+    store.id = item?.id ?? '';
     emit('selectionChange', item);
   }
 });
 
-const renderRows = computed(() =>
-  buildSearchRenderRows(
-    tabResults.value,
-    activeTab.value === 'text',
-    !props.searchQuery?.trim(),
-    itemSize.value
-  )
-);
 const filteredResults = computed(() =>
-  renderRows.value.flatMap((row) => (row.kind === 'result' ? [row.item] : []))
+  orderSearchResults(tabResults.value, activeTab.value === 'text')
 );
-
-const { getDisplayTitle, getDisplayContentHighlighted, getFileIconComponent } =
-  useSearchResultDisplay(() => props.searchQuery, t);
-
+const activeItemId = computed(() => selectedItemId.value ?? store.id);
+const {
+  getDisplayTitle,
+  getDisplayContentHighlighted,
+  getTypeLabel,
+  getFileIconComponent
+} = useSearchResultDisplay(() => props.searchQuery, t);
 const { showHideWindow, runPrimaryAction } = useSearchResultActions({
   onClearSearch: props.onClearSearch,
   copySuccessMessage: t('searchResult.copySuccess'),
   copyFailedMessage: t('searchResult.copyFailed')
 });
+const pagination = useSearchResultPagination(
+  filteredResults,
+  activeItemId,
+  (item) => {
+    store.id = item?.id ?? '';
+    if (item) selectItemById(item.id);
+    emit('selectionChange', item);
+  }
+);
+const { page, pageItems, ensureItemVisible } = pagination;
 
-const activeItemId = computed(() => selectedItemId.value ?? store.id);
+watch(activeTab, (tab) => emit('tabChange', tab), { immediate: true });
+watch(page, (value) => emit('pageChange', value), { immediate: true });
+watch(filteredResults, () => syncSelectionWithResults(store.id), {
+  immediate: true
+});
+watch(
+  () => props.searchQuery,
+  () => {
+    hasNavigatedResults.value = false;
+    pagination.resetPage();
+  }
+);
+watch(
+  () => props.results.length,
+  (length) => setCanSwitchToList(length > 0),
+  { immediate: true }
+);
+
+watch(
+  listViewportRef,
+  (element) => {
+    viewportResizeObserver?.disconnect();
+    if (!element) return;
+    viewportResizeObserver = new ResizeObserver(() =>
+      pagination.fitViewport(element.clientHeight)
+    );
+    viewportResizeObserver.observe(element);
+    pagination.fitViewport(element.clientHeight);
+  },
+  { flush: 'post' }
+);
+onUnmounted(() => viewportResizeObserver?.disconnect());
+
+function changePage(direction: 1 | -1): void {
+  if (pagination.changePage(direction)) hasNavigatedResults.value = true;
+}
+
+function handleWheel(event: WheelEvent): void {
+  const previousPage = page.value.index;
+  pagination.handleWheel(event);
+  if (page.value.index !== previousPage) hasNavigatedResults.value = true;
+}
+
+function switchTab(tab: SummarizeType): void {
+  setActiveTab(tab);
+  hasNavigatedResults.value = false;
+  pagination.resetPage();
+  if (!isTabMode.value && !isListMode.value) setMode('TAB');
+}
 
 const emitSelectionChangeById = (id: string | number) => {
   emit('selectionChange', selectItemById(id));
 };
 
-watch(
-  [filteredResults, itemSize],
-  async () => {
-    syncSelectionWithResults(store.id);
-
-    await nextTick();
-    refreshRecycleScroller(scrollerRef.value);
-    syncShortcutWindowFromScroll();
-  },
-  { immediate: true }
-);
-
-watch(
-  () => props.searchQuery,
-  () => {
-    void resetShortcutViewport();
-  }
-);
-
-watch(
-  () => props.results.length,
-  (length) => {
-    setCanSwitchToList(length > 0);
-  },
-  { immediate: true }
-);
-
-function switchTab(tab: SummarizeType) {
-  setActiveTab(tab);
-  emit('tabChange', tab);
-
-  if (!isTabMode.value && !isListMode.value) {
-    setMode('TAB');
-  }
-
-  if (isListMode.value && filteredResults.value.length > 0) {
-    void resetShortcutViewport();
-  }
-}
-
-const visibleShortcutItems = computed(() =>
-  filteredResults.value.slice(
-    visibleShortcutStart.value,
-    visibleShortcutEnd.value
-  )
-);
-
-function syncShortcutWindowFromScroll(): void {
-  const scroller = scrollerRef.value?.$el;
-  const resultCount = filteredResults.value.length;
-  if (!scroller) {
-    visibleShortcutStart.value = 0;
-    visibleShortcutEnd.value = Math.min(resultCount, visibleResultRows);
-    return;
-  }
-
-  const viewportStart = scroller.scrollTop;
-  const viewportEnd = viewportStart + scroller.clientHeight;
-  const visible = renderRows.value.filter(
-    (row) =>
-      row.kind === 'result' &&
-      row.offset + row.size - 2 > viewportStart &&
-      row.offset + 2 < viewportEnd
-  );
-  const indices = visible.flatMap((row) =>
-    row.kind === 'result' ? [row.index] : []
-  );
-  visibleShortcutStart.value = indices[0] ?? 0;
-  visibleShortcutEnd.value = Math.min(
-    (indices.at(-1) ?? -1) + 1,
-    visibleShortcutStart.value + 9
-  );
-}
-
-function handleScrollerUpdate(): void {
-  syncShortcutWindowFromScroll();
-}
-
-async function resetShortcutViewport(): Promise<void> {
-  visibleShortcutStart.value = 0;
-  visibleShortcutEnd.value = Math.min(
-    filteredResults.value.length,
-    visibleResultRows
-  );
-
-  await nextTick();
-  const scroller = scrollerRef.value;
-  if (!scroller) return;
-
-  scroller.scrollToPosition(0);
-  scroller.$el.scrollTop = 0;
-  refreshRecycleScroller(scroller);
-  await nextTick();
-  syncShortcutWindowFromScroll();
-}
-
-function ensureItemVisible(index: number): void {
-  const scrollerInstance = scrollerRef.value;
-  if (!scrollerInstance) return;
-
-  nextTick(() => {
-    const scroller = scrollerInstance.$el;
-    if (!scroller || index < 0) return;
-
-    const row = renderRows.value.find(
-      (row) => row.kind === 'result' && row.index === index
-    );
-    if (!row) return;
-    const targetTop = row.offset;
-    const targetBottom = targetTop + row.size;
-    const viewportTop = scroller.scrollTop;
-    const viewportBottom = viewportTop + scroller.clientHeight;
-
-    if (targetBottom > viewportBottom) {
-      scroller.scrollTop = targetBottom - scroller.clientHeight;
-    } else if (targetTop < viewportTop) {
-      scroller.scrollTop = targetTop;
-    }
-
-    refreshRecycleScroller(scrollerInstance);
-    syncShortcutWindowFromScroll();
-  });
-}
-
 useSearchResultKeyboard({
   tabs,
   activeTabIndex: currentTabIndex,
   filteredResults,
-  visibleShortcutItems,
+  visibleShortcutItems: pageItems,
   isSearchMode,
   isListMode,
   isTabMode,
@@ -343,51 +237,37 @@ useSearchResultKeyboard({
   showHideWindow,
   backToSearch: () => emit('backToSearch'),
   primaryAction: (item) => emit('primaryAction', item),
-  togglePreview: () => emit('previewToggle')
+  togglePreview: () => emit('previewToggle'),
+  changePage
 });
 
-function handleItemClick(item: ContentType) {
-  if (!isListMode.value) {
-    setMode('LIST');
-  }
-  syncSelectedItem(item);
-  emit('selectionChange', item);
+function handleItemClick(item: ContentType): void {
+  setMode('LIST');
+  store.id = item.id;
+  emitSelectionChangeById(item.id);
   void runPrimaryAction(item);
 }
 
-function syncSelectedItem(item: ContentType) {
-  store.id = item.id;
-  selectItemById(item.id);
-}
-
+const getIconState = getSearchResultIcon;
 const handleIconError = (item: ContentType) => {
   item.icon = undefined;
 };
-
-const getIconState = getSearchResultIcon;
-
+const getResultKey = (item: ContentType) =>
+  String(item.metadata?.plugin_id ?? 'core') + ':' + String(item.id);
 const enterListMode = (selectLast = false) => {
   ensureValidTab();
-  if (filteredResults.value.length > 0 || props.results.length > 0) {
-    setMode('LIST');
-    if (selectLast && filteredResults.value.length > 0) {
-      const lastIndex = filteredResults.value.length - 1;
-      const lastItem = filteredResults.value[lastIndex];
-      syncSelectedItem(lastItem);
-      emit('selectionChange', lastItem);
-      ensureItemVisible(lastIndex);
-    }
-  }
+  if (!filteredResults.value.length) return;
+  setMode('LIST');
+  const index = selectLast
+    ? filteredResults.value.length - 1
+    : page.value.start - 1;
+  const item = filteredResults.value[index];
+  store.id = item.id;
+  emitSelectionChangeById(item.id);
+  ensureItemVisible(index);
 };
-
-const enterTabMode = () => {
-  setMode('TAB');
-};
-
-const backToSearchMode = () => {
-  setMode('SEARCH');
-};
-
+const enterTabMode = () => setMode('TAB');
+const backToSearchMode = () => setMode('SEARCH');
 const hasVisibleResults = computed(() => filteredResults.value.length > 0);
 
 defineExpose({
@@ -396,6 +276,7 @@ defineExpose({
   enterTabMode,
   backToSearchMode,
   runPrimaryAction,
+  changePage,
   currentMode,
   tabs,
   activeTab
@@ -412,15 +293,11 @@ defineExpose({
 }
 
 .result {
-  @apply min-h-0 flex-1 overflow-y-auto;
-}
-
-.result-group-heading {
-  @apply m-0 flex h-7 items-end px-2 pb-1 text-ui-caption font-medium text-search-secondary;
+  @apply flex min-h-0 flex-1 flex-col overflow-hidden;
 }
 
 .item {
-  @apply mx-0.5 my-0.5 grid h-12 min-w-0 cursor-pointer grid-cols-[28px_minmax(0,1fr)_64px] items-center gap-3 rounded-ui px-2 text-search transition-colors;
+  @apply relative mx-0.5 my-0.5 grid h-12 min-w-0 shrink-0 cursor-pointer grid-cols-[32px_minmax(0,1fr)_64px] items-center gap-3 rounded-ui border border-transparent px-2.5 text-search transition-colors;
 
   width: calc(100% - 4px);
 
@@ -429,16 +306,22 @@ defineExpose({
   }
 
   &.active {
-    background-color: var(--search-result-active);
+    @apply border-search-active bg-search-active;
+  }
+
+  &.active::before {
+    @apply absolute bottom-2 left-0 top-2 w-0.5 rounded-full bg-[var(--search-result-accent)];
+
+    content: '';
   }
 }
 
 .icon-wrapper {
-  @apply flex h-7 w-7 items-center justify-center;
+  @apply flex h-8 w-8 items-center justify-center rounded-ui border border-search bg-search-icon shadow-search-icon;
 }
 
 .icon {
-  @apply h-[22px] w-[22px] object-contain;
+  @apply h-6 w-6 object-contain;
 }
 
 .content {
@@ -446,7 +329,11 @@ defineExpose({
 }
 
 .title {
-  @apply truncate font-ui text-ui font-medium text-search;
+  @apply min-w-0 truncate font-ui text-ui font-semibold text-search-heading;
+}
+
+.best-match {
+  @apply shrink-0 whitespace-nowrap text-[10px] font-medium leading-none text-search-accent;
 }
 
 .text {
@@ -454,18 +341,15 @@ defineExpose({
 }
 
 .item-actions {
-  @apply flex items-center justify-end;
+  @apply flex h-full flex-col items-end justify-center gap-1;
 }
 
 .shortcut-key {
-  @apply whitespace-nowrap rounded border border-search bg-transparent px-1 py-0.5 font-ui text-[10px] text-search-secondary;
+  @apply whitespace-nowrap px-1 font-ui text-[10px] leading-none text-search-secondary;
 }
 
 .title :deep(.highlight),
 .text :deep(.highlight) {
-  @apply rounded-sm font-medium;
-
-  color: var(--workspace-nav-heading);
-  background-color: var(--workspace-nav-selected);
+  @apply rounded-sm bg-search-highlight font-semibold text-search-accent;
 }
 </style>

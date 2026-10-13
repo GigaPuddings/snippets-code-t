@@ -46,6 +46,10 @@ export default {
         search: 'var(--search-bg-color)',
         'search-input': 'var(--search-input-bg)',
         'search-hover': 'var(--search-result-hover)',
+        'search-active': 'var(--search-result-active)',
+        'search-highlight': 'var(--search-highlight-bg)',
+        'search-icon': 'var(--search-icon-bg)',
+        'search-footer': 'var(--search-footer-bg)',
         'tab-active': 'var(--categories-bg-tab-active)',
         // 编辑器
         editor: 'var(--editor-bg)',
@@ -121,6 +125,8 @@ export default {
         primary: 'var(--el-color-primary)',
         // 搜索
         search: 'var(--search-text-color)',
+        'search-heading': 'var(--search-heading-color)',
+        'search-accent': 'var(--search-highlight-text)',
         'search-info': 'var(--search-info-text-color)',
         'search-secondary': 'var(--search-placeholder)',
         // 编辑器
@@ -179,6 +185,7 @@ export default {
         // 基础面板
         panel: 'var(--categories-border-color)',
         search: 'var(--search-border-color)',
+        'search-active': 'var(--search-result-active-border)',
         active: 'var(--el-color-primary)',
         // 编辑器
         editor: 'var(--editor-border)',
@@ -221,6 +228,7 @@ export default {
         }
       },
       boxShadow: {
+        'search-icon': 'var(--search-icon-shadow)',
         toast: 'var(--toast-shadow)',
         'workspace-panel': 'var(--workspace-panel-shadow)',
         ocr: 'var(--ocr-shadow)',

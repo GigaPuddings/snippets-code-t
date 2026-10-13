@@ -100,16 +100,22 @@
   --el-button-hover-border-color: var(--el-color-primary);
 
   // ==================== 搜索窗口主题变量 ====================
-  --search-bg-color: var(--settings-surface);
+  --search-bg-color: var(--workspace-nav-bg);
   --search-text-color: var(--workspace-nav-text);
+  --search-heading-color: var(--workspace-nav-heading);
   --search-info-text-color: var(--workspace-nav-muted);
   --search-border-color: var(--settings-border);
   --search-input-bg: var(--workspace-nav-bg);
   --search-placeholder: var(--workspace-nav-muted);
-  --search-result-hover: var(--workspace-nav-selected);
-  --search-result-active: var(--workspace-nav-selected);
-  --search-result-active-border: var(--settings-border);
-  --search-result-accent: var(--workspace-nav-accent);
+  --search-result-hover: #f0f3f9;
+  --search-result-active: #edf2ff;
+  --search-result-active-border: #ced9f7;
+  --search-result-accent: var(--search-highlight-text);
+  --search-highlight-text: #3f51be;
+  --search-highlight-bg: #dce7ff;
+  --search-icon-bg: var(--settings-surface);
+  --search-icon-shadow: 0 2px 6px rgb(29 44 69 / 6%);
+  --search-footer-bg: var(--settings-surface);
   --search-card-bg: var(--settings-surface);
   --search-soft-bg: var(--workspace-nav-bg);
   --search-border: var(--settings-border);
@@ -308,16 +314,22 @@ html.dark {
   --categories-border-color-rgb: 54, 54, 54;
 
   // ==================== 搜索窗口深色主题变量 ====================
-  --search-bg-color: var(--settings-surface);
+  --search-bg-color: var(--workspace-nav-bg);
   --search-text-color: var(--workspace-nav-text);
+  --search-heading-color: var(--workspace-nav-heading);
   --search-info-text-color: var(--workspace-nav-muted);
   --search-border-color: var(--settings-border);
   --search-input-bg: var(--workspace-nav-bg);
   --search-placeholder: var(--workspace-nav-muted);
-  --search-result-hover: var(--workspace-nav-selected);
-  --search-result-active: var(--workspace-nav-selected);
-  --search-result-active-border: var(--settings-border);
-  --search-result-accent: var(--workspace-nav-accent);
+  --search-result-hover: #282e36;
+  --search-result-active: #2a3448;
+  --search-result-active-border: #475a7e;
+  --search-result-accent: var(--search-highlight-text);
+  --search-highlight-text: #c0cbff;
+  --search-highlight-bg: #3a4765;
+  --search-icon-bg: #2d3432;
+  --search-icon-shadow: 0 2px 6px rgb(0 0 0 / 14%);
+  --search-footer-bg: var(--settings-surface);
   --search-card-bg: var(--settings-surface);
   --search-soft-bg: var(--workspace-nav-bg);
   --search-border: var(--settings-border);

@@ -96,16 +96,28 @@ export function useSearchResultDisplay(
       : escapeHtml(title);
   };
 
-  const getDisplayContentHighlighted = (item: ContentType): string => {
+  const getDisplayContentHighlighted = (
+    item: ContentType,
+    includeTypeLabel = true
+  ): string => {
     if (item.summarize === 'conversation') {
       const date = item.updated_at
         ? new Date(item.updated_at).toLocaleString()
         : '';
       return escapeHtml(
-        [t('searchResult.conversations'), date].filter(Boolean).join(' · ')
+        [includeTypeLabel ? t('searchResult.conversations') : '', date]
+          .filter(Boolean)
+          .join(' · ')
       );
     }
-    if (item.searchAction) return escapeHtml(item.content);
+    if (item.searchAction) {
+      const prefix = `${getTypeLabel(item)} · `;
+      return escapeHtml(
+        !includeTypeLabel && item.content.startsWith(prefix)
+          ? item.content.slice(prefix.length)
+          : item.content
+      );
+    }
     if (getRawSearchResultId(item) === 'url-open') {
       return `<span class="url-display">${escapeHtml(item.content)}</span>`;
     }

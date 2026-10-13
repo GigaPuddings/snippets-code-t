@@ -5,11 +5,12 @@ import { useFitWindowToElement } from '@/hooks/useFitWindowToElement';
 import { useSearch } from '@/hooks/useSearch';
 import { useFocusMode } from '@/hooks/useFocusMode';
 import { useSearchKeyboard } from './composables/useSearchKeyboard';
+import { getQuickSearchWindowHeight } from './composables/searchWindowSizing';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { ErrorHandler, ErrorType } from '@/utils/error-handler';
 import Result from './components/Result.vue';
 import SearchInputIcon from '~icons/lucide/search';
-import Search from '~icons/lucide/search';
+import Sparkles from '~icons/lucide/sparkles';
 import { useI18n } from 'vue-i18n';
 import { usePluginStore } from '@/store';
 import {
@@ -30,7 +31,7 @@ const {
   handleEnterSearch,
   clearSearch,
   toggleDeepSearch
-} = useSearch();
+} = useSearch({ showRecentActionsOnEmpty: false });
 const { isSearchMode, setMode, canSwitchToList } = useFocusMode();
 
 const searchRef = ref<HTMLElement | null>(null);
@@ -96,6 +97,14 @@ const focusSearchWindow = async (): Promise<void> => {
 };
 
 const aiPrompt = computed(() => searchText.value.trim());
+const hasSearchQuery = computed(() => Boolean(aiPrompt.value));
+const searchWindowHeight = computed(() => {
+  const availableTop =
+    (window.screen as Screen & { availTop?: number }).availTop ?? 0;
+  const availableHeight =
+    window.screen.availHeight - Math.max(0, window.screenY - availableTop);
+  return getQuickSearchWindowHeight(hasSearchQuery.value, availableHeight);
+});
 const showAiEntry = computed(
   () => pluginStore.isEnabled('local-ai') && Boolean(aiPrompt.value)
 );
@@ -190,8 +199,13 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <main ref="searchRef" data-tauri-drag-region class="search-window-canvas">
-    <section class="main">
+  <main data-tauri-drag-region class="search-window-canvas">
+    <section
+      ref="searchRef"
+      class="main"
+      :class="{ 'has-query': hasSearchQuery }"
+      :style="{ height: `${searchWindowHeight}px` }"
+    >
       <section class="search-command-surface">
         <section class="search">
           <SearchInputIcon
@@ -201,29 +215,13 @@ onUnmounted(() => {
           />
           <el-input
             ref="searchInputRef"
-            class="input"
+            class="input transparent-input"
             v-model="searchText"
-            :placeholder="t('search.globalPlaceholder')"
+            :aria-label="t('search.globalPlaceholder')"
             aria-controls="quick-search-results"
             @keydown="handleSearchKeyDown"
             @focus="handleInputFocus"
           />
-          <button
-            type="button"
-            class="deep-search-toggle"
-            :class="{ active: deepSearchEnabled }"
-            :title="
-              deepSearchEnabled
-                ? t('search.deepSearchOn')
-                : t('search.deepSearchOff')
-            "
-            :aria-label="t('search.deepSearch')"
-            :aria-pressed="deepSearchEnabled"
-            @mousedown.prevent
-            @click="toggleDeepSearch"
-          >
-            <Search width="16" height="16" />
-          </button>
           <button
             type="button"
             class="home"
@@ -238,48 +236,49 @@ onUnmounted(() => {
           </button>
         </section>
       </section>
-      <p
-        v-if="isSearching && !hasResults"
-        class="px-3 py-2 text-ui-caption text-search-secondary"
-        role="status"
-      >
-        {{ t('search.loadingSources') }}
-      </p>
-      <p
-        v-if="degradedSources.length"
-        class="px-3 py-1 text-ui-caption text-search-secondary"
-        role="status"
-      >
-        {{ t('search.partialResults') }}
-      </p>
-      <p
-        v-if="searchText.trim() && !isSearching && !hasResults"
-        class="px-3 py-4 text-ui-caption text-search-secondary"
-      >
-        {{ t('search.noResults') }}
-      </p>
       <Result
         ref="resultRef"
         :results="searchResults"
         :searchQuery="searchText"
+        :deep-search-enabled="deepSearchEnabled"
         :onClearSearch="clearSearch"
-        :class="{ hidden: !hasResults }"
+        :class="{ hidden: !hasSearchQuery }"
+        @toggle-deep-search="toggleDeepSearch"
         @back-to-search="handleBackToSearch"
         @close="getCurrentWindow().hide()"
       >
+        <template #status>
+          <p
+            v-if="isSearching && !hasResults"
+            class="px-3 py-2 text-ui-caption text-search-secondary"
+            role="status"
+          >
+            {{ t('search.loadingSources') }}
+          </p>
+          <p
+            v-if="degradedSources.length"
+            class="px-3 py-1 text-ui-caption text-search-secondary"
+            role="status"
+          >
+            {{ t('search.partialResults') }}
+          </p>
+          <p
+            v-if="hasSearchQuery && !isSearching && !hasResults"
+            class="px-3 py-4 text-ui-caption text-search-secondary"
+          >
+            {{ t('search.noResults') }}
+          </p>
+        </template>
         <template #aiAction>
           <button
             v-if="showAiEntry"
             type="button"
-            class="ml-auto inline-flex min-w-0 items-center gap-1"
+            class="inline-flex h-6 min-w-0 items-center gap-1 font-medium leading-none hover:text-search-heading"
             @mousedown.prevent
             @click="openAiChat"
           >
-            <kbd
-              class="rounded border border-search px-1 py-0.5 font-ui text-[10px]"
-            >
-              Ctrl Enter
-            </kbd>
+            <Sparkles width="13" height="13" class="text-search-accent" />
+            <kbd>Ctrl Enter</kbd>
             <span class="truncate">{{ t('search.askAiShort') }}</span>
           </button>
         </template>
@@ -290,41 +289,37 @@ onUnmounted(() => {
 
 <style lang="scss" scoped>
 .search-window-canvas {
-  @apply bg-transparent p-2;
+  @apply h-full w-full overflow-hidden rounded-ui-lg bg-search;
 }
 
 .main {
-  @apply relative box-border rounded-ui-lg border border-ui bg-search p-3 font-ui shadow-toast;
+  @apply relative box-border flex w-full flex-col overflow-hidden rounded-ui-lg border border-ui bg-search p-2 font-ui;
+}
+
+.main.has-query {
+  @apply pb-0;
 }
 
 .search-command-surface {
-  @apply flex flex-col;
+  @apply flex h-10 shrink-0 flex-col border-b border-search;
 }
 
 .search {
-  @apply flex h-11 items-center gap-1 rounded-ui border border-search bg-[var(--search-input-bg)];
+  @apply flex h-full items-center gap-1;
 }
 
 .input {
   @apply min-w-0 flex-1 text-ui text-search;
 }
 
-.input :deep(.el-input__wrapper) {
-  @apply bg-transparent shadow-none;
-}
-
 .input :deep(.el-input__inner) {
-  font-size: var(--app-ui-font-size);
-  color: var(--search-text-color);
+  @apply text-base font-medium text-search-heading;
 }
 
-.deep-search-toggle,
 .home {
   @apply flex h-8 w-8 shrink-0 items-center justify-center rounded-ui bg-transparent text-search-secondary;
 }
 
-.deep-search-toggle:hover,
-.deep-search-toggle.active,
 .home:hover {
   @apply bg-search-hover text-search;
 }

@@ -1,22 +1,5 @@
 import type { ContentType } from '@/types';
 
-export type SearchRenderRow =
-  | {
-      kind: 'heading';
-      __rowKey: string;
-      labelKey: string;
-      size: number;
-      offset: number;
-    }
-  | {
-      kind: 'result';
-      __rowKey: string;
-      item: ContentType;
-      index: number;
-      size: number;
-      offset: number;
-    };
-
 const groupKey = (item: ContentType): string => {
   if (item.summarize === 'navigation') return 'searchResult.functions';
   if (item.summarize === 'settings') return 'searchResult.settings';
@@ -41,47 +24,18 @@ const order = [
   'searchResult.search'
 ];
 
-export function buildSearchRenderRows(
+/** Keep the best match first and the existing group order without inserting heading rows. */
+export function orderSearchResults(
   items: ContentType[],
-  grouped: boolean,
-  emptyQuery: boolean,
-  itemSize = 52
-): SearchRenderRow[] {
+  grouped: boolean
+): ContentType[] {
+  if (!grouped || items.length === 0) return items;
   const groups = new Map<string, ContentType[]>();
-  if (emptyQuery) groups.set('searchResult.recentActions', items);
-  else if (grouped && items.length) {
-    groups.set('searchResult.bestMatch', [items[0]]);
-    for (const key of order) {
-      const matches = items.slice(1).filter((item) => groupKey(item) === key);
-      if (matches.length) groups.set(key, matches);
-    }
-  } else groups.set('', items);
-  const rows: SearchRenderRow[] = [];
-  let offset = 0;
-  let index = 0;
-  for (const [key, entries] of groups) {
-    if (!entries.length) continue;
-    if (key) {
-      rows.push({
-        kind: 'heading',
-        __rowKey: `heading:${key}`,
-        labelKey: key,
-        size: 28,
-        offset
-      });
-      offset += 28;
-    }
-    for (const item of entries) {
-      rows.push({
-        kind: 'result',
-        __rowKey: `${String(item.metadata?.plugin_id ?? 'core')}:${String(item.id)}`,
-        item,
-        index: index++,
-        size: itemSize,
-        offset
-      });
-      offset += itemSize;
-    }
+  for (const item of items.slice(1)) {
+    const key = groupKey(item);
+    const entries = groups.get(key) ?? [];
+    entries.push(item);
+    groups.set(key, entries);
   }
-  return rows;
+  return [items[0], ...order.flatMap((key) => groups.get(key) ?? [])];
 }

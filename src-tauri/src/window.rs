@@ -920,7 +920,7 @@ fn search_window_spec() -> WindowSpec {
         url: "/",
         title: "搜索",
         width: 700.0,
-        height: 86.0,
+        height: 58.0,
         resizable: false,
         transparent: true,
         shadow: false,

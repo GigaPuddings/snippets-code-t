@@ -1069,10 +1069,10 @@ function formatDateText(value: unknown): string {
 
 <style lang="scss" scoped>
 .preview-panel {
-  @apply bg-search px-2 pt-2 h-full min-h-0 flex flex-col border-l border-search overflow-hidden;
+  @apply bg-search px-2 pt-2 h-full min-h-0 flex flex-col overflow-hidden;
 
   .preview-body {
-    @apply relative flex-1 min-h-0 flex flex-col overflow-hidden;
+    @apply relative flex-1 min-h-0 flex flex-col overflow-y-auto overflow-x-hidden;
   }
 
   .quick-tool-preview {

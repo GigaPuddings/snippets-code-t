@@ -35,16 +35,16 @@ const SEARCH_RESULT_TAB_DEFINITIONS: SearchResultTabDefinition[] = [
     alwaysVisible: true
   },
   {
-    labelKey: 'searchResult.functions',
-    value: 'navigation',
-    matcher: (item) => item.summarize === 'navigation',
-    alwaysVisible: true
+    labelKey: 'searchResult.apps',
+    value: 'app',
+    matcher: (item) => getResultSource(item) === 'app',
+    pluginId: 'local-launcher'
   },
   {
-    labelKey: 'searchResult.settings',
-    value: 'settings',
-    matcher: (item) => item.summarize === 'settings',
-    alwaysVisible: true
+    labelKey: 'searchResult.bookmarks',
+    value: 'bookmark',
+    matcher: (item) => getResultSource(item) === 'bookmark',
+    pluginId: 'local-launcher'
   },
   {
     labelKey: 'searchResult.content',
@@ -58,22 +58,22 @@ const SEARCH_RESULT_TAB_DEFINITIONS: SearchResultTabDefinition[] = [
     alwaysVisible: true
   },
   {
+    labelKey: 'searchResult.functions',
+    value: 'navigation',
+    matcher: (item) => item.summarize === 'navigation',
+    alwaysVisible: true
+  },
+  {
+    labelKey: 'searchResult.settings',
+    value: 'settings',
+    matcher: (item) => item.summarize === 'settings',
+    alwaysVisible: true
+  },
+  {
     labelKey: 'searchResult.conversations',
     value: 'conversation',
     matcher: (item) => item.summarize === 'conversation',
     pluginId: 'local-ai'
-  },
-  {
-    labelKey: 'searchResult.apps',
-    value: 'app',
-    matcher: (item) => getResultSource(item) === 'app',
-    pluginId: 'local-launcher'
-  },
-  {
-    labelKey: 'searchResult.bookmarks',
-    value: 'bookmark',
-    matcher: (item) => getResultSource(item) === 'bookmark',
-    pluginId: 'local-launcher'
   },
   {
     labelKey: 'searchResult.files',
@@ -100,6 +100,13 @@ const SEARCH_RESULT_TAB_DEFINITIONS: SearchResultTabDefinition[] = [
     matcher: (item) => item.type === 'note',
     alwaysVisible: true
   }
+];
+
+const PRIMARY_TAB_VALUES: SearchResultTabValue[] = [
+  'text',
+  'app',
+  'bookmark',
+  'content'
 ];
 
 const getResultPluginId = (item: ContentType): string | undefined =>
@@ -169,9 +176,17 @@ export function useSearchResultTabs(
     tabEntries.value.get(tab)?.length ?? 0;
   const getTabIndex = (tab: SearchResultTabValue) =>
     tabs.value.findIndex((item) => item.value === tab);
+  const primaryTabs = computed(() =>
+    tabs.value.filter((tab) => PRIMARY_TAB_VALUES.includes(tab.value))
+  );
+  const moreTabs = computed(() =>
+    tabs.value.filter((tab) => !PRIMARY_TAB_VALUES.includes(tab.value))
+  );
 
   return {
     tabs,
+    primaryTabs,
+    moreTabs,
     tabEntries,
     getTabResults,
     getTabCount,

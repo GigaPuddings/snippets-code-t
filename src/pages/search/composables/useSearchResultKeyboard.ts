@@ -18,6 +18,7 @@ interface UseSearchResultKeyboardOptions {
   backToSearch: () => void;
   primaryAction: (item: ContentType) => void;
   togglePreview: () => void;
+  changePage?: (direction: 1 | -1) => void;
 }
 
 const preventKey = (event: KeyboardEvent) => {
@@ -41,6 +42,7 @@ export function useSearchResultKeyboard(
     if (!item) return false;
 
     options.selectedId.value = item.id;
+    options.emitSelectionChangeById(item.id);
     void options.runPrimaryAction(item);
     return true;
   };
@@ -155,6 +157,18 @@ export function useSearchResultKeyboard(
     if (event.code === 'Escape') {
       preventKey(event);
       void options.showHideWindow();
+      return;
+    }
+
+    if (
+      options.changePage &&
+      ['PageDown', 'PageUp'].includes(event.code) &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.altKey
+    ) {
+      preventKey(event);
+      options.changePage(event.code === 'PageDown' ? 1 : -1);
       return;
     }
 
