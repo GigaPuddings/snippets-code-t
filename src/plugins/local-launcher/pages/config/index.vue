@@ -116,11 +116,7 @@
         </div>
       </div>
       <section
-        v-if="
-          indexResult &&
-          !indexRunning &&
-          (indexResult.manual || indexResult.status !== 'success')
-        "
+        v-if="indexResult && !indexRunning && indexResult.status !== 'success'"
         class="mt-3 rounded-ui bg-ui-card p-3"
         role="status"
         aria-live="polite"
@@ -136,10 +132,7 @@
                 })
               }}
             </p>
-            <p
-              v-if="indexResult.status !== 'success'"
-              class="mt-1 text-ui-caption text-ui-muted"
-            >
+            <p class="mt-1 text-ui-caption text-ui-muted">
               {{ $t('local.rescanPartialHint') }}
             </p>
             <ul
@@ -162,7 +155,6 @@
             </p>
           </div>
           <CustomButton
-            v-if="indexResult.status !== 'success'"
             class="shrink-0"
             size="small"
             :disabled="indexRunning"
