@@ -2,7 +2,8 @@ import { nextTick, ref, type Ref } from 'vue';
 import {
   jsonToMarkdown,
   MARKDOWN_EDITOR_PARSE_OPTIONS,
-  markdownToHtml
+  markdownToHtml,
+  normalizeEditorHtml
 } from '../utils/markdown';
 
 export interface EditorPersistenceBridgeEditor {
@@ -173,9 +174,10 @@ export function useEditorPersistenceBridge(
     }
 
     try {
-      if (editorInstance.getHTML() !== newContent) {
+      const normalizedContent = normalizeEditorHtml(newContent);
+      if (editorInstance.getHTML() !== normalizedContent) {
         debouncedEmitUpdate.cancel();
-        editorInstance.commands.setContent(newContent, {
+        editorInstance.commands.setContent(normalizedContent, {
           emitUpdate: false,
           parseOptions: MARKDOWN_EDITOR_PARSE_OPTIONS
         });

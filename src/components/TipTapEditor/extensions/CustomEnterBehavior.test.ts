@@ -5,9 +5,11 @@ import StarterKit from '@tiptap/starter-kit';
 import { describe, expect, it, vi } from 'vitest';
 import {
   continueOrderedListAfterTable,
+  continueOrderedListOnMarkerSpace,
   exitBulletListOnMarkerSpace,
   handleCodeBlockExitShortcut,
   insertCodeBlockNewline,
+  insertOrderedListParagraph,
   insertTextBlockBracePairNewline
 } from './CustomEnterBehavior';
 
@@ -69,6 +71,141 @@ function findCodeBlockCursor(
   });
   return cursor;
 }
+
+describe('ordered list paragraphs', () => {
+  const paragraph = (text = '') =>
+    schema.node('paragraph', null, text ? schema.text(text) : undefined);
+  const orderedDoc = (...paragraphs: ReturnType<typeof schema.node>[]) =>
+    schema.node('doc', null, [
+      schema.node('orderedList', { start: 10 }, [
+        schema.node('listItem', null, paragraphs)
+      ])
+    ]);
+
+  it('continues with unnumbered body text and keeps one list item', () => {
+    const doc = orderedDoc(paragraph('问题'));
+    const editor = createListEditor(doc, findCursorAtEnd(doc, '问题'));
+
+    expect(insertOrderedListParagraph(editor)).toBe(true);
+    editor.commands.insertContent({ type: 'text', text: '正文' });
+    const list = editor.state.doc.firstChild!;
+    expect(list.attrs.start).toBe(10);
+    expect(list.childCount).toBe(1);
+    expect(
+      list.firstChild?.content.content.map((node) => node.textContent)
+    ).toEqual(['问题', '正文']);
+    expect(() => editor.state.doc.check()).not.toThrow();
+    editor.destroy();
+  });
+
+  it('splits in the middle of a numbered paragraph without creating a new number', () => {
+    const doc = orderedDoc(paragraph('问题正文'));
+    const editor = createListEditor(doc, findCursorAtEnd(doc, '问题正文') - 2);
+
+    expect(insertOrderedListParagraph(editor)).toBe(true);
+    expect(editor.state.doc.firstChild?.childCount).toBe(1);
+    expect(
+      editor.state.doc.firstChild?.firstChild?.content.content.map(
+        (node) => node.textContent
+      )
+    ).toEqual(['问题', '正文']);
+    editor.destroy();
+  });
+
+  it('leaves the list when Enter is pressed on its empty body paragraph', () => {
+    const doc = orderedDoc(paragraph('问题'), paragraph());
+    const editor = createListEditor(doc, findCursorAtEnd(doc, ''));
+
+    expect(insertOrderedListParagraph(editor)).toBe(true);
+    expect(
+      editor.state.doc.content.content.map((node) => node.type.name)
+    ).toEqual(['orderedList', 'paragraph']);
+    expect(editor.state.doc.firstChild?.firstChild?.childCount).toBe(1);
+    expect(editor.state.selection.$from.depth).toBe(1);
+    expect(() => editor.state.doc.check()).not.toThrow();
+    editor.destroy();
+  });
+
+  it('leaves an empty nested ordered list without creating an outer number', () => {
+    const doc = schema.node('doc', null, [
+      schema.node('orderedList', null, [
+        schema.node('listItem', null, [
+          paragraph('父问题'),
+          schema.node('orderedList', null, [
+            schema.node('listItem', null, [paragraph('子问题'), paragraph()])
+          ])
+        ])
+      ])
+    ]);
+    const editor = createListEditor(doc, findCursorAtEnd(doc, ''));
+
+    expect(insertOrderedListParagraph(editor)).toBe(true);
+    expect(editor.state.doc.firstChild?.childCount).toBe(1);
+    expect(editor.state.selection.$from.node(-1).type.name).toBe('listItem');
+    expect(() => editor.state.doc.check()).not.toThrow();
+    editor.destroy();
+  });
+
+  it('creates the next item only after its marker is entered, preserving later content', () => {
+    const doc = orderedDoc(
+      paragraph('问题'),
+      paragraph('11.'),
+      paragraph('后续正文')
+    );
+    const editor = createListEditor(doc, findCursorAtEnd(doc, '11.'));
+
+    expect(continueOrderedListOnMarkerSpace(editor)).toBe(true);
+    const list = editor.state.doc.firstChild!;
+    expect(list.childCount).toBe(2);
+    expect(list.child(0).textContent).toBe('问题');
+    expect(list.child(1).child(0).textContent).toBe('');
+    expect(list.child(1).child(1).textContent).toBe('后续正文');
+    expect(editor.state.selection.$from.parent.textContent).toBe('');
+    expect(() => editor.state.doc.check()).not.toThrow();
+    editor.destroy();
+  });
+
+  it('does not consume an unrelated marker or a marker in the numbered title', () => {
+    for (const paragraphs of [
+      [paragraph('11.')],
+      [paragraph('问题'), paragraph('12.')]
+    ]) {
+      const doc = orderedDoc(...paragraphs);
+      const editor = createListEditor(
+        doc,
+        findCursorAtEnd(doc, paragraphs.at(-1)!.textContent)
+      );
+      const original = editor.getJSON();
+
+      expect(continueOrderedListOnMarkerSpace(editor)).toBe(false);
+      expect(editor.getJSON()).toEqual(original);
+      editor.destroy();
+    }
+  });
+
+  it('keeps nested bullet lists and table paragraphs on their existing Enter behavior', () => {
+    for (const block of [
+      schema.node('bulletList', null, [
+        schema.node('listItem', null, [paragraph('内容')])
+      ]),
+      schema.node('table', null, [
+        schema.node('tableRow', null, [
+          schema.node('tableCell', null, [paragraph('内容')])
+        ])
+      ])
+    ]) {
+      const doc = orderedDoc(paragraph('问题'), block);
+      // Tables need the test schema; this guard does not depend on editor commands.
+      const state = EditorState.create({
+        schema,
+        doc,
+        selection: TextSelection.create(doc, findCursorAtEnd(doc, '内容'))
+      });
+      const editor = { state } as Editor;
+      expect(insertOrderedListParagraph(editor)).toBe(false);
+    }
+  });
+});
 
 describe('exitBulletListOnMarkerSpace', () => {
   it('removes a standalone marker and lifts the current bullet-list item', () => {

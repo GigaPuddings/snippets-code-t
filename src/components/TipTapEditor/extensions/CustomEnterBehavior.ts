@@ -4,6 +4,7 @@
  */
 import { Extension } from '@tiptap/core';
 import { TextSelection } from '@tiptap/pm/state';
+import { liftTarget } from '@tiptap/pm/transform';
 import { Fragment } from '@tiptap/pm/model';
 import type { ResolvedPos } from '@tiptap/pm/model';
 import type { Editor } from '@tiptap/core';
@@ -68,6 +69,76 @@ function findOrderedListItemDepth($pos: ResolvedPos): number {
     }
   }
   return -1;
+}
+
+/** 有序条目内 Enter 新建正文段落，空段落再按 Enter 退出当前列表层级。 */
+export function insertOrderedListParagraph(editor: Editor): boolean {
+  const { selection } = editor.state;
+  const { $from, $to } = selection;
+  const itemDepth = findAncestorDepth($from, 'listItem');
+  if (
+    $from.parent.type.name !== 'paragraph' ||
+    !$from.sameParent($to) ||
+    itemDepth < 1 ||
+    $from.depth !== itemDepth + 1 ||
+    $from.node(itemDepth - 1).type.name !== 'orderedList'
+  ) {
+    return false;
+  }
+
+  if ($from.parent.content.size > 0) {
+    return editor.commands.splitBlock({ keepMarks: false });
+  }
+
+  const range = $from.blockRange($to);
+  const target = range && liftTarget(range);
+  if (!range || target == null) return false;
+  return editor.commands.command(({ tr }) => {
+    tr.lift(range, target).scrollIntoView();
+    return true;
+  });
+}
+
+/** 只有主动输入下一编号及空格，才把条目正文转换为下一条目。 */
+export function continueOrderedListOnMarkerSpace(editor: Editor): boolean {
+  const { state } = editor;
+  const { selection } = state;
+  const { $from } = selection;
+  const itemDepth = findAncestorDepth($from, 'listItem');
+  if (
+    !selection.empty ||
+    $from.parent.type.name !== 'paragraph' ||
+    $from.parentOffset !== $from.parent.content.size ||
+    itemDepth < 1 ||
+    $from.depth !== itemDepth + 1 ||
+    $from.index(itemDepth) === 0 ||
+    $from.node(itemDepth - 1).type.name !== 'orderedList'
+  ) {
+    return false;
+  }
+
+  const list = $from.node(itemDepth - 1);
+  const nextNumber = Number(list.attrs.start) + $from.index(itemDepth - 1) + 1;
+  if ($from.parent.textContent !== `${nextNumber}.`) return false;
+
+  const item = $from.node(itemDepth);
+  const paragraphOffset = $from.before() - $from.start(itemDepth);
+  const previousItem = item.copy(item.content.cut(0, paragraphOffset));
+  const nextItem = item.copy(
+    Fragment.from($from.parent.type.create($from.parent.attrs)).append(
+      item.content.cut(paragraphOffset + $from.parent.nodeSize)
+    )
+  );
+  const itemPos = $from.before(itemDepth);
+  return editor.commands.command(({ tr }) => {
+    tr.replaceWith(itemPos, itemPos + item.nodeSize, [previousItem, nextItem]);
+    tr.setSelection(
+      TextSelection.create(tr.doc, itemPos + previousItem.nodeSize + 2)
+    );
+    tr.setStoredMarks([]);
+    tr.scrollIntoView();
+    return true;
+  });
 }
 
 /**
@@ -697,6 +768,9 @@ export const CustomEnterBehavior = Extension.create({
         if (continueOrderedListAfterTable(this.editor)) {
           return true;
         }
+        if (insertOrderedListParagraph(this.editor)) {
+          return true;
+        }
         return false;
       },
       'Shift-Enter': () => {
@@ -708,7 +782,10 @@ export const CustomEnterBehavior = Extension.create({
       },
 
       Space: () => {
-        return exitBulletListOnMarkerSpace(this.editor);
+        return (
+          continueOrderedListOnMarkerSpace(this.editor) ||
+          exitBulletListOnMarkerSpace(this.editor)
+        );
       },
 
       'Mod-Enter': () => {

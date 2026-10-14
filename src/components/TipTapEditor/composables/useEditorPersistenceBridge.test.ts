@@ -170,6 +170,22 @@ describe('useEditorPersistenceBridge', () => {
     expect(setTextSelection).not.toHaveBeenCalled();
   });
 
+  it('fills empty list items before syncing incoming HTML with full whitespace parsing', () => {
+    const bridge = createBridge();
+    const { editor, setContent } = createEditor();
+
+    bridge.syncIncomingContent('<ol><li>问题</li><li></li></ol>', editor);
+
+    expect(setContent).toHaveBeenCalledWith(
+      '<ol><li>问题</li><li><p></p></li></ol>',
+      {
+        emitUpdate: false,
+        parseOptions: { preserveWhitespace: 'full' }
+      }
+    );
+    expect(bridge.handleError).not.toHaveBeenCalled();
+  });
+
   it('skips external sync while an internal update is in progress', () => {
     const bridge = createBridge();
     const { editor, setContent } = createEditor();

@@ -63,10 +63,16 @@ function transformOutsideFencedCode(
  * preserveWhitespace: 'full' 解析时，这些换行会变成额外的空段落；旧版标记里的
  * <br> 还会再变成一个 hardBreak。这里同时兼容新旧标记，并输出唯一的空 <p>。
  */
-function normalizeEditorEmptyParagraphHtml(html: string): string {
-  return html.replace(
-    /(?:\r?\n)*<p>[ \t]*(?:<br\s*\/?>[ \t]*)?<\/p>(?:\r?\n)*/gi,
-    '<p></p>'
+export function normalizeEditorHtml(html: string): string {
+  return (
+    html
+      .replace(
+        /(?:\r?\n)*<p>[ \t]*(?:<br\s*\/?>[ \t]*)?<\/p>(?:\r?\n)*/gi,
+        '<p></p>'
+      )
+      // preserveWhitespace: 'full' 走 TipTap 的 parseSlice 分支，空 li 不会自动
+      // 补齐 schema 必需的首段落，随后 setContent 会抛出 Invalid content。
+      .replace(/(<li(?:\s[^>]*)?>)\s*<\/li>/gi, '$1<p></p></li>')
   );
 }
 
@@ -291,11 +297,19 @@ function protectIndentedParagraphBlocks(markdown: string): string {
 }
 
 function normalizeMarkdownBeforeParse(markdown: string): string {
-  return transformOutsideFencedCode(markdown, (text) =>
+  // 列表续行的缩进属于 Markdown 结构。先由 lexer 识别完整列表（包括嵌套
+  // 列表和代码块），避免把其四空格续行误当作普通段落缩进进行转义。
+  const indentedMarkdown = marked
+    .lexer(markdown, { gfm: true })
+    .map((token) =>
+      token.type === 'list'
+        ? token.raw
+        : transformOutsideFencedCode(token.raw, protectIndentedParagraphBlocks)
+    )
+    .join('');
+  return transformOutsideFencedCode(indentedMarkdown, (text) =>
     fixPunctuationBeforeStrong(
-      normalizeLooseInlineMarkdown(
-        protectIndentedParagraphBlocks(expandSourceEmptyParagraphs(text))
-      )
+      normalizeLooseInlineMarkdown(expandSourceEmptyParagraphs(text))
     )
   );
 }
@@ -358,76 +372,6 @@ marked.setOptions({
   breaks: true,
   gfm: true // GitHub Flavored Markdown，支持任务列表
 });
-
-// 添加任务列表扩展到 marked
-const taskListExtension = {
-  name: 'taskList',
-  level: 'block' as const,
-  start(src: string) {
-    const match = src.match(/^ {0,3}[-*+]\s+\[[ xX]\]\s+/);
-    return match ? match.index : undefined;
-  },
-  tokenizer(src: string) {
-    // 匹配连续的 GFM 任务列表项：- [ ]、* [x]、+ [X]
-    const rule = /^((?: {0,3}[-*+]\s+\[[ xX]\]\s+[^\n]*(?:\n|$))+)/;
-    const match = rule.exec(src);
-
-    if (match) {
-      const items: Array<{ checked: boolean; text: string }> = [];
-      const raw = match[0];
-
-      for (const line of raw.split('\n')) {
-        const itemMatch = /^ {0,3}[-*+]\s+\[([ xX])\]\s+(.*)$/.exec(line);
-        if (itemMatch) {
-          const text = itemMatch[2].trim();
-          items.push({
-            checked: itemMatch[1].toLowerCase() === 'x',
-            text: text
-          });
-        }
-      }
-
-      if (items.length > 0) {
-        return {
-          type: 'taskList',
-          raw: raw,
-          items: items
-        };
-      }
-    }
-
-    return undefined;
-  },
-  renderer(token: any) {
-    // 生成 TipTap 兼容的 HTML 结构
-    let html = '<ul data-type="taskList">\n';
-    token.items.forEach((item: { checked: boolean; text: string }) => {
-      const checked = item.checked
-        ? ' data-checked="true"'
-        : ' data-checked="false"';
-      const checkedAttr = item.checked ? ' checked' : '';
-
-      // 将文本解析为 HTML（处理行内代码、加粗等）
-      const parsedParagraph = marked.parse(item.text) as string;
-
-      // 提取 <p> 标签内的内容
-      let innerContent = parsedParagraph;
-      const pMatch = parsedParagraph.match(/<p>(.*?)<\/p>/s);
-      if (pMatch) {
-        innerContent = pMatch[1];
-      } else {
-        innerContent = parsedParagraph.replace(/\n/g, '').trim();
-      }
-
-      // 使用 TipTap TaskItem 期望的结构：
-      // <li><label><input></label><div><p>内容</p></div></li>
-      html += `<li data-type="taskItem"${checked}><label><input type="checkbox"${checkedAttr}></label><div><p>${innerContent}</p></div></li>\n`;
-    });
-    html += '</ul>\n';
-
-    return html;
-  }
-};
 
 // 添加 Wikilink 扩展到 marked
 const wikilinkExtension = {
@@ -611,15 +555,40 @@ const imageWithAttributesExtension = {
 
 // 注册扩展。TipTap 不支持 Markdown 中直接嵌入的表单控件；把这些 raw HTML
 // 输出成可见文本，避免 textarea 等元素破坏随后生成的文档结构。任务列表的
-// checkbox 由 taskListExtension 直接生成，不会经过此 renderer。
+// checkbox 在 list renderer 中直接生成，不会经过 html renderer。
 marked.use({
   extensions: [
-    taskListExtension,
     wikilinkExtension,
     markdownLinkExtension,
     imageWithAttributesExtension
   ],
   renderer: {
+    list(token) {
+      if (token.ordered || !token.items.some((item) => item.task)) return false;
+
+      // 复用 marked 的完整列表解析，保留任务正文、子列表和代码块。按条目类型
+      // 分组，避免把普通条目放进只允许 taskItem 的 TipTap taskList schema。
+      let html = '';
+      let previousTask: boolean | undefined;
+      for (const item of token.items) {
+        if (item.task !== previousTask) {
+          if (previousTask !== undefined) html += '</ul>\n';
+          html += item.task ? '<ul data-type="taskList">\n' : '<ul>\n';
+          previousTask = item.task;
+        }
+        if (!item.task) {
+          html += this.listitem(item);
+          continue;
+        }
+        const checked = item.checked ? 'true' : 'false';
+        const checkedAttr = item.checked ? ' checked' : '';
+        const content = this.parser.parse(
+          item.tokens.filter((child) => child.type !== 'checkbox')
+        );
+        html += `<li data-type="taskItem" data-checked="${checked}"><label><input type="checkbox"${checkedAttr}></label><div>${content || '<p></p>'}</div></li>\n`;
+      }
+      return html + '</ul>\n';
+    },
     html(token) {
       return UNSUPPORTED_EDITOR_HTML_TAG_RE.test(token.text)
         ? escapeHtml(token.text)
@@ -905,9 +874,7 @@ export function markdownToHtml(
   // 移除预处理阶段插入的零宽空格（marked 解析完成后不再需要），
   // 否则会干扰 renderUnparsedLabelStrong 中的正则匹配。随后将持久化用的
   // 空段落标记规范化为 TipTap 需要的唯一空段落节点。
-  const cleanedHtml = normalizeEditorEmptyParagraphHtml(
-    parsedHtml.replace(/\u200B/g, '')
-  );
+  const cleanedHtml = normalizeEditorHtml(parsedHtml.replace(/\u200B/g, ''));
   const html = sanitizeHtml(renderUnparsedLabelStrong(cleanedHtml));
 
   let processedHtml = html;
@@ -1212,7 +1179,8 @@ export function jsonToMarkdown(json: any): string {
       const content = node.content
         ? node.content.map(processNode).join('').trim()
         : '';
-      return prefix + content + '\n';
+      // GFM 的 checkbox 属于条目正文，续行缩进只按 `- ` 的两字符计算。
+      return prefix + content.replace(/\n/g, '\n  ') + '\n';
     }
 
     // 处理无序列表
@@ -1252,7 +1220,7 @@ export function jsonToMarkdown(json: any): string {
       const content = node.content
         ? node.content.map(processNode).join('').trim()
         : '';
-      return '- ' + content + '\n';
+      return '- ' + content.replace(/\n/g, '\n  ') + '\n';
     }
 
     // 处理代码块

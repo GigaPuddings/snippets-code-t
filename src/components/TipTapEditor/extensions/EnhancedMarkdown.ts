@@ -252,8 +252,11 @@ export const EnhancedMarkdown = Extension.create({
       // ==================== 有序列表规则 ====================
       wrappingInputRule({
         // 必须输入到空格才触发
-        find: /^\d+\.\s$/,
-        type: this.editor.schema.nodes.orderedList
+        find: /^(\d+)\.\s$/,
+        type: this.editor.schema.nodes.orderedList,
+        getAttributes: (match) => ({ start: Number(match[1]) }),
+        joinPredicate: (match, node) =>
+          Number(node.attrs.start) + node.childCount === Number(match[1])
       }),
 
       // ==================== 水平线规则 ====================

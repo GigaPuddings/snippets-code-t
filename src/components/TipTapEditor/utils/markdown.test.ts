@@ -10,6 +10,45 @@ import {
 } from './markdown';
 
 describe('jsonToMarkdown', () => {
+  it('keeps child lists nested when a bullet list is saved and reopened', () => {
+    const markdown = jsonToMarkdown({
+      type: 'doc',
+      content: [
+        {
+          type: 'bulletList',
+          content: [
+            {
+              type: 'listItem',
+              content: [
+                {
+                  type: 'paragraph',
+                  content: [{ type: 'text', text: '父条目' }]
+                },
+                {
+                  type: 'bulletList',
+                  content: [
+                    {
+                      type: 'listItem',
+                      content: [
+                        {
+                          type: 'paragraph',
+                          content: [{ type: 'text', text: '子条目' }]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    });
+
+    expect(markdown).toMatch(/- 父条目\n *\n {2}- 子条目/);
+    expect(markdownToHtml(markdown).match(/<ul>/g)).toHaveLength(2);
+  });
+
   it('keeps the editor default empty document empty', () => {
     expect(
       jsonToMarkdown({
@@ -579,6 +618,77 @@ describe('jsonToMarkdown', () => {
 });
 
 describe('markdownToHtml', () => {
+  it.each([
+    '1. 问题\n2.\n',
+    '<ol start="3"><li></li></ol>',
+    '<ul><li> </li></ul>'
+  ])('creates a valid paragraph inside an empty %s list item', (markdown) => {
+    expect(markdownToHtml(markdown)).toContain('<li><p></p></li>');
+  });
+
+  it('preserves a nested list after a blank line and a multi-digit marker', () => {
+    const html = markdownToHtml('10. 父条目\n\n    - 子条目');
+    expect(html).toContain('<ol start="10">');
+    expect(html).toContain('<ul>');
+    expect(html).toMatch(/<li>[\s\S]*父条目[\s\S]*<ul>[\s\S]*子条目/);
+    expect(html).not.toContain('&#32;');
+  });
+
+  it('preserves task paragraphs and child lists while keeping ordinary siblings unchecked', () => {
+    const html = markdownToHtml(
+      '- [x] 父任务\n\n  任务正文\n\n  - 子条目\n\n    - 孙条目\n\n- 普通条目'
+    );
+
+    expect(html).toContain('data-type="taskList"');
+    expect(html).toContain('data-checked="true"');
+    expect(html).toContain('<p>任务正文</p>');
+    expect(html.match(/<ul>/g)).toHaveLength(3);
+    expect(html).not.toContain('<pre>');
+    expect(html).not.toContain('data-checked="false"');
+  });
+
+  it('keeps a task child list nested when saved as Markdown', () => {
+    const markdown = jsonToMarkdown({
+      type: 'doc',
+      content: [
+        {
+          type: 'taskList',
+          content: [
+            {
+              type: 'taskItem',
+              attrs: { checked: true },
+              content: [
+                {
+                  type: 'paragraph',
+                  content: [{ type: 'text', text: '父任务' }]
+                },
+                {
+                  type: 'bulletList',
+                  content: [
+                    {
+                      type: 'listItem',
+                      content: [
+                        {
+                          type: 'paragraph',
+                          content: [{ type: 'text', text: '子条目' }]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    });
+    const html = markdownToHtml(markdown);
+    expect(html).toMatch(
+      /data-type="taskItem"[\s\S]*父任务[\s\S]*<ul>[\s\S]*子条目/
+    );
+    expect(html).not.toContain('<pre>');
+  });
+
   it('keeps ordinary soft and paragraph line breaks', () => {
     const html = markdownToHtml('第一行\n第二行\n\n第三段');
 
