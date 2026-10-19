@@ -245,7 +245,6 @@ function handleItemClick(item: ContentType): void {
   setMode('LIST');
   store.id = item.id;
   emitSelectionChangeById(item.id);
-  void runPrimaryAction(item);
 }
 
 const getIconState = getSearchResultIcon;
