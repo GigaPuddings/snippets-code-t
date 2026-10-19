@@ -76,13 +76,31 @@ export async function setupBaseEventListeners(): Promise<BaseEventListeners> {
     launcherIndexFinished: null
   };
 
-  // 监听语言变更事件
+  const applyLanguage = (language: unknown): void => {
+    if (language !== 'zh-CN' && language !== 'en-US') return;
+    useConfigurationStore().language = language;
+    setLocale(language);
+  };
+  let languageChanged = false;
+  // 先监听再读取，避免窗口启动期间漏掉托盘的切换事件。
   listeners.languageChange = await listen<{ language: LocaleType }>(
     'language-changed',
     (event) => {
-      setLocale(event.payload.language);
+      if (
+        event.payload?.language !== 'zh-CN' &&
+        event.payload?.language !== 'en-US'
+      )
+        return;
+      languageChanged = true;
+      applyLanguage(event.payload.language);
     }
   );
+  try {
+    const language = await invoke<string>('get_language');
+    if (!languageChanged) applyLanguage(language);
+  } catch (error) {
+    logger.error('[AppInit] 读取界面语言失败', error);
+  }
 
   listeners.portableConfigImported = await listen(
     'portable-config-imported',
@@ -100,7 +118,7 @@ export async function setupBaseEventListeners(): Promise<BaseEventListeners> {
         await store.initialize();
 
         if (config.language === 'zh-CN' || config.language === 'en-US') {
-          setLocale(config.language);
+          applyLanguage(config.language);
         }
         if (
           config.theme === 'light' ||

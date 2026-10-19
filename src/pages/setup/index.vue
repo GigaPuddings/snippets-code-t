@@ -396,7 +396,7 @@ import { CustomButton } from '@/components/UI';
 import Info from '~icons/lucide/info';
 import CheckOne from '~icons/lucide/circle-check';
 import { useConfigurationStore } from '@/store';
-import { setLocale, type LocaleType } from '@/i18n';
+import { getLocale, setLocale, type LocaleType } from '@/i18n';
 import modal from '@/utils/modal';
 
 defineOptions({
@@ -411,17 +411,23 @@ const languages = [
   { value: 'en-US' as LocaleType, label: 'English', flag: '🇺🇸' }
 ];
 
-const language = ref<LocaleType>(store.language || 'zh-CN');
+const language = computed({
+  get: () => store.language,
+  set: (value: LocaleType) => {
+    store.language = value;
+  }
+});
 const version = ref('');
 
 // 语言切换处理
 const onLanguageChange = async (value: LocaleType) => {
-  setLocale(value);
-  // 同步语言设置到后端（为托盘菜单准备）
+  const previousLanguage = getLocale();
   try {
     await invoke('set_language', { language: value });
+    setLocale(value);
   } catch (error) {
-    console.error('Failed to sync language to backend:', error);
+    store.language = previousLanguage;
+    modal.msg(`${t('settings.settingFailed')}: ${error}`, 'error');
   }
 };
 

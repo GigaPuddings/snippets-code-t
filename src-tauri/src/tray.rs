@@ -83,6 +83,7 @@ struct TrayTranslations {
     local_sources: &'static str,
     desktop_files: &'static str,
     ai_responding: &'static str,
+    language_menu: &'static str,
     quit: &'static str,
 }
 
@@ -219,6 +220,7 @@ fn get_translations(lang: &str) -> TrayTranslations {
             local_sources: "Local sources",
             desktop_files: "Desktop files",
             ai_responding: "AI is responding — open chat",
+            language_menu: "Language",
             quit: "Quit",
         },
         _ => TrayTranslations {
@@ -258,6 +260,7 @@ fn get_translations(lang: &str) -> TrayTranslations {
             local_sources: "本机来源",
             desktop_files: "桌面文件",
             ai_responding: "AI 正在回复 — 打开对话",
+            language_menu: "界面语言",
             quit: "退出程序",
         },
     }
@@ -471,6 +474,27 @@ fn create_wallpaper_submenu(app: &AppHandle, lang: &str) -> tauri::Result<Submen
     )
 }
 
+fn create_language_submenu(app: &AppHandle, lang: &str) -> tauri::Result<Submenu<tauri::Wry>> {
+    let trans = get_translations(lang);
+    let chinese = CheckMenuItem::with_id(
+        app,
+        "language_zh-CN",
+        "简体中文",
+        true,
+        lang != "en-US",
+        None::<&str>,
+    )?;
+    let english = CheckMenuItem::with_id(
+        app,
+        "language_en-US",
+        "English",
+        true,
+        lang == "en-US",
+        None::<&str>,
+    )?;
+    Submenu::with_items(app, trans.language_menu, true, &[&chinese, &english])
+}
+
 fn build_tray_menu(app: &AppHandle, lang: &str) -> tauri::Result<Menu<tauri::Wry>> {
     let trans = get_translations(lang);
     let system_theme_enabled = app_config::is_plugin_enabled(app, "system-theme");
@@ -576,6 +600,7 @@ fn build_tray_menu(app: &AppHandle, lang: &str) -> tauri::Result<Menu<tauri::Wry
         None
     };
     let separator1 = PredefinedMenuItem::separator(app)?;
+    let language_submenu = create_language_submenu(app, lang)?;
     let check_update_i =
         MenuItem::with_id(app, "check_update", trans.check_update, true, None::<&str>)?;
     let view_log_i = MenuItem::with_id(app, "view_log", trans.view_log, true, None::<&str>)?;
@@ -603,6 +628,7 @@ fn build_tray_menu(app: &AppHandle, lang: &str) -> tauri::Result<Menu<tauri::Wry
         items.push(item);
     }
     items.push(&separator1);
+    items.push(&language_submenu);
     items.push(&check_update_i);
     items.push(&view_log_i);
     items.push(&quit_i);
@@ -826,6 +852,15 @@ fn create_or_update_tray(app: &AppHandle, menu: Menu<tauri::Wry>) -> tauri::Resu
         .show_menu_on_left_click(false)
         .on_menu_event(move |app, event| {
             let menu_id = event.id.as_ref();
+
+            if let Some(language) = menu_id.strip_prefix("language_") {
+                if let Err(error) = crate::config::set_language(app.clone(), language.to_string()) {
+                    log::error!("[托盘菜单] 切换语言失败: {}", error);
+                    // CheckMenuItem 会自动翻转，保存失败时恢复实际语言的勾选。
+                    update_tray_language(app);
+                }
+                return;
+            }
 
             if menu_id.starts_with("theme_") {
                 handle_theme_menu_click(app, menu_id);
@@ -1100,18 +1135,26 @@ pub fn set_ai_response_status(app_handle: &AppHandle, responding: bool) {
 // 更新托盘菜单语言
 pub fn update_tray_language(app_handle: &AppHandle) {
     let is_first_run = !crate::db::is_setup_completed_internal(app_handle);
-    if is_first_run {
-        let _ = recreate_minimal_tray_menu(app_handle);
+    let result = if is_first_run {
+        recreate_minimal_tray_menu(app_handle)
     } else {
-        let _ = recreate_tray_menu(app_handle);
+        recreate_tray_menu(app_handle)
+    };
+    if let Err(error) = result {
+        log::error!("[TrayMenu] 更新托盘菜单语言失败: {}", error);
     }
 }
 
-fn recreate_minimal_tray_menu(app: &AppHandle) -> tauri::Result<()> {
+fn build_minimal_tray_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     let lang = get_language_internal(app);
     let trans = get_translations(&lang);
+    let language_submenu = create_language_submenu(app, &lang)?;
     let quit_i = MenuItem::with_id(app, "quit", trans.quit, true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&quit_i])?;
+    Menu::with_items(app, &[&language_submenu, &quit_i])
+}
+
+fn recreate_minimal_tray_menu(app: &AppHandle) -> tauri::Result<()> {
+    let menu = build_minimal_tray_menu(app)?;
     if let Some(tray) = app.tray_by_id("tray") {
         tray.set_menu(Some(menu))?;
     }
@@ -1120,10 +1163,7 @@ fn recreate_minimal_tray_menu(app: &AppHandle) -> tauri::Result<()> {
 
 // 创建最小化托盘（首次运行时使用）
 pub fn create_minimal_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
-    let lang = get_language_internal(app);
-    let trans = get_translations(&lang);
-    let quit_i = MenuItem::with_id(app, "quit", trans.quit, true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&quit_i])?;
+    let menu = build_minimal_tray_menu(app)?;
     create_or_update_tray(app, menu)
 }
 

@@ -187,9 +187,8 @@ import { useI18n } from 'vue-i18n';
 import { useConfigurationStore, useThemeStore } from '@/store';
 import { broadcastThemeChanged } from '@/utils/theme-sync';
 import { invoke } from '@tauri-apps/api/core';
-import { emit } from '@tauri-apps/api/event';
 import { CustomButton, CustomSwitch, ConfirmDialog } from '@/components/UI';
-import { setLocale, type LocaleType } from '@/i18n';
+import { getLocale, setLocale, type LocaleType } from '@/i18n';
 import { updateThemeConfig } from '@/api/appConfig';
 import modal from '@/utils/modal';
 
@@ -248,19 +247,16 @@ const changeTheme = async (value: 'light' | 'dark' | 'auto'): Promise<void> => {
 };
 
 const changeLanguage = async (value: LocaleType): Promise<void> => {
-  store.language = value;
-  setLocale(value);
-
-  // 广播语言变更事件到所有窗口
-  await emit('language-changed', { language: value });
-
-  // 同步语言设置到后端（更新托盘菜单）
+  const previousLanguage = getLocale();
   try {
     await invoke('set_language', { language: value });
+    store.language = value;
+    setLocale(value);
+    modal.msg(t('settings.languageChanged'));
   } catch (error) {
-    console.error('Failed to sync language to backend:', error);
+    store.language = previousLanguage;
+    modal.msg(`${t('settings.settingFailed')}: ${error}`, 'error');
   }
-  modal.msg(t('settings.languageChanged'));
 };
 
 const watchAutoStart = async (): Promise<void> => {

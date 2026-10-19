@@ -2,6 +2,7 @@ use crate::db;
 use crate::json_config;
 use log::{info, LevelFilter};
 use std::sync::atomic::{AtomicBool, Ordering};
+use tauri::Emitter;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers};
 
 // 注：所有配置存储在 JSON 文件系统：
@@ -353,10 +354,20 @@ pub fn exit_application(app_handle: tauri::AppHandle) {
 // 设置界面语言（使用 app.json 存储）
 #[tauri::command]
 pub fn set_language(app_handle: tauri::AppHandle, language: String) -> Result<(), String> {
-    info!("🌐 设置语言: {} (保存到 app.json)", language);
-    json_config::set_app_config_value(&app_handle, "language", language)?;
+    if !matches!(language.as_str(), "zh-CN" | "en-US") {
+        return Err(format!("Unsupported interface language: {}", language));
+    }
+    info!("设置语言: {} (保存到 app.json)", language);
+    json_config::set_app_config_value(&app_handle, "language", &language)?;
     // 更新托盘菜单语言
     crate::tray::update_tray_language(&app_handle);
+    // 托盘与设置页共用保存入口，持久化成功后再通知所有窗口。
+    if let Err(error) = app_handle.emit(
+        "language-changed",
+        serde_json::json!({ "language": language }),
+    ) {
+        log::warn!("广播语言变更失败: {}", error);
+    }
     crate::sync_data::materialize_local_config_change_best_effort(&app_handle, "语言设置");
     Ok(())
 }
