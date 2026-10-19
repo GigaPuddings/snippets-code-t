@@ -1,11 +1,14 @@
 <template>
   <main class="content-list-container">
     <Teleport
-      v-if="sidebarMode !== 'folders' && sidebarTarget"
+      v-if="
+        sidebarMode !== 'folders' &&
+        sidebarTarget &&
+        route.query.view !== 'trash'
+      "
       :to="sidebarTarget"
     >
-      <DeletedNotesView v-if="route.query.view === 'trash'" />
-      <div v-else class="left-panel__content">
+      <div class="left-panel__content">
         <ContentListView
           :contents="contents"
           @delete="handleDelete"
@@ -17,13 +20,11 @@
     </Teleport>
 
     <div class="right-panel">
-      <router-view v-if="route.query.view !== 'trash' || route.params.id" />
-      <div
-        v-else
-        class="flex h-full items-center justify-center text-sm text-content"
-      >
-        {{ t('nav.recentlyDeleted') }}
-      </div>
+      <DeletedNotesView
+        v-if="route.query.view === 'trash'"
+        :sidebar-target="sidebarTarget"
+      />
+      <router-view v-else />
     </div>
 
     <!-- Delete Confirmation Dialog -->

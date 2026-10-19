@@ -12,6 +12,7 @@ export default {
     success: 'Success',
     failed: 'Failed',
     loading: 'Loading...',
+    retry: 'Retry',
     preparing: 'Preparing...',
     save: 'Save',
     delete: 'Delete',
@@ -896,6 +897,20 @@ export default {
     restoreConflict: 'A file already exists at the original location',
     deletedEmpty: 'No recently deleted items',
     loadingTrash: 'Loading recently deleted items…',
+    restoreNamed: 'Restore “{name}”',
+    trashRetention: 'Items are kept for 30 days, then permanently deleted.',
+    trashCount: '{count} item | {count} items',
+    trashDaysRemaining:
+      'Permanently deleted in {days} day | Permanently deleted in {days} days',
+    trashExpired: 'Retention ended, awaiting cleanup',
+    trashUnknownExpiration: 'Retention deadline not set',
+    trashExpiresAt: 'Permanently deleted on {date}',
+    trashDeletedAt: 'Deleted {date}',
+    trashUnknownDate: 'Unknown date',
+    trashOriginalPath: 'Original location: {path}',
+    trashPreview: 'Deleted content preview',
+    trashReadOnly: 'Read-only preview',
+    trashLoadingPreview: 'Loading preview…',
     noFolders: 'No folders'
   },
 
