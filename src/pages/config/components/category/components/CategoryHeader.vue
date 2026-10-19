@@ -4,62 +4,47 @@
       {{ viewLabel || $t('category.folders') }}
     </div>
     <div class="category-header-action">
-      <el-tooltip
+      <button
         v-if="viewLabel"
-        effect="light"
-        :content="$t('category.backToFolders')"
-        placement="bottom"
+        type="button"
+        class="ui-icon-button ui-icon-button--small"
+        :title="$t('category.backToFolders')"
+        :aria-label="$t('category.backToFolders')"
+        @click="$emit('back')"
       >
+        <ArrowLeft width="16" height="16" />
+      </button>
+      <template v-else>
         <button
           type="button"
           class="ui-icon-button ui-icon-button--small"
-          :aria-label="$t('category.backToFolders')"
-          @click="$emit('back')"
+          :title="$t('category.newFolder')"
+          :aria-label="$t('category.newFolder')"
+          @click="handleAdd"
         >
-          <ArrowLeft width="16" height="16" />
+          <Add width="16" height="16" />
         </button>
-      </el-tooltip>
-      <template v-else>
-        <el-tooltip
-          effect="light"
-          :content="$t('category.newFolder')"
-          placement="bottom"
-        >
-          <button
-            type="button"
-            class="ui-icon-button ui-icon-button--small"
-            :aria-label="$t('category.newFolder')"
-            @click="handleAdd"
-          >
-            <Add width="16" height="16" />
-          </button>
-        </el-tooltip>
-        <el-tooltip
-          effect="light"
-          :content="
+        <button
+          type="button"
+          class="ui-icon-button ui-icon-button--small"
+          :title="
             sortOrder === 'asc'
               ? $t('category.ascending')
               : $t('category.descending')
           "
-          placement="bottom"
+          :aria-label="
+            sortOrder === 'asc'
+              ? $t('category.ascending')
+              : $t('category.descending')
+          "
+          @click="handleSort"
         >
-          <button
-            type="button"
-            class="ui-icon-button ui-icon-button--small"
-            :aria-label="
-              sortOrder === 'asc'
-                ? $t('category.ascending')
-                : $t('category.descending')
-            "
-            @click="handleSort"
-          >
-            <component
-              :is="sortOrder === 'asc' ? SortAmountUp : SortAmountDown"
-              width="16"
-              height="16"
-            />
-          </button>
-        </el-tooltip>
+          <component
+            :is="sortOrder === 'asc' ? SortAmountUp : SortAmountDown"
+            width="16"
+            height="16"
+          />
+        </button>
       </template>
     </div>
   </div>

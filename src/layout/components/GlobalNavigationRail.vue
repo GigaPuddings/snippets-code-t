@@ -5,8 +5,13 @@
   >
     <router-link
       to="/config/workbench"
-      class="mb-3 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+      class="ui-icon-button mb-3 h-9 w-9 rounded-ui-lg"
+      :class="{
+        'bg-[var(--workspace-rail-selected)]': isActive('/config/workbench')
+      }"
+      :title="t('nav.workbench')"
       :aria-label="t('nav.workbench')"
+      :aria-current="isActive('/config/workbench') ? 'page' : undefined"
     >
       <img src="@/assets/128x128.png" alt="" class="h-6 w-6" />
     </router-link>
@@ -130,7 +135,9 @@ const { hasUpdate } = useUpdateAvailability();
 const pluginStore = usePluginStore();
 const visibleTabs = computed(() =>
   configNavigationTabs.filter(
-    (tab) => !tab.pluginId || pluginStore.isEnabled(tab.pluginId)
+    (tab) =>
+      tab.id !== 'workbench' &&
+      (!tab.pluginId || pluginStore.isEnabled(tab.pluginId))
   )
 );
 const isActive = (path: string) =>

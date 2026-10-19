@@ -1,19 +1,18 @@
 <template>
-  <el-tooltip effect="light" :content="statusTitle" placement="top">
-    <button
-      class="category-sync-status"
-      :class="[
-        `category-sync-status--${syncState}`,
-        { 'category-sync-status--clickable': canOpenGitSettings }
-      ]"
-      type="button"
-      @click="handleStatusClick"
-    >
-      <span class="category-sync-status__dot"></span>
-      <span class="category-sync-status__label">{{ statusLabel }}</span>
-      <span class="category-sync-status__badge">{{ statusBadge }}</span>
-    </button>
-  </el-tooltip>
+  <button
+    class="category-sync-status"
+    :class="[
+      `category-sync-status--${syncState}`,
+      { 'category-sync-status--clickable': canOpenGitSettings }
+    ]"
+    type="button"
+    :title="statusTitle"
+    @click="handleStatusClick"
+  >
+    <span class="category-sync-status__dot"></span>
+    <span class="category-sync-status__label">{{ statusLabel }}</span>
+    <span class="category-sync-status__badge">{{ statusBadge }}</span>
+  </button>
 </template>
 
 <script setup lang="ts">

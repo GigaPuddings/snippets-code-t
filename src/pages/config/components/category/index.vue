@@ -79,6 +79,7 @@
                 <button
                   type="button"
                   class="ui-icon-button"
+                  :title="t('fragmentType.selectType')"
                   :aria-label="t('fragmentType.selectType')"
                 >
                   <Down width="14" height="14" />
