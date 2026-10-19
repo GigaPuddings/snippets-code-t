@@ -3,7 +3,7 @@ import {
   convertCodeToNote,
   convertNoteHtmlToCode
 } from '@/utils/fragmentConversionCore';
-import { markdownToHtml } from '@/components/TipTapEditor/utils/markdown';
+import { markdownToHtml } from '@/utils/markdown';
 
 export type FragmentType = NonNullable<ContentType['type']>;
 

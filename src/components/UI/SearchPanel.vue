@@ -83,32 +83,6 @@ const matchCase = ref(false);
 const currentMatchIndex = ref(0);
 const totalMatches = ref(0);
 
-// 防抖定时器
-let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-const DEBOUNCE_DELAY = 150; // 减少防抖延迟
-
-const debounceSearch = () => {
-  if (debounceTimer) {
-    clearTimeout(debounceTimer);
-  }
-  debounceTimer = setTimeout(() => {
-    if (searchQuery.value) {
-      emits('search', searchQuery.value, matchCase.value);
-    }
-  }, DEBOUNCE_DELAY);
-
-  // 立即触发一次搜索（防抖期间也更新高亮）
-  if (searchQuery.value) {
-    emits('search', searchQuery.value, matchCase.value);
-  }
-};
-
-onUnmounted(() => {
-  if (debounceTimer) {
-    clearTimeout(debounceTimer);
-  }
-});
-
 watch(
   () => props.show,
   (show) => {
@@ -121,16 +95,8 @@ watch(
   }
 );
 
-// 移除直接监听 searchQuery 和 matchCase，改为使用防抖搜索
-// watch([searchQuery, matchCase], () => {
-//   if (searchQuery.value) {
-//     emits('search', searchQuery.value, matchCase.value);
-//   }
-// });
-
-// 监听输入和大小写切换，使用防抖
 watch([searchQuery, matchCase], () => {
-  debounceSearch();
+  emits('search', searchQuery.value, matchCase.value);
 });
 
 const handleEnter = (event: KeyboardEvent) => {

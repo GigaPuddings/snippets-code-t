@@ -287,7 +287,7 @@
           />
         </div>
 
-        <!-- TipTap 富文本编辑器 (type === 'note') -->
+        <!-- Markdown 笔记编辑器 (type === 'note') -->
         <div
           v-else-if="currentEditorType === 'note'"
           class="editor-host"
@@ -295,10 +295,10 @@
           @mouseup="captureAiSelection"
           @keyup="captureAiSelection"
         >
-          <TipTapEditor
-            ref="tipTapEditorRef"
+          <MarkdownEditor
+            ref="noteEditorRef"
             :key="'note-editor'"
-            :content="noteEditorDisplayContent"
+            :content="state.editorContent"
             :codeStyle="{ height: '100%' }"
             :show-view-toggle="true"
             :show-editor-actions="false"
@@ -361,11 +361,9 @@ import AiSelectionToolbar from '@/components/AiSelectionToolbar/index.vue';
 import {
   htmlToMarkdown,
   createTurndownService,
-  markdownToHtml,
-  jsonToMarkdown,
-  MARKDOWN_EDITOR_PARSE_OPTIONS,
   normalizeAiMarkdown
-} from '@/components/TipTapEditor/utils/markdown';
+} from '@/utils/markdown';
+import type { DocumentSelection } from '@/components/MarkdownEditor/document';
 import { getWorkspaceRoot } from '@/api/markdown';
 import {
   syncAttachmentsOnRename,
@@ -520,16 +518,16 @@ const scheduleDeferredEditorMount = (delay = 700) => {
   deferredEditorTimer = setTimeout(mountDeferredEditor, delay);
 };
 
-// 懒加载 TipTap 编辑器（优化版本）
-const TipTapEditor = defineAsyncComponent({
-  loader: () => import('@/components/TipTapEditor/index.vue'),
+// 笔记按需加载，代码片段继续使用独立的代码编辑器。
+const MarkdownEditor = defineAsyncComponent({
+  loader: () => import('@/components/MarkdownEditor/index.vue'),
   loadingComponent: undefined,
   errorComponent: undefined,
   delay: 100,
   timeout: 10000,
   onError(error, retry, fail) {
-    console.error('Failed to load TipTap editor:', error);
-    handleEditorError(error, 'TipTap lazy loading');
+    console.error('Failed to load Markdown editor:', error);
+    handleEditorError(error, 'Markdown lazy loading');
 
     // 提供重试机会
     if (state.editorLoadRetries < 3) {
@@ -545,6 +543,7 @@ const TipTapEditor = defineAsyncComponent({
 
 const showAiAssist = ref(false);
 const showSelectionAiAssist = ref(false);
+let noteAiSelection: DocumentSelection | null = null;
 const codeMirrorEditorRef = ref<any>(null);
 const aiSelection = reactive({
   text: '',
@@ -557,19 +556,6 @@ const aiSelection = reactive({
 
 // 工作区根目录
 const workspaceRoot = ref<string>('');
-
-// 笔记内容在状态层一律以 Markdown 保存；TipTap 仅接收由 Markdown 转换得到的 HTML。
-// 旧版本遗留的 HTML 内容仍可正常打开，以便在下一次保存时迁移为 Markdown。
-const noteEditorDisplayContent = computed(() => {
-  const c = state.editorContent;
-  if (!c || currentEditorType.value !== 'note') return c ?? '';
-  if (c.trimStart().startsWith('<') && c.includes('</')) return c;
-  try {
-    return markdownToHtml(c, workspaceRoot.value);
-  } catch {
-    return c;
-  }
-});
 
 const route = useRoute();
 const router = useRouter();
@@ -770,13 +756,13 @@ const updateStore = (data: Partial<ContentType>) => {
 
 const hasUnsavedChanges = () => state.contentChanged || titleDirty.value;
 
-// TipTap 编辑器引用
-const tipTapEditorRef = ref<any>(null);
+// Markdown 编辑器引用
+const noteEditorRef = ref<any>(null);
 
 const finishMountedEditorLoading = () => {
   const hasMountedEditor =
     currentEditorType.value === 'note'
-      ? Boolean(tipTapEditorRef.value?.getEditor?.())
+      ? Boolean(noteEditorRef.value?.getView?.())
       : Boolean(codeMirrorEditorRef.value?.getView?.());
 
   if (hasMountedEditor) {
@@ -825,22 +811,22 @@ const handleOutlineToggle = (show: boolean) => {
 
 // 切换到阅读模式
 const toggleToReadingMode = () => {
-  if (tipTapEditorRef.value) {
-    tipTapEditorRef.value.setViewMode('reading');
+  if (noteEditorRef.value) {
+    noteEditorRef.value.setViewMode('reading');
   }
 };
 
 // 切换到编辑模式
 const toggleToEditingMode = () => {
-  if (tipTapEditorRef.value) {
-    tipTapEditorRef.value.setViewMode('preview');
+  if (noteEditorRef.value) {
+    noteEditorRef.value.setViewMode('preview');
   }
 };
 
 // 切换大纲
 const toggleOutline = () => {
-  if (tipTapEditorRef.value) {
-    tipTapEditorRef.value.toggleOutline();
+  if (noteEditorRef.value) {
+    noteEditorRef.value.toggleOutline();
   }
 };
 
@@ -859,18 +845,18 @@ const copyNoteLink = async () => {
 const getEditorMetadata = (): FragmentMetadata => {
   const metadata = getContentMetadata();
 
-  if (currentEditorType.value === 'note' && tipTapEditorRef.value) {
-    const editor = tipTapEditorRef.value.getEditor();
+  if (currentEditorType.value === 'note' && noteEditorRef.value) {
+    const editor = noteEditorRef.value.getView();
     if (editor) {
       // 获取字数统计
-      const text = editor.getText();
+      const text = noteEditorRef.value.getMarkdown();
       const wordCount = text
         .trim()
         .split(/\s+/)
         .filter((word: string) => word.length > 0).length;
 
       // 获取光标位置
-      const { from } = editor.state.selection;
+      const { from } = editor.state.selection.main;
 
       return {
         ...metadata,
@@ -890,78 +876,12 @@ const getEditorMetadata = (): FragmentMetadata => {
   return metadata;
 };
 
-// 序列化内容（根据 format 字段）
+// 两种编辑器均发出原始文本；Markdown 中的 HTML、空行与行尾空格也属于正文。
 const serializeContent = (
   content: string,
   _format: ContentFormat,
-  editorType: 'code' | 'note'
-): string => {
-  // 如果是笔记类型，需要将内容转换为 Markdown 保存
-  if (editorType === 'note') {
-    // 检查内容是否为空或仅包含空白
-    if (!content || content.trim() === '' || content === '<p></p>') {
-      return '';
-    }
-
-    // 检测当前是否处于源码模式
-    const isSourceMode = tipTapEditorRef.value?.getViewMode() === 'source';
-
-    // 如果处于源码模式，content 已经是 Markdown 格式，直接返回
-    if (isSourceMode) {
-      return content;
-    }
-
-    // 检测内容是否为 HTML（需要转换）；否则假定已是 Markdown，直接返回
-    const isHtmlContent =
-      content.trim().startsWith('<') && content.includes('</');
-
-    // 编辑器未就绪时的回退：绝不把 HTML 写入磁盘，统一转为 Markdown
-    if (!tipTapEditorRef.value) {
-      if (isHtmlContent) {
-        try {
-          const turndownService = createTurndownService();
-          return htmlToMarkdown(content, turndownService);
-        } catch (error) {
-          console.error('[Content] HTML 转 Markdown 失败:', error);
-          return content;
-        }
-      }
-      return content;
-    }
-
-    // 内容已是 Markdown（TipTapEditor 现在会发射 Markdown），直接返回
-    if (!isHtmlContent) {
-      return content;
-    }
-
-    try {
-      // 从 TipTap 编辑器获取 Markdown 内容
-      const editor = tipTapEditorRef.value.getEditor();
-      if (editor) {
-        // 使用 JSON 格式转换，而不是 HTML
-        // 因为 TipTap 的 getHTML() 会丢失任务列表的结构
-        const json = editor.getJSON();
-
-        // 检查 JSON 是否为空
-        if (!json || !json.content || json.content.length === 0) {
-          return '';
-        }
-
-        const markdown = jsonToMarkdown(json);
-
-        return markdown;
-      } else {
-        return content;
-      }
-    } catch (error) {
-      console.error('[Content] Markdown 转换失败:', error);
-      return content;
-    }
-  }
-
-  // 代码片段保持纯文本格式
-  return content;
-};
+  _editorType: 'code' | 'note'
+): string => content;
 
 // 处理标签变更
 const handleTagsChange = (newTags: string[]) => {
@@ -986,6 +906,8 @@ const performSave = async (
   const titleChanged = state.title !== originalTitle.value;
   const oldTitle = originalTitle.value;
   const newTitle = state.title;
+  const saveSnapshot = { ...state.currentContent };
+  const savedTags = [...state.tags];
 
   // 序列化当前编辑器内容
   const editorType = currentEditorType.value || 'code';
@@ -1043,23 +965,13 @@ const performSave = async (
         finalContent = updatedContent;
 
         // 更新编辑器内容以反映路径变化
-        if (editorType === 'note') {
-          const updatedHtml = markdownToHtml(
-            updatedContent,
-            workspaceRoot.value
-          );
-          // state 层保持 Markdown；HTML 只用于驱动 TipTap 视图。
+        if (
+          editorType === 'note' &&
+          state.currentContent?.id === saveSnapshot.id &&
+          state.editorContent === serializedContent
+        ) {
           state.editorContent = updatedContent;
-
-          if (tipTapEditorRef.value) {
-            const editor = tipTapEditorRef.value.getEditor();
-            if (editor) {
-              editor.commands.setContent(updatedHtml, {
-                emitUpdate: false,
-                parseOptions: MARKDOWN_EDITOR_PARSE_OPTIONS
-              });
-            }
-          }
+          noteEditorRef.value?.setMarkdown(updatedContent);
         }
 
         // 显示成功通知（右上角）
@@ -1077,29 +989,36 @@ const performSave = async (
 
   // 准备更新参数（用于 store）
   const updateParams = {
-    ...state.currentContent,
-    title: state.title,
+    ...saveSnapshot,
+    title: newTitle,
     content: finalContent,
     metadata,
-    tags: state.tags,
+    tags: savedTags,
     ...data,
-    fragmentType: state.currentContent.type || 'code'
+    fragmentType: saveSnapshot.type || 'code'
   };
 
   // 准备 API 参数（category_id 转换为 null 而不是 undefined）
   const apiParams = {
     ...updateParams,
-    category_id: state.currentContent.category_id ?? null
+    category_id: saveSnapshot.category_id ?? null
   };
 
   const newPath = await editFragment(apiParams);
+
+  // A completed save belongs to its original document, even if navigation
+  // happened while IPC was pending.
+  if (state.currentContent?.id !== saveSnapshot.id) {
+    updateStore({ ...updateParams, ...(newPath ? { id: newPath } : {}) });
+    return false;
+  }
 
   // 清理未使用的附件（如果是 Markdown 格式）
   if (state.currentContent.format === 'markdown') {
     try {
       const deletedCount = await cleanupUnusedAttachments(
-        state.title,
-        finalContent
+        newTitle,
+        state.editorContent
       );
       // 只有在实际删除了文件时才显示通知
       if (deletedCount > 0) {
@@ -1114,6 +1033,11 @@ const performSave = async (
       console.error('[performSave] 清理未使用附件失败:', error);
       // 不阻止保存操作
     }
+  }
+
+  if (state.currentContent?.id !== saveSnapshot.id) {
+    updateStore({ ...updateParams, ...(newPath ? { id: newPath } : {}) });
+    return false;
   }
 
   // 如果文件被重命名，需要更新 store
@@ -1162,13 +1086,16 @@ const performSave = async (
     };
   }
 
-  state.contentChanged = false;
+  state.contentChanged =
+    state.editorContent !== finalContent ||
+    state.title !== newTitle ||
+    JSON.stringify(state.tags) !== JSON.stringify(savedTags);
   state.lastSavedAt = new Date();
   state.lastSavedContentHash = computeContentHash(finalContent);
 
   // 更新原始标题
-  originalTitle.value = state.title;
-  titleDirty.value = false;
+  originalTitle.value = newTitle;
+  titleDirty.value = draftTitle.value.trim() !== newTitle;
 
   if (titleChanged) {
     window.dispatchEvent(
@@ -1185,12 +1112,13 @@ const performSave = async (
     // 静默失败，不影响保存流程
     console.debug('[performSave] 通知自动同步失败:', error);
   }
+  return true;
 };
 
 // 保存内容的核心逻辑
 const saveContent = async (data: Partial<ContentType> = {}) => {
   if (!state.currentContent || state.isLoading) return;
-
+  let saved = false;
   try {
     state.isLoading = true;
     syncDraftTitleToState();
@@ -1220,13 +1148,14 @@ const saveContent = async (data: Partial<ContentType> = {}) => {
       }
     }
 
-    await performSave(data);
+    saved = Boolean(await performSave(data));
   } catch (error) {
     console.error('[Content] 保存失败:', error);
     handleSaveError(error, 'saveContent');
     throw error;
   } finally {
     state.isLoading = false;
+    if (saved && state.contentChanged) debouncedSave();
   }
 };
 
@@ -1314,11 +1243,11 @@ const saveContentWithoutBacklinkCheck = async (
   data: Partial<ContentType> = {}
 ) => {
   if (!state.currentContent || state.isLoading) return;
-
+  let saved = false;
   try {
     state.isLoading = true;
     syncDraftTitleToState();
-    await performSave(data);
+    saved = Boolean(await performSave(data));
     modal.success(t('category.saveSuccess'));
   } catch (error) {
     console.error('[Content] 保存失败:', error);
@@ -1326,6 +1255,7 @@ const saveContentWithoutBacklinkCheck = async (
     throw error;
   } finally {
     state.isLoading = false;
+    if (saved && state.contentChanged) debouncedSave();
   }
 };
 
@@ -1411,13 +1341,9 @@ const commitTitleChange = () => {
   }
 };
 
-// 统一的内容归一化（用于脏检查，避免仅换行/行尾空白导致误判）
+// Markdown 的行尾双空格与空行有语义，脏检查必须比较原文。
 const normalizeForDirtyCheck = (content: string): string => {
-  return (content || '')
-    .replace(/\r\n/g, '\n')
-    .replace(/[ \t]+$/gm, '')
-    .replace(/\n+$/g, '\n')
-    .trim();
+  return content || '';
 };
 
 const computeContentHash = (content: string): string => {
@@ -1623,20 +1549,11 @@ const handleFragmentCategoryMoveRequest = (event: Event): void => {
 
 const applyAiContent = (content: string) => {
   if (currentEditorType.value === 'note') {
-    // AI 约定返回 Markdown。不要把渲染后的 HTML 写入 state：那会让后续
-    // TipTap 的 Markdown 持久化和外部内容同步混用两种数据格式，导致格式错乱。
     const markdown = normalizeAiMarkdown(content);
-    handleContentChange(markdown, 'content', state.editorContent);
-    nextTick(() => {
-      const editor = tipTapEditorRef.value?.getEditor?.();
-      const html = markdownToHtml(markdown, workspaceRoot.value);
-      if (editor && editor.getHTML() !== html) {
-        editor.commands.setContent(html, {
-          emitUpdate: false,
-          parseOptions: MARKDOWN_EDITOR_PARSE_OPTIONS
-        });
-      }
-    });
+    noteEditorRef.value?.setViewMode('preview');
+    if (!noteEditorRef.value?.replaceDocument(markdown)) {
+      handleContentChange(markdown, 'content', state.editorContent);
+    }
     return;
   }
   handleContentChange(content, 'content', state.editorContent);
@@ -1680,26 +1597,32 @@ const captureAiSelection = () => {
       return;
     }
 
-    const editor = tipTapEditorRef.value?.getEditor?.();
-    const selection = editor?.state.selection;
-    if (!editor || !selection || selection.empty) {
+    const editor = noteEditorRef.value?.getView?.();
+    const selection =
+      noteEditorRef.value?.getSelection?.() as DocumentSelection | null;
+    if (
+      !editor?.hasFocus ||
+      editor.state.readOnly ||
+      !selection ||
+      selection.from === selection.to
+    ) {
       hideAiSelection();
       return;
     }
-    const domSelection = window.getSelection();
-    const range = domSelection?.rangeCount ? domSelection.getRangeAt(0) : null;
-    const rect = range?.getBoundingClientRect();
-    aiSelection.text = editor.state.doc.textBetween(
-      selection.from,
-      selection.to,
-      '\n'
-    );
+    const rect =
+      editor.coordsAtPos(selection.to) ?? editor.coordsAtPos(selection.from);
+    if (!rect) {
+      hideAiSelection();
+      return;
+    }
+    noteAiSelection = selection;
+    aiSelection.text = selection.text;
     aiSelection.type = 'note';
     aiSelection.from = selection.from;
     aiSelection.to = selection.to;
     aiSelection.position = {
-      x: rect ? rect.left + rect.width / 2 : window.innerWidth / 2,
-      y: Math.max(40, (rect?.top ?? 72) - 8)
+      x: (rect.left + rect.right) / 2,
+      y: Math.max(40, rect.top - 8)
     };
     aiSelection.visible = Boolean(aiSelection.text.trim());
   });
@@ -1723,14 +1646,13 @@ const replaceAiSelection = (value: string) => {
     });
     view.focus();
   } else {
-    const editor = tipTapEditorRef.value?.getEditor?.();
-    if (!editor) return;
-    editor
-      .chain()
-      .focus()
-      .setTextSelection({ from: aiSelection.from, to: aiSelection.to })
-      .insertContent(markdownToHtml(value, workspaceRoot.value))
-      .run();
+    if (
+      !noteAiSelection ||
+      !noteEditorRef.value?.replaceSelection(value, noteAiSelection)
+    ) {
+      modal.warning(t('noteEditor.selectionChanged'));
+      return;
+    }
   }
   hideAiSelection();
 };
@@ -1738,14 +1660,9 @@ const replaceAiSelection = (value: string) => {
 // 处理编辑器内容变更
 const handleEditorChange = (value: string) => {
   if (state.isInitializing) return;
-
-  // TipTap 在刚挂载/切换文档时可能触发一次“等价值”更新；这里做归一化后再判断
-  const original = state.currentContent?.content || '';
-  if (normalizeForDirtyCheck(value) === normalizeForDirtyCheck(original)) {
-    return;
-  }
-
-  handleContentChange(value, 'content', state.currentContent?.content);
+  // Undo can return to the saved text; compare against the current draft so it
+  // also reaches the parent and does not get replaced by an outdated prop.
+  handleContentChange(value, 'content', state.editorContent);
 };
 
 // 处理 Wikilink 点击
@@ -1835,7 +1752,7 @@ const handleBacklinkNavigate = async (
             if (
               state.isEditorReady &&
               !state.isEditorLoading &&
-              tipTapEditorRef.value &&
+              noteEditorRef.value &&
               currentEditorType.value === 'note'
             ) {
               resolve(true);
@@ -1843,7 +1760,7 @@ const handleBacklinkNavigate = async (
               console.warn('[Content] 等待编辑器超时，状态:', {
                 isEditorLoading: state.isEditorLoading,
                 isEditorReady: state.isEditorReady,
-                hasTipTapRef: !!tipTapEditorRef.value,
+                hasNoteEditorRef: !!noteEditorRef.value,
                 editorType: currentEditorType.value,
                 attempts
               });
@@ -1861,8 +1778,8 @@ const handleBacklinkNavigate = async (
       const editorReady = await waitForEditor();
 
       // 如果是笔记类型且编辑器准备好了，滚动到对应的 wikilink
-      if (editorReady && tipTapEditorRef.value && searchTitle) {
-        tipTapEditorRef.value.scrollToWikilink(searchTitle);
+      if (editorReady && noteEditorRef.value && searchTitle) {
+        noteEditorRef.value.scrollToWikilink(searchTitle);
       } else if (!editorReady) {
         console.warn('[Content] 编辑器未准备好，无法滚动');
       } else if (!searchTitle) {
@@ -1957,17 +1874,9 @@ const fetchContentById = async (id: string) => {
       state.lastSavedContentHash = computeContentHash(
         parsedContent.content || ''
       );
-      // 若 TipTap watch 未触发，显式 setContent
       await nextTick();
-      if (currentEditorType.value === 'note' && tipTapEditorRef.value) {
-        const editor = tipTapEditorRef.value.getEditor();
-        const html = markdownToHtml(newContent, workspaceRoot.value);
-        if (editor && editor.getHTML() !== html) {
-          editor.commands.setContent(html, {
-            emitUpdate: false,
-            parseOptions: MARKDOWN_EDITOR_PARSE_OPTIONS
-          });
-        }
+      if (currentEditorType.value === 'note' && noteEditorRef.value) {
+        noteEditorRef.value.setMarkdown(newContent);
       }
       finishMountedEditorLoading();
     } else {
@@ -2075,19 +1984,9 @@ const fetchContent = async () => {
 };
 
 // 反序列化内容（根据 format 字段）
-const deserializeContent = (
-  content: string,
-  _format: ContentFormat
-): string => {
-  // 兼容性处理：检测内容是否为 HTML
-  const isHtmlContent =
-    content.trim().startsWith('<') && content.includes('</');
-
-  // 笔记状态层始终持有 Markdown；HTML 仅在 noteEditorDisplayContent 中转换后传给 TipTap。
-  // 这样可避免加载、AI 替换、附件重命名等入口把两种格式混在同一个状态字段里。
-  if (currentEditorType.value === 'note') {
-    if (!isHtmlContent) return content;
-
+const deserializeContent = (content: string, format: ContentFormat): string => {
+  // 仅迁移明确标记为 HTML 的旧笔记，不能根据正文外观猜测格式。
+  if (currentEditorType.value === 'note' && format === 'html') {
     try {
       return htmlToMarkdown(content, createTurndownService());
     } catch (error) {
@@ -2121,7 +2020,13 @@ watch(
     if (newId && oldId !== undefined) {
       beginEditorLoading();
     }
-    if (newId !== oldId) showTagEditor.value = false;
+    if (newId !== oldId) {
+      showTagEditor.value = false;
+      showAiAssist.value = false;
+      showSelectionAiAssist.value = false;
+      noteAiSelection = null;
+      hideAiSelection();
+    }
 
     // 如果路由参数变化，先自动保存当前内容（如果有更改）
     if (oldId && state.currentContent && hasUnsavedChanges()) {

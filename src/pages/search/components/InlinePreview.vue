@@ -345,10 +345,7 @@ import { openSearchResultInConfig } from '../composables/openConfigContent';
 import { useI18n } from 'vue-i18n';
 import { useConfigurationStore } from '@/store';
 import { extractPlainText } from '@/utils/text';
-import {
-  markdownToHtml,
-  resolvePreviewImageUrls
-} from '@/components/TipTapEditor/utils/markdown';
+import { markdownToHtml, resolvePreviewImageUrls } from '@/utils/markdown';
 import type { ContentType } from '@/types/models';
 import CodeMirrorEditor from '@/components/CodeMirrorEditor/index.vue';
 import { getSearchResultIcon } from '../composables/useSearchResultIcon';

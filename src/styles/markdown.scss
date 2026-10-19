@@ -1,5 +1,5 @@
-// Shared by the TipTap document and the AI plugin's rendered Markdown.
-// Keep editor node views and chat actions in their respective components.
+// Shared by note previews, reading mode and the AI plugin's rendered Markdown.
+// Keep editor widgets and chat actions in their respective components.
 @mixin typography {
   font-family: var(--app-document-font-family);
   font-size: var(--markdown-body-size);
@@ -97,6 +97,30 @@
 
   li > p:last-child {
     margin-bottom: 0;
+  }
+
+  ul[data-type='taskList'] {
+    @apply list-none p-0;
+
+    margin-bottom: var(--markdown-block-gap);
+
+    > li {
+      @apply flex items-start gap-2;
+
+      margin-bottom: var(--markdown-list-item-gap);
+
+      > label {
+        @apply shrink-0;
+      }
+
+      > div {
+        @apply min-w-0 flex-1;
+
+        > p:first-child {
+          margin-top: 0;
+        }
+      }
+    }
   }
 
   code {

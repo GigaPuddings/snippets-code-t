@@ -152,7 +152,7 @@ import {
   markdownToHtml,
   normalizeAiMarkdown,
   resolvePreviewImageUrls
-} from '@/components/TipTapEditor/utils/markdown';
+} from '@/utils/markdown';
 import { getLocalAiConfig, type LocalAiMessage } from '@/api/localAi';
 import {
   cancelAiChatStream,

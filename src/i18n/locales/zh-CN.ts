@@ -377,6 +377,9 @@ export default {
       showImagePath: '显示图片附件路径',
       showImagePathHint: '在图片上方显示可点击的附件相对路径',
       imageScale: '图片缩放',
+      customImageScale: '自定义比例…',
+      imageScaleRange: '请输入 25 到 200 之间的整数百分比',
+      applyToAllImages: '应用到本笔记全部图片',
       dragImageScale: '拖动调整图片缩放比例',
       currentImage: '当前图片',
       allImages: '本笔记全部 {count} 张',
@@ -1198,6 +1201,7 @@ export default {
   },
 
   codeBlock: {
+    plainText: '纯文本',
     editLanguageTitle: '修改代码语言',
     editLanguageMessage:
       '输入代码语言（如: ts、vue、flutter、bash），留空表示自动检测',
@@ -1996,6 +2000,7 @@ export default {
 
   // 笔记编辑器
   noteEditor: {
+    selectionChanged: '原选区所在的笔记或正文已改变，请重新选择后替换。',
     documentStatus: '文档状态',
     properties: '{count} 个笔记属性',
     propertyLabels: {
@@ -2115,9 +2120,14 @@ export default {
     resizeTable: '调整表格',
     tableRows: '行',
     tableColumns: '列',
+    tableCell: '第 {row} 行，第 {column} 列',
     alignLeft: '左对齐',
     alignCenter: '居中对齐',
     alignRight: '右对齐',
+    tableAlignmentScope: '对齐范围',
+    alignCurrentColumn: '当前列',
+    alignEntireTable: '整张表格',
+    tableAlignmentAction: '{scope}：{alignment}',
     moreTableActions: '更多表格操作',
     addRowBefore: '在上方添加行',
     addRowAfter: '在下方添加行',

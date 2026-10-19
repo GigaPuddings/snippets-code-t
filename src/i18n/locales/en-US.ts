@@ -390,6 +390,9 @@ export default {
       showImagePathHint:
         'Show a clickable relative attachment path above each image',
       imageScale: 'Image Scale',
+      customImageScale: 'Custom Scale…',
+      imageScaleRange: 'Enter a whole-number percentage from 25 to 200',
+      applyToAllImages: 'Apply to All Images in This Note',
       dragImageScale: 'Drag to resize the image',
       currentImage: 'Current Image',
       allImages: 'All {count} Images',
@@ -1248,6 +1251,7 @@ export default {
   },
 
   codeBlock: {
+    plainText: 'Plain Text',
     editLanguageTitle: 'Edit code language',
     editLanguageMessage:
       'Enter language (e.g. ts, vue, flutter, bash), leave empty for auto detection',
@@ -2086,6 +2090,8 @@ export default {
 
   // Note Editor
   noteEditor: {
+    selectionChanged:
+      'The note or its content has changed. Select the text again before replacing it.',
     documentStatus: 'Document status',
     properties: '{count} note properties',
     propertyLabels: {
@@ -2205,9 +2211,14 @@ export default {
     resizeTable: 'Resize Table',
     tableRows: 'Rows',
     tableColumns: 'Columns',
+    tableCell: 'Row {row}, column {column}',
     alignLeft: 'Align Left',
     alignCenter: 'Align Center',
     alignRight: 'Align Right',
+    tableAlignmentScope: 'Alignment scope',
+    alignCurrentColumn: 'Current column',
+    alignEntireTable: 'Entire table',
+    tableAlignmentAction: '{scope}: {alignment}',
     moreTableActions: 'More Table Actions',
     addRowBefore: 'Add Row Above',
     addRowAfter: 'Add Row Below',

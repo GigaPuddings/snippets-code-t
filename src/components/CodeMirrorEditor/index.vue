@@ -76,7 +76,7 @@ import {
 import modal from '@/utils/modal';
 import { useI18n } from 'vue-i18n';
 import CodeContextMenu from './components/CodeContextMenu.vue';
-import EditorStatusBar from '@/components/TipTapEditor/components/EditorStatusBar.vue';
+import EditorStatusBar from '@/components/UI/EditorStatusBar.vue';
 
 interface Props {
   codeStyle?: CSSProperties;

@@ -185,7 +185,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, emit } from '@tauri-apps/api/event';
 import { useI18n } from 'vue-i18n';
 import { formatBytes, formatPercentage } from '@/utils/format';
-import { markdownToHtml } from '@/components/TipTapEditor/utils/markdown';
+import { markdownToHtml } from '@/utils/markdown';
 import { formatReleaseDate } from './format-release-date';
 import { logger } from '@/utils/logger';
 import { CustomButton } from '@/components/UI';
