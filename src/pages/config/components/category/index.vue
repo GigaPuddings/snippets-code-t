@@ -128,6 +128,7 @@
                 />
               </div>
               <div
+                ref="sidebarResults"
                 id="category-side-results"
                 class="min-h-0 flex-1 overflow-hidden px-2"
                 :class="sidebarMode === 'folders' ? 'hidden' : 'flex flex-col'"
@@ -244,6 +245,8 @@ const isSettingsRoute = computed(() => route.name === 'Settings');
 type SidebarMode = 'folders' | 'all' | 'uncategorized' | 'favorites' | 'trash';
 const sidebarMode = ref<SidebarMode>('folders');
 provide('categorySidebarMode', sidebarMode);
+const sidebarResults = shallowRef<HTMLElement | null>(null);
+provide('categorySidebarTarget', sidebarResults);
 const sidebarViewLabel = computed(() => {
   const labels = {
     all: 'nav.allSnippets',

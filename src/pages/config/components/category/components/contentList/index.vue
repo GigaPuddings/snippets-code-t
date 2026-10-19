@@ -1,6 +1,9 @@
 <template>
   <main class="content-list-container">
-    <Teleport v-if="sidebarMode !== 'folders'" to="#category-side-results">
+    <Teleport
+      v-if="sidebarMode !== 'folders' && sidebarTarget"
+      :to="sidebarTarget"
+    >
       <DeletedNotesView v-if="route.query.view === 'trash'" />
       <div v-else class="left-panel__content">
         <ContentListView
@@ -113,6 +116,10 @@ const route = useRoute();
 const router = useRouter();
 const store = useConfigurationStore();
 const sidebarMode = inject<Ref<string>>('categorySidebarMode', ref('folders'));
+const sidebarTarget = inject<Ref<HTMLElement | null>>(
+  'categorySidebarTarget',
+  shallowRef(null)
+);
 const { t } = useI18n();
 
 defineOptions({
