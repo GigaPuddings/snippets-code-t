@@ -104,21 +104,9 @@ fn favorite_after_metadata_update(
         .unwrap_or_else(|| current.is_some_and(|fm| fm.favorite))
 }
 
-fn normalize_for_content_compare(content: &str) -> String {
-    content
-        .replace("\r\n", "\n")
-        .lines()
-        .map(|line| line.trim_end_matches([' ', '\t']))
-        .collect::<Vec<_>>()
-        .join("\n")
-        .trim()
-        .to_string()
-}
-
 fn compute_content_hash(content: &str) -> u64 {
-    let normalized = normalize_for_content_compare(content);
     let mut hasher = DefaultHasher::new();
-    normalized.hash(&mut hasher);
+    content.hash(&mut hasher);
     hasher.finish()
 }
 
@@ -1457,6 +1445,30 @@ mod favorite_tests {
                 .to_string_lossy()
                 .starts_with("snippets-favorite-test-"));
             let _ = std::fs::remove_dir_all(&self.root);
+        }
+    }
+
+    #[test]
+    fn markdown_saves_keep_whitespace_only_changes_and_metadata_edits() {
+        let workspace = Workspace::new();
+        let path = workspace.write("Docs/source.md", "note", "\n\noriginal");
+        let (metadata, _) = workspace.fs.read_markdown_file(&path).unwrap();
+        assert_ne!(compute_content_hash("line"), compute_content_hash("line  "));
+        assert_ne!(
+            compute_content_hash("line\n"),
+            compute_content_hash("line\n\n")
+        );
+        for body in ["\n    code  \r\n\r\n", "  \n\n", "\t\n"] {
+            workspace
+                .fs
+                .update_markdown_file(&path, Some(body), Some(&metadata))
+                .unwrap();
+            assert_eq!(workspace.fs.read_markdown_file(&path).unwrap().1, body);
+            workspace
+                .fs
+                .update_markdown_file(&path, None, Some(&metadata))
+                .unwrap();
+            assert_eq!(workspace.fs.read_markdown_file(&path).unwrap().1, body);
         }
     }
 

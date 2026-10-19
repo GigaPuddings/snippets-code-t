@@ -281,12 +281,19 @@ pub fn parse_front_matter(content: &str) -> Result<(FrontMatter, String), String
         .map_err(|e| format!("Failed to parse YAML front matter: {}", e))?;
 
     // 提取正文内容（跳过第二个 --- 之后的内容）
-    let body_start = 3 + end_pos + 4; // "---" + yaml + "\n---"
-    let body = if body_start < content.len() {
-        content[body_start..].trim_start().to_string()
-    } else {
-        String::new()
-    };
+    let body_start = 3 + end_pos + 4;
+    // Skip the delimiter's newline and one conventional blank separator only.
+    // Further blank lines, indentation and trailing spaces belong to Markdown.
+    let after_delimiter = &content[body_start..];
+    let body = after_delimiter
+        .strip_prefix("\r\n")
+        .or_else(|| after_delimiter.strip_prefix('\n'))
+        .unwrap_or(after_delimiter);
+    let body = body
+        .strip_prefix("\r\n")
+        .or_else(|| body.strip_prefix('\n'))
+        .unwrap_or(body)
+        .to_string();
 
     Ok((metadata, body))
 }
@@ -297,6 +304,19 @@ mod metadata_reader_tests {
     use std::io::Cursor;
 
     const HEADER: &str = "---\nid: note-id\ntitle: 架构文档\ncreated: '2026-10-07'\nmodified: '2026-10-07'\ntype: note\nfavorite: true\n---\n";
+
+    #[test]
+    fn markdown_body_keeps_indentation_blank_lines_and_hard_breaks() {
+        for body in ["    code\n", "\n\n1. question  \n   answer\n\n", "  \n\n"] {
+            let document = format!("{}\n{}", HEADER, body);
+            assert_eq!(try_parse_front_matter(&document).1, body);
+            let document_crlf = document.replace('\n', "\r\n");
+            assert_eq!(
+                try_parse_front_matter(&document_crlf).1,
+                body.replace('\n', "\r\n")
+            );
+        }
+    }
 
     #[test]
     fn saved_reply_attribution_preserves_opaque_legacy_fields() {

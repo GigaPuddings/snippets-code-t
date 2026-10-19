@@ -181,7 +181,7 @@ impl FileSystemManager {
         self.validate_path(&file_path)?;
 
         // 写入 Front Matter + 正文
-        let full_content = if content.trim().is_empty() {
+        let full_content = if content.is_empty() {
             format_frontmatter_block(metadata)
                 .map_err(|e| format!("格式化 frontmatter 失败: {}", e))?
                 .trim_end()
@@ -335,7 +335,7 @@ impl FileSystemManager {
         match (content, metadata) {
             (Some(new_content), Some(meta)) => {
                 // 同时更新内容和元数据：写入 frontmatter + body
-                let full_content = if new_content.trim().is_empty() {
+                let full_content = if new_content.is_empty() {
                     format_frontmatter_block(meta)
                         .map_err(|e| format!("格式化 frontmatter 失败: {}", e))?
                         .trim_end()
@@ -359,7 +359,7 @@ impl FileSystemManager {
                 let raw =
                     fs::read_to_string(&full_path).map_err(|e| format!("读取文件失败: {}", e))?;
                 let (_, existing_body) = try_parse_front_matter(&raw);
-                let full_content = if existing_body.trim().is_empty() {
+                let full_content = if existing_body.is_empty() {
                     format_frontmatter_block(meta)?.trim_end().to_string()
                 } else {
                     format!(
