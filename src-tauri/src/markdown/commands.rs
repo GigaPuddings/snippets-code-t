@@ -806,6 +806,15 @@ pub fn get_deleted_notes(app_handle: AppHandle) -> Result<Vec<DeletedNote>, Stri
 }
 
 #[command]
+pub fn read_deleted_note(
+    app_handle: AppHandle,
+    id: String,
+) -> Result<trash::DeletedNoteContent, String> {
+    let fs_manager = get_fs_manager(&app_handle)?;
+    trash::read_deleted_note(&app_handle, fs_manager.workspace_root(), &id)
+}
+
+#[command]
 pub fn restore_deleted_note(
     app_handle: AppHandle,
     id: String,

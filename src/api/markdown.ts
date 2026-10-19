@@ -94,6 +94,16 @@ export interface DeletedNote {
   title: string;
   originalPath: string;
   deletedAt: string;
+  expiresAt?: string;
+}
+
+export interface DeletedNoteContent {
+  content: string;
+  type: 'note' | 'code';
+}
+
+export async function readDeletedNote(id: string): Promise<DeletedNoteContent> {
+  return invoke<DeletedNoteContent>('read_deleted_note', { id });
 }
 
 export async function getDeletedNotes(): Promise<DeletedNote[]> {

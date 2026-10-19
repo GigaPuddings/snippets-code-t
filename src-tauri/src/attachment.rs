@@ -709,6 +709,16 @@ pub async fn cleanup_orphaned_attachments(app_handle: tauri::AppHandle) -> Resul
 
     let mut note_names: HashSet<String> = HashSet::new();
     collect_note_names(&workspace_root, &mut note_names);
+    // Retained notes still need their attachments for preview and restoration.
+    // Abort cleanup if the recycle bin cannot be read, rather than lose images.
+    for note in crate::markdown::trash::list_deleted_notes(&app_handle, &workspace_root)? {
+        if let Some(stem) = Path::new(&note.original_path)
+            .file_stem()
+            .and_then(|s| s.to_str())
+        {
+            note_names.insert(stem.to_string());
+        }
+    }
 
     let mut deleted_count = 0;
 

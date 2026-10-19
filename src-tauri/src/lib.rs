@@ -234,6 +234,7 @@ pub fn run() {
 
                 // 初始化 Markdown 文件系统（如果已配置工作区）
                 let app_handle_markdown = app.handle().clone();
+                markdown::trash::start_cleanup_task(app_handle_markdown.clone());
 
                 // 清理孤立附件（没有对应笔记的附件文件夹）- 在后台异步执行
                 let app_handle_cleanup = app_handle_markdown.clone();
@@ -730,6 +731,7 @@ pub fn run() {
             markdown::update_markdown_file,             // 更新 Markdown 文件
             markdown::delete_markdown_file,             // 删除 Markdown 文件
             markdown::get_deleted_notes,                // 本机笔记回收站
+            markdown::read_deleted_note,                // 只读预览回收站正文
             markdown::restore_deleted_note,             // 恢复笔记原始字节
             markdown::move_markdown_file,               // 移动 Markdown 文件到新分类
             markdown::cleanup_cache,                    // 清理 cache.json 中已删除文件的元数据
