@@ -59,7 +59,7 @@
               <div class="quick-tool-heading">
                 <div class="quick-tool-title">{{ quickToolTitle }}</div>
                 <div class="quick-tool-subtitle">
-                  quick-tools 根据当前查询直接生成答案
+                  {{ t('searchPreview.quickTools.subtitle') }}
                 </div>
               </div>
             </div>
@@ -67,8 +67,8 @@
               <button
                 class="quick-tool-icon-button"
                 type="button"
-                title="复制结果"
-                aria-label="复制结果"
+                :title="t('searchPreview.quickTools.copyResult')"
+                :aria-label="t('searchPreview.quickTools.copyResult')"
                 @click="copyQuickToolResult"
               >
                 <Copy width="15" height="15" />
@@ -77,7 +77,9 @@
           </div>
 
           <div class="quick-tool-answer">
-            <div class="quick-tool-answer-label">转换结果</div>
+            <div class="quick-tool-answer-label">
+              {{ t('searchPreview.quickTools.result') }}
+            </div>
             <div class="quick-tool-answer-value">
               <span class="quick-tool-number">{{ quickToolOutputValue }}</span>
               <span v-if="quickToolOutputUnit" class="quick-tool-unit">
@@ -105,7 +107,7 @@
               @click="copyQuickToolResult"
             >
               <span class="quick-tool-key">↵</span>
-              <span>复制结果</span>
+              <span>{{ t('searchPreview.quickTools.copyResult') }}</span>
             </button>
             <button
               class="quick-tool-command"
@@ -113,7 +115,7 @@
               @click="copyQuickToolDetails"
             >
               <span class="quick-tool-key">⌘C</span>
-              <span>复制明细</span>
+              <span>{{ t('searchPreview.quickTools.copyDetails') }}</span>
             </button>
           </div>
 
@@ -362,7 +364,7 @@ const props = defineProps<{
 }>();
 defineEmits<{ primaryAction: [item: ContentType] }>();
 
-const { t, locale } = useI18n();
+const { t, te, locale } = useI18n();
 const store = useConfigurationStore();
 const isPreviewVisible = ref(false);
 
@@ -703,12 +705,19 @@ const isQuickToolResult = computed(() => {
   return props.item?.summarize === 'tool' && source === 'quick-tools';
 });
 
-const quickToolTitle = computed(
-  () =>
-    toDisplayText(itemMetadata.value.toolName) ||
-    displayTypeText.value ||
-    'Quick Tool'
-);
+const quickToolTitle = computed(() => {
+  const keys: Record<string, string> = {
+    calculator: 'searchPreview.quickTools.calculator',
+    'unit-converter': 'searchPreview.quickTools.unitConverter',
+    'currency-converter': 'searchPreview.quickTools.currencyConverter'
+  };
+  const key = keys[toDisplayText(itemMetadata.value.tool)];
+  return key
+    ? t(key)
+    : toDisplayText(itemMetadata.value.toolName) ||
+        displayTypeText.value ||
+        t('searchPreview.quickTools.title');
+});
 const quickToolOutputValue = computed(
   () =>
     toDisplayText(itemMetadata.value.outputValue) ||
@@ -734,32 +743,68 @@ const quickToolRows = computed<QuickToolRow[]>(() => {
       .map((row) => {
         if (!row || typeof row !== 'object') return null;
         const sourceRow = row as Record<string, unknown>;
-        const label = toDisplayText(sourceRow.label);
-        const value = toDisplayText(sourceRow.value);
+        const rawLabel = toDisplayText(sourceRow.label);
+        // Installed quick-tools runtimes can still return the original labels.
+        const legacyKeys: Record<string, string> = {
+          原始输入: 'searchPreview.quickTools.input',
+          工具类型: 'searchPreview.quickTools.toolType',
+          展示策略: 'searchPreview.quickTools.displayPolicy',
+          表达式: 'searchPreview.quickTools.expression',
+          识别单位: 'searchPreview.quickTools.recognizedUnits',
+          识别币种: 'searchPreview.quickTools.recognizedCurrencies'
+        };
+        const labelKey =
+          toDisplayText(sourceRow.labelKey) || legacyKeys[rawLabel];
+        const label = labelKey && te(labelKey) ? t(labelKey) : rawLabel;
+        const rawValue = toDisplayText(sourceRow.value);
+        const valueKey = toDisplayText(sourceRow.valueKey);
+        const value =
+          valueKey && te(valueKey)
+            ? t(valueKey)
+            : rawLabel === '工具类型'
+              ? quickToolTitle.value
+              : rawLabel === '展示策略'
+                ? t('searchPreview.quickTools.summaryPolicy')
+                : rawValue;
         return label && value ? { label, value } : null;
       })
       .filter((row): row is QuickToolRow => Boolean(row));
   }
 
   return [
-    { label: '原始输入', value: quickToolInput.value || displayTitle.value },
-    { label: '工具类型', value: quickToolTitle.value },
-    { label: '展示策略', value: '结果列表显示摘要，右侧展示结构化答案' }
+    {
+      label: t('searchPreview.quickTools.input'),
+      value: quickToolInput.value || displayTitle.value
+    },
+    {
+      label: t('searchPreview.quickTools.toolType'),
+      value: quickToolTitle.value
+    },
+    {
+      label: t('searchPreview.quickTools.displayPolicy'),
+      value: t('searchPreview.quickTools.summaryPolicy')
+    }
   ];
 });
 const quickToolSourceText = computed(() => {
   const parts = [
     quickToolInput.value,
-    quickToolDate.value ? `日期 ${quickToolDate.value}` : '',
-    quickToolProvider.value
-      ? `数据由 ${quickToolProvider.value} 提供`
-      : '数据由 quick-tools 提供'
+    quickToolDate.value
+      ? t('searchPreview.quickTools.date', { date: quickToolDate.value })
+      : '',
+    t('searchPreview.quickTools.provider', {
+      provider: quickToolProvider.value || 'quick-tools'
+    })
   ].filter(Boolean);
 
   return parts.join(' · ');
 });
-const quickToolFooterLeft = computed(() => '结果 1 / 1');
-const quickToolFooterRight = computed(() => '已缓存');
+const quickToolFooterLeft = computed(() =>
+  t('searchPreview.quickTools.resultCount', { current: 1, total: 1 })
+);
+const quickToolFooterRight = computed(() =>
+  t('searchPreview.quickTools.cached')
+);
 
 const getQuickToolResultText = (): string => {
   const value = [quickToolOutputValue.value, quickToolOutputUnit.value]

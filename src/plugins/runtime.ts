@@ -12,6 +12,7 @@ import * as VueRuntime from 'vue';
 import * as PiniaRuntime from 'pinia';
 import * as VueRouterRuntime from 'vue-router';
 import * as VueI18nRuntime from 'vue-i18n';
+import * as AppI18nRuntime from '@/i18n';
 import type { RouteComponent, RouteRecordRaw, Router } from 'vue-router';
 import type { RegisteredPlugin } from './protocol';
 import type { SearchSourceProvider } from './search';
@@ -444,6 +445,10 @@ const sharedModuleRuntimes: Record<
   'vue-i18n': {
     moduleKey: 'vueI18n',
     runtime: VueI18nRuntime as Record<string, unknown>
+  },
+  '@/i18n': {
+    moduleKey: 'appI18n',
+    runtime: AppI18nRuntime as Record<string, unknown>
   }
 };
 
@@ -467,7 +472,9 @@ const createSharedModuleSource = (
 
   return [
     `const Runtime = globalThis.${globalKey}[${JSON.stringify(moduleKey)}];`,
-    'export default Runtime;',
+    'default' in runtime
+      ? 'export default Runtime.default;'
+      : 'export default Runtime;',
     exports
   ].join('\n');
 };

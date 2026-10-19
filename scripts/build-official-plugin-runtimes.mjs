@@ -106,7 +106,9 @@ async function buildRuntime(pluginId, entryPath, checkOnly) {
         fileName: () => 'frontend.js'
       },
       rollupOptions: {
-        external: ['vue', 'pinia', 'vue-router', 'vue-i18n'],
+        // Use the host composer for utilities outside Vue setup as well.
+        // Bundling @/i18n would create a second locale and duplicate catalogs.
+        external: ['vue', 'pinia', 'vue-router', 'vue-i18n', '@/i18n'],
         output: {
           inlineDynamicImports: true,
           assetFileNames: 'assets/[name]-[hash][extname]',
@@ -123,6 +125,19 @@ async function buildRuntime(pluginId, entryPath, checkOnly) {
   const output = (Array.isArray(result) ? result : [result]).flatMap(
     (bundle) => bundle.output
   );
+  if (
+    output.some(
+      (file) =>
+        file.type === 'chunk' &&
+        Object.keys(file.modules).some((id) =>
+          /[/\\]src[/\\]i18n[/\\](?:index\.ts|locales[/\\])/.test(id)
+        )
+    )
+  ) {
+    throw new Error(
+      `${pluginId}: 应复用宿主 @/i18n，不能打包独立语言实例或语言包`
+    );
+  }
   const frontendSource = output.find(
     (file) => file.type === 'chunk' && file.fileName === 'frontend.js'
   )?.code;

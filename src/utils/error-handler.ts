@@ -4,6 +4,7 @@
  */
 
 import modal from './modal';
+import i18n from '@/i18n';
 
 /**
  * 错误类型枚举
@@ -147,12 +148,12 @@ export class ErrorHandler {
       const msg = error.message.toLowerCase();
       // 检查是否是网络错误
       if (msg.includes('fetch') || msg.includes('network')) {
-        return '网络连接失败，请检查网络设置';
+        return i18n.global.t('errors.networkError');
       }
 
       // 检查是否是超时错误
       if (msg.includes('timeout')) {
-        return '请求超时，请稍后重试';
+        return i18n.global.t('errors.requestTimeout');
       }
 
       // 检查是否是文件系统权限错误（测试用例 6.4）
@@ -166,22 +167,22 @@ export class ErrorHandler {
         msg.includes('eacces') ||
         msg.includes('readonly')
       ) {
-        return '工作区目录没有写入权限，请检查目录权限或选择可写的目录';
+        return i18n.global.t('errors.workspaceNotWritable');
       }
     }
 
     // 根据错误类型返回默认消息
     switch (context.type) {
       case ErrorType.API_ERROR:
-        return 'API 调用失败，请重试';
+        return i18n.global.t('errors.apiFailedRetry');
       case ErrorType.DATABASE_ERROR:
-        return '数据库操作失败，请重试';
+        return i18n.global.t('errors.databaseFailedRetry');
       case ErrorType.TAURI_COMMAND_ERROR:
-        return '系统命令执行失败';
+        return i18n.global.t('errors.commandFailed');
       case ErrorType.VALIDATION_ERROR:
-        return '数据验证失败，请检查输入';
+        return i18n.global.t('errors.validationFailed');
       default:
-        return '发生未知错误，请重试';
+        return i18n.global.t('errors.unknownError');
     }
   }
 
@@ -282,7 +283,7 @@ export function handleEditorError(error: unknown, context?: string): void {
       timestamp: new Date()
     },
     {
-      userMessage: '编辑器加载失败，请刷新页面重试'
+      userMessage: i18n.global.t('errors.editorInitFailed')
     }
   );
 }
@@ -319,7 +320,9 @@ export function handleSaveError(error: unknown, context?: string): void {
       timestamp: new Date()
     },
     {
-      userMessage: isPermissionError ? undefined : '保存失败，请重试'
+      userMessage: isPermissionError
+        ? undefined
+        : i18n.global.t('errors.saveFailedRetry')
     }
   );
 }
@@ -350,7 +353,7 @@ export function handleLoadError(error: unknown, context?: string): void {
       timestamp: new Date()
     },
     {
-      userMessage: '加载失败，请重试'
+      userMessage: i18n.global.t('errors.loadFailedRetry')
     }
   );
 }
@@ -381,7 +384,7 @@ export function handleConversionError(error: unknown, context?: string): void {
       timestamp: new Date()
     },
     {
-      userMessage: '格式转换失败'
+      userMessage: i18n.global.t('errors.conversionFailed')
     }
   );
 }

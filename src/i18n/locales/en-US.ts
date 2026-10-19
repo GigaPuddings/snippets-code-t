@@ -460,6 +460,19 @@ export default {
       remoteUrlPlaceholder: 'Enter remote repository URL',
       invalidUrl: 'Invalid repository URL format (supports HTTPS or SSH)',
       saveConfig: 'Save Git Configuration',
+      saveConfigTitle: 'Confirm Git Configuration',
+      saveConfigWarning:
+        'Saving initializes a Git repository and connects it to the remote. Check the configuration to avoid data loss.',
+      configSummary: 'Configuration Summary',
+      backupReminder: 'Back up your data before saving.',
+      confirmUnderstand: 'I understand and want to save the configuration',
+      pleaseConfirm: 'Select the confirmation checkbox',
+      pullNowTitle: 'Pull Data Now?',
+      pullNowMessage:
+        'Configuration saved. Pull the latest data from the remote repository now?',
+      allFilesResolved: 'All files resolved',
+      forcePushFailed: 'Force push failed',
+      forcePullFailed: 'Force pull failed',
       saveConfigDesc: 'Save Git user info and remote repository config',
       pullOnStart: 'Pull on Start',
       pullOnStartDesc:
@@ -1961,6 +1974,29 @@ export default {
     fileLabel: 'File',
     previewTitle: 'Preview',
     unnamedTitle: 'Untitled',
+    quickTools: {
+      title: 'Quick Tool',
+      calculator: 'Calculator',
+      unitConverter: 'Unit Converter',
+      currencyConverter: 'Currency Converter',
+      expression: 'Expression',
+      recognizedUnits: 'Recognized Units',
+      recognizedCurrencies: 'Recognized Currencies',
+      subtitle: 'quick-tools generates an answer from the current query',
+      copyResult: 'Copy Result',
+      copyDetails: 'Copy Details',
+      result: 'Conversion Result',
+      input: 'Original Input',
+      toolType: 'Tool Type',
+      displayPolicy: 'Display Policy',
+      summaryPolicy:
+        'The result list shows a summary; the preview shows a structured answer.',
+      date: 'Date {date}',
+      latestDate: 'latest',
+      provider: 'Data provided by {provider}',
+      resultCount: 'Result {current} / {total}',
+      cached: 'Cached'
+    },
     showPanel: 'Show Preview Panel',
     hidePanel: 'Hide Preview Panel',
     saveVisibilityFailed:
@@ -2261,6 +2297,27 @@ export default {
 
   // Screenshot Tool
   screenshotTool: {
+    recognizingTranslation: 'Recognizing and translating...',
+    startingAi: 'Starting the AI model service...',
+    translatingWithAi: 'Translating the image with AI...',
+    hierarchyHint: '{current}/{total}  Scroll / Tab to switch levels',
+    translationPluginDisabled:
+      'OCR is complete. Install and enable the Translation plugin to translate the text.',
+    modelTimeout: 'Model loading timed out. Please try again.',
+    offlineFailed: 'Offline translation failed: {error}',
+    translationTimeout: 'Translation timed out. Check your network connection.',
+    translationNetworkError:
+      'Translation failed. Check your network connection.',
+    partialTranslation:
+      'Some text could not be translated. The original text was kept.',
+    visionModelRequired:
+      'Configure a vision model (mmproj) in Local AI to translate images.',
+    aiTranslationFailed: 'AI image translation failed: {error}',
+    ocrLowQuality:
+      'OCR quality is too low. Select clearer text with the correct orientation.',
+    ocrUnavailable:
+      'RapidOCR is not configured. Screenshot text cannot be recognized.',
+    ocrTranslationFailed: 'OCR translation failed',
     loading: 'Loading screenshot...',
     dragToSelect: 'Drag to select area',
     pressEscToClose: 'Press ESC to close',
@@ -2374,8 +2431,123 @@ export default {
   },
 
   // Error Handling
+  gitErrors: {
+    network: {
+      title: 'Network Connection Failed',
+      message:
+        'Unable to connect to the remote repository. Check your network connection.',
+      suggestions: [
+        'Check your network connection',
+        'Check whether a proxy is required to access GitHub',
+        'Try connecting with SSH',
+        'Check whether a firewall is blocking Git'
+      ]
+    },
+    auth: {
+      title: 'Authentication Failed',
+      message: 'Git authentication failed. Check your access token.',
+      suggestions: [
+        'Check that your GitHub personal access token is valid',
+        'Check that the token has the required repository permissions',
+        'Check whether the token has expired',
+        'Generate a new token and update the settings'
+      ]
+    },
+    conflict: {
+      title: 'Merge Conflict',
+      message:
+        'Local and remote changes conflict and need to be resolved manually.',
+      suggestions: [
+        'Use Manual Merge to resolve each conflict',
+        'Use Force Pull to keep the remote version',
+        'Use Force Push to keep the local version'
+      ]
+    },
+    not_found: {
+      title: 'Repository Not Found',
+      message: 'The remote repository does not exist or has been deleted.',
+      suggestions: [
+        'Check the remote repository URL',
+        'Check whether the repository was deleted or renamed',
+        'Check whether the repository exists on GitHub',
+        'Reconfigure the repository if it needs to be recreated'
+      ]
+    },
+    permission: {
+      title: 'Permission Denied',
+      message:
+        'You do not have permission to access or push to this repository.',
+      suggestions: [
+        'Check that the token has write access to the repository',
+        'Check whether you have been invited to the repository',
+        'Check whether the repository is private'
+      ]
+    },
+    git_not_installed: {
+      title: 'Git Not Installed',
+      message: 'Git is not installed. Install Git before continuing.',
+      suggestions: [
+        'Download and install Git from https://git-scm.com',
+        'Restart the application after installing Git',
+        'Check that the git command runs in your terminal'
+      ]
+    },
+    not_a_repo: {
+      title: 'Not a Git Repository',
+      message: 'The current directory is not a Git repository.',
+      suggestions: [
+        'Initialize a Git repository first',
+        'Or configure an existing Git repository'
+      ]
+    },
+    no_remote: {
+      title: 'No Remote Configured',
+      message: 'No remote repository URL is configured.',
+      suggestions: [
+        'Configure a remote repository URL in settings',
+        'Check that the GitHub repository has been created',
+        'Add a remote using HTTPS or SSH'
+      ]
+    },
+    unknown: {
+      title: 'Unknown Error',
+      message: 'An unknown error occurred. Check the detailed logs.',
+      suggestions: [
+        'Restart the application',
+        'Check your Git settings',
+        'Check the console logs for details',
+        'Report the issue if it persists'
+      ]
+    }
+  },
+
+  relativeTime: {
+    justNow: 'Just now',
+    minutesAgo: '{count} minute ago | {count} minutes ago',
+    hoursAgo: '{count} hour ago | {count} hours ago',
+    daysAgo: '{count} day ago | {count} days ago'
+  },
+  syncStatus: {
+    local: 'Local Workspace',
+    syncing: 'Syncing',
+    pending: 'Pending Sync',
+    error: 'Sync Error',
+    synced: 'Workspace Synced',
+    disabled: 'Git sync is disabled',
+    pluginDisabled: 'The Git plugin is disabled',
+    pendingFiles: '{count} file pending sync | {count} files pending sync',
+    openSettings: '{status}. Click to view Git settings',
+    lastSync: 'Last sync: {time}',
+    badges: { local: 'LOCAL', syncing: 'SYNC', error: 'ERR', synced: 'ONLINE' }
+  },
   errors: {
     navigationFailed: 'Navigation failed: {error}',
+    requestTimeout: 'The request timed out. Please try again.',
+    workspaceNotWritable:
+      'The workspace is not writable. Check its permissions or choose a writable directory.',
+    apiFailedRetry: 'The API request failed. Please try again.',
+    databaseFailedRetry: 'The database operation failed. Please try again.',
+    commandFailed: 'The system command failed.',
     // API Errors
     invalidFragmentType: 'Invalid fragment type. Must be "code" or "note"',
     invalidFormat: 'Invalid content format',

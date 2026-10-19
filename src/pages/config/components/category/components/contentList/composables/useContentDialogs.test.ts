@@ -33,7 +33,8 @@ vi.mock('vue-router', () => ({
   useRoute: () => mocks.route,
   useRouter: () => ({ replace: mocks.replace, push: mocks.push })
 }));
-vi.mock('vue-i18n', () => ({
+vi.mock('vue-i18n', async (original) => ({
+  ...(await original<typeof import('vue-i18n')>()),
   useI18n: () => ({
     t: (key: string) => (key === 'nav.uncategorized' ? '未分类' : key)
   })

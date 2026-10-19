@@ -28,6 +28,7 @@ import {
 import { invoke } from '@tauri-apps/api/core';
 import { Window } from '@tauri-apps/api/window';
 import { logger, ocrDiagnosticLogger } from '@/utils/logger';
+import i18n from '@/i18n';
 import {
   chatWithAi,
   getAiProviderStatus,
@@ -2151,12 +2152,12 @@ export class ScreenshotManager {
       ctx.textBaseline = 'middle';
 
       // 根据引擎和阶段显示不同的提示文字
-      let loadingText = '正在识别翻译...';
+      let loadingText = i18n.global.t('screenshotTool.recognizingTranslation');
       if (this.translationOverlay.engine === 'local-ai') {
         if (this.translationOverlay.loadingStage === 'starting-service') {
-          loadingText = '正在启动 AI 模型服务...';
+          loadingText = i18n.global.t('screenshotTool.startingAi');
         } else {
-          loadingText = '正在由 AI 识图翻译...';
+          loadingText = i18n.global.t('screenshotTool.translatingWithAi');
         }
       }
 
@@ -2980,7 +2981,10 @@ export class ScreenshotManager {
     const hierarchyPosition =
       this.elementCandidateStabilizer.getHierarchyPosition();
     if (hierarchyPosition) {
-      const label = `${hierarchyPosition.index + 1}/${hierarchyPosition.total}  滚轮 / Tab 切换层级`;
+      const label = i18n.global.t('screenshotTool.hierarchyHint', {
+        current: hierarchyPosition.index + 1,
+        total: hierarchyPosition.total
+      });
       ctx.setLineDash([]);
       ctx.font = '12px "Microsoft YaHei", sans-serif';
       ctx.textBaseline = 'middle';
@@ -4174,7 +4178,7 @@ export class ScreenshotManager {
       const getTranslationErrorMessage = (errMsg: string): string => {
         if (errMsg.includes('插件') && errMsg.includes('未启用')) {
           return errMsg.includes('translation')
-            ? 'OCR识别已完成，但翻译插件未启用，请在插件设置中安装并启用 Translation 插件'
+            ? i18n.global.t('screenshotTool.translationPluginDisabled')
             : errMsg;
         }
 
@@ -4187,15 +4191,17 @@ export class ScreenshotManager {
             return errMsg;
           }
           if (errMsg.includes('超时')) {
-            return '模型加载超时，请重试';
+            return i18n.global.t('screenshotTool.modelTimeout');
           }
           return errMsg.includes('离线翻译暂仅支持')
             ? errMsg
-            : '离线翻译失败: ' + errMsg.substring(0, 50);
+            : i18n.global.t('screenshotTool.offlineFailed', {
+                error: errMsg.substring(0, 50)
+              });
         }
 
         if (errMsg.includes('timeout') || errMsg.includes('超时')) {
-          return '翻译超时，请检查网络连接';
+          return i18n.global.t('screenshotTool.translationTimeout');
         }
 
         if (
@@ -4204,14 +4210,14 @@ export class ScreenshotManager {
           errMsg.includes('请求') ||
           errMsg.includes('令牌')
         ) {
-          return '翻译失败，请检查网络连接';
+          return i18n.global.t('screenshotTool.translationNetworkError');
         }
 
         if (errMsg.trim()) {
           return errMsg.slice(0, 80);
         }
 
-        return '翻译失败，请检查网络连接';
+        return i18n.global.t('screenshotTool.translationNetworkError');
       };
 
       const loadOfflineTranslator = async () => {
@@ -4390,7 +4396,7 @@ export class ScreenshotManager {
           const skippedResult = finish({
             skipped: true,
             cancelled: false,
-            errorMessage: '部分文本暂不支持翻译，已保留原文'
+            errorMessage: i18n.global.t('screenshotTool.partialTranslation')
           });
           const skipLogData = {
             index,
@@ -4795,8 +4801,10 @@ export class ScreenshotManager {
       this.translationOverlay.paragraphBlocks = [];
       this.translationOverlay.errorMessage =
         message.includes('mmproj') || message.includes('vision')
-          ? 'AI 翻译需要在“本地 AI”中配置视觉模型（mmproj）'
-          : `AI 识图翻译失败：${message.slice(0, 80)}`;
+          ? i18n.global.t('screenshotTool.visionModelRequired')
+          : i18n.global.t('screenshotTool.aiTranslationFailed', {
+              error: message.slice(0, 80)
+            });
       this.draw();
       this.onStateChange?.();
     }
@@ -4804,14 +4812,16 @@ export class ScreenshotManager {
 
   private getOcrTranslationErrorMessage(message: string): string {
     if (message.includes('OCR_RECOGNITION_LOW_QUALITY')) {
-      return 'OCR识别质量过低，请重新选择更清晰或方向正确的文本区域';
+      return i18n.global.t('screenshotTool.ocrLowQuality');
     }
 
     if (message.includes('RAPIDOCR_UNAVAILABLE')) {
-      return 'RapidOCR 未配置，无法识别截图文字';
+      return i18n.global.t('screenshotTool.ocrUnavailable');
     }
 
-    return message ? message.slice(0, 80) : 'OCR翻译失败';
+    return message
+      ? message.slice(0, 80)
+      : i18n.global.t('screenshotTool.ocrTranslationFailed');
   }
 
   private getAutoTargetLanguage(

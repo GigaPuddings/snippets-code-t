@@ -1875,6 +1875,28 @@ export default {
     fileLabel: '文件',
     previewTitle: '预览',
     unnamedTitle: '未命名',
+    quickTools: {
+      title: '快捷工具',
+      calculator: '计算器',
+      unitConverter: '单位转换',
+      currencyConverter: '汇率转换',
+      expression: '表达式',
+      recognizedUnits: '识别单位',
+      recognizedCurrencies: '识别币种',
+      subtitle: 'quick-tools 根据当前查询直接生成答案',
+      copyResult: '复制结果',
+      copyDetails: '复制明细',
+      result: '转换结果',
+      input: '原始输入',
+      toolType: '工具类型',
+      displayPolicy: '展示策略',
+      summaryPolicy: '结果列表显示摘要，右侧展示结构化答案',
+      date: '日期 {date}',
+      latestDate: '最新',
+      provider: '数据由 {provider} 提供',
+      resultCount: '结果 {current} / {total}',
+      cached: '已缓存'
+    },
     showPanel: '显示预览面板',
     hidePanel: '隐藏预览面板',
     saveVisibilityFailed: '预览面板偏好保存失败，请重试',
@@ -2169,6 +2191,22 @@ export default {
 
   // 截图工具
   screenshotTool: {
+    recognizingTranslation: '正在识别翻译...',
+    startingAi: '正在启动 AI 模型服务...',
+    translatingWithAi: '正在由 AI 识图翻译...',
+    hierarchyHint: '{current}/{total}  滚轮 / Tab 切换层级',
+    translationPluginDisabled:
+      'OCR 识别已完成，请安装并启用 Translation 插件后翻译文本。',
+    modelTimeout: '模型加载超时，请重试',
+    offlineFailed: '离线翻译失败：{error}',
+    translationTimeout: '翻译超时，请检查网络连接',
+    translationNetworkError: '翻译失败，请检查网络连接',
+    partialTranslation: '部分文本暂不支持翻译，已保留原文',
+    visionModelRequired: 'AI 翻译需要在“本地 AI”中配置视觉模型（mmproj）',
+    aiTranslationFailed: 'AI 识图翻译失败：{error}',
+    ocrLowQuality: 'OCR 识别质量过低，请重新选择更清晰或方向正确的文本区域',
+    ocrUnavailable: 'RapidOCR 未配置，无法识别截图文字',
+    ocrTranslationFailed: 'OCR 翻译失败',
     loading: '正在加载截图...',
     dragToSelect: '拖拽鼠标选择截图区域',
     pressEscToClose: '按ESC键关闭',
@@ -2274,8 +2312,117 @@ export default {
   },
 
   // 错误处理
+  gitErrors: {
+    network: {
+      title: '网络连接失败',
+      message: '无法连接到远程仓库，请检查网络连接',
+      suggestions: [
+        '检查网络连接是否正常',
+        '确认是否需要代理才能访问 GitHub',
+        '尝试使用 SSH 方式连接',
+        '检查防火墙是否阻止了 Git 连接'
+      ]
+    },
+    auth: {
+      title: '认证失败',
+      message: 'Git 认证失败，请检查 Token 是否正确',
+      suggestions: [
+        '确认 GitHub Personal Access Token 是否有效',
+        '检查 Token 是否具有 repo 权限',
+        '确认 Token 是否已过期',
+        '尝试重新生成 Token 并更新设置'
+      ]
+    },
+    conflict: {
+      title: '合并冲突',
+      message: '本地与远程存在冲突，需要手动解决',
+      suggestions: [
+        '点击"手动合并"逐个解决冲突',
+        '或选择"强制拉取"以远程为准',
+        '或选择"强制推送"以本地为准'
+      ]
+    },
+    not_found: {
+      title: '仓库不存在',
+      message: '远程仓库不存在或已被删除',
+      suggestions: [
+        '确认远程仓库 URL 是否正确',
+        '检查仓库是否已被删除或重命名',
+        '可以在 GitHub 上确认仓库是否存在',
+        '如需重新创建仓库，请重新配置'
+      ]
+    },
+    permission: {
+      title: '权限不足',
+      message: '没有足够的权限访问或推送到此仓库',
+      suggestions: [
+        '确认 Token 具有仓库的写入权限',
+        '检查是否被邀请加入仓库',
+        '确认仓库是否是私有仓库'
+      ]
+    },
+    git_not_installed: {
+      title: 'Git 未安装',
+      message: '系统未安装 Git，请先安装 Git',
+      suggestions: [
+        '下载并安装 Git: https://git-scm.com',
+        '安装完成后重启应用程序',
+        '确认 git 命令可以在终端中运行'
+      ]
+    },
+    not_a_repo: {
+      title: '不是 Git 仓库',
+      message: '当前目录不是 Git 仓库',
+      suggestions: ['需要先初始化 Git 仓库', '或重新配置指向已有的 Git 仓库']
+    },
+    no_remote: {
+      title: '未配置远程仓库',
+      message: '未配置远程仓库地址',
+      suggestions: [
+        '在设置中配置远程仓库 URL',
+        '确认 GitHub 仓库已创建',
+        '使用 HTTPS 或 SSH 方式添加远程仓库'
+      ]
+    },
+    unknown: {
+      title: '未知错误',
+      message: '发生了未知错误，请查看详细日志',
+      suggestions: [
+        '尝试重启应用程序',
+        '检查 Git 设置是否正确',
+        '查看控制台日志获取更多信息',
+        '如问题持续，请提交问题反馈'
+      ]
+    }
+  },
+
+  relativeTime: {
+    justNow: '刚刚',
+    minutesAgo: '{count} 分钟前',
+    hoursAgo: '{count} 小时前',
+    daysAgo: '{count} 天前'
+  },
+  syncStatus: {
+    local: '本地库',
+    syncing: '正在同步',
+    pending: '有待同步',
+    error: '同步异常',
+    synced: '本地库已同步',
+    disabled: 'Git 同步已禁用',
+    pluginDisabled: 'Git 插件未启用',
+    pendingFiles: '{count} 个文件待同步',
+    openSettings: '{status}，点击查看 Git 配置',
+    lastSync: '上次同步：{time}',
+    badges: { local: '本地', syncing: '同步', error: '异常', synced: '在线' }
+  },
   errors: {
     navigationFailed: '跳转失败：{error}',
+    requestTimeout: '请求超时，请稍后重试',
+    workspaceNotWritable:
+      '工作区目录没有写入权限，请检查目录权限或选择可写的目录',
+    apiFailedRetry: 'API 调用失败，请重试',
+    databaseFailedRetry: '数据库操作失败，请重试',
+    commandFailed: '系统命令执行失败',
     // API 错误
     invalidFragmentType: '片段类型无效，请选择"代码"或"笔记"',
     invalidFormat: '内容格式无效',

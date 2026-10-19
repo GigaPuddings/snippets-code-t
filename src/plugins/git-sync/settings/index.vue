@@ -764,7 +764,7 @@ const contributionMonthLabels = computed(() => {
 
 // 显示友好的错误消息
 const showFriendlyError = (error: unknown) => {
-  const errorInfo = analyzeGitError(error);
+  const errorInfo = analyzeGitError(error, t);
   const icon = getErrorTypeIcon(errorInfo.type);
   const errorMsg = String(error).replace(/^Error:\s*/, '');
 

@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { quickToolsSearchProvider } from './searchProvider';
+import i18n from '@/i18n';
+
+const originalLocale = i18n.global.locale.value;
 
 const searchFirstItem = async (query: string) => {
   const [source] = await quickToolsSearchProvider.search(query);
@@ -13,6 +16,7 @@ const searchTitle = async (query: string) => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  i18n.global.locale.value = originalLocale;
 });
 
 describe('quickToolsSearchProvider', () => {
@@ -68,5 +72,10 @@ describe('quickToolsSearchProvider', () => {
       outputValue: '1.23',
       outputUnit: 'EUR'
     });
+    i18n.global.locale.value = 'en-US';
+    const english = await searchFirstItem('1元=欧元');
+    expect(english?.content).toBe('1.23 EUR · Date 2026-05-23');
+    expect(english?.metadata?.input).toBe('1 CNY');
+    expect(english?.title).toBe(item?.title);
   });
 });

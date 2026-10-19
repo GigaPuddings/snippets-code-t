@@ -4,6 +4,7 @@ import { getGitStatus, type GitStatus } from '@/plugins/git-sync/api';
 import { getGitSettings } from '@/api/appConfig';
 import type { GitSettings } from '@/types/models';
 import { logger } from '@/utils/logger';
+import i18n from '@/i18n';
 
 /**
  * Git 同步状态类型
@@ -114,6 +115,7 @@ const isGitPluginDisabledError = (error: unknown): boolean => {
  * ```
  */
 export function useGitStatus(): UseGitStatusReturn {
+  const { t, locale } = i18n.global;
   // 待同步文件数量
   const pendingFilesCount = computed(() => {
     if (!gitStatus.value || !gitStatus.value.is_repo) return 0;
@@ -131,38 +133,53 @@ export function useGitStatus(): UseGitStatusReturn {
     const diffHours = Math.floor(diffMins / 60);
     const diffDays = Math.floor(diffHours / 24);
 
-    if (diffMins < 1) return '刚刚';
-    if (diffMins < 60) return `${diffMins}分钟前`;
-    if (diffHours < 24) return `${diffHours}小时前`;
-    if (diffDays < 7) return `${diffDays}天前`;
+    if (diffMins < 1) return t('relativeTime.justNow');
+    if (diffMins < 60)
+      return t('relativeTime.minutesAgo', { count: diffMins }, diffMins);
+    if (diffHours < 24)
+      return t('relativeTime.hoursAgo', { count: diffHours }, diffHours);
+    if (diffDays < 7)
+      return t('relativeTime.daysAgo', { count: diffDays }, diffDays);
 
     // 超过一周显示具体日期
-    return syncTime.toLocaleDateString('zh-CN');
+    return syncTime.toLocaleDateString(locale.value);
   });
 
   // 状态描述
   const stateDescription = computed(() => {
     const settings = gitSettings.value;
     if (!settings || !settings.enabled) {
-      return 'Git 同步已禁用';
+      return t('syncStatus.disabled');
     }
 
     // 优先显示待同步文件数量
     if (pendingFilesCount.value > 0) {
-      return `${pendingFilesCount.value} 个文件待同步`;
+      return t(
+        'syncStatus.pendingFiles',
+        { count: pendingFilesCount.value },
+        pendingFilesCount.value
+      );
     }
 
     switch (syncState.value) {
       case 'syncing':
-        return '同步中...';
+        return t('settings.gitSync.status.syncing');
       case 'synced':
-        return formattedLastSyncTime.value || '已同步';
+        return (
+          formattedLastSyncTime.value || t('settings.gitSync.status.synced')
+        );
       case 'has_changes':
-        return `${pendingFilesCount.value} 个文件待同步`;
+        return t(
+          'syncStatus.pendingFiles',
+          { count: pendingFilesCount.value },
+          pendingFilesCount.value
+        );
       case 'error':
-        return '同步出错';
+        return t('syncStatus.error');
       default:
-        return formattedLastSyncTime.value || '已同步';
+        return (
+          formattedLastSyncTime.value || t('settings.gitSync.status.synced')
+        );
     }
   });
 

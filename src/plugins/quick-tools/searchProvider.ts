@@ -1,5 +1,6 @@
 import type { ContentType } from '@/types';
 import type { SearchSourceProvider } from '../search';
+import i18n from '@/i18n';
 
 type CurrencyCode = 'USD' | 'CNY' | 'EUR' | 'JPY' | 'HKD' | 'GBP';
 
@@ -437,12 +438,12 @@ const convertCurrency = async (query: string): Promise<ContentType | null> => {
     return createResult(
       'quick-tools-currency',
       `${formatNumber(conversion.amount)} ${conversion.from.code} = ${result} ${conversion.to.code}`,
-      `${result} ${conversion.to.code}，汇率日期 ${rateDate ?? 'latest'}`,
+      `${result} ${conversion.to.code} · ${i18n.global.t('searchPreview.quickTools.date', { date: rateDate ?? i18n.global.t('searchPreview.quickTools.latestDate') })}`,
       query,
       {
         tool: 'currency-converter',
         toolName: '汇率转换',
-        input: `${formatNumber(conversion.amount)} ${conversion.from.label}`,
+        input: `${formatNumber(conversion.amount)} ${conversion.from.code}`,
         outputValue: result,
         outputUnit: conversion.to.code,
         fromCode: conversion.from.code,

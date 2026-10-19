@@ -22,6 +22,7 @@ import { getGitSettings } from '@/api/appConfig';
 import { getGitStatus, type GitStatus } from '@/api/gitSync';
 import { usePluginStore } from '@/store';
 import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import type { GitSettings } from '@/types/models';
 
 defineOptions({
@@ -47,6 +48,7 @@ let unlistenHandlers: UnlistenFn[] = [];
 let lifecycleRunId = 0;
 
 const router = useRouter();
+const { t, locale } = useI18n();
 const pluginStore = usePluginStore();
 const isGitPluginEnabled = computed(() => pluginStore.isEnabled('git-sync'));
 const pendingFilesCount = computed(
@@ -62,20 +64,28 @@ const formattedLastSyncTime = computed(() => {
   const diffHours = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
 
-  if (diffMinutes < 1) return '刚刚';
-  if (diffMinutes < 60) return `${diffMinutes} 分钟前`;
-  if (diffHours < 24) return `${diffHours} 小时前`;
-  if (diffDays < 7) return `${diffDays} 天前`;
-  return syncTime.toLocaleDateString('zh-CN');
+  if (diffMinutes < 1) return t('relativeTime.justNow');
+  if (diffMinutes < 60)
+    return t('relativeTime.minutesAgo', { count: diffMinutes }, diffMinutes);
+  if (diffHours < 24)
+    return t('relativeTime.hoursAgo', { count: diffHours }, diffHours);
+  if (diffDays < 7)
+    return t('relativeTime.daysAgo', { count: diffDays }, diffDays);
+  return syncTime.toLocaleDateString(locale.value);
 });
 
 const stateDescription = computed(() => {
-  if (!gitSettings.value?.enabled) return 'Git 同步已禁用';
+  if (!gitSettings.value?.enabled) return t('syncStatus.disabled');
   if (pendingFilesCount.value > 0)
-    return `${pendingFilesCount.value} 个文件待同步`;
-  if (syncState.value === 'syncing') return '同步中...';
-  if (syncState.value === 'error') return '同步出错';
-  return formattedLastSyncTime.value || '已同步';
+    return t(
+      'syncStatus.pendingFiles',
+      { count: pendingFilesCount.value },
+      pendingFilesCount.value
+    );
+  if (syncState.value === 'syncing')
+    return t('settings.gitSync.status.syncing');
+  if (syncState.value === 'error') return t('syncStatus.error');
+  return formattedLastSyncTime.value || t('settings.gitSync.status.synced');
 });
 
 const isGitUnavailableError = (error: unknown): boolean => {
@@ -222,30 +232,30 @@ const canOpenGitSettings = computed(
 );
 
 const statusLabel = computed(() => {
-  if (!isGitPluginEnabled.value) return '本地库';
-  if (!gitSettings.value?.enabled) return '本地库';
-  if (syncState.value === 'syncing') return '正在同步';
-  if (syncState.value === 'has_changes') return '有待同步';
-  if (syncState.value === 'error') return '同步异常';
-  return '本地库已同步';
+  if (!isGitPluginEnabled.value || !gitSettings.value?.enabled)
+    return t('syncStatus.local');
+  if (syncState.value === 'syncing') return t('syncStatus.syncing');
+  if (syncState.value === 'has_changes') return t('syncStatus.pending');
+  if (syncState.value === 'error') return t('syncStatus.error');
+  return t('syncStatus.synced');
 });
 
 const statusBadge = computed(() => {
-  if (!isGitPluginEnabled.value) return 'LOCAL';
-  if (!gitSettings.value?.enabled) return 'LOCAL';
-  if (syncState.value === 'syncing') return 'SYNC';
+  if (!isGitPluginEnabled.value || !gitSettings.value?.enabled)
+    return t('syncStatus.badges.local');
+  if (syncState.value === 'syncing') return t('syncStatus.badges.syncing');
   if (syncState.value === 'has_changes') return String(pendingFilesCount.value);
-  if (syncState.value === 'error') return 'ERR';
-  return 'ONLINE';
+  if (syncState.value === 'error') return t('syncStatus.badges.error');
+  return t('syncStatus.badges.synced');
 });
 
 const statusTitle = computed(() => {
-  if (!isGitPluginEnabled.value) return 'Git 插件未启用';
-  if (!gitSettings.value?.enabled) return 'Git 同步未启用';
+  if (!isGitPluginEnabled.value) return t('syncStatus.pluginDisabled');
+  if (!gitSettings.value?.enabled) return t('syncStatus.disabled');
   if (canOpenGitSettings.value)
-    return `${stateDescription.value}，点击查看 Git 配置`;
+    return t('syncStatus.openSettings', { status: stateDescription.value });
   if (formattedLastSyncTime.value && syncState.value !== 'has_changes') {
-    return `上次同步：${formattedLastSyncTime.value}`;
+    return t('syncStatus.lastSync', { time: formattedLastSyncTime.value });
   }
   return stateDescription.value;
 });
