@@ -202,14 +202,16 @@ onUnmounted(() => {
   <main data-tauri-drag-region class="search-window-canvas">
     <section
       ref="searchRef"
+      data-tauri-drag-region
       class="main"
       :class="{ 'has-query': hasSearchQuery }"
       :style="{ height: `${searchWindowHeight}px` }"
     >
-      <section class="search-command-surface">
-        <section class="search">
+      <section class="search-command-surface" data-tauri-drag-region>
+        <!-- Tauri matches direct targets; decorative icons forward hits here. -->
+        <section class="search" data-tauri-drag-region>
           <SearchInputIcon
-            class="ml-2 shrink-0 text-search-secondary"
+            class="pointer-events-none ml-2 shrink-0 text-search-secondary"
             width="20"
             height="20"
           />
@@ -289,11 +291,11 @@ onUnmounted(() => {
 
 <style lang="scss" scoped>
 .search-window-canvas {
-  @apply h-full w-full overflow-hidden rounded-ui-lg bg-search;
+  @apply h-full w-full overflow-hidden rounded-[var(--workspace-window-radius)] bg-search;
 }
 
 .main {
-  @apply relative box-border flex w-full flex-col overflow-hidden rounded-ui-lg border border-ui bg-search p-2 font-ui;
+  @apply relative box-border flex w-full flex-col overflow-hidden rounded-[var(--workspace-window-radius)] border border-ui bg-search p-2 font-ui;
 }
 
 .main.has-query {
