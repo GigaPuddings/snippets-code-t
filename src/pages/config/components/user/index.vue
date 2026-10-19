@@ -384,7 +384,7 @@ const goToGitSync = () => {
     });
   } catch (error) {
     console.error('[UserCenter] 路由跳转失败:', error);
-    modal.error('跳转失败: ' + error);
+    modal.error(t('errors.navigationFailed', { error: String(error) }));
   }
 };
 
@@ -394,7 +394,7 @@ const goToWorkspaceSettings = () => {
     router.push({ path: '/config/category/settings', query: { tab: 'data' } });
   } catch (error) {
     console.error('[UserCenter] 路由跳转失败:', error);
-    modal.error('跳转失败: ' + error);
+    modal.error(t('errors.navigationFailed', { error: String(error) }));
   }
 };
 
@@ -407,7 +407,7 @@ const goToPluginSettings = () => {
     });
   } catch (error) {
     console.error('[UserCenter] 路由跳转失败:', error);
-    modal.error('跳转失败: ' + error);
+    modal.error(t('errors.navigationFailed', { error: String(error) }));
   }
 };
 
@@ -435,7 +435,7 @@ const goToSettings = () => {
     });
   } catch (error) {
     console.error('[UserCenter] 路由跳转失败:', error);
-    modal.error('跳转失败: ' + error);
+    modal.error(t('errors.navigationFailed', { error: String(error) }));
   }
 };
 

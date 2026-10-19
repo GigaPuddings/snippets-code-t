@@ -709,7 +709,7 @@ const completeSetup = async () => {
             : null
       });
     } catch (error: any) {
-      modal.msg(`${t('setup.pathError') || '路径设置失败'}: ${error}`, 'error');
+      modal.msg(`${t('setup.pathError')}: ${error}`, 'error');
       completing.value = false;
       return;
     }

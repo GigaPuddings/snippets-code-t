@@ -1244,7 +1244,7 @@ export default {
     discardChanges: 'Discard Changes',
     createNoteConfirm: 'Note "{name}" not found. Create a new note?',
     emptyName: 'Category name cannot be empty',
-    invalidNameChars: 'Category name cannot contain \\ / : * ? " < > |',
+    invalidNameChars: "Category name cannot contain \\ / : * ? \" < > {'|'}",
     duplicateName: 'Category name already exists',
     createSuccess: 'Category created successfully',
     createFailed: 'Failed to create category'
@@ -1958,6 +1958,9 @@ export default {
   },
 
   searchPreview: {
+    fileLabel: 'File',
+    previewTitle: 'Preview',
+    unnamedTitle: 'Untitled',
     showPanel: 'Show Preview Panel',
     hidePanel: 'Hide Preview Panel',
     saveVisibilityFailed:
@@ -2372,6 +2375,7 @@ export default {
 
   // Error Handling
   errors: {
+    navigationFailed: 'Navigation failed: {error}',
     // API Errors
     invalidFragmentType: 'Invalid fragment type. Must be "code" or "note"',
     invalidFormat: 'Invalid content format',

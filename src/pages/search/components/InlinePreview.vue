@@ -19,7 +19,7 @@
           v-if="item.updated_at"
           class="text-ui-caption text-search-secondary"
         >
-          {{ new Date(item.updated_at).toLocaleString() }}
+          {{ new Date(item.updated_at).toLocaleString(locale) }}
         </span>
         <p
           class="min-h-0 overflow-y-auto whitespace-pre-wrap break-words text-ui leading-relaxed text-search-secondary"
@@ -362,7 +362,7 @@ const props = defineProps<{
 }>();
 defineEmits<{ primaryAction: [item: ContentType] }>();
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const store = useConfigurationStore();
 const isPreviewVisible = ref(false);
 
@@ -504,7 +504,7 @@ const fileSubtitle = computed(() => {
   return path && name && path !== name ? path : path || name;
 });
 const filePreviewTitle = computed(
-  () => displayTitle.value || fileSubtitle.value || '文件'
+  () => displayTitle.value || fileSubtitle.value || t('searchPreview.fileLabel')
 );
 const fileCreatedText = computed(() => {
   const metadata = props.item?.metadata as Record<string, unknown> | undefined;
@@ -1027,9 +1027,9 @@ defineExpose({
 });
 
 function getFallbackTitle(item: ContentType | null): string {
-  if (!item) return '预览';
+  if (!item) return t('searchPreview.previewTitle');
   const content = toDisplayText(item.content);
-  return content.split('/')[2] || content || '未命名';
+  return content.split('/')[2] || content || t('searchPreview.unnamedTitle');
 }
 
 function formatFileSize(size: number): string {

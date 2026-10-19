@@ -255,7 +255,7 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
       // 在文件资源管理器中显示
       const workspaceRoot = await getWorkspaceRoot();
       if (!workspaceRoot) {
-        modal.warning(t('settings.workspaceNotSet'));
+        modal.warning(t('workbenchHome.workspaceNotSet'));
         return;
       }
       const rawPath = content.value.id as string;

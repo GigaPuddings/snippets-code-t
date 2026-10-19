@@ -1194,7 +1194,7 @@ export default {
     discardChanges: '放弃更改',
     createNoteConfirm: '未找到名为"{name}"的笔记，是否创建新笔记？',
     emptyName: '分类名称不能为空',
-    invalidNameChars: '分类名称不能包含 \\ / : * ? " < > |',
+    invalidNameChars: "分类名称不能包含 \\ / : * ? \" < > {'|'}",
     duplicateName: '分类名称已存在',
     createSuccess: '分类创建成功',
     createFailed: '分类创建失败'
@@ -1872,6 +1872,9 @@ export default {
   },
 
   searchPreview: {
+    fileLabel: '文件',
+    previewTitle: '预览',
+    unnamedTitle: '未命名',
     showPanel: '显示预览面板',
     hidePanel: '隐藏预览面板',
     saveVisibilityFailed: '预览面板偏好保存失败，请重试',
@@ -2272,6 +2275,7 @@ export default {
 
   // 错误处理
   errors: {
+    navigationFailed: '跳转失败：{error}',
     // API 错误
     invalidFragmentType: '片段类型无效，请选择"代码"或"笔记"',
     invalidFormat: '内容格式无效',
