@@ -4,6 +4,7 @@ import {
   getDeletedNotes,
   readDeletedNote,
   restoreDeletedNote,
+  permanentlyDeleteNote,
   type DeletedNote,
   type DeletedNoteContent
 } from '@/api/markdown';
@@ -28,6 +29,10 @@ export function useDeletedNotes() {
   const loading = ref(true);
   const error = ref('');
   const restoringId = ref('');
+  const deletingId = ref('');
+  const deleteTarget = ref<DeletedNote>();
+  const showDeleteDialog = ref(false);
+  const deleteError = ref('');
   const preview = ref<DeletedNoteContent>();
   const previewLoading = ref(false);
   const previewError = ref('');
@@ -75,7 +80,7 @@ export function useDeletedNotes() {
   });
 
   async function restore(id: string): Promise<void> {
-    if (restoringId.value) return;
+    if (restoringId.value || deletingId.value) return;
     restoringId.value = id;
     error.value = '';
     try {
@@ -91,6 +96,60 @@ export function useDeletedNotes() {
       if (!disposed) error.value = String(cause);
     } finally {
       if (!disposed) restoringId.value = '';
+    }
+  }
+
+  function requestDelete(note: DeletedNote): void {
+    if (restoringId.value || deletingId.value) return;
+    deleteTarget.value = { ...note };
+    deleteError.value = '';
+    showDeleteDialog.value = true;
+  }
+
+  watch(
+    showDeleteDialog,
+    (visible) => {
+      if (!visible && !deletingId.value) {
+        deleteTarget.value = undefined;
+        deleteError.value = '';
+      }
+    },
+    { flush: 'sync' }
+  );
+
+  async function confirmPermanentDelete(): Promise<void> {
+    const target = deleteTarget.value;
+    if (
+      !showDeleteDialog.value ||
+      !target ||
+      restoringId.value ||
+      deletingId.value
+    )
+      return;
+    deletingId.value = target.id;
+    deleteError.value = '';
+    ++revision;
+    try {
+      await permanentlyDeleteNote(target.id);
+      if (disposed) return;
+      const index = notes.value.findIndex((note) => note.id === target.id);
+      notes.value = notes.value.filter((note) => note.id !== target.id);
+      if (selectedId.value === target.id) {
+        selectedId.value =
+          notes.value[Math.min(Math.max(index, 0), notes.value.length - 1)]
+            ?.id ?? '';
+      }
+      showDeleteDialog.value = false;
+      deleteTarget.value = undefined;
+      window.dispatchEvent(
+        new CustomEvent('refresh-data', {
+          detail: { source: 'permanently-delete-note' }
+        })
+      );
+    } catch (cause) {
+      if (!disposed) deleteError.value = String(cause);
+    } finally {
+      if (!disposed) deletingId.value = '';
     }
   }
 
@@ -121,6 +180,12 @@ export function useDeletedNotes() {
     loading,
     error,
     restoringId,
+    deletingId,
+    deleteTarget,
+    showDeleteDialog,
+    deleteError,
+    requestDelete,
+    confirmPermanentDelete,
     preview,
     previewLoading,
     previewError,

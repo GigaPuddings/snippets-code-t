@@ -5,6 +5,7 @@
     :width="width"
     :center="center"
     :show-close="showClose"
+    :close-on-press-escape="closeOnPressEscape"
     :custom-class="dialogClass"
   >
     <div class="confirm-content">
@@ -43,6 +44,7 @@ interface Props {
   width?: string;
   center?: boolean;
   showClose?: boolean;
+  closeOnPressEscape?: boolean;
   showCancelButton?: boolean;
   confirmText?: string;
   cancelText?: string;
@@ -57,6 +59,7 @@ const props = withDefaults(defineProps<Props>(), {
   width: '420px',
   center: false,
   showClose: true,
+  closeOnPressEscape: true,
   showCancelButton: true,
   confirmText: '确定',
   cancelText: '取消',

@@ -29,7 +29,7 @@
         >
           <button
             type="button"
-            class="flex w-full min-w-0 flex-col gap-0.5 rounded-ui py-2 pl-3 pr-10 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--el-color-primary)]"
+            class="flex w-full min-w-0 flex-col gap-0.5 rounded-ui py-2 pl-3 pr-20 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--el-color-primary)]"
             :aria-pressed="selectedId === note.id"
             @click="selectedId = note.id"
           >
@@ -46,13 +46,16 @@
               {{ expirationLabel(note) }}
             </span>
           </button>
-          <el-tooltip :content="t('nav.restore')" placement="right">
+          <div
+            class="pointer-events-none absolute right-2 top-1/2 flex -translate-y-1/2 gap-1 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100"
+          >
             <CustomButton
               unstyled
-              class="ui-icon-button ui-icon-button--small ui-action--muted pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100"
+              class="ui-icon-button ui-icon-button--small ui-action--muted"
+              :title="t('nav.restore')"
               :aria-label="t('nav.restoreNamed', { name: note.title })"
               :disabled="
-                Boolean(restoringId) ||
+                Boolean(restoringId || deletingId) ||
                 remainingTrashDays(note.expiresAt, now) === 0
               "
               :aria-busy="restoringId === note.id"
@@ -65,7 +68,17 @@
                 aria-hidden="true"
               />
             </CustomButton>
-          </el-tooltip>
+            <CustomButton
+              unstyled
+              class="ui-icon-button ui-icon-button--small ui-action--muted hover:text-[var(--el-color-danger)]"
+              :title="t('nav.trashDeleteNow')"
+              :aria-label="t('nav.trashDeleteNamed', { name: note.title })"
+              :disabled="Boolean(restoringId || deletingId)"
+              @click="requestDelete(note)"
+            >
+              <Trash2 width="16" height="16" aria-hidden="true" />
+            </CustomButton>
+          </div>
         </li>
       </ul>
     </section>
@@ -87,24 +100,33 @@
             {{ t('nav.trashCount', { count: notes.length }, notes.length) }}
           </span>
         </span>
-        <el-tooltip
-          v-if="selectedNote"
-          :content="t('nav.restore')"
-          placement="bottom"
-        >
+        <div v-if="selectedNote" class="flex items-center gap-1">
           <CustomButton
             unstyled
             class="ui-icon-button ui-icon-button--small ui-action--muted"
+            :title="t('nav.restore')"
             :aria-label="t('nav.restoreNamed', { name: selectedNote.title })"
             :disabled="
-              Boolean(restoringId) ||
+              Boolean(restoringId || deletingId) ||
               remainingTrashDays(selectedNote.expiresAt, now) === 0
             "
             @click="restore(selectedNote.id)"
           >
             <RotateCcw width="16" height="16" aria-hidden="true" />
           </CustomButton>
-        </el-tooltip>
+          <CustomButton
+            unstyled
+            class="ui-icon-button ui-icon-button--small ui-action--muted hover:text-[var(--el-color-danger)]"
+            :title="t('nav.trashDeleteNow')"
+            :aria-label="
+              t('nav.trashDeleteNamed', { name: selectedNote.title })
+            "
+            :disabled="Boolean(restoringId || deletingId)"
+            @click="requestDelete(selectedNote)"
+          >
+            <Trash2 width="16" height="16" aria-hidden="true" />
+          </CustomButton>
+        </div>
       </div>
       <h1
         class="truncate text-ui-title font-semibold text-ui-heading"
@@ -204,12 +226,37 @@
       {{ t(loading ? 'nav.loadingTrash' : 'nav.deletedEmpty') }}
     </div>
   </section>
+  <ConfirmDialog
+    v-model="showDeleteDialog"
+    :title="t('nav.trashDeleteTitle')"
+    :message="t('nav.trashDeleteConfirm', { name: deleteTarget?.title ?? '' })"
+    :confirm-text="t('nav.trashDeleteTitle')"
+    :cancel-text="t('common.cancel')"
+    :loading="Boolean(deletingId)"
+    :show-close="!deletingId"
+    :show-cancel-button="!deletingId"
+    :close-on-press-escape="!deletingId"
+    type="danger"
+    @confirm="confirmPermanentDelete"
+  >
+    <p>
+      {{ t('nav.trashDeleteConfirm', { name: deleteTarget?.title ?? '' }) }}
+    </p>
+    <p
+      v-if="deleteError"
+      class="mt-3 break-words text-[var(--el-color-danger)]"
+      role="alert"
+    >
+      {{ deleteError }}
+    </p>
+  </ConfirmDialog>
 </template>
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import RotateCcw from '~icons/lucide/rotate-ccw';
-import { CustomButton } from '@/components/UI';
+import Trash2 from '~icons/lucide/trash-2';
+import { ConfirmDialog, CustomButton } from '@/components/UI';
 import MarkdownPreview from '@/components/MarkdownPreview/index.vue';
 import CodeMirrorEditor from '@/components/CodeMirrorEditor/index.vue';
 import { useConfigurationStore } from '@/store';
@@ -230,6 +277,12 @@ const {
   loading,
   error,
   restoringId,
+  deletingId,
+  deleteTarget,
+  showDeleteDialog,
+  deleteError,
+  requestDelete,
+  confirmPermanentDelete,
   preview,
   previewLoading,
   previewError,

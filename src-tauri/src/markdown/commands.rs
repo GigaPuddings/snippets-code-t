@@ -815,6 +815,12 @@ pub fn read_deleted_note(
 }
 
 #[command]
+pub fn permanently_delete_note(app_handle: AppHandle, id: String) -> Result<(), String> {
+    let fs_manager = get_fs_manager(&app_handle)?;
+    trash::permanently_delete_note(&app_handle, fs_manager.workspace_root(), &id)
+}
+
+#[command]
 pub fn restore_deleted_note(
     app_handle: AppHandle,
     id: String,

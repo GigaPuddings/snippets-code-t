@@ -898,6 +898,11 @@ export default {
     deletedEmpty: 'No recently deleted items',
     loadingTrash: 'Loading recently deleted items…',
     restoreNamed: 'Restore “{name}”',
+    trashDeleteNow: 'Delete now',
+    trashDeleteNamed: 'Delete “{name}” now',
+    trashDeleteTitle: 'Delete permanently',
+    trashDeleteConfirm:
+      'Permanently delete “{name}”? This action cannot be undone.',
     trashRetention: 'Items are kept for 30 days, then permanently deleted.',
     trashCount: '{count} item | {count} items',
     trashDaysRemaining:

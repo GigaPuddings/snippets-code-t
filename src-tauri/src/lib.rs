@@ -732,6 +732,7 @@ pub fn run() {
             markdown::delete_markdown_file,             // 删除 Markdown 文件
             markdown::get_deleted_notes,                // 本机笔记回收站
             markdown::read_deleted_note,                // 只读预览回收站正文
+            markdown::permanently_delete_note,          // 立即彻底删除回收站条目
             markdown::restore_deleted_note,             // 恢复笔记原始字节
             markdown::move_markdown_file,               // 移动 Markdown 文件到新分类
             markdown::cleanup_cache,                    // 清理 cache.json 中已删除文件的元数据

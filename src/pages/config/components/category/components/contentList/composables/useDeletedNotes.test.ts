@@ -4,6 +4,7 @@ import {
   getDeletedNotes,
   readDeletedNote,
   restoreDeletedNote,
+  permanentlyDeleteNote,
   type DeletedNote
 } from '@/api/markdown';
 import { remainingTrashDays, useDeletedNotes } from './useDeletedNotes';
@@ -22,7 +23,8 @@ vi.mock('vue-router', () => ({ useRouter: () => ({ push: lifecycle.push }) }));
 vi.mock('@/api/markdown', () => ({
   getDeletedNotes: vi.fn(),
   readDeletedNote: vi.fn(),
-  restoreDeletedNote: vi.fn()
+  restoreDeletedNote: vi.fn(),
+  permanentlyDeleteNote: vi.fn()
 }));
 const note = (id: string): DeletedNote => ({
   id,
@@ -56,6 +58,7 @@ beforeEach(() => {
     type: 'note'
   });
   lifecycle.push.mockResolvedValue(undefined);
+  vi.mocked(permanentlyDeleteNote).mockResolvedValue(undefined);
 });
 afterEach(() => {
   lifecycle.unmount.forEach((fn) => fn());
@@ -150,5 +153,91 @@ describe('deleted note retention and selection', () => {
       '/config/category/contentList/content/' +
         encodeURIComponent('D:/工作区/分类/b.md')
     );
+  });
+
+  it('requires explicit confirmation and clears the target on cancellation', async () => {
+    const state = start();
+    await settle();
+    state.requestDelete(note('a'));
+    expect(state.showDeleteDialog.value).toBe(true);
+    expect(state.deleteTarget.value?.id).toBe('a');
+    expect(permanentlyDeleteNote).not.toHaveBeenCalled();
+    state.showDeleteDialog.value = false;
+    await settle();
+    await state.confirmPermanentDelete();
+    expect(state.deleteTarget.value).toBeUndefined();
+    expect(permanentlyDeleteNote).not.toHaveBeenCalled();
+    expect(state.notes.value).toHaveLength(2);
+  });
+
+  it('deletes the confirmed target once and selects the next entry without navigation', async () => {
+    let finish!: () => void;
+    vi.mocked(permanentlyDeleteNote).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        })
+    );
+    const state = start();
+    await settle();
+    state.requestDelete(note('a'));
+    const pending = state.confirmPermanentDelete();
+    await state.confirmPermanentDelete();
+    await state.restore('b');
+    state.requestDelete(note('b'));
+    expect(state.deleteTarget.value?.id).toBe('a');
+    expect(permanentlyDeleteNote).toHaveBeenCalledExactlyOnceWith('a');
+    expect(restoreDeletedNote).not.toHaveBeenCalled();
+    vi.mocked(getDeletedNotes).mockResolvedValue([note('b')]);
+    finish();
+    await pending;
+    await settle();
+    expect(state.notes.value.map((entry) => entry.id)).toEqual(['b']);
+    expect(state.selectedId.value).toBe('b');
+    expect(state.showDeleteDialog.value).toBe(false);
+    expect(state.deletingId.value).toBe('');
+    expect(lifecycle.push).not.toHaveBeenCalled();
+  });
+
+  it('preserves other selection and rejects stale refreshes after a delete', async () => {
+    let finishList!: (entries: DeletedNote[]) => void;
+    const state = start();
+    await settle();
+    state.selectedId.value = 'b';
+    vi.mocked(getDeletedNotes).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishList = resolve;
+        })
+    );
+    state.refresh();
+    state.requestDelete(note('a'));
+    vi.mocked(getDeletedNotes).mockResolvedValue([note('b')]);
+    await state.confirmPermanentDelete();
+    finishList([note('a'), note('b')]);
+    await settle();
+    expect(state.selectedId.value).toBe('b');
+    expect(state.notes.value.map((entry) => entry.id)).toEqual(['b']);
+  });
+
+  it('keeps a failed delete visible for retry and handles deleting the final entry', async () => {
+    vi.mocked(getDeletedNotes).mockResolvedValue([note('a')]);
+    vi.mocked(permanentlyDeleteNote).mockRejectedValueOnce('access denied');
+    const state = start();
+    await settle();
+    state.requestDelete(note('a'));
+    await state.confirmPermanentDelete();
+    expect(state.showDeleteDialog.value).toBe(true);
+    expect(state.deleteError.value).toBe('access denied');
+    expect(state.notes.value).toHaveLength(1);
+    expect(state.deletingId.value).toBe('');
+    vi.mocked(getDeletedNotes).mockResolvedValue([]);
+    await state.confirmPermanentDelete();
+    await settle();
+    expect(state.notes.value).toEqual([]);
+    expect(state.selectedNote.value).toBeUndefined();
+    expect(state.preview.value).toBeUndefined();
+    expect(state.deleteError.value).toBe('');
+    expect(state.showDeleteDialog.value).toBe(false);
   });
 });

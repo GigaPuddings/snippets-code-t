@@ -288,9 +288,24 @@ fn purge_entry(dir: &Path) -> Result<(), String> {
     }
     fs::remove_file(dir.join("metadata.json")).map_err(|e| e.to_string())?;
     if let Err(error) = fs::remove_dir(dir) {
-        log::warn!("已清理过期笔记，目录中仍有其他文件: {}", error);
+        log::warn!("已清理回收站笔记，目录中仍有其他文件: {}", error);
     }
     Ok(())
+}
+
+pub fn permanently_delete_note(
+    app_handle: &AppHandle,
+    workspace_root: &Path,
+    id: &str,
+) -> Result<(), String> {
+    let _guard = TRASH_ACCESS.lock().map_err(|e| e.to_string())?;
+    delete_from(&trash_root(app_handle, workspace_root)?, id)
+}
+
+fn delete_from(root: &Path, id: &str) -> Result<(), String> {
+    let dir = entry_dir(root, id)?;
+    read_entry(&dir)?;
+    purge_entry(&dir)
 }
 
 pub fn restore_deleted_note(
@@ -575,6 +590,49 @@ mod tests {
         assert_eq!(fs::read_to_string(dir.join("unowned.txt")).unwrap(), "keep");
         assert!(trash.join("not-an-entry/note.md").exists());
         assert!(trash.join("123/note.md").exists());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn manual_delete_only_removes_the_selected_backup_and_preserves_active_files() {
+        let root = test_root();
+        let workspace = root.join("workspace");
+        fs::create_dir_all(&workspace).unwrap();
+        let source = workspace.join("selected.md");
+        let other = workspace.join("other.md");
+        let trash = root.join("trash");
+        fs::write(&source, "selected backup").unwrap();
+        fs::write(&other, "other backup").unwrap();
+        soft_delete_into(&trash, &workspace, &source).unwrap();
+        soft_delete_into(&trash, &workspace, &other).unwrap();
+        let entries = list_from(&trash, Utc::now()).unwrap();
+        let selected = entries
+            .iter()
+            .find(|entry| entry.original_path == "selected.md")
+            .unwrap();
+        let retained = entries
+            .iter()
+            .find(|entry| entry.original_path == "other.md")
+            .unwrap();
+        let dir = trash.join(&selected.id);
+        fs::write(&source, "new active content").unwrap();
+        fs::write(dir.join("unowned.txt"), "keep").unwrap();
+        assert!(delete_from(&trash, "../outside").is_err());
+        assert!(dir.join("note.md").exists());
+        delete_from(&trash, &selected.id).unwrap();
+        assert!(!dir.join("note.md").exists());
+        assert!(!dir.join("metadata.json").exists());
+        assert_eq!(fs::read_to_string(dir.join("unowned.txt")).unwrap(), "keep");
+        assert_eq!(fs::read_to_string(&source).unwrap(), "new active content");
+        assert!(restore_from(&trash, &workspace, &selected.id).is_err());
+        assert!(read_content_from(&trash, &selected.id).is_err());
+        assert_eq!(
+            read_content_from(&trash, &retained.id).unwrap().content,
+            "other backup"
+        );
+        delete_from(&trash, &retained.id).unwrap();
+        assert!(!trash.join(&retained.id).exists());
+        assert!(list_from(&trash, Utc::now()).unwrap().is_empty());
         fs::remove_dir_all(root).unwrap();
     }
 }

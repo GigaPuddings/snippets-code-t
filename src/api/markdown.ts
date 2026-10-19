@@ -114,6 +114,10 @@ export async function restoreDeletedNote(id: string): Promise<string> {
   return invoke<string>('restore_deleted_note', { id });
 }
 
+export async function permanentlyDeleteNote(id: string): Promise<void> {
+  return invoke<void>('permanently_delete_note', { id });
+}
+
 /**
  * 移动 Markdown 文件到新分类
  * @param filePath 当前文件路径
