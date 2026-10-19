@@ -252,7 +252,7 @@ fn list_from(root: &Path, now: DateTime<Utc>) -> Result<Vec<DeletedNote>, String
         return Ok(Vec::new());
     }
     let mut entries = Vec::new();
-    for item in fs::read_dir(&root).map_err(|e| format!("读取回收站失败: {}", e))? {
+    for item in fs::read_dir(root).map_err(|e| format!("读取回收站失败: {}", e))? {
         let item = item.map_err(|e| e.to_string())?;
         let dir = item.path();
         let Some(id) = dir.file_name().and_then(|value| value.to_str()) else {
