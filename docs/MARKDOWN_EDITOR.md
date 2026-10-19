@@ -7,7 +7,10 @@
 | 文件 | 职责 |
 | --- | --- |
 | `src/components/MarkdownEditor/index.vue` | 编辑器生命周期、页面接口、搜索、附件、表格与图片操作、模式切换 |
-| `src/components/MarkdownEditor/document.ts` | Markdown 语言、双链语法、标题提取、键盘与选区命令 |
+| `src/components/MarkdownEditor/document.ts` | 标题提取、键盘与选区命令 |
+| `src/utils/markdown-language.ts` | 编辑与阅读共用的 Markdown、双链及围栏代码语言解析 |
+| `src/components/MarkdownPreview/index.vue` | 工作区阅读模式和快速搜索共用的只读展示、双链事件、锚点跳转与代码复制 |
+| `src/components/MarkdownPreview/rendering.ts` | 共用代码高亮、图片尺寸与加载处理，不挂载编辑器 |
 | `src/components/MarkdownEditor/preview.ts` | 实时阅览装饰、图片和表格预览、任务复选框 |
 | `src/components/MarkdownEditor/blocks.ts` | 对选定图片或表格的 Markdown 范围进行修改 |
 | `src/components/MarkdownEditor/table.ts` | 单元格编辑、源码位置映射、键盘导航、区域粘贴和临时列宽 |
@@ -26,6 +29,8 @@
 - **实时阅览**：光标或选区所在行保留 Markdown 标记；其他行显示标题、强调、行内代码、链接、列表等样式。图片点击后进入对应源码；表格保留网格，点击单元格直接编辑该格的 Markdown。按住 Ctrl 点击双链或外部链接执行跳转。
 - **源码模式**：使用同一个 EditorState，显示全部源码。切换不会重建文档或清除撤销历史。
 - **阅读模式**：通过共用渲染器生成经过清理的 HTML，不接受编辑；返回编辑时沿用原文档。HTML 标签不会因为切换模式被序列化为其他写法。
+
+快速搜索的 Markdown 预览复用 `MarkdownPreview`，通过 `styles/markdown.scss` 中的 `rendered` mixin 与工作区阅读模式共享排版。窄预览栏只调整外层留白；双链交给宿主导航，外链使用系统浏览器，任务复选框保持只读。本地 Markdown 文件使用文件预览接口返回的正文，异步结果在切换条目或卸载后失效。代码片段继续复用只读的 `CodeMirrorEditor`，不再由前端截断到 1600 字符；本地文件仍保留后端读取大小限制。
 
 正文中的空行、缩进、行尾双空格和换行符均有意义。页面直接持有 Markdown，保存检查比较完整文本。后端解析 Frontmatter 时只移除结束分隔符后的换行和一个约定的空行，正文其余空白保留。Frontmatter 的元数据格式仍由现有存储服务管理。
 

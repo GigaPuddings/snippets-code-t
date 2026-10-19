@@ -1971,6 +1971,7 @@ export default {
   },
 
   searchPreview: {
+    noteNotFound: 'Note "{name}" was not found',
     fileLabel: 'File',
     previewTitle: 'Preview',
     unnamedTitle: 'Untitled',

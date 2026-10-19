@@ -12,14 +12,19 @@
         :class="{ 'md-source': viewMode === 'source' }"
         @contextmenu="openContextMenu"
       ></div>
-      <div
+      <MarkdownPreview
         v-if="viewMode === 'reading'"
-        ref="readingHost"
-        class="md-reading md-rendered min-h-0 flex-1 overflow-auto"
-        @click="onReadingClick"
+        ref="readingPreview"
+        class="md-reading min-h-0 flex-1 overflow-auto"
+        :content="source"
+        :workspace-root="workspaceRoot"
+        :note-file-path="String(currentFragmentId ?? '')"
+        :attachment-config="attachmentConfig"
+        :dark="dark"
+        :line-height="lineHeight"
+        @wikilink-click="emit('wikilink-click', $event)"
         @scroll.passive="emitScroll"
-        v-html="readingHtml"
-      ></div>
+      />
       <TableToolbar
         :info="viewMode === 'preview' && !disabled ? tableToolbarInfo : null"
         :view="view"
@@ -164,6 +169,7 @@ import OutlinePanel from './components/OutlinePanel.vue';
 import BacklinkPanel from './components/BacklinkPanel.vue';
 import TableSizeDialog from './components/TableSizeDialog.vue';
 import TableToolbar from './TableToolbar.vue';
+import MarkdownPreview from '@/components/MarkdownPreview/index.vue';
 import { focusTableCell, tableCellAt } from './table';
 import { useEditorBacklinks } from './useEditorBacklinks';
 import { resolveImageFilePath } from './imagePath';
@@ -193,8 +199,6 @@ import {
   type ViewMode
 } from './document';
 import {
-  configurePreviewImage,
-  highlightCodeElement,
   livePreview,
   previewTarget,
   previewTargets,
@@ -250,7 +254,8 @@ const emit = defineEmits<{
 }>();
 const { t, locale } = useI18n();
 const host = ref<HTMLElement>();
-const readingHost = ref<HTMLElement>();
+const readingPreview = ref<InstanceType<typeof MarkdownPreview>>();
+const readingHost = computed(() => readingPreview.value?.getElement());
 const source = ref(props.content);
 const viewMode = ref<ViewMode>('preview');
 const workspaceRoot = ref('');
@@ -274,15 +279,6 @@ const themeCompartment = new Compartment();
 const pendingUploads = new Set<{ documentId: string; position: number }>();
 const wordCount = computed(
   () => (source.value.match(/[\u4e00-\u9fa5]|[a-zA-Z0-9]+/g) || []).length
-);
-const readingHtml = computed(() =>
-  viewMode.value === 'reading'
-    ? renderNoteMarkdown(
-        source.value,
-        workspaceRoot.value,
-        String(props.currentFragmentId ?? '')
-      )
-    : ''
 );
 const {
   showBacklinks,
@@ -917,22 +913,6 @@ async function openLink(href: string, wiki: boolean) {
   const { openUrl } = await import('@tauri-apps/plugin-opener');
   await openUrl(href).catch((error) => modal.error(String(error)));
 }
-function onReadingClick(event: MouseEvent) {
-  const copy = (event.target as HTMLElement).closest('.md-reading-code-copy');
-  if (copy) {
-    void copyCode(copy.parentElement?.querySelector('code')?.textContent || '');
-    return;
-  }
-  const element = (event.target as HTMLElement).closest<HTMLElement>(
-    '[data-note-name],a'
-  );
-  if (!element) return;
-  event.preventDefault();
-  void openLink(
-    element.dataset.noteName || element.getAttribute('href') || '',
-    Boolean(element.dataset.noteName)
-  );
-}
 function openSearch() {
   if (viewMode.value === 'reading') setViewMode('preview');
   showSearch.value = true;
@@ -1415,34 +1395,6 @@ function onAttachmentConfig(event: Event) {
   reconfigurePreview();
 }
 watch(
-  [viewMode, readingHtml, attachmentConfig, locale, () => props.dark],
-  async () => {
-    await nextTick();
-    readingHost.value?.querySelectorAll('pre').forEach((pre) => {
-      const code = pre.querySelector('code');
-      if (code)
-        highlightCodeElement(
-          code,
-          props.dark ? oneDarkHighlightStyle : defaultHighlightStyle
-        );
-      let copy = pre.querySelector<HTMLButtonElement>('.md-reading-code-copy');
-      if (!copy) {
-        copy = document.createElement('button');
-        copy.type = 'button';
-        copy.className = 'md-reading-code-copy';
-        pre.append(copy);
-      }
-      copy.textContent = t('common.copy');
-    });
-    readingHost.value?.querySelectorAll('img').forEach((image) =>
-      configurePreviewImage(image, {
-        imageScale: attachmentConfig.value.defaultImageScalePercent,
-        responsiveImages: attachmentConfig.value.responsiveImages
-      })
-    );
-  }
-);
-watch(
   () => [props.currentFragmentId, props.content] as const,
   ([id, content]) => {
     if (view && (String(id ?? '') !== documentId || content !== source.value))
@@ -1522,8 +1474,6 @@ defineExpose({
 </script>
 
 <style lang="scss">
-@use '@/styles/markdown';
-
 .markdown-editor {
   color: var(--markdown-text);
   background: var(--editor-surface-bg);
@@ -1667,8 +1617,7 @@ defineExpose({
     line-height: 0;
   }
 
-  .md-code-toolbar,
-  .md-reading-code-copy {
+  .md-code-toolbar {
     @apply absolute right-2 top-2 z-10 flex items-center gap-1 rounded border px-2 text-xs;
 
     height: 26px;
@@ -1682,9 +1631,7 @@ defineExpose({
   }
 
   .md-code-hover .md-code-toolbar,
-  .md-code-toolbar:focus-within,
-  pre:hover .md-reading-code-copy,
-  .md-reading-code-copy:focus-visible {
+  .md-code-toolbar:focus-within {
     opacity: 1;
   }
 
@@ -1725,8 +1672,7 @@ defineExpose({
     color: var(--markdown-muted);
   }
 
-  .md-link,
-  .md-rendered a {
+  .md-link {
     color: var(--search-result-accent);
     text-decoration: underline;
     text-decoration-thickness: 1px;
@@ -1739,14 +1685,12 @@ defineExpose({
     cursor: pointer;
   }
 
-  .md-link:hover,
-  .md-rendered a:hover {
+  .md-link:hover {
     color: var(--el-color-primary);
     text-decoration-color: currentcolor;
   }
 
-  .md-wikilink,
-  .md-rendered a[data-note-name] {
+  .md-wikilink {
     @apply bg-purple-600/10 text-purple-600 dark:text-purple-400;
 
     padding: 2px 4px;
@@ -1781,92 +1725,6 @@ defineExpose({
     margin-right: 8px;
     vertical-align: middle;
     accent-color: var(--el-color-primary);
-  }
-
-  .md-rendered {
-    @include markdown.typography;
-
-    pre {
-      position: relative;
-      padding: 12px;
-      margin: var(--markdown-block-gap) 0;
-      overflow-x: auto;
-      font-family: var(--app-code-font-family, monospace);
-      font-size: var(--markdown-code-size);
-      line-height: var(--markdown-code-line-height);
-      tab-size: 2;
-      white-space: pre-wrap;
-      background: var(--code-block-bg);
-      border: 1px solid var(--code-block-border);
-      border-radius: var(--app-ui-radius-lg);
-    }
-
-    table {
-      width: 100%;
-      margin: 0.85em 0 1.15em;
-      overflow: hidden;
-      table-layout: fixed;
-      border-spacing: 0;
-      border-collapse: separate;
-      border: 1px solid var(--markdown-heading-border);
-      border-radius: 9px;
-    }
-
-    th,
-    td {
-      padding: 0.35em 0.65em;
-      line-height: 1.5;
-      text-align: left;
-      vertical-align: top;
-      border-right: 1px solid var(--markdown-heading-border);
-      border-bottom: 1px solid var(--markdown-heading-border);
-
-      p {
-        margin: 0;
-      }
-    }
-
-    th {
-      font-weight: var(--markdown-heading-weight);
-      text-align: left;
-      background: var(--markdown-table-header);
-    }
-
-    th:empty::before,
-    td:empty::before {
-      content: '\00a0';
-    }
-
-    [align='center'] {
-      text-align: center;
-    }
-
-    [align='right'] {
-      text-align: right;
-    }
-
-    tbody tr:last-child > * {
-      border-bottom: 0;
-    }
-
-    tr > *:last-child {
-      border-right: 0;
-    }
-
-    tbody tr:hover td {
-      background: var(--markdown-table-row-hover);
-    }
-
-    img {
-      margin: 0.9em auto;
-      border: 1px solid var(--markdown-heading-border);
-      border-radius: 10px;
-      box-shadow: 0 8px 24px rgb(15 23 42 / 8%);
-    }
-  }
-
-  .md-preview-table.md-rendered table {
-    margin: 0;
   }
 
   .md-preview-widget {

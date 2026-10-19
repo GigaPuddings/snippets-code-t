@@ -1872,6 +1872,7 @@ export default {
   },
 
   searchPreview: {
+    noteNotFound: '未找到笔记「{name}」',
     fileLabel: '文件',
     previewTitle: '预览',
     unnamedTitle: '未命名',

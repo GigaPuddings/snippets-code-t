@@ -1015,12 +1015,14 @@ export function renderNoteMarkdown(
 ): string {
   const absolutePath = /^(?:[a-z]:[\\/]|\/)/i.test(noteFilePath)
     ? noteFilePath
-    : `${workspaceRoot.replace(/[\\/]+$/, '')}/${noteFilePath}`;
+    : workspaceRoot && noteFilePath
+      ? `${workspaceRoot.replace(/[\\/]+$/, '')}/${noteFilePath}`
+      : '';
   const html = markdownToHtml(content, undefined, noteMarkdownParser).replace(
     /<input type="checkbox"/g,
     '<input type="checkbox" disabled'
   );
-  return workspaceRoot && noteFilePath
+  return absolutePath
     ? sanitizeHtml(resolvePreviewImageUrls(html, workspaceRoot, absolutePath))
     : html;
 }

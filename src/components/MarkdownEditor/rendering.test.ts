@@ -6,6 +6,16 @@ vi.mock('@tauri-apps/api/core', () => ({
 import { renderNoteMarkdown } from '@/utils/markdown';
 
 describe('note reading paths', () => {
+  it('resolves desktop Markdown images with an absolute path and no workspace', () => {
+    const html = renderNoteMarkdown(
+      '![图](images/a.png)',
+      '',
+      'C:/Desktop/note.md'
+    );
+    expect(html).toContain(encodeURIComponent('C:/Desktop/images/a.png'));
+    expect(html).toContain('data-original-path="images/a.png"');
+  });
+
   it('keeps image titles out of file paths while supporting legacy pipe widths', () => {
     const html = renderNoteMarkdown(
       '![图](images/a.png "说明")\n\n![旧图](../assets/QA/old.png|320)',

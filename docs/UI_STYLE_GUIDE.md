@@ -128,7 +128,7 @@ Local AI 对话页采用独立的双栏布局，标题、图标按钮、列表�
 
 - 编辑器的表格与 AI 选区工具栏使用 `z-40`，右键菜单使用 `z-50`。这些浮层必须低于 Element Plus 的弹窗遮罩；不要为挂载到 `body` 的编辑器控件设置 3000、9999 等高层级，以免遮罩无法覆盖并阻止背景操作。弹窗及其内部下拉框继续由 Element Plus 分配层级。
 - `theme.scss` 中的 `--markdown-*` 变量定义字号、字重、段间距、列表缩进、代码字号与浅色／深色颜色。
-- Markdown 阅读视图与预览块使用 `markdown.typography` mixin；CodeMirror 实时阅览行通过 decorations 使用同一组变量。编辑器行距仍由用户配置覆盖，行间距使用 CodeMirror 可测量的 padding。
+- 工作区阅读模式和快速搜索使用 `MarkdownPreview`；阅读视图与实时阅览块使用 `markdown.rendered` mixin，共享 `markdown.typography` 的正文、列表和引用，以及代码块、表格、图片和链接样式。CodeMirror 实时阅览行通过 decorations 使用同一组变量。编辑器行距仍由用户配置覆盖，行间距使用 CodeMirror 可测量的 padding。
 - 聊天插件可在独立更新时接入同一 mixin；代码复制按钮、消息布局、编辑器 widget 等交互仍由各自组件维护。
 - 修改共享样式后验证工作区正文与代码块，不要重新复制一套页面私有标题、列表和引用规则。
 

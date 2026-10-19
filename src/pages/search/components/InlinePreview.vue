@@ -271,30 +271,31 @@
 
           <div
             v-else-if="isMarkdownPreview"
-            class="preview-visual preview-note-area preview-shell preview-scroll-area"
-            v-html="markdownPreviewHtml"
-          ></div>
-
-          <div
-            v-else-if="isTextFile"
-            class="preview-visual preview-text-area preview-shell preview-scroll-area"
+            class="preview-visual preview-note-area preview-shell"
           >
-            <CodeMirrorEditor
-              :code="displayContent"
+            <p
+              v-if="desktopPreviewLoading || !previewContent"
+              class="p-3 text-ui-caption text-search-secondary"
+            >
+              {{ displayContent }}
+            </p>
+            <MarkdownPreview
+              v-else
+              :content="previewContent"
+              :format="item.format"
+              :note-file-path="noteFilePath"
               :dark="isDark"
-              :disabled="true"
-              :autoDestroy="true"
-              :codeStyle="{ height: '100%' }"
-              background="var(--search-preview-editor-bg)"
-              status-background="var(--search-preview-status-bg)"
+              :line-height="store.editorLineHeight"
+              @wikilink-click="openWikiLink"
             />
           </div>
+
           <div
-            v-else-if="isCodePreview"
+            v-else-if="isTextFile || isCodePreview"
             class="preview-visual preview-code-area preview-shell preview-scroll-area"
           >
             <CodeMirrorEditor
-              :code="displayContent"
+              :code="previewContent || displayContent"
               :dark="isDark"
               :disabled="true"
               :autoDestroy="true"
@@ -303,7 +304,6 @@
               status-background="var(--search-preview-status-bg)"
             />
           </div>
-
           <div
             v-else
             class="preview-visual preview-text-area preview-shell preview-scroll-area"
@@ -347,9 +347,11 @@ import { openSearchResultInConfig } from '../composables/openConfigContent';
 import { useI18n } from 'vue-i18n';
 import { useConfigurationStore } from '@/store';
 import { extractPlainText } from '@/utils/text';
-import { markdownToHtml, resolvePreviewImageUrls } from '@/utils/markdown';
+import { searchMarkdownFiles } from '@/api/markdown';
+import modal from '@/utils/modal';
 import type { ContentType } from '@/types/models';
 import CodeMirrorEditor from '@/components/CodeMirrorEditor/index.vue';
+import MarkdownPreview from '@/components/MarkdownPreview/index.vue';
 import { getSearchResultIcon } from '../composables/useSearchResultIcon';
 import { getPrimarySearchHistoryKey } from '@/search/ranking';
 import { CustomButton } from '@/components/UI';
@@ -429,52 +431,56 @@ const fileExtension = computed(
   () => fileName.value.split('.').pop()?.toLowerCase() || ''
 );
 const isFilePreview = computed(() => props.item?.summarize === 'file');
-const isImageFile = computed(() =>
-  ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'].includes(
-    fileExtension.value
-  )
+const isImageFile = computed(
+  () =>
+    isFilePreview.value &&
+    ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'].includes(
+      fileExtension.value
+    )
 );
 const isNotePreview = computed(() => props.item?.type === 'note');
-const isMarkdownFile = computed(() =>
-  ['md', 'markdown'].includes(fileExtension.value)
+const isMarkdownFile = computed(
+  () => isFilePreview.value && ['md', 'markdown'].includes(fileExtension.value)
 );
 const isMarkdownPreview = computed(
   () => isNotePreview.value || isMarkdownFile.value
 );
-const isTextFile = computed(() =>
-  [
-    'txt',
-    'json',
-    'log',
-    'csv',
-    'toml',
-    'yaml',
-    'yml',
-    'xml',
-    'html',
-    'css',
-    'scss',
-    'less',
-    'js',
-    'ts',
-    'tsx',
-    'jsx',
-    'vue',
-    'py',
-    'rs',
-    'go',
-    'java',
-    'c',
-    'cc',
-    'cpp',
-    'h',
-    'hpp',
-    'sql',
-    'sh',
-    'bash',
-    'ini',
-    'env'
-  ].includes(fileExtension.value)
+const isTextFile = computed(
+  () =>
+    isFilePreview.value &&
+    [
+      'txt',
+      'json',
+      'log',
+      'csv',
+      'toml',
+      'yaml',
+      'yml',
+      'xml',
+      'html',
+      'css',
+      'scss',
+      'less',
+      'js',
+      'ts',
+      'tsx',
+      'jsx',
+      'vue',
+      'py',
+      'rs',
+      'go',
+      'java',
+      'c',
+      'cc',
+      'cpp',
+      'h',
+      'hpp',
+      'sql',
+      'sh',
+      'bash',
+      'ini',
+      'env'
+    ].includes(fileExtension.value)
 );
 const isAppOrBookmark = computed(
   () => props.item?.summarize === 'app' || props.item?.summarize === 'bookmark'
@@ -671,6 +677,18 @@ const activeActionIndex = ref(-1);
 const desktopPreviewText = ref('');
 const desktopPreviewMessage = ref('');
 const desktopPreviewLoading = ref(false);
+const previewContent = computed(() =>
+  props.item?.summarize === 'file'
+    ? desktopPreviewText.value
+    : props.item?.content || ''
+);
+const noteFilePath = computed(() =>
+  isFilePreview.value
+    ? displayPath.value
+    : toDisplayText(props.item?.file_path) ||
+      toDisplayText(itemMetadata.value.file_path) ||
+      (typeof props.item?.id === 'string' ? props.item.id : '')
+);
 
 const normalizedContent = computed(() => {
   const item = props.item;
@@ -690,10 +708,7 @@ const displayContent = computed(() => {
   if (desktopPreviewLoading.value) return t('searchPreview.loading');
 
   const normalized = normalizedContent.value;
-  if (normalized)
-    return normalized.length > 1600
-      ? `${normalized.slice(0, 1600)}…`
-      : normalized;
+  if (normalized) return normalized;
 
   if (props.item?.summarize === 'file')
     return desktopPreviewMessage.value || t('searchPreview.noPreviewContent');
@@ -829,26 +844,6 @@ async function copyQuickToolDetails() {
   await navigator.clipboard.writeText(lines.join('\n'));
 }
 
-const markdownPreviewHtml = computed(() => {
-  if (!props.item || !isMarkdownPreview.value || !props.item.content) return '';
-
-  const notePath =
-    displayPath.value ||
-    props.item.file_path ||
-    (props.item.metadata as Record<string, unknown> | undefined)?.file_path;
-  if (typeof notePath !== 'string' || !notePath.trim()) {
-    return markdownToHtml(props.item.content);
-  }
-
-  try {
-    const html = markdownToHtml(props.item.content);
-    return resolvePreviewImageUrls(html, '', notePath);
-  } catch (error) {
-    console.warn('[搜索预览] 笔记内容预览渲染失败:', error);
-    return `<div class="note-fallback">${displayContent.value}</div>`;
-  }
-});
-
 const filePreviewUrl = computed(() => {
   if (!props.item?.content || !isImageFile.value) return '';
   try {
@@ -860,7 +855,11 @@ const filePreviewUrl = computed(() => {
 
 watch(
   () => props.item,
-  async (item) => {
+  async (item, _, onCleanup) => {
+    let cancelled = false;
+    onCleanup(() => {
+      cancelled = true;
+    });
     desktopPreviewText.value = '';
     desktopPreviewMessage.value = '';
     desktopPreviewLoading.value = false;
@@ -874,14 +873,16 @@ watch(
       const preview = await invoke<any>('preview_desktop_file', {
         filePath: path
       });
+      if (cancelled) return;
       desktopPreviewText.value =
         typeof preview?.textContent === 'string' ? preview.textContent : '';
       desktopPreviewMessage.value =
         typeof preview?.message === 'string' ? preview.message : '';
     } catch {
-      desktopPreviewMessage.value = t('searchPreview.previewLoadFailed');
+      if (!cancelled)
+        desktopPreviewMessage.value = t('searchPreview.previewLoadFailed');
     } finally {
-      desktopPreviewLoading.value = false;
+      if (!cancelled) desktopPreviewLoading.value = false;
     }
   },
   { immediate: true }
@@ -1007,6 +1008,32 @@ async function openInConfig() {
     });
   } catch (err) {
     console.error('[搜索预览] 打开 config 失败:', err);
+  }
+}
+
+async function openWikiLink(title: string) {
+  const itemId = props.item?.id;
+  try {
+    const notes = await searchMarkdownFiles(title);
+    if (props.item?.id !== itemId) return;
+    const target =
+      notes.find((note) => note.title.toLowerCase() === title.toLowerCase()) ||
+      notes[0];
+    if (!target) {
+      modal.warning(t('searchPreview.noteNotFound', { name: title }));
+      return;
+    }
+    await openSearchResultInConfig({
+      item: {
+        id: target.id,
+        title: target.title,
+        content: target.content,
+        category_id: target.categoryId
+      },
+      closeSearchWindow: () => closeWindowByLabel('main')
+    });
+  } catch {
+    modal.error(t('content.handleLinkFailed'));
   }
 }
 
@@ -1483,7 +1510,6 @@ function formatDateText(value: unknown): string {
   }
 
   .preview-text-area,
-  .preview-note-area,
   .preview-scroll-area {
     @apply text-xs leading-5 text-search whitespace-pre-wrap break-words overflow-y-auto overflow-x-hidden;
 
@@ -1492,32 +1518,19 @@ function formatDateText(value: unknown): string {
     border: 1px solid var(--search-border-color);
   }
 
-  .preview-text-area:not(.preview-code-area) {
+  .preview-text-area {
+    @apply max-h-full;
+
     padding: 10px;
   }
 
   .preview-note-area {
-    padding: 10px;
+    background: var(--editor-surface-bg);
+    border: 1px solid var(--search-border-color);
 
-    :deep(pre),
-    :deep(pre code) {
-      max-width: 100%;
-      word-break: break-word;
-      overflow-wrap: anywhere;
-      white-space: pre-wrap;
+    :deep(.markdown-preview) {
+      padding: 12px;
     }
-
-    :deep(pre) {
-      overflow-x: hidden;
-    }
-  }
-
-  .preview-note-area :deep(.note-fallback) {
-    @apply whitespace-pre-wrap break-words text-xs leading-5 text-search;
-  }
-
-  .preview-text-area {
-    @apply max-h-full;
   }
 
   .preview-code-area {
