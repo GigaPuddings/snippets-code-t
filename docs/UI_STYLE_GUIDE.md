@@ -74,6 +74,12 @@ import ArrowLeft from '~icons/lucide/arrow-left';
 
 卡片与按钮的默认/hover 配色在主题变量中集中配置，不在各页面复制浅色、深色两套背景组合。
 
+## 快速搜索窗口
+
+快速搜索 main 窗口的外层裁切与内层边框共用 `--workspace-window-radius`（6px），保持与工作区窗口一致；空输入、展开结果、浅色和深色模式使用同一圆角。
+
+Tauri 的普通 `data-tauri-drag-region` 只响应标记元素本身。顶部搜索栏和窗口内边距分别声明拖拽区域，装饰性搜索图标使用 `pointer-events-none` 将命中交给搜索栏。输入框、配置按钮与结果区域不声明拖拽，保留聚焦、文本选择及点击操作。
+
 ## 图标和主题
 
 - 主 UI 图标集为 **Lucide**，通过 `~icons/lucide/<名称>` 静态导入。品牌图标使用 `~icons/simple-icons/<名称>` 或已有品牌资产，不混用其他 UI 图标集。
@@ -121,8 +127,8 @@ Local AI 对话页采用独立的双栏布局，标题、图标按钮、列表�
 ## Markdown 排版维护
 
 - `theme.scss` 中的 `--markdown-*` 变量定义字号、字重、段间距、列表缩进、代码字号与浅色／深色颜色。
-- TipTap 正文使用 `markdown.typography` mixin；代码块 node view 复用同一组变量。编辑器行距仍由用户配置覆盖。
-- 聊天插件可在独立更新时接入同一 mixin；代码复制按钮、消息布局、编辑器 node view 等交互仍由各自组件维护。
+- Markdown 阅读视图与预览块使用 `markdown.typography` mixin；CodeMirror 实时阅览行通过 decorations 使用同一组变量。编辑器行距仍由用户配置覆盖，行间距使用 CodeMirror 可测量的 padding。
+- 聊天插件可在独立更新时接入同一 mixin；代码复制按钮、消息布局、编辑器 widget 等交互仍由各自组件维护。
 - 修改共享样式后验证工作区正文与代码块，不要重新复制一套页面私有标题、列表和引用规则。
 
 ## 修改后的验证

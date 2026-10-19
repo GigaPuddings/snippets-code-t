@@ -22,7 +22,7 @@ Snippets Code 是一个基于 Tauri 2 + Vue 3 + Rust 的跨平台桌面应用，
 ### 核心特性
 
 - **前端片段管理**: 支持语言、框架、类型等语义元数据，面向组件、Hook、样式、配置、修复记录等前端资产管理
-- **知识资产编辑**: 基于 TipTap 的 Markdown 编辑器，兼容笔记与代码片段工作流
+- **知识资产编辑**: 基于 CodeMirror 6 的 Markdown 原文编辑器，兼容笔记与代码片段工作流
 - **全文与语义搜索**: 支持片段内容、标签、分类，以及 `lang:`、`framework:`、`kind:` 等前端语义检索
 - **分类管理**: 灵活的分类和标签系统
 - **官方插件增强**: 截图/OCR/贴图、翻译、Todo、应用启动器、Git 同步、主题等能力以插件形式扩展核心工作台
@@ -38,7 +38,7 @@ Snippets Code 是一个基于 Tauri 2 + Vue 3 + Rust 的跨平台桌面应用，
 - **路由**: Vue Router 4
 - **UI 组件**: Element Plus 2.9+
 - **编辑器**: 
-  - TipTap 3.17+ (富文本编辑，带自定义搜索)
+  - CodeMirror 6 + Lezer Markdown (笔记原文编辑、实时阅览与搜索)
   - CodeMirror 6 (代码编辑，带自定义搜索)
 - **国际化**: Vue I18n 11.2+
 - **样式**: 
@@ -84,7 +84,7 @@ snippets-code/
 │   │   ├── CodeMirrorEditor/     # 代码编辑器（带搜索）
 │   │   ├── ContentItem/          # 内容项组件
 │   │   ├── ContextMenu/          # 右键菜单
-│   │   ├── TipTapEditor/         # 富文本编辑器（带搜索）
+│   │   ├── MarkdownEditor/       # Markdown 笔记编辑器（带实时阅览与搜索）
 │   │   ├── TagInput/             # 标签输入
 │   │   └── UI/                   # 基础 UI 组件
 │   │       ├── SearchPanel.vue   # 共享搜索面板
@@ -365,55 +365,42 @@ category/
 - `ContentItem`: 笔记/片段的紧凑列表项，支持收藏与右键操作
 - `ContentListView`: 虚拟滚动内容列表；搜索统一使用全局快速搜索入口
 - `DeletedNotesView`: 最近删除的内容与恢复入口
-- `TipTapEditor`: 富文本编辑器
+- `MarkdownEditor`: Markdown 笔记编辑器
 - `CodeMirrorEditor`: 代码编辑器
 
 ### 3. 编辑器模块 (Editor Module)
 
-#### 3.1 TipTap 编辑器
+#### 3.1 Markdown 笔记编辑器
 
-**位置**: `src/components/TipTapEditor/`
+**位置**: `src/components/MarkdownEditor/`
 
-**功能**:
-- Markdown 编辑
-- 富文本编辑
-- 代码高亮
-- 表格支持
-- 任务列表
-- 全局搜索（Ctrl+F）
+笔记以 Markdown 文本为唯一正文模型。实时阅览与源码模式共用 CodeMirror EditorState 和撤销历史；阅读模式使用 marked 渲染，经 DOMPurify 清理后展示。模式切换不将 HTML 重新写回正文。
 
-**架构**:
+**主要功能**:
+- 标题、强调、代码高亮、列表与任务列表
+- 双链、反向链接、大纲与附件图片
+- GFM 表格单元格编辑、行列操作与列／整表对齐
+- Ctrl+F 搜索、区分大小写、匹配计数与跳转
+- 富文本粘贴转 Markdown，AI 选区替换校验文档与版本
+
+**结构**:
 ```
-TipTapEditor/
-├── index.vue                     # 主编辑器组件
-├── Toolbar.vue                   # 工具栏
-├── TipTapContextMenu.vue         # 右键菜单
-├── components/                   # 子组件
-│   ├── EditorActions.vue
-│   ├── EditorStatusBar.vue
-│   ├── OutlinePanel.vue
-│   ├── BacklinkPanel.vue
-│   └── SourceEditor.vue
-├── config/                       # 配置
-│   └── extensions.ts
-├── extensions/                   # 自定义扩展
-│   ├── CodeBlockLowlight.ts
-│   ├── EnhancedMarkdown.ts
-│   └── Wikilink.ts
-└── utils/                        # 工具函数
-    └── markdown.ts
+MarkdownEditor/
+├── index.vue              # 生命周期、模式、页面接口与业务操作
+├── document.ts            # 语法、选区与键盘命令
+├── preview.ts             # 实时阅览 decorations 与图片、代码 widget
+├── blocks.ts              # 表格与图片的原文范围操作
+├── table.ts               # 表格单元格控制器与源码映射
+├── clipboard.ts           # 剪贴板格式选择与转换
+├── TableToolbar.vue       # 当前表格工具栏
+├── components/            # 大纲、反向链接与表格尺寸组件
+├── useEditorBacklinks.ts  # 反向链接计数与异步请求保护
+└── imagePath.ts           # 本地图片文件路径解析
 ```
 
-**搜索功能**:
-- 使用共享的 `SearchPanel` 组件（`src/components/UI/SearchPanel.vue`）
-- 支持实时搜索、区分大小写、上一个/下一个匹配
-- 通过遍历 TipTap 文档节点查找匹配项
-- 使用浏览器原生文本选择高亮显示
+状态栏与右键菜单在 `src/components/UI/` 中维护，阅读渲染和旧笔记 HTML 转换由 `src/utils/markdown.ts` 提供。搜索复用 `@codemirror/search`；大纲和搜索匹配位置避免在光标移动时重复扫描全文。表格复用当前源码的解析结果，所有正文修改进入同一撤销历史。
 
-**关键技术**:
-- TipTap 3.17+ (基于 ProseMirror)
-- Lowlight (代码高亮)
-- Turndown (HTML 转 Markdown)
+具体输入规则、支持范围与回归记录见 [Markdown 编辑器](./MARKDOWN_EDITOR.md)。
 
 #### 3.2 CodeMirror 编辑器
 
@@ -448,7 +435,7 @@ TipTapEditor/
 - 键盘快捷键支持
 
 **特点**:
-- 可复用组件，被 TipTap 和 CodeMirror 编辑器共享
+- 可复用组件，被笔记和代码编辑器共享
 - 支持明暗主题
 - 使用 Tailwind CSS 实现响应式设计
 - 参考 Obsidian 的设计风格
@@ -805,8 +792,8 @@ const routes = [
 **组件懒加载**:
 
 ```typescript
-const TipTapEditor = defineAsyncComponent(
-  () => import('@/components/TipTapEditor/index.vue')
+const MarkdownEditor = defineAsyncComponent(
+  () => import('@/components/MarkdownEditor/index.vue')
 );
 ```
 
@@ -1246,7 +1233,7 @@ export default {
 - [Pinia](https://pinia.vuejs.org/)
 - [Vue Router](https://router.vuejs.org/)
 - [Element Plus](https://element-plus.org/)
-- [TipTap](https://tiptap.dev/)
+- [CodeMirror](https://codemirror.net/)
 - [Tailwind CSS](https://tailwindcss.com/)
 
 ### 项目文档

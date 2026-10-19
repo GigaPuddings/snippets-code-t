@@ -26,7 +26,7 @@ Snippets Code 是一个本地优先的代码片段与 Markdown 笔记工作台�
 - 创建或选择 Markdown 工作区，并在设置中切换当前工作区。
 - 以文件夹组织分类，管理标签、收藏和内容排序；已删除内容可以从本机回收站恢复。
 - 代码片段使用 CodeMirror 6，提供语法高亮、编辑器搜索和代码复制。
-- Markdown 笔记使用 TipTap，提供可视化编辑、阅读与源码模式，以及表格、任务列表、代码块和图片支持。
+- Markdown 笔记使用 CodeMirror 6，提供实时阅览、源码和阅读模式。源码与实时阅览共用同一份文本及撤销历史，支持表格、任务列表、代码块和图片。
 - 支持 `[[笔记标题]]` 形式的 Wikilink、大纲和反向链接，便于组织相关笔记。
 - 通过文件监听更新外部编辑器产生的修改。语言、框架、片段类型等内容元数据保存在 Markdown Frontmatter 中。
 
@@ -78,7 +78,7 @@ OCR、FFmpeg 和 llama.cpp 等运行资源通过资源包分发，不随核心�
 | 前端 | Vue 3.5、TypeScript 5.6、Vite 6 | 页面、类型检查与前端构建 |
 | 状态与路由 | Pinia 2、Vue Router 4 | 应用状态、窗口内路由和插件页面 |
 | UI 与样式 | Element Plus 2、Tailwind CSS 3、SCSS | 公共组件、布局与主题变量 |
-| 编辑器 | TipTap 3、CodeMirror 6、Shiki 4 | Markdown 编辑、代码编辑与高亮 |
+| 编辑器与 Markdown | CodeMirror 6、Lezer Markdown、marked、Turndown | 源码编辑、实时阅览、阅读渲染、代码高亮与富文本粘贴转换 |
 | 国际化 | Vue I18n 11 | 简体中文与英文界面 |
 | 桌面后端 | Tauri 2、Rust 2021 edition、Tokio | IPC、窗口、托盘、快捷键与后台任务 |
 | 数据 | SQLite / rusqlite、Serde JSON / YAML | 持久状态、来源索引、配置及 Frontmatter |
@@ -193,7 +193,9 @@ export function unique<T>(items: T[]): T[] {
 - [ ] 补充使用示例
 ```
 
-点击 Wikilink 可定位相关笔记，反向链接面板用于查看引用关系。需要直接调整 Markdown 时，可以切换到源码模式；也可以使用外部编辑器修改工作区文件。
+在实时阅览中按住 Ctrl 点击 Wikilink 可定位相关笔记，阅读模式直接点击即可。反向链接面板用于查看引用关系。切换源码模式可以查看完整 Markdown；实时阅览会在光标所在行保留语法标记，其余内容按语法展示。两种模式直接修改同一份 Markdown，不通过 HTML 往返保存。
+
+有序条目按 Enter 后继续输入无编号正文，空的缩进行再按 Enter 退出缩进；输入下一个编号可继续列表。`a.`、`i.` 按普通文本处理。图片可粘贴或拖入，通过预览旁的“图片缩放”调整比例；表格可点击内容进入源码编辑，也可通过“调整表格”或表格菜单修改结构。编辑器边界与维护说明见 [Markdown 编辑器](docs/MARKDOWN_EDITOR.md)。
 
 ### 使用搜索插件
 
@@ -266,7 +268,7 @@ snippets-code-t/
 | 模块 | 主要入口 | 依赖与职责 |
 | --- | --- | --- |
 | 应用启动与窗口 | `src/main.ts`、`src/router/index.ts`、`src-tauri/src/lib.rs`、`src-tauri/src/app_setup.rs` | 前端挂载状态、路由和主题；后端初始化数据库、工作区、监听器、托盘与快捷键 |
-| 工作区与编辑器 | `src/api/fragment.ts`、`src/api/markdown.ts`、`src/components/TipTapEditor/`、`src/components/CodeMirrorEditor/` | 通过 IPC 调用 Rust 工作区及 Markdown 命令；文件系统是内容事实源 |
+| 工作区与编辑器 | `src/api/fragment.ts`、`src/api/markdown.ts`、`src/components/MarkdownEditor/`、`src/components/CodeMirrorEditor/` | 通过 IPC 调用 Rust 工作区及 Markdown 命令；文件系统是内容事实源。笔记以 Markdown 原文编辑和保存，状态栏与右键菜单位于公共 UI 目录 |
 | 统一搜索 | `src/hooks/useSearch.ts`、`src/search/`、`src-tauri/src/markdown/index_optimized.rs` | 合并 Markdown 检索与启用插件的搜索源，再去重、排序并处理超时；使用历史来自核心状态库 |
 | 插件平台 | `src/store/plugins.ts`、`src/plugins/`、`src-tauri/src/app_config/` | 加载安装包清单与运行时，注册页面、设置、搜索源、热键、标题栏和 AI 能力；后端负责包管理及执行门禁 |
 | AI 能力层 | `src/ai/`、`src/api/localAi.ts`、`src/plugins/local-ai/` | 按能力选择 provider，收集工作区、选区等上下文；现有本地 provider 调用 Rust 管理的 llama-server |
