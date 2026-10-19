@@ -740,7 +740,7 @@ defineExpose({
 
 <style lang="scss" scoped>
 .context-menu {
-  @apply fixed z-[9999] min-w-[200px] max-w-[280px] border rounded-lg p-1 select-none;
+  @apply fixed z-50 min-w-[200px] max-w-[280px] border rounded-lg p-1 select-none;
 
   background-color: var(--panel-bg);
   border-color: var(--panel-border);

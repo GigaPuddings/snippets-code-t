@@ -1,7 +1,7 @@
 <template>
   <div
     v-if="visible"
-    class="ai-selection-toolbar"
+    class="ai-selection-toolbar z-40"
     :style="{ left: `${position.x}px`, top: `${position.y}px` }"
     @mousedown.prevent
   >
@@ -30,7 +30,6 @@ const emit = defineEmits<{
 <style scoped lang="scss">
 .ai-selection-toolbar {
   position: fixed;
-  z-index: 3000;
   padding: 4px;
   background: var(--dialog-bg);
   border: 1px solid var(--dialog-border);

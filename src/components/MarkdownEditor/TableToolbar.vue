@@ -3,7 +3,7 @@
     <div
       v-if="info"
       ref="host"
-      class="md-table-toolbar fixed z-[3001] flex items-start justify-between"
+      class="md-table-toolbar fixed z-40 flex items-start justify-between"
       :class="{ 'dark-theme': dark }"
       :style="position"
       @mousedown="preserveFocus"
