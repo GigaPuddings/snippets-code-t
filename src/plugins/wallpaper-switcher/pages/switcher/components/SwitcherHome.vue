@@ -15,10 +15,8 @@ import type {
   FolderSort,
   WallpaperConfig,
   WallpaperMode,
-  WallpaperOrder,
-  WallhavenSource
+  WallpaperOrder
 } from '../../../api';
-import WallhavenSourceTabs from './WallhavenSourceTabs.vue';
 
 const props = defineProps<{
   config: WallpaperConfig;
@@ -93,8 +91,6 @@ const patchConfig = (patch: Partial<WallpaperConfig>): void => {
 };
 
 const setMode = (mode: WallpaperMode): void => patchConfig({ mode });
-const setSource = (wallhavenSource: WallhavenSource): void =>
-  patchConfig({ wallhavenSource });
 const setOrder = (order: WallpaperOrder): void => patchConfig({ order });
 const updateFolderSort = (event: Event): void =>
   patchConfig({
@@ -294,14 +290,9 @@ const updateAutoRestore = (event: Event): void =>
                 <strong>{{ t('wallpaperSwitcher.onlineSourceHint') }}</strong>
               </div>
             </div>
-            <div class="online-source-tabs" role="tablist">
-              <WallhavenSourceTabs
-                :provider="config.onlineProvider || 'wallhaven'"
-                tab-class="button"
-                :model-value="config.wallhavenSource"
-                @update:model-value="setSource"
-              />
-            </div>
+            <span class="text-xs text-[var(--wallpaper-muted)]">
+              {{ t(`wallpaperSwitcher.${config.wallhavenSource}`) }}
+            </span>
             <button
               type="button"
               class="browse-online-btn"

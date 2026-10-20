@@ -9,6 +9,9 @@ import {
   saveWallpaperConfig,
   setWallhavenWallpaper,
   wallpaperSources,
+  wallhavenFiltersForConfig,
+  wallspicCategories,
+  type WallhavenFilters,
   type WallpaperProvider,
   type WallhavenSource,
   type WallhavenWallpaper,
@@ -36,8 +39,8 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
   const wallhavenLastPage = ref(1);
   const wallhavenLoading = ref(false);
   const wallhavenError = ref('');
-  const wallhavenKeyword = ref('');
   const wallhavenCategory = ref('general');
+  const wallhavenFilters = ref(wallhavenFiltersForConfig(config.value));
   const wallhavenSource = ref<WallhavenSource>('hot');
   const onlineProvider = ref<WallpaperProvider>(
     config.value.onlineProvider || 'wallhaven'
@@ -64,13 +67,6 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
       onlineProvider.value === 'wallspic' ? 'Wallspic' : 'Wallhaven';
     return `${provider} · ${t(`wallpaperSwitcher.${wallhavenSource.value}`)}`;
   });
-  const wallhavenRequestQuery = computed(() => {
-    const keyword = wallhavenKeyword.value.trim();
-    return keyword || null;
-  });
-
-  const wallhavenRequestCategory = computed(() => wallhavenCategory.value);
-
   const formatWallhavenError = (error: unknown): string => {
     const message = String(error).replace(/^Error:\s*/, '');
     if (
@@ -136,8 +132,12 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
   };
 
   const persistWallhavenPrefs = async () => {
-    config.value.wallhavenQuery = wallhavenKeyword.value.trim() || null;
-    config.value.wallhavenCategory = wallhavenCategory.value;
+    // No hidden free-text filter remains after removing keyword search from this view.
+    config.value.wallhavenQuery = null;
+    config.value.wallhavenFilters = { ...wallhavenFilters.value };
+    if (onlineProvider.value === 'wallspic')
+      config.value.wallspicCategory =
+        wallhavenCategory.value as WallpaperConfig['wallspicCategory'];
     config.value.wallhavenSource = wallhavenSource.value;
     config.value.onlineProvider = onlineProvider.value;
     config.value.mode = 'wallhaven';
@@ -150,12 +150,26 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
 
   const fetchWallhavenData = async (targetPage = 1, append = false) => {
     const fetchSeq = ++wallhavenFetchSeq;
+    if (
+      !append &&
+      onlineProvider.value === 'wallhaven' &&
+      wallhavenSource.value === 'random'
+    )
+      wallhavenFilters.value.seed = crypto
+        .randomUUID()
+        .replaceAll('-', '')
+        .slice(0, 6);
     const params = {
       provider: onlineProvider.value,
       source: wallhavenSource.value,
       page: targetPage,
-      query: wallhavenRequestQuery.value,
-      category: wallhavenRequestCategory.value
+      query: null,
+      category:
+        onlineProvider.value === 'wallspic' ? wallhavenCategory.value : null,
+      wallhavenFilters:
+        onlineProvider.value === 'wallhaven'
+          ? { ...wallhavenFilters.value }
+          : null
     };
     wallhavenLoading.value = true;
     wallhavenError.value = '';
@@ -199,21 +213,43 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
     await fetchWallhavenData(1);
   };
   const setWallhavenCategory = async (next: string) => {
+    if (
+      onlineProvider.value !== 'wallspic' ||
+      !wallspicCategories.includes(next as (typeof wallspicCategories)[number])
+    )
+      return;
     wallhavenCategory.value = next;
+    await fetchWallhavenData(1);
+  };
+  const setWallhavenFilters = async (patch: Partial<WallhavenFilters>) => {
+    if (onlineProvider.value !== 'wallhaven') return;
+    wallhavenFilters.value = { ...wallhavenFilters.value, ...patch };
+    // The Asian women preset requires the People category alone.
+    if (patch.asianWomen) wallhavenFilters.value.categories = '001';
+    if (patch.categories && patch.categories !== '001')
+      wallhavenFilters.value.asianWomen = false;
     await fetchWallhavenData(1);
   };
   const setOnlineProvider = async (provider: WallpaperProvider) => {
     onlineProvider.value = provider;
     if (!wallpaperSources(provider).includes(wallhavenSource.value))
       wallhavenSource.value = 'hot';
+    wallhavenCategory.value = config.value.wallspicCategory || 'general';
     closePreview();
     await fetchWallhavenData(1);
   };
 
   const openWallhavenGrid = async () => {
-    wallhavenKeyword.value = config.value.wallhavenQuery || '';
     onlineProvider.value = config.value.onlineProvider || 'wallhaven';
-    wallhavenCategory.value = config.value.wallhavenCategory || 'general';
+    wallhavenCategory.value =
+      config.value.wallspicCategory ||
+      (onlineProvider.value === 'wallspic' &&
+      wallspicCategories.includes(
+        config.value.wallhavenCategory as (typeof wallspicCategories)[number]
+      )
+        ? config.value.wallhavenCategory
+        : 'general');
+    wallhavenFilters.value = wallhavenFiltersForConfig(config.value);
     wallhavenSource.value = config.value.wallhavenSource;
     if (!wallpaperSources(onlineProvider.value).includes(wallhavenSource.value))
       wallhavenSource.value = 'hot';
@@ -363,8 +399,9 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
     wallhavenLastPage,
     wallhavenLoading,
     wallhavenError,
-    wallhavenKeyword,
     wallhavenCategory,
+    wallhavenFilters,
+    setWallhavenFilters,
     wallhavenSource,
     onlineProvider,
     setOnlineProvider,

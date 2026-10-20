@@ -70,8 +70,9 @@ const {
   activeView,
   wallhavenLoading,
   wallhavenError,
-  wallhavenKeyword,
   wallhavenCategory,
+  wallhavenFilters,
+  setWallhavenFilters,
   wallhavenSource,
   onlineProvider,
   setOnlineProvider,
@@ -340,15 +341,11 @@ onUnmounted(() => {
   <main class="wallpaper-window wallpaper-window--redesigned">
     <SwitcherTitlebar
       :active-view="activeView"
-      :wallhaven-source="wallhavenSource"
-      :provider="onlineProvider"
-      :wallhaven-loading="wallhavenLoading"
       :schedule-enabled="config.scheduleEnabled"
       :scheduler-running="Boolean(status?.schedulerRunning)"
       @back="backToSwitcher"
       @close="closeWindow"
       @open-wallhaven="openWallhavenGrid"
-      @set-wallhaven-source="setWallhavenSource"
     />
 
     <section v-if="status && !status.supported" class="unsupported">
@@ -384,7 +381,6 @@ onUnmounted(() => {
 
     <WallhavenView
       v-else
-      v-model:keyword="wallhavenKeyword"
       :category="wallhavenCategory"
       :loading="wallhavenLoading"
       :error="wallhavenError"
@@ -397,12 +393,13 @@ onUnmounted(() => {
       :working-actions="workingActions"
       :download-progress="downloadProgress"
       :source-label="wallhavenSourceLabel"
-      :screen-label="screenLabel"
+      :wallhaven-filters="wallhavenFilters"
       :set-thumb-ref="setThumbRef"
       @refresh="refreshWallhaven"
       @set-category="setWallhavenCategory"
       @set-provider="setOnlineProvider"
       @set-source="setWallhavenSource"
+      @set-filters="setWallhavenFilters"
       @open-preview="openPreview"
       @mark-thumb-loaded="markThumbLoaded"
       @set-wallpaper="setWallpaperFromWallhaven"

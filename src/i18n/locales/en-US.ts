@@ -1663,6 +1663,46 @@ export default {
 
   // Wallpaper Switcher Plugin
   wallpaperSwitcher: {
+    sortBy: 'Sort by',
+    topRange: 'Toplist period',
+    relevance: 'Relevance',
+    views: 'Views',
+    asianWomen: 'Asian women',
+    topRanges: {
+      '1d': 'Last day',
+      '3d': 'Last three days',
+      '1w': 'Last week',
+      '1M': 'Last month',
+      '3M': 'Last three months',
+      '6M': 'Last six months',
+      '1y': 'Last year'
+    },
+    wallspicCategories: {
+      general: 'All categories',
+      brands: 'Brands',
+      technology: 'Technology',
+      city: 'City',
+      sport: 'Sport',
+      textures: 'Textures',
+      abstract: 'Abstract',
+      other: 'Other',
+      animals: 'Animals',
+      anime: 'Anime',
+      food_and_drink: 'Food and drink',
+      games: 'Games',
+      space: 'Space',
+      cars: 'Cars',
+      music: 'Music',
+      movies: 'Movies',
+      flowers: 'Flowers',
+      fantasy: 'Fantasy',
+      aviation: 'Aviation',
+      motorcycles: 'Motorcycles',
+      nature: 'Nature',
+      people: 'People',
+      holidays_and_events: 'Holidays and events',
+      weapon: 'Weapons'
+    },
     title: 'Wallpaper Switcher',
     titleSubtitle: 'Desktop appearance workspace',
     wallhavenTitle: 'Online Wallpapers',
@@ -1675,7 +1715,6 @@ export default {
     loadMore: 'Load more',
     allLoaded: 'All loaded',
     repeatedPage: 'The source returned a repeated page. Refresh to try again.',
-    screenResolution: 'Screen {resolution}',
     sourceToggle: 'Wallpaper source switcher',
     categoryToggle: 'Wallpaper category switcher',
     unsupported:
@@ -1709,7 +1748,7 @@ export default {
     change: 'Change',
     onlineSourceHint: 'Automatically fetch high-resolution wallpapers',
     browseOnline: 'Browse online library',
-    browseOnlineHint: 'Search, preview, and apply instantly',
+    browseOnlineHint: 'Filter, preview, and apply instantly',
     fixedModeHint: 'Stop rotation and keep this wallpaper',
     selectImage: 'Select image',
     select: 'Select',
@@ -1759,21 +1798,9 @@ export default {
     searchPlaceholder: 'Search keyword',
     clear: 'Clear',
     refresh: 'Refresh',
-    autoMatch: 'Auto match {resolution}',
-    autoMatchHint:
-      'Filters by your primary screen size, trying 1920 × 1080 if no results are found. Smaller images may be excluded.',
-    hotHint:
-      'Hot contains the website’s current trending results and may be a short list.',
-    toplistHint:
-      'Toplist ranks the past month and differs from the current Hot results.',
-    browseMonthlyToplist: 'Monthly toplist',
     loadingWallhaven: 'Loading online wallpapers...',
     retry: 'Retry',
     noWallpapers: 'No wallpapers available',
-    noVerifiedPeople: 'No Asian-women wallpapers match the current filters.',
-    noVerifiedWallspicPeople:
-      'Wallspic returned no landscape images with both Asian and women tags. Other women images are not included automatically.',
-    searchPeopleOnWallhaven: 'Search Asian women on Wallhaven',
     preview: 'Preview',
     setWallpaper: 'Set wallpaper',
     setting: 'Setting',
@@ -1805,7 +1832,7 @@ export default {
     categories: {
       general: 'General',
       anime: 'Anime',
-      people: 'Asian Women',
+      people: 'People',
       nature: 'Nature'
     },
     time: {

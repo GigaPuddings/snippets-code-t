@@ -824,9 +824,9 @@ pub fn handle_wallpaper_menu_click(app: &AppHandle, menu_id: &str) {
                         WallpaperProvider::Wallhaven
                     };
                     if config.online_provider == WallpaperProvider::Wallspic
-                        && matches!(
+                        && !matches!(
                             config.wallhaven_source,
-                            WallhavenSource::Toplist | WallhavenSource::Favorites
+                            WallhavenSource::Latest | WallhavenSource::Hot
                         )
                     {
                         config.wallhaven_source = WallhavenSource::Hot;

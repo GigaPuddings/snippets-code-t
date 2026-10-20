@@ -59,6 +59,62 @@ pub enum WallhavenSource {
     Hot,
     Toplist,
     Favorites,
+    Relevance,
+    Random,
+    Views,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct WallhavenFilters {
+    pub categories: String,
+    pub top_range: String,
+    pub asian_women: bool,
+    pub seed: Option<String>,
+}
+
+impl Default for WallhavenFilters {
+    fn default() -> Self {
+        Self {
+            categories: "100".into(),
+            top_range: "1M".into(),
+            asian_women: false,
+            seed: None,
+        }
+    }
+}
+
+impl WallhavenFilters {
+    fn legacy(category: Option<&str>) -> Self {
+        Self {
+            categories: category_bits(category).to_string(),
+            asian_women: category == Some("people"),
+            ..Self::default()
+        }
+    }
+
+    fn validate(&self) -> Result<(), String> {
+        if self.categories.len() != 3
+            || self.categories == "000"
+            || !self.categories.bytes().all(|b| b == b'0' || b == b'1')
+        {
+            return Err("Wallhaven 分类无效".into());
+        }
+        if !["1d", "3d", "1w", "1M", "3M", "6M", "1y"].contains(&self.top_range.as_str()) {
+            return Err("Wallhaven 排行榜时段无效".into());
+        }
+        if self.asian_women && self.categories != "001" {
+            return Err("亚洲女性筛选仅适用于人物分类".into());
+        }
+        if self
+            .seed
+            .as_ref()
+            .is_some_and(|seed| seed.len() != 6 || !seed.bytes().all(|b| b.is_ascii_alphanumeric()))
+        {
+            return Err("Wallhaven 随机种子无效".into());
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -96,6 +152,10 @@ pub struct WallpaperConfig {
     pub wallhaven_category: String,
     pub wallhaven_query: Option<String>,
     #[serde(default)]
+    pub wallhaven_filters: Option<WallhavenFilters>,
+    #[serde(default)]
+    pub wallspic_category: Option<String>,
+    #[serde(default)]
     pub folder_seen_paths: Vec<String>,
     #[serde(default)]
     pub wallhaven_seen_ids: Vec<String>,
@@ -122,6 +182,8 @@ impl Default for WallpaperConfig {
             online_provider: WallpaperProvider::Wallspic,
             wallhaven_category: "general".to_string(),
             wallhaven_query: None,
+            wallhaven_filters: None,
+            wallspic_category: None,
             folder_seen_paths: Vec::new(),
             wallhaven_seen_ids: Vec::new(),
             wallhaven_history_scope: None,
@@ -164,6 +226,8 @@ pub struct WallhavenFetchParams {
     pub page: Option<u32>,
     pub query: Option<String>,
     pub category: Option<String>,
+    #[serde(default)]
+    pub wallhaven_filters: Option<WallhavenFilters>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -341,6 +405,30 @@ fn image_name(path: &Path) -> String {
 }
 
 fn normalize_wallpaper_config_preferences(config: &mut WallpaperConfig) {
+    if config.wallhaven_filters.is_none() {
+        config.wallhaven_filters = Some(WallhavenFilters::legacy(Some(&config.wallhaven_category)));
+        if config.online_provider == WallpaperProvider::Wallhaven
+            && config.wallhaven_category == "nature"
+        {
+            config.wallhaven_query =
+                normalize_wallhaven_query(config.wallhaven_query.clone(), Some("nature"));
+        }
+    }
+    if config.wallspic_category.is_none() {
+        config.wallspic_category = Some(if config.online_provider == WallpaperProvider::Wallspic {
+            config.wallhaven_category.clone()
+        } else {
+            "general".into()
+        });
+    }
+    if config.online_provider == WallpaperProvider::Wallspic
+        && !matches!(
+            config.wallhaven_source,
+            WallhavenSource::Latest | WallhavenSource::Hot
+        )
+    {
+        config.wallhaven_source = WallhavenSource::Hot;
+    }
     if config.online_provider == WallpaperProvider::Wallhaven {
         if let Some(scope) = &mut config.wallhaven_history_scope {
             if !scope.starts_with("Wallhaven|") && !scope.starts_with("Wallspic|") {
@@ -735,31 +823,79 @@ fn current_wallhaven_id(config: &WallpaperConfig) -> Option<String> {
         .and_then(wallhaven_id_from_cache_path)
 }
 
-fn wallhaven_scope(
-    source: &WallhavenSource,
-    category: &str,
-    normalized_query: Option<&str>,
-) -> String {
+fn wallpaper_request_from_config(config: &WallpaperConfig) -> WallhavenFetchParams {
+    WallhavenFetchParams {
+        provider: config.online_provider,
+        source: config.wallhaven_source.clone(),
+        page: Some(1),
+        query: config.wallhaven_query.clone(),
+        category: Some(if config.online_provider == WallpaperProvider::Wallspic {
+            config
+                .wallspic_category
+                .clone()
+                .unwrap_or_else(|| config.wallhaven_category.clone())
+        } else {
+            config.wallhaven_category.clone()
+        }),
+        wallhaven_filters: config.wallhaven_filters.clone(),
+    }
+}
+
+fn online_query(params: &WallhavenFetchParams) -> Option<String> {
+    if params.provider == WallpaperProvider::Wallspic {
+        return params
+            .query
+            .as_deref()
+            .map(str::trim)
+            .filter(|q| !q.is_empty())
+            .map(normalize_keyword_alias);
+    }
+    if let Some(filters) = &params.wallhaven_filters {
+        let keyword = normalize_wallhaven_query(params.query.clone(), None);
+        return if filters.asian_women {
+            Some(
+                format!("{} +asian +women", keyword.unwrap_or_default())
+                    .trim()
+                    .to_string(),
+            )
+        } else {
+            keyword
+        };
+    }
+    normalize_wallhaven_query(params.query.clone(), params.category.as_deref())
+}
+
+fn online_request_scope(params: &WallhavenFetchParams) -> String {
+    let filters = params
+        .wallhaven_filters
+        .clone()
+        .unwrap_or_else(|| WallhavenFilters::legacy(params.category.as_deref()));
+    let details = if params.provider == WallpaperProvider::Wallhaven {
+        format!(
+            "{}|{}|{}|{}",
+            filters.categories,
+            filters.top_range,
+            filters.asian_women,
+            if params.source == WallhavenSource::Random {
+                filters.seed.as_deref().unwrap_or_default()
+            } else {
+                ""
+            }
+        )
+    } else {
+        params.category.clone().unwrap_or_else(|| "general".into())
+    };
     format!(
-        "{:?}|{}|{}",
-        source,
-        category,
-        normalized_query.unwrap_or_default()
+        "{:?}|{:?}|{}|{}",
+        params.provider,
+        params.source,
+        details,
+        online_query(params).unwrap_or_default()
     )
 }
 
 fn wallhaven_history_scope(config: &WallpaperConfig) -> String {
-    let query = normalize_wallhaven_query(
-        config.wallhaven_query.clone(),
-        Some(config.wallhaven_category.as_str()),
-    )
-    .unwrap_or_default();
-    let scope = wallhaven_scope(
-        &config.wallhaven_source,
-        &config.wallhaven_category,
-        Some(&query),
-    );
-    format!("{:?}|{}", config.online_provider, scope)
+    online_request_scope(&wallpaper_request_from_config(config))
 }
 
 fn prepare_wallhaven_history(config: &mut WallpaperConfig) {
@@ -1238,13 +1374,8 @@ async fn switch_from_wallhaven(
             } else {
                 random_index(available_pages as usize) as u32 + 1
             };
-            let params = WallhavenFetchParams {
-                provider: config.online_provider,
-                source: config.wallhaven_source.clone(),
-                page: Some(page),
-                query: config.wallhaven_query.clone(),
-                category: Some(config.wallhaven_category.clone()),
-            };
+            let mut params = wallpaper_request_from_config(&config);
+            params.page = Some(page);
             let page = fetch_wallhaven_page(app_handle, params).await?;
             available_pages = page.last_page.max(1);
             if page.data.is_empty() {
@@ -1445,15 +1576,9 @@ fn wallhaven_api_sorting(source: &WallhavenSource) -> &'static str {
         WallhavenSource::Hot => "hot",
         WallhavenSource::Toplist => "toplist",
         WallhavenSource::Favorites => "favorites",
-    }
-}
-
-fn wallhaven_web_sorting(source: &WallhavenSource) -> &'static str {
-    match source {
-        WallhavenSource::Latest => "date_added",
-        WallhavenSource::Hot => "hot",
-        WallhavenSource::Toplist => "toplist",
-        WallhavenSource::Favorites => "favorites",
+        WallhavenSource::Relevance => "relevance",
+        WallhavenSource::Random => "random",
+        WallhavenSource::Views => "views",
     }
 }
 
@@ -1855,36 +1980,35 @@ fn wallhaven_resolution_attempts(screen_width: u32, screen_height: u32) -> Vec<(
 }
 
 fn build_wallhaven_query(
-    source: &WallhavenSource,
-    page: u32,
-    category: Option<&str>,
-    request_query: Option<&str>,
+    params: &WallhavenFetchParams,
     width: u32,
     height: u32,
-    web: bool,
 ) -> Vec<(String, String)> {
+    let filters = params
+        .wallhaven_filters
+        .clone()
+        .unwrap_or_else(|| WallhavenFilters::legacy(params.category.as_deref()));
     let mut query = vec![
         (
-            "sorting".to_string(),
-            if web {
-                wallhaven_web_sorting(source)
-            } else {
-                wallhaven_api_sorting(source)
-            }
-            .to_string(),
+            "sorting".into(),
+            wallhaven_api_sorting(&params.source).into(),
         ),
-        ("purity".to_string(), "100".to_string()),
-        (
-            "categories".to_string(),
-            category_bits(category).to_string(),
-        ),
-        ("topRange".to_string(), "1M".to_string()),
-        ("order".to_string(), "desc".to_string()),
-        ("atleast".to_string(), format!("{}x{}", width, height)),
-        ("page".to_string(), page.to_string()),
+        ("purity".into(), "100".into()),
+        ("categories".into(), filters.categories),
+        ("order".into(), "desc".into()),
+        ("atleast".into(), format!("{}x{}", width, height)),
+        ("page".into(), params.page.unwrap_or(1).max(1).to_string()),
     ];
-    if let Some(keyword) = request_query {
-        query.push(("q".to_string(), keyword.to_string()));
+    if params.source == WallhavenSource::Toplist {
+        query.push(("topRange".into(), filters.top_range));
+    }
+    if params.source == WallhavenSource::Random {
+        if let Some(seed) = filters.seed {
+            query.push(("seed".into(), seed));
+        }
+    }
+    if let Some(keyword) = online_query(params) {
+        query.push(("q".into(), keyword));
     }
     query
 }
@@ -1935,19 +2059,16 @@ async fn send_wallhaven_request(
 
 async fn fetch_wallhaven_api_search(
     client: &reqwest::Client,
-    source: &WallhavenSource,
-    page: u32,
-    category: Option<&str>,
-    request_query: Option<&str>,
+    params: &WallhavenFetchParams,
     width: u32,
     height: u32,
 ) -> Result<WallhavenPage, String> {
-    if matches!(source, WallhavenSource::Hot) {
+    if matches!(params.source, WallhavenSource::Hot) {
         return Err(
             "Wallhaven 热门暂不可用，请重试或切换到最新；不会用最新结果替代热门".to_string(),
         );
     }
-    let query = build_wallhaven_query(source, page, category, request_query, width, height, false);
+    let query = build_wallhaven_query(params, width, height);
     let (status, headers, body) = send_wallhaven_request(
         client,
         "https://wallhaven.cc/api/v1/search",
@@ -1974,14 +2095,11 @@ async fn fetch_wallhaven_api_search(
 
 async fn fetch_wallhaven_web_search(
     client: &reqwest::Client,
-    source: &WallhavenSource,
-    page: u32,
-    category: Option<&str>,
-    request_query: Option<&str>,
+    params: &WallhavenFetchParams,
     width: u32,
     height: u32,
 ) -> Result<WallhavenPage, String> {
-    let query = build_wallhaven_query(source, page, category, request_query, width, height, true);
+    let query = build_wallhaven_query(params, width, height);
     let (status, headers, body) = send_wallhaven_request(
         client,
         "https://wallhaven.cc/search",
@@ -2003,7 +2121,7 @@ async fn fetch_wallhaven_web_search(
             wallhaven_response_snippet(&body)
         ));
     }
-    parse_wallhaven_html_response(&body, page)
+    parse_wallhaven_html_response(&body, params.page.unwrap_or(1).max(1))
 }
 
 async fn fetch_wallhaven_page(
@@ -2015,30 +2133,17 @@ async fn fetch_wallhaven_page(
     let page = params.page.unwrap_or(1).max(1);
     if params.provider == WallpaperProvider::Wallspic {
         let result = wallspic::fetch_page(&params).await?;
-        let query = normalize_wallhaven_query(params.query.clone(), params.category.as_deref());
-        let scope = format!(
-            "{:?}|{}",
-            params.provider,
-            wallhaven_scope(
-                &params.source,
-                params.category.as_deref().unwrap_or("general"),
-                query.as_deref()
-            )
-        );
+        let scope = online_request_scope(&params);
         remember_wallhaven_candidates(&scope, &result.data);
         return Ok(result);
     }
-    let category = params.category.as_deref();
-    let request_query = normalize_wallhaven_query(params.query.clone(), category);
-    let request_scope = format!(
-        "{:?}|{}",
-        params.provider,
-        wallhaven_scope(
-            &params.source,
-            category.unwrap_or("general"),
-            request_query.as_deref(),
-        )
-    );
+    let filters = params
+        .wallhaven_filters
+        .clone()
+        .unwrap_or_else(|| WallhavenFilters::legacy(params.category.as_deref()));
+    filters.validate()?;
+    let request_query = online_query(&params);
+    let request_scope = online_request_scope(&params);
     info!(
         "[WallpaperSwitcher] Wallhaven search source={:?} page={} category={:?} query={} screen={}x{}",
         params.source,
@@ -2062,16 +2167,7 @@ async fn fetch_wallhaven_page(
 
     let mut last_error = String::new();
     for (width, height) in wallhaven_resolution_attempts(screen_width, screen_height) {
-        let preferred = fetch_wallhaven_web_search(
-            &client,
-            &params.source,
-            page,
-            category,
-            request_query.as_deref(),
-            width,
-            height,
-        )
-        .await;
+        let preferred = fetch_wallhaven_web_search(&client, &params, width, height).await;
 
         match preferred {
             Ok(parsed) if !parsed.data.is_empty() => {
@@ -2103,16 +2199,7 @@ async fn fetch_wallhaven_page(
             }
         }
 
-        let fallback = fetch_wallhaven_api_search(
-            &client,
-            &params.source,
-            page,
-            category,
-            request_query.as_deref(),
-            width,
-            height,
-        )
-        .await;
+        let fallback = fetch_wallhaven_api_search(&client, &params, width, height).await;
 
         match fallback {
             Ok(parsed) if !parsed.data.is_empty() => {
@@ -2399,7 +2486,7 @@ mod tests {
             normalize_wallhaven_query(None, Some("people")).as_deref(),
             Some("+asian +women")
         );
-        assert_eq!(wallhaven_web_sorting(&WallhavenSource::Hot), "hot");
+        assert_eq!(wallhaven_api_sorting(&WallhavenSource::Hot), "hot");
         assert_eq!(
             wallhaven_api_sorting(&WallhavenSource::Latest),
             "date_added"
@@ -2423,17 +2510,11 @@ mod tests {
 
     #[test]
     fn monthly_toplist_preserves_asian_women_filter_and_screen_resolution() {
-        let query = build_wallhaven_query(
-            &WallhavenSource::Toplist,
-            2,
-            Some("people"),
-            normalize_wallhaven_query(None, Some("people")).as_deref(),
-            2560,
-            1600,
-            true,
-        )
-        .into_iter()
-        .collect::<std::collections::HashMap<_, _>>();
+        let params: WallhavenFetchParams =
+            serde_json::from_str(r#"{"source":"toplist","page":2,"category":"people"}"#).unwrap();
+        let query = build_wallhaven_query(&params, 2560, 1600)
+            .into_iter()
+            .collect::<std::collections::HashMap<_, _>>();
         assert_eq!(query["sorting"], "toplist");
         assert_eq!(query["topRange"], "1M");
         assert_eq!(query["categories"], "001");
@@ -2462,5 +2543,72 @@ mod tests {
             .data
             .iter()
             .all(|item| item.dimension_x >= 2560 && item.dimension_y >= 1600));
+    }
+
+    #[test]
+    fn provider_filters_migrate_legacy_people_without_restricting_wallspic() {
+        let mut config = WallpaperConfig {
+            wallhaven_category: "people".into(),
+            ..WallpaperConfig::default()
+        };
+        normalize_wallpaper_config_preferences(&mut config);
+        assert!(config.wallhaven_filters.as_ref().unwrap().asian_women);
+        assert_eq!(config.wallspic_category.as_deref(), Some("people"));
+        assert_eq!(online_query(&wallpaper_request_from_config(&config)), None);
+        config.online_provider = WallpaperProvider::Wallhaven;
+        assert_eq!(
+            online_query(&wallpaper_request_from_config(&config)).as_deref(),
+            Some("+asian +women")
+        );
+        config.wallhaven_filters.as_mut().unwrap().asian_women = false;
+        assert_eq!(online_query(&wallpaper_request_from_config(&config)), None);
+    }
+
+    #[test]
+    fn wallhaven_native_filters_apply_range_categories_seed_and_history() {
+        let mut config = WallpaperConfig {
+            online_provider: WallpaperProvider::Wallhaven,
+            wallhaven_source: WallhavenSource::Toplist,
+            ..WallpaperConfig::default()
+        };
+        normalize_wallpaper_config_preferences(&mut config);
+        config.wallhaven_filters.as_mut().unwrap().categories = "110".into();
+        for range in ["1d", "3d", "1w", "1M", "3M", "6M", "1y"] {
+            let previous = wallhaven_history_scope(&config);
+            config.wallhaven_filters.as_mut().unwrap().top_range = range.into();
+            let params = wallpaper_request_from_config(&config);
+            params
+                .wallhaven_filters
+                .as_ref()
+                .unwrap()
+                .validate()
+                .unwrap();
+            let query = build_wallhaven_query(&params, 2560, 1600)
+                .into_iter()
+                .collect::<std::collections::HashMap<_, _>>();
+            assert_eq!(query["categories"], "110");
+            assert_eq!(query["topRange"], range);
+            assert!(!query.contains_key("q"));
+            if range != "1M" {
+                assert_ne!(previous, wallhaven_history_scope(&config));
+            }
+        }
+        config.wallhaven_source = WallhavenSource::Random;
+        config.wallhaven_filters.as_mut().unwrap().seed = Some("abc123".into());
+        let query = build_wallhaven_query(&wallpaper_request_from_config(&config), 1920, 1080)
+            .into_iter()
+            .collect::<std::collections::HashMap<_, _>>();
+        assert_eq!(query["seed"], "abc123");
+        assert_eq!(query["sorting"], "random");
+        assert!(!query.contains_key("topRange"));
+        for invalid in ["000", "1", "abc", "111&purity=111"] {
+            config.wallhaven_filters.as_mut().unwrap().categories = invalid.into();
+            assert!(config
+                .wallhaven_filters
+                .as_ref()
+                .unwrap()
+                .validate()
+                .is_err());
+        }
     }
 }

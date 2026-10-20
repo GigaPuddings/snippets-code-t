@@ -10,15 +10,81 @@ export type FolderSort =
   | 'modifiedAscending'
   | 'modifiedDescending'
   | 'createdAscending';
-export type WallhavenSource = 'latest' | 'hot' | 'toplist' | 'favorites';
+export type WallhavenSource =
+  | 'latest'
+  | 'hot'
+  | 'toplist'
+  | 'favorites'
+  | 'relevance'
+  | 'random'
+  | 'views';
 export type WallpaperProvider = 'wallhaven' | 'wallspic';
+export const wallhavenTopRanges = [
+  '1d',
+  '3d',
+  '1w',
+  '1M',
+  '3M',
+  '6M',
+  '1y'
+] as const;
+export type WallhavenTopRange = (typeof wallhavenTopRanges)[number];
+export interface WallhavenFilters {
+  categories: string;
+  topRange: WallhavenTopRange;
+  asianWomen: boolean;
+  seed?: string | null;
+}
+
+// Album slugs from Wallspic's desktop category selector, not Wallhaven tags.
+export const wallspicCategories = [
+  'general',
+  'brands',
+  'technology',
+  'city',
+  'sport',
+  'textures',
+  'abstract',
+  'other',
+  'animals',
+  'anime',
+  'food_and_drink',
+  'games',
+  'space',
+  'cars',
+  'music',
+  'movies',
+  'flowers',
+  'fantasy',
+  'aviation',
+  'motorcycles',
+  'nature',
+  'people',
+  'holidays_and_events',
+  'weapon'
+] as const;
+export type WallspicCategory = (typeof wallspicCategories)[number];
+
+export const wallhavenFiltersForConfig = (
+  config: WallpaperConfig
+): WallhavenFilters => ({
+  categories:
+    config.wallhavenFilters?.categories ||
+    { anime: '010', people: '001', nature: '110' }[config.wallhavenCategory] ||
+    '100',
+  topRange: config.wallhavenFilters?.topRange || '1M',
+  asianWomen:
+    config.wallhavenFilters?.asianWomen ??
+    config.wallhavenCategory === 'people',
+  seed: config.wallhavenFilters?.seed ?? null
+});
 
 export const wallpaperSources = (
   provider: WallpaperProvider
 ): WallhavenSource[] =>
   provider === 'wallspic'
     ? ['latest', 'hot']
-    : ['latest', 'hot', 'toplist', 'favorites'];
+    : ['relevance', 'random', 'latest', 'views', 'favorites', 'toplist', 'hot'];
 
 export interface WallpaperConfig {
   mode: WallpaperMode;
@@ -33,6 +99,8 @@ export interface WallpaperConfig {
   onlineProvider: WallpaperProvider;
   wallhavenCategory: string;
   wallhavenQuery: string | null;
+  wallhavenFilters?: WallhavenFilters | null;
+  wallspicCategory?: WallspicCategory | null;
   folderSeenPaths: string[];
   wallhavenSeenIds: string[];
   wallhavenHistoryScope: string | null;
@@ -93,6 +161,7 @@ export interface WallhavenFetchParams {
   page?: number;
   query?: string | null;
   category?: string | null;
+  wallhavenFilters?: WallhavenFilters | null;
 }
 
 export const defaultWallpaperConfig = (): WallpaperConfig => ({

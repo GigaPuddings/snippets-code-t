@@ -6,15 +6,17 @@ Windows desktop wallpaper switching plugin for Snippets Code.
 
 - Set a single local image as a fixed wallpaper.
 - Rotate wallpapers from a local folder on a timer.
-- Browse Wallspic desktop wallpapers, with Latest and Hot sorting.
-- Browse Wallhaven Latest, Hot, monthly Toplist, and Most Favorited results.
+- Browse Wallspic desktop albums with Latest and Popular sorting, native categories. Portrait and square results remain excluded.
+- Use a compact, wrapping filter bar without a search input; stale saved keywords
+  are cleared when the library opens.
+- Browse Wallhaven with Relevance, Random, Latest, Views, Favorites, Toplist, or Hot
+  sorting. Toplist has seven time ranges, from one day to one year.
+- Combine Wallhaven General, Anime, and People categories. An optional Asian women
+  preset is available when only People is selected; it is not applied to Wallspic.
 - Load more images by scrolling, with deduplication, retry, and virtualized rows.
-- Exclude portrait and square assets from Wallspic desktop results. Wallhaven
-  searches use the current primary screen resolution, with lower-resolution fallback.
-- Filter the people category to Asian women using source tags. Wallspic verifies
-  each candidate's complete tags; unverified images are excluded, so results may be empty.
-- Switch an empty Wallspic people search to Wallhaven explicitly, keeping the
-  category and keyword. Hot results also provide a shortcut to the monthly toplist.
+  Random Wallhaven listings keep one seed across pages.
+- Wallhaven searches retain primary-screen resolution matching with a 1080p fallback.
+  The resolution badge and ranking explanations have been removed from the library.
 - Cache downloaded and fitted wallpapers locally.
 - Switch to the next wallpaper directly from the tray menu, open the full
   workspace from the tray, or bind an optional global hotkey.
@@ -28,7 +30,7 @@ New configurations use Wallspic. Existing configurations retain Wallhaven until
 the user changes the website in the online library or tray menu. Cached files
 and rotation history are separated by provider.
 
-The Wallspic and Latest features require the corresponding updated Snippets Code
+Provider-specific filters and the Wallspic source require the corresponding updated Snippets Code
 backend. Build the host and plugin together when testing this source checkout;
 replacing only the plugin runtime on a released host does not add the backend capabilities.
 
@@ -37,22 +39,24 @@ replacing only the plugin runtime on a released host does not add the backend ca
 Run these commands from the repository root in PowerShell:
 
 ```powershell
-# Build only this plugin's frontend runtime.
 node scripts/build-official-plugin-runtimes.mjs wallpaper-switcher
 node scripts/verify-plugin-marketplace.mjs --local
-
-# Optional: create a ZIP with plugin.json at its root.
-New-Item -ItemType Directory -Force .\dist-plugin-packages\local | Out-Null
-Compress-Archive -Path .\plugin-registry\packages\wallpaper-switcher\* -DestinationPath .\dist-plugin-packages\local\wallpaper-switcher-local.zip -Force
 ```
 
-In the application's plugin manager, choose the local import action and select
-the ZIP, or import the `plugin-registry/packages/wallpaper-switcher` directory
-directly. If this version is already installed, choose overwrite when prompted,
-then close and reopen the wallpaper window. Restart the application if an older
-runtime is still loaded.
+A ZIP is not required. In the application's plugin manager, uninstall the old
+wallpaper plugin package, choose **Install Local Plugin**, and select this exact
+directory, which contains `plugin.json`:
 
-This plugin ZIP does not contain the Rust backend or the host's translation
+```text
+E:\Project\Tauri\snippets-code-t\plugin-registry\packages\wallpaper-switcher
+```
+
+Do not select the parent `packages` directory. Keep plugin settings/data when
+uninstalling if you want to retain your configuration. Close and reopen the
+wallpaper window after reinstalling; restart the application if an older runtime
+remains loaded.
+
+The plugin directory does not contain the Rust backend or the host's translation
 catalogs. When testing changes to either, first build the host from the same
 checkout:
 

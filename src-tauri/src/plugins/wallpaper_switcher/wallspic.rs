@@ -1,5 +1,4 @@
 use super::*;
-use futures::StreamExt;
 use lru::LruCache;
 use scraper::{Html, Selector};
 use std::num::NonZeroUsize;
@@ -29,6 +28,33 @@ pub(super) fn image_url(value: &str) -> bool {
     })
 }
 
+const CATEGORIES: &[&str] = &[
+    "general",
+    "brands",
+    "technology",
+    "city",
+    "sport",
+    "textures",
+    "abstract",
+    "other",
+    "animals",
+    "anime",
+    "food_and_drink",
+    "games",
+    "space",
+    "cars",
+    "music",
+    "movies",
+    "flowers",
+    "fantasy",
+    "aviation",
+    "motorcycles",
+    "nature",
+    "people",
+    "holidays_and_events",
+    "weapon",
+];
+
 fn page_url(params: &WallhavenFetchParams) -> Result<String, String> {
     if !matches!(
         params.source,
@@ -37,29 +63,27 @@ fn page_url(params: &WallhavenFetchParams) -> Result<String, String> {
         return Err("Wallspic 仅提供最新和热门排序".to_string());
     }
     let category = params.category.as_deref().unwrap_or("general");
+    if !CATEGORIES.contains(&category) {
+        return Err("Wallspic 分类无效".into());
+    }
     let keyword = params.query.as_deref().unwrap_or("").trim();
-    let query = match category {
-        "people" => format!("{} asian women", keyword).trim().to_string(),
-        "nature" if !keyword.is_empty() => format!("{} nature", keyword),
-        "anime" if !keyword.is_empty() => format!("{} anime", keyword),
-        _ => keyword.to_string(),
-    };
-    let latest = matches!(params.source, WallhavenSource::Latest);
-    let path = if !query.is_empty() {
+    let latest = params.source == WallhavenSource::Latest;
+    let path = if !keyword.is_empty() {
+        // A keyword is a site-wide search, not a tag appended to an album query.
         format!(
             "search/{}/{}for_desktop",
-            urlencoding::encode(&query),
+            urlencoding::encode(&normalize_keyword_alias(keyword)),
             if latest { "date/" } else { "" }
         )
     } else {
-        let prefix = match category {
-            "anime" => "tag/anime/",
-            "nature" => "tag/nature/",
-            _ => "album/",
+        let album = if category == "general" {
+            String::new()
+        } else {
+            format!("{}/", category)
         };
         format!(
-            "{}{}for_desktop",
-            prefix,
+            "album/{}{}for_desktop",
+            album,
             if latest { "" } else { "popular/" }
         )
     };
@@ -201,19 +225,6 @@ pub(super) async fn resolve_detail(
     Ok(detail)
 }
 
-pub(super) fn asian_women(tags: &[String]) -> bool {
-    let tags = tags
-        .iter()
-        .map(|tag| tag.trim().to_ascii_lowercase())
-        .collect::<HashSet<_>>();
-    tags.contains("asian women")
-        || tags.contains("asian woman")
-        || (tags.contains("asian")
-            && ["women", "woman", "female"]
-                .iter()
-                .any(|tag| tags.contains(*tag)))
-}
-
 pub(super) async fn fetch_page(params: &WallhavenFetchParams) -> Result<WallhavenPage, String> {
     let client = apply_wallhaven_proxy(
         reqwest::Client::builder()
@@ -225,44 +236,12 @@ pub(super) async fn fetch_page(params: &WallhavenFetchParams) -> Result<Wallhave
     .build()
     .map_err(|error| format!("创建 Wallspic 客户端失败: {}", error))?;
     let body = request(&client, &page_url(params)?).await?;
-    let mut page = parse_page(&body)?;
-    if params.category.as_deref() == Some("people") {
-        let details = futures::stream::iter(page.data.into_iter().map(|wallpaper| {
-            let client = &client;
-            async move { resolve_detail(client, &wallpaper).await }
-        }))
-        .buffered(3)
-        .collect::<Vec<_>>()
-        .await;
-        // A failed verification must not silently admit an unverified image.
-        page.data = details
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter()
-            .filter(|item| asian_women(&item.tags))
-            .collect();
-    }
-    Ok(page)
+    parse_page(&body)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn strict_people_tags_exclude_cats_and_missing_labels() {
-        let tags = |items: &[&str]| {
-            items
-                .iter()
-                .map(|item| item.to_string())
-                .collect::<Vec<_>>()
-        };
-        assert!(!asian_women(&tags(&["asian semi longhair", "women"])));
-        assert!(!asian_women(&tags(&["Asian", "man"])));
-        assert!(!asian_women(&tags(&["woman"])));
-        assert!(asian_women(&tags(&["Asian", "woman"])));
-        assert!(asian_women(&tags(&["Asian women"])));
-    }
 
     #[test]
     fn parses_script_json_without_evaluating_javascript() {
@@ -281,6 +260,7 @@ mod tests {
             source: WallhavenSource::Latest,
             query: Some("blue sky".into()),
             category: Some("general".into()),
+            wallhaven_filters: None,
             page: Some(101),
         };
         assert_eq!(
@@ -300,8 +280,50 @@ mod tests {
             parse_detail(include_str!("fixtures/wallspic-detail.html"), &page.data[0]).unwrap();
         assert!(detail.path.contains("/attachments/originals/"));
         assert!(detail.tags.contains(&"mountain".to_string()));
-        assert!(!asian_women(&detail.tags));
         assert!(parse_detail("<title>Unavailable</title>", &page.data[0]).is_err());
+    }
+
+    #[test]
+    fn native_albums_do_not_inject_wallhaven_tags() {
+        let mut params: WallhavenFetchParams =
+            serde_json::from_str(r#"{"provider":"wallspic","source":"hot","category":"people"}"#)
+                .unwrap();
+        assert_eq!(
+            page_url(&params).unwrap(),
+            "https://wallspic.com/album/people/popular/for_desktop?page=1"
+        );
+        for category in CATEGORIES {
+            params.category = Some((*category).into());
+            assert!(page_url(&params).is_ok());
+        }
+        params.query = Some("blue sky".into());
+        assert_eq!(
+            page_url(&params).unwrap(),
+            "https://wallspic.com/search/blue%20sky/for_desktop?page=1"
+        );
+        params.category = Some("../invalid".into());
+        assert!(page_url(&params).is_err());
+        params.source = WallhavenSource::Views;
+        assert!(page_url(&params).is_err());
+    }
+
+    #[test]
+    #[ignore = "Explicit live check: public listing pages only; does not download or apply wallpaper"]
+    fn live_native_wallpaper_filters() {
+        tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(async {
+            for (category, source) in [("people", WallhavenSource::Hot), ("cars", WallhavenSource::Latest), ("anime", WallhavenSource::Hot)] {
+                let params = WallhavenFetchParams { provider: WallpaperProvider::Wallspic, source, page: Some(1), query: None, category: Some(category.into()), wallhaven_filters: None };
+                let page = fetch_page(&params).await.unwrap();
+                assert!(!page.data.is_empty(), "{}", category);
+                assert!(page.data.iter().all(|image| image.dimension_x > image.dimension_y));
+                println!("Wallspic {}: {} desktop images; {} pages", category, page.data.len(), page.last_page);
+            }
+            let client = apply_wallhaven_proxy(reqwest::Client::builder().use_native_tls().user_agent(USER_AGENT).timeout(Duration::from_secs(35))).build().unwrap();
+            let params: WallhavenFetchParams = serde_json::from_str(r#"{"source":"toplist","page":1,"wallhavenFilters":{"categories":"110","topRange":"1y","asianWomen":false}}"#).unwrap();
+            let page = fetch_wallhaven_web_search(&client, &params, 1920, 1080).await.unwrap();
+            assert!(!page.data.is_empty());
+            println!("Wallhaven General + Anime yearly toplist: {} images; {} pages", page.data.len(), page.last_page);
+        });
     }
 
     #[test]
@@ -317,6 +339,7 @@ mod tests {
                     source: WallhavenSource::Latest,
                     query: None,
                     category: Some("general".into()),
+                    wallhaven_filters: None,
                     page: Some(1),
                 };
                 let first = fetch_page(&params).await.unwrap();
@@ -361,9 +384,9 @@ mod tests {
                 assert!(!popular.data.is_empty());
                 params.category = Some("people".into());
                 let people = fetch_page(&params).await.unwrap();
-                assert!(people.data.iter().all(|item| asian_women(&item.tags)));
+                assert!(!people.data.is_empty());
                 println!(
-                    "Wallspic popular: {} images; strictly verified Asian women: {}",
+                    "Wallspic popular: {} images; native People album: {}",
                     popular.data.len(),
                     people.data.len()
                 );

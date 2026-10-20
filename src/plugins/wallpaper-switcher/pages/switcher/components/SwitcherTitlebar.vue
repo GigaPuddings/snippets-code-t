@@ -4,14 +4,9 @@ import CloseSmall from '~icons/lucide/x';
 import Picture from '~icons/lucide/image';
 import PictureAlbum from '~icons/lucide/images';
 import { useI18n } from 'vue-i18n';
-import type { WallpaperProvider, WallhavenSource } from '../../../api';
-import WallhavenSourceTabs from './WallhavenSourceTabs.vue';
 
 defineProps<{
   activeView: 'switcher' | 'wallhaven';
-  wallhavenSource: WallhavenSource;
-  provider: WallpaperProvider;
-  wallhavenLoading: boolean;
   scheduleEnabled: boolean;
   schedulerRunning: boolean;
 }>();
@@ -20,7 +15,6 @@ const emit = defineEmits<{
   (event: 'back'): void;
   (event: 'close'): void;
   (event: 'openWallhaven'): void;
-  (event: 'setWallhavenSource', value: WallhavenSource): void;
 }>();
 
 const { t } = useI18n();
@@ -77,18 +71,6 @@ const { t } = useI18n();
       </button>
     </div>
     <div v-else class="window-actions">
-      <div
-        class="source-toggle"
-        role="tablist"
-        :aria-label="t('wallpaperSwitcher.sourceToggle')"
-      >
-        <WallhavenSourceTabs
-          :provider="provider"
-          :model-value="wallhavenSource"
-          :disabled="wallhavenLoading"
-          @update:model-value="emit('setWallhavenSource', $event)"
-        />
-      </div>
       <button
         type="button"
         class="icon-btn"

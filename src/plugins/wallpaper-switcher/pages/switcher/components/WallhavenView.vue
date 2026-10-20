@@ -1,19 +1,21 @@
 <script setup lang="ts">
-import CloseSmall from '~icons/lucide/x';
 import Computer from '~icons/lucide/monitor';
 import Download from '~icons/lucide/download';
 import Loading from '~icons/lucide/loader-circle';
 import PreviewOpen from '~icons/lucide/eye';
 import Refresh from '~icons/lucide/refresh-cw';
-import Search from '~icons/lucide/search';
-import Info from '~icons/lucide/info';
 import { useI18n } from 'vue-i18n';
 import { RecycleScroller } from 'vue-virtual-scroller';
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css';
-import type {
-  WallpaperProvider,
-  WallhavenSource,
-  WallhavenWallpaper
+import {
+  wallpaperSources,
+  wallhavenTopRanges,
+  wallspicCategories,
+  type WallhavenFilters,
+  type WallhavenTopRange,
+  type WallpaperProvider,
+  type WallhavenSource,
+  type WallhavenWallpaper
 } from '../../../api';
 import type { DownloadProgress } from '../../../composables/useWallhaven';
 import DownloadProgressIndicator from './DownloadProgressIndicator.vue';
@@ -21,7 +23,6 @@ import DownloadProgressIndicator from './DownloadProgressIndicator.vue';
 type WallhavenWorkingAction = 'setting' | 'downloading';
 
 const props = defineProps<{
-  keyword: string;
   provider: WallpaperProvider;
   source: WallhavenSource;
   revision: number;
@@ -34,12 +35,11 @@ const props = defineProps<{
   workingActions: Map<string, WallhavenWorkingAction>;
   downloadProgress: Map<string, DownloadProgress>;
   sourceLabel: string;
-  screenLabel: string;
+  wallhavenFilters: WallhavenFilters;
   setThumbRef: (wallpaper: WallhavenWallpaper, element: Element | null) => void;
 }>();
 
 const emit = defineEmits<{
-  (event: 'update:keyword', value: string): void;
   (event: 'refresh'): void;
   (event: 'setCategory', value: string): void;
   (event: 'openPreview', value: WallhavenWallpaper): void;
@@ -49,6 +49,7 @@ const emit = defineEmits<{
   (event: 'loadMore'): void;
   (event: 'setProvider', value: WallpaperProvider): void;
   (event: 'setSource', value: WallhavenSource): void;
+  (event: 'setFilters', value: Partial<WallhavenFilters>): void;
 }>();
 
 const { t } = useI18n();
@@ -103,14 +104,18 @@ const onScroll = (event: Event) => {
 };
 
 const categories = [
-  { value: 'general', labelKey: 'wallpaperSwitcher.categories.general' },
-  { value: 'anime', labelKey: 'wallpaperSwitcher.categories.anime' },
-  { value: 'people', labelKey: 'wallpaperSwitcher.categories.people' },
-  { value: 'nature', labelKey: 'wallpaperSwitcher.categories.nature' }
+  { index: 0, labelKey: 'wallpaperSwitcher.categories.general' },
+  { index: 1, labelKey: 'wallpaperSwitcher.categories.anime' },
+  { index: 2, labelKey: 'wallpaperSwitcher.categories.people' }
 ];
+const toggleCategory = (index: number) => {
+  const bits = props.wallhavenFilters.categories.split('');
+  bits[index] = bits[index] === '1' ? '0' : '1';
+  if (bits.includes('1')) emit('setFilters', { categories: bits.join('') });
+};
+const filterSelectClass =
+  'h-8 min-w-0 rounded-md border border-[var(--wallpaper-border)] bg-[var(--wallpaper-panel)] px-2 text-[var(--wallpaper-text)]';
 
-const updateKeyword = (event: Event) =>
-  emit('update:keyword', (event.target as HTMLInputElement).value);
 const workingActionFor = (id: string): WallhavenWorkingAction | undefined =>
   props.workingActions.get(id);
 
@@ -120,7 +125,7 @@ const progressFor = (id: string): DownloadProgress | undefined =>
 
 <template>
   <div class="wallhaven-view">
-    <section class="filters filters--preview-style">
+    <section class="filters flex flex-wrap items-center gap-2">
       <select
         class="h-8 rounded-md border border-[var(--wallpaper-border)] bg-[var(--wallpaper-panel)] px-2 text-[var(--wallpaper-text)]"
         :value="provider"
@@ -135,94 +140,101 @@ const progressFor = (id: string): DownloadProgress | undefined =>
         <option value="wallspic">Wallspic</option>
         <option value="wallhaven">Wallhaven</option>
       </select>
-      <div class="search-box wallhaven-search">
-        <input
-          :value="keyword"
-          type="text"
-          :placeholder="t('wallpaperSwitcher.searchPlaceholder')"
-          @input="updateKeyword"
-          @keydown.enter="emit('refresh')"
-        />
-        <Search :width="16" :height="16" class="search-icon" />
-        <button
-          v-if="keyword"
-          type="button"
-          class="clear-btn"
-          :title="t('wallpaperSwitcher.clear')"
-          @click="emit('update:keyword', '')"
-        >
-          <CloseSmall :width="18" :height="18" />
-        </button>
-      </div>
-
-      <div
-        class="wallhaven-tabs"
-        role="tablist"
-        :aria-label="t('wallpaperSwitcher.categoryToggle')"
+      <select
+        :class="filterSelectClass"
+        :value="source"
+        :aria-label="t('wallpaperSwitcher.sortBy')"
+        @change="
+          emit(
+            'setSource',
+            ($event.target as HTMLSelectElement).value as WallhavenSource
+          )
+        "
       >
-        <button
-          v-for="item in categories"
-          :key="item.value"
-          type="button"
-          :class="{ active: category === item.value }"
-          :disabled="loading"
-          @click="emit('setCategory', item.value)"
+        <option
+          v-for="value in wallpaperSources(provider)"
+          :key="value"
+          :value="value"
         >
-          {{ t(item.labelKey) }}
-        </button>
-      </div>
-
-      <div class="wallhaven-meta">
-        <span
-          :title="
-            provider === 'wallhaven'
-              ? t('wallpaperSwitcher.autoMatchHint')
-              : undefined
+          {{ t(`wallpaperSwitcher.${value}`) }}
+        </option>
+      </select>
+      <template v-if="provider === 'wallhaven'">
+        <select
+          v-if="source === 'toplist'"
+          :class="filterSelectClass"
+          :value="wallhavenFilters.topRange"
+          :aria-label="t('wallpaperSwitcher.topRange')"
+          @change="
+            emit('setFilters', {
+              topRange: ($event.target as HTMLSelectElement)
+                .value as WallhavenTopRange
+            })
           "
         >
-          {{
-            t(
-              provider === 'wallspic'
-                ? 'wallpaperSwitcher.screenResolution'
-                : 'wallpaperSwitcher.autoMatch',
-              { resolution: screenLabel }
-            )
-          }}
-        </span>
-        <button
-          type="button"
-          class="refresh-btn wallhaven-refresh"
-          :title="t('wallpaperSwitcher.refresh')"
-          @click="emit('refresh')"
+          <option
+            v-for="value in wallhavenTopRanges"
+            :key="value"
+            :value="value"
+          >
+            {{ t(`wallpaperSwitcher.topRanges.${value}`) }}
+          </option>
+        </select>
+        <div
+          class="wallhaven-tabs"
+          role="group"
+          :aria-label="t('wallpaperSwitcher.categoryToggle')"
         >
-          <Refresh :width="14" :height="14" :class="{ spinning: loading }" />
-        </button>
-      </div>
-      <p
-        v-if="
-          provider === 'wallhaven' && (source === 'hot' || source === 'toplist')
+          <button
+            v-for="item in categories"
+            :key="item.index"
+            type="button"
+            :class="{
+              active: wallhavenFilters.categories[item.index] === '1'
+            }"
+            :aria-pressed="wallhavenFilters.categories[item.index] === '1'"
+            @click="toggleCategory(item.index)"
+          >
+            {{ t(item.labelKey) }}
+          </button>
+        </div>
+        <label
+          v-if="wallhavenFilters.categories === '001'"
+          class="flex h-8 cursor-pointer items-center gap-1.5 whitespace-nowrap text-xs text-[var(--wallpaper-text)]"
+        >
+          <input
+            type="checkbox"
+            :checked="wallhavenFilters.asianWomen"
+            @change="
+              emit('setFilters', {
+                asianWomen: ($event.target as HTMLInputElement).checked
+              })
+            "
+          />
+          {{ t('wallpaperSwitcher.asianWomen') }}
+        </label>
+      </template>
+      <select
+        v-else
+        :class="filterSelectClass"
+        :value="category"
+        :aria-label="t('wallpaperSwitcher.categoryToggle')"
+        @change="
+          emit('setCategory', ($event.target as HTMLSelectElement).value)
         "
-        class="col-span-full m-0 flex items-center gap-1.5 text-[11px] leading-relaxed text-[var(--wallpaper-muted)]"
       >
-        <Info class="shrink-0" width="13" height="13" />
-        <span>
-          {{
-            t(
-              source === 'hot'
-                ? 'wallpaperSwitcher.hotHint'
-                : 'wallpaperSwitcher.toplistHint'
-            )
-          }}
-        </span>
-        <button
-          v-if="source === 'hot'"
-          type="button"
-          class="shrink-0 border-0 bg-transparent p-0 text-[var(--wallpaper-primary)] underline underline-offset-2 cursor-pointer"
-          @click="emit('setSource', 'toplist')"
-        >
-          {{ t('wallpaperSwitcher.browseMonthlyToplist') }}
-        </button>
-      </p>
+        <option v-for="value in wallspicCategories" :key="value" :value="value">
+          {{ t(`wallpaperSwitcher.wallspicCategories.${value}`) }}
+        </option>
+      </select>
+      <button
+        type="button"
+        class="refresh-btn wallhaven-refresh ml-auto"
+        :title="t('wallpaperSwitcher.refresh')"
+        @click="emit('refresh')"
+      >
+        <Refresh :width="14" :height="14" :class="{ spinning: loading }" />
+      </button>
     </section>
 
     <section class="grid-wrap">
@@ -239,23 +251,7 @@ const progressFor = (id: string): DownloadProgress | undefined =>
         </button>
       </div>
       <div v-else-if="wallpapers.length === 0" class="empty-state">
-        {{
-          t(
-            category === 'people'
-              ? provider === 'wallspic'
-                ? 'wallpaperSwitcher.noVerifiedWallspicPeople'
-                : 'wallpaperSwitcher.noVerifiedPeople'
-              : 'wallpaperSwitcher.noWallpapers'
-          )
-        }}
-        <button
-          v-if="provider === 'wallspic' && category === 'people'"
-          type="button"
-          class="rounded-md border border-[var(--wallpaper-border)] bg-[var(--wallpaper-panel)] px-4 py-2 text-[var(--wallpaper-primary)] hover:bg-[var(--wallpaper-hover)] cursor-pointer"
-          @click="emit('setProvider', 'wallhaven')"
-        >
-          {{ t('wallpaperSwitcher.searchPeopleOnWallhaven') }}
-        </button>
+        {{ t('wallpaperSwitcher.noWallpapers') }}
       </div>
       <RecycleScroller
         v-else

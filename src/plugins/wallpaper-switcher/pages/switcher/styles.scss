@@ -72,7 +72,6 @@
   .checkbox-label,
   .filters,
   .chips,
-  .source-toggle,
   .card-actions,
   .pager,
   .pager-actions,
@@ -520,37 +519,6 @@
     @apply min-w-28;
   }
 
-  .source-toggle {
-    @apply flex items-center gap-[18px] h-[30px] min-w-0 py-0 px-0.5 overflow-visible border-0 rounded-none shadow-none;
-
-    background: transparent;
-  }
-
-  .seg-tab {
-    @apply relative flex items-center justify-center min-w-0 h-[30px] py-0 px-0.5 border-0 rounded-none cursor-pointer select-none font-semibold leading-none;
-
-    color: var(--wallpaper-muted);
-    background: transparent;
-
-    &.active {
-      @apply font-extrabold shadow-none;
-
-      color: var(--wallpaper-primary);
-      background: transparent;
-    }
-
-    &.active::after {
-      @apply absolute right-px bottom-px left-px h-0.5 rounded-full;
-
-      content: '';
-      background: var(--wallpaper-primary);
-    }
-
-    &.disabled {
-      @apply cursor-wait opacity-[0.72];
-    }
-  }
-
   .wallhaven-view {
     @apply grid grid-rows-[auto_minmax(0,1fr)_auto] min-h-0 overflow-hidden;
 
@@ -560,50 +528,6 @@
 
   .filters {
     @apply pt-2.5 px-3 pb-2 overflow-hidden;
-  }
-
-  .filter-row {
-    @apply grid items-center min-w-0 gap-2.5;
-  }
-
-  .filter-main {
-    @apply grid-cols-[170px_minmax(0,1fr)_34px] min-h-[54px] py-2 px-2.5 rounded-[10px] border;
-
-    background: var(--wallpaper-panel);
-    border-color: var(--wallpaper-border);
-  }
-
-  .compact-search {
-    @apply w-[170px] h-[34px];
-  }
-
-  .compact-search input {
-    color: var(--wallpaper-text);
-  }
-
-  .compact-chips {
-    @apply w-full rounded-md overflow-hidden;
-  }
-
-  .chip-tab {
-    @apply flex items-center justify-center min-h-[34px] py-0 px-2 cursor-pointer select-none text-[13px] leading-none;
-
-    color: var(--wallpaper-text);
-    background: transparent;
-    border-right: 1px solid var(--wallpaper-border);
-
-    &:last-child {
-      border-right: 0;
-    }
-
-    &.active {
-      color: var(--wallpaper-primary);
-      background: var(--wallpaper-active);
-    }
-
-    &.disabled {
-      @apply cursor-wait opacity-[0.72];
-    }
   }
 
   .refresh-btn {
@@ -620,62 +544,8 @@
     }
   }
 
-  .filters--preview-style {
-    @apply grid items-center gap-3 pt-2.5 px-[14px] pb-2 overflow-hidden;
-
-    grid-template-columns: auto minmax(150px, 1fr) minmax(220px, 1.1fr) auto;
-
-    @media (width < 850px) {
-      grid-template-columns: auto minmax(0, 1fr);
-    }
-  }
-
-  .wallhaven-search {
-    @apply flex items-center w-full min-w-0 h-8 gap-2.5 py-0 pr-2.5 pl-4 rounded-md border shadow-none;
-
-    background: var(--wallpaper-panel);
-    border-color: var(--wallpaper-border);
-  }
-
-  .wallhaven-search .search-icon {
-    @apply flex-none w-[22px] h-[22px];
-
-    color: var(--wallpaper-muted);
-  }
-
-  .wallhaven-search input {
-    @apply flex-1 self-center min-w-0 h-full p-0 font-semibold bg-transparent border-0 outline-0;
-
-    line-height: 40px;
-    color: var(--wallpaper-text);
-  }
-
-  .wallhaven-search input::placeholder {
-    font-weight: 500;
-    color: var(--wallpaper-muted);
-  }
-
-  .clear-btn {
-    @apply flex flex-none items-center justify-center w-[22px] h-[22px] border-0 rounded-full cursor-pointer;
-
-    color: var(--wallpaper-muted);
-    background: var(--wallpaper-soft);
-    transition:
-      color 0.16s ease,
-      background 0.16s ease;
-
-    &:hover {
-      color: var(--wallpaper-primary);
-      background: var(--wallpaper-hover);
-    }
-  }
-
-  .clear-btn :deep(svg) {
-    @apply w-3 h-3;
-  }
-
   .wallhaven-tabs {
-    @apply grid grid-cols-4 w-full min-w-0 h-8 p-0 overflow-hidden rounded-md border shadow-none;
+    @apply grid grid-cols-3 w-auto min-w-[190px] h-8 p-0 overflow-hidden rounded-md border shadow-none;
 
     background: var(--wallpaper-soft);
     border-color: var(--wallpaper-border);
@@ -707,12 +577,6 @@
 
     content: '';
     background: var(--wallpaper-primary);
-  }
-
-  .wallhaven-meta {
-    @apply flex items-center justify-end gap-10 min-w-0 h-8 leading-8 text-xs font-semibold whitespace-nowrap;
-
-    color: var(--wallpaper-muted);
   }
 
   .wallhaven-refresh {
@@ -1506,30 +1370,6 @@
     @apply flex-none text-[9px] font-bold;
 
     color: var(--wallpaper-primary);
-  }
-
-  .online-source-tabs {
-    @apply grid grid-flow-col auto-cols-fr h-8 mb-2 overflow-hidden rounded-lg border;
-
-    background: var(--wallpaper-panel);
-    border-color: var(--wallpaper-border);
-
-    button {
-      @apply min-w-0 h-full py-0 px-1 overflow-hidden text-[9px] font-semibold text-ellipsis whitespace-nowrap border-0 border-r cursor-pointer;
-
-      color: var(--wallpaper-muted);
-      background: transparent;
-      border-color: var(--wallpaper-border);
-
-      &:last-child {
-        @apply border-r-0;
-      }
-
-      &.active {
-        color: var(--wallpaper-primary);
-        background: var(--wallpaper-active);
-      }
-    }
   }
 
   .browse-online-btn {

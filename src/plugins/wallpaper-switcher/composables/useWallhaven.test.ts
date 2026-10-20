@@ -157,30 +157,80 @@ describe('online wallpaper feed', () => {
     expect(state.wallhavenError.value).toBe('wallpaperSwitcher.repeatedPage');
   });
 
-  it('keeps strict empty Wallspic results until the user switches, preserving filters', async () => {
+  it('separates native Wallspic albums from the Wallhaven people preset', async () => {
     const state = feed();
+    await state.setWallhavenFilters({ asianWomen: true });
     await state.setOnlineProvider('wallspic');
-    state.wallhavenKeyword.value = 'outdoors';
-    mocks.fetch.mockResolvedValueOnce(page(1, [], 1));
+    expect(mocks.fetch.mock.calls.at(-1)?.[0]).toMatchObject({
+      provider: 'wallspic',
+      category: 'general',
+      wallhavenFilters: null
+    });
     await state.setWallhavenCategory('people');
-    expect(state.wallpapers.value).toEqual([]);
-    expect(state.onlineProvider.value).toBe('wallspic');
+    expect(mocks.fetch.mock.calls.at(-1)?.[0]).toMatchObject({
+      category: 'people',
+      query: null,
+      wallhavenFilters: null
+    });
     await state.setOnlineProvider('wallhaven');
     expect(mocks.fetch.mock.calls.at(-1)?.[0]).toMatchObject({
       provider: 'wallhaven',
-      category: 'people',
-      query: 'outdoors',
-      source: 'hot',
-      page: 1
+      category: null,
+      wallhavenFilters: { categories: '001', asianWomen: true }
     });
+    await state.setOnlineProvider('wallspic');
+    expect(state.wallhavenCategory.value).toBe('people');
+  });
+
+  it('resets the batch for category combinations and the selected toplist period', async () => {
+    const state = feed();
     await state.setWallhavenSource('toplist');
+    await state.setWallhavenFilters({ categories: '110', topRange: '1y' });
     expect(mocks.fetch.mock.calls.at(-1)?.[0]).toMatchObject({
-      provider: 'wallhaven',
-      category: 'people',
-      query: 'outdoors',
+      page: 1,
       source: 'toplist',
-      page: 1
+      wallhavenFilters: { categories: '110', topRange: '1y', asianWomen: false }
     });
+    await state.loadMoreWallpapers();
+    expect(mocks.fetch.mock.calls.at(-1)?.[0]).toMatchObject({
+      page: 2,
+      wallhavenFilters: { topRange: '1y' }
+    });
+  });
+
+  it('keeps a random seed across pages, changing it only for a new batch', async () => {
+    const state = feed();
+    await state.setWallhavenSource('random');
+    const seed = mocks.fetch.mock.calls.at(-1)?.[0].wallhavenFilters.seed;
+    expect(seed).toMatch(/^[a-zA-Z0-9]{6}$/);
+    await state.loadMoreWallpapers();
+    expect(mocks.fetch.mock.calls.at(-1)?.[0].wallhavenFilters.seed).toBe(seed);
+    await state.refreshWallhaven();
+    expect(mocks.fetch.mock.calls.at(-1)?.[0].wallhavenFilters.seed).not.toBe(
+      seed
+    );
+  });
+
+  it('clears saved free-text conditions so the filter bar represents the full request', async () => {
+    const config = ref({
+      ...defaultWallpaperConfig(),
+      wallhavenQuery: 'old keyword'
+    });
+    const state = useWallhaven({
+      config,
+      refreshStatus: vi.fn(async () => undefined)
+    });
+    await state.openWallhavenGrid();
+    expect(mocks.fetch.mock.calls.at(-1)?.[0].query).toBeNull();
+    expect(config.value.wallhavenQuery).toBeNull();
+    await state.setWallhavenCategory('cars');
+    expect(mocks.fetch.mock.calls.at(-1)?.[0]).toMatchObject({
+      category: 'cars',
+      query: null
+    });
+    const count = mocks.fetch.mock.calls.length;
+    await state.setWallhavenCategory('../invalid');
+    expect(mocks.fetch).toHaveBeenCalledTimes(count);
   });
 
   it('uses source capabilities when switching from a Wallhaven ranking to Wallspic', async () => {
