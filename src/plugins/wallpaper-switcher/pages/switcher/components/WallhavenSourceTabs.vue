@@ -1,9 +1,14 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
-import type { WallhavenSource } from '../../../api';
+import {
+  wallpaperSources,
+  type WallpaperProvider,
+  type WallhavenSource
+} from '../../../api';
 
-defineProps<{
+const props = defineProps<{
   modelValue: WallhavenSource;
+  provider: WallpaperProvider;
   disabled?: boolean;
   tabClass?: string;
   activeClass?: string;
@@ -17,10 +22,16 @@ const emit = defineEmits<{
 const { t } = useI18n();
 
 const options: Array<{ value: WallhavenSource; labelKey: string }> = [
+  { value: 'latest', labelKey: 'wallpaperSwitcher.latest' },
   { value: 'hot', labelKey: 'wallpaperSwitcher.hot' },
   { value: 'toplist', labelKey: 'wallpaperSwitcher.toplist' },
   { value: 'favorites', labelKey: 'wallpaperSwitcher.favorites' }
 ];
+const visibleOptions = computed(() =>
+  options.filter((option) =>
+    wallpaperSources(props.provider).includes(option.value)
+  )
+);
 
 const selectSource = (source: WallhavenSource, disabled?: boolean) => {
   if (disabled) return;
@@ -29,7 +40,7 @@ const selectSource = (source: WallhavenSource, disabled?: boolean) => {
 </script>
 
 <template>
-  <template v-for="option in options" :key="option.value">
+  <template v-for="option in visibleOptions" :key="option.value">
     <button
       v-if="tabClass === 'button'"
       type="button"

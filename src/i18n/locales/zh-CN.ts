@@ -801,7 +801,7 @@ export default {
     wallpaperSwitcher: {
       name: '壁纸切换',
       description:
-        'Windows 桌面壁纸切换、本地文件夹定时轮换和 Wallhaven 在线壁纸。'
+        'Windows 桌面壁纸切换、本地文件夹定时轮换和 Wallspic / Wallhaven 在线壁纸。'
     },
     localLauncher: {
       name: '应用与书签启动器',
@@ -1571,10 +1571,17 @@ export default {
   wallpaperSwitcher: {
     title: '壁纸切换',
     titleSubtitle: '桌面外观工作台',
-    wallhavenTitle: 'Wallhaven 壁纸',
+    wallhavenTitle: '在线壁纸',
     back: '返回',
     close: '关闭',
-    openWallhaven: '打开 Wallhaven 壁纸',
+    openWallhaven: '打开在线壁纸',
+    provider: '壁纸网站',
+    latest: '最新',
+    loadedCount: '已加载 {count} 张',
+    loadMore: '加载更多',
+    allLoaded: '已加载全部',
+    repeatedPage: '来源返回了重复页，请刷新后重试',
+    screenResolution: '当前屏幕 {resolution}',
     sourceToggle: '壁纸来源切换',
     categoryToggle: '壁纸分类切换',
     unsupported: '当前系统暂不支持桌面壁纸切换。此插件当前仅支持 Windows。',
@@ -1596,7 +1603,7 @@ export default {
     localFolder: '本地文件夹',
     localFolderCaption: '轮换个人图库',
     systemSettings: 'Windows 系统设置',
-    wallhavenOnline: 'Wallhaven 在线',
+    wallhavenOnline: '在线图库',
     wallhavenCaption: '发现在线壁纸',
     stepOne: '步骤 1 · 来源',
     chooseSource: '选择壁纸来源',
@@ -1615,7 +1622,7 @@ export default {
     folderCreateTimeHint: '将按图片创建时间顺序切换',
     hot: '热门',
     toplist: '排行榜',
-    favorites: '收藏',
+    favorites: '收藏榜',
     hotWithLabel: '热门 Hot',
     toplistWithLabel: '排行榜 Toplist',
     favoritesWithLabel: '收藏 Favorites',
@@ -1646,7 +1653,7 @@ export default {
     trayQuickSwitch: '托盘快捷切换',
     trayQuickSwitchHint: '无需打开窗口，右键托盘即可切换下一张',
     cache: '缓存',
-    wallhavenCache: 'Wallhaven 缓存',
+    wallhavenCache: '在线壁纸缓存',
     clearing: '清理中',
     clearCache: '清理缓存',
     opening: '打开中',
@@ -1657,9 +1664,11 @@ export default {
     clear: '清空',
     refresh: '刷新',
     autoMatch: '自动匹配 {resolution}',
-    loadingWallhaven: '正在加载 Wallhaven 壁纸...',
+    loadingWallhaven: '正在加载在线壁纸...',
     retry: '重试',
     noWallpapers: '暂无可用壁纸',
+    noVerifiedPeople:
+      '暂无同时标记为亚洲、女性的横向壁纸，可切换网站或继续加载。',
     preview: '预览',
     setWallpaper: '设为壁纸',
     setting: '设置中',
@@ -1671,7 +1680,7 @@ export default {
     downloading: '下载中',
     download: '下载',
     page: '第 {page} 页',
-    sourceNote: '来源：{source} · SFW',
+    sourceNote: '来源：{source}',
     prevPage: '上一页',
     nextPage: '下一页',
     loadingPreview: '加载预览...',
@@ -1691,7 +1700,7 @@ export default {
     categories: {
       general: '通用',
       anime: '动漫',
-      people: '人物',
+      people: '亚洲女性',
       nature: '自然'
     },
     time: {
@@ -1709,6 +1718,7 @@ export default {
       cacheCleared: '缓存已清理',
       wallhavenNetworkError:
         'Wallhaven 网络连接失败，请稍后重试或检查代理/网络。',
+      onlineNetworkError: '壁纸网站连接失败，请重试或检查代理/网络。',
       settingWallpaper: '正在设置壁纸...',
       wallpaperSet: '壁纸已设置',
       downloadingWallpaper: '正在下载壁纸...',

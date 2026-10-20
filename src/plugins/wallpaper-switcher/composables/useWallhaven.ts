@@ -5,8 +5,11 @@ import modal from '@/utils/modal';
 import {
   downloadWallhavenWallpaper,
   fetchWallhaven,
+  getWallpaperConfig,
   saveWallpaperConfig,
   setWallhavenWallpaper,
+  wallpaperSources,
+  type WallpaperProvider,
   type WallhavenSource,
   type WallhavenWallpaper,
   type WallpaperConfig
@@ -36,6 +39,11 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
   const wallhavenKeyword = ref('');
   const wallhavenCategory = ref('general');
   const wallhavenSource = ref<WallhavenSource>('hot');
+  const onlineProvider = ref<WallpaperProvider>(
+    config.value.onlineProvider || 'wallhaven'
+  );
+  const feedRevision = ref(0);
+  const hasMore = computed(() => wallhavenPage.value < wallhavenLastPage.value);
   const previewWallpaper = ref<WallhavenWallpaper | null>(null);
   const previewLoading = ref(false);
   const previewLoadFailed = ref(false);
@@ -49,17 +57,15 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
   let unlistenError: UnlistenFn | null = null;
   let unlistenProgress: UnlistenFn | null = null;
   let wallhavenFetchSeq = 0;
+  let preferenceWrite: Promise<void> = Promise.resolve();
 
   const wallhavenSourceLabel = computed(() => {
-    if (wallhavenSource.value === 'hot') return 'Hot';
-    if (wallhavenSource.value === 'favorites') return 'Favorites';
-    return 'Toplist';
+    const provider =
+      onlineProvider.value === 'wallspic' ? 'Wallspic' : 'Wallhaven';
+    return `${provider} · ${t(`wallpaperSwitcher.${wallhavenSource.value}`)}`;
   });
-  const visibleWallpapers = computed(() => wallpapers.value.slice(0, 6));
   const wallhavenRequestQuery = computed(() => {
     const keyword = wallhavenKeyword.value.trim();
-    if (wallhavenCategory.value === 'nature')
-      return keyword ? `${keyword} nature` : 'nature';
     return keyword || null;
   });
 
@@ -72,7 +78,7 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
         message
       )
     ) {
-      return t('wallpaperSwitcher.messages.wallhavenNetworkError');
+      return t('wallpaperSwitcher.messages.onlineNetworkError');
     }
     return message.length > 120 ? `${message.slice(0, 120)}...` : message;
   };
@@ -110,6 +116,8 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
 
   const setThumbRef = (wallpaper: WallhavenWallpaper, element: unknown) => {
     if (!(element instanceof HTMLImageElement)) {
+      const previous = thumbElements.get(wallpaper.id);
+      if (previous) thumbObserver?.unobserve(previous);
       thumbElements.delete(wallpaper.id);
       return;
     }
@@ -131,26 +139,45 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
     config.value.wallhavenQuery = wallhavenKeyword.value.trim() || null;
     config.value.wallhavenCategory = wallhavenCategory.value;
     config.value.wallhavenSource = wallhavenSource.value;
+    config.value.onlineProvider = onlineProvider.value;
     config.value.mode = 'wallhaven';
-    await saveWallpaperConfig(config.value);
+    const snapshot = { ...config.value };
+    preferenceWrite = preferenceWrite
+      .catch(() => {})
+      .then(() => saveWallpaperConfig(snapshot));
+    await preferenceWrite;
   };
 
-  const fetchWallhavenData = async (targetPage = wallhavenPage.value) => {
+  const fetchWallhavenData = async (targetPage = 1, append = false) => {
     const fetchSeq = ++wallhavenFetchSeq;
+    const params = {
+      provider: onlineProvider.value,
+      source: wallhavenSource.value,
+      page: targetPage,
+      query: wallhavenRequestQuery.value,
+      category: wallhavenRequestCategory.value
+    };
     wallhavenLoading.value = true;
     wallhavenError.value = '';
-    wallpapers.value = [];
-    resetThumbLoading();
+    if (!append) {
+      wallpapers.value = [];
+      wallhavenPage.value = 0;
+      wallhavenLastPage.value = 1;
+      feedRevision.value++;
+      resetThumbLoading();
+    }
     try {
-      await persistWallhavenPrefs();
-      const result = await fetchWallhaven({
-        source: wallhavenSource.value,
-        page: targetPage,
-        query: wallhavenRequestQuery.value,
-        category: wallhavenRequestCategory.value
-      });
+      if (!append) await persistWallhavenPrefs();
       if (fetchSeq !== wallhavenFetchSeq) return;
-      wallpapers.value = result.data;
+      const result = await fetchWallhaven(params);
+      if (fetchSeq !== wallhavenFetchSeq) return;
+      if (append && result.page <= wallhavenPage.value)
+        throw new Error(t('wallpaperSwitcher.repeatedPage'));
+      const merged = new Map(
+        (append ? wallpapers.value : []).map((item) => [item.id, item])
+      );
+      for (const wallpaper of result.data) merged.set(wallpaper.id, wallpaper);
+      wallpapers.value = [...merged.values()];
       wallhavenPage.value = result.page;
       wallhavenLastPage.value = Math.max(1, result.lastPage);
       await nextTick();
@@ -159,9 +186,7 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
       }
     } catch (error) {
       if (fetchSeq !== wallhavenFetchSeq) return;
-      wallpapers.value = [];
       wallhavenError.value = formatWallhavenError(error);
-      modal.msg(wallhavenError.value, 'error');
     } finally {
       if (fetchSeq === wallhavenFetchSeq) wallhavenLoading.value = false;
     }
@@ -169,6 +194,7 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
 
   const refreshWallhaven = () => fetchWallhavenData(1);
   const setWallhavenSource = async (next: WallhavenSource) => {
+    if (!wallpaperSources(onlineProvider.value).includes(next)) return;
     wallhavenSource.value = next;
     await fetchWallhavenData(1);
   };
@@ -176,11 +202,21 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
     wallhavenCategory.value = next;
     await fetchWallhavenData(1);
   };
+  const setOnlineProvider = async (provider: WallpaperProvider) => {
+    onlineProvider.value = provider;
+    if (!wallpaperSources(provider).includes(wallhavenSource.value))
+      wallhavenSource.value = 'hot';
+    closePreview();
+    await fetchWallhavenData(1);
+  };
 
   const openWallhavenGrid = async () => {
-    wallhavenKeyword.value = '';
+    wallhavenKeyword.value = config.value.wallhavenQuery || '';
+    onlineProvider.value = config.value.onlineProvider || 'wallhaven';
     wallhavenCategory.value = config.value.wallhavenCategory || 'general';
     wallhavenSource.value = config.value.wallhavenSource;
+    if (!wallpaperSources(onlineProvider.value).includes(wallhavenSource.value))
+      wallhavenSource.value = 'hot';
     wallhavenPage.value = 1;
     wallhavenError.value = '';
     wallpapers.value = [];
@@ -247,13 +283,12 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
     }
   };
 
-  const prevWallhavenPage = async () => {
-    if (wallhavenPage.value > 1)
-      await fetchWallhavenData(wallhavenPage.value - 1);
-  };
-  const nextWallhavenPage = async () => {
-    if (wallhavenPage.value < wallhavenLastPage.value)
-      await fetchWallhavenData(wallhavenPage.value + 1);
+  const loadMoreWallpapers = async () => {
+    if (!wallhavenLoading.value && hasMore.value)
+      await fetchWallhavenData(
+        wallhavenPage.value + 1,
+        wallhavenPage.value > 0
+      );
   };
 
   onMounted(() => {
@@ -274,6 +309,7 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
   });
 
   onUnmounted(() => {
+    wallhavenFetchSeq++;
     thumbObserver?.disconnect();
     thumbObserver = null;
     unlistenChanged?.();
@@ -282,7 +318,16 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
   });
 
   const setupListeners = async () => {
-    unlistenChanged = await listen('wallpaper-switcher-changed', refreshStatus);
+    unlistenChanged = await listen('wallpaper-switcher-changed', async () => {
+      const next = await getWallpaperConfig();
+      const changed =
+        next.onlineProvider !== config.value.onlineProvider ||
+        next.wallhavenSource !== config.value.wallhavenSource;
+      config.value = next;
+      if (changed && activeView.value === 'wallhaven')
+        await openWallhavenGrid();
+      await refreshStatus();
+    });
     unlistenError = await listen<{ message?: string }>(
       'wallpaper-switcher-error',
       (event) => {
@@ -321,6 +366,10 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
     wallhavenKeyword,
     wallhavenCategory,
     wallhavenSource,
+    onlineProvider,
+    setOnlineProvider,
+    feedRevision,
+    hasMore,
     previewWallpaper,
     previewLoading,
     previewLoadFailed,
@@ -328,7 +377,6 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
     downloadProgress,
     loadedThumbIds,
     wallhavenSourceLabel,
-    visibleWallpapers,
     openWallhavenGrid,
     backToSwitcher,
     openPreview,
@@ -342,8 +390,7 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
     setWallhavenCategory,
     setWallpaperFromWallhaven,
     downloadWallpaperFromWallhaven,
-    prevWallhavenPage,
-    nextWallhavenPage,
+    loadMoreWallpapers,
     setupListeners
   };
 }

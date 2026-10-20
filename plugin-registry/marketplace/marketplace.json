@@ -303,7 +303,7 @@
       },
       "description": {
         "i18nKey": "plugins.wallpaperSwitcher.description",
-        "fallback": "Windows desktop wallpaper switching, local folder rotation, and Wallhaven online wallpapers."
+        "fallback": "Windows desktop wallpaper switching, local folder rotation, and Wallspic / Wallhaven online wallpapers."
       },
       "category": "appearance",
       "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-wallpaper-switcher/archive/refs/tags/2.0.88.zip",

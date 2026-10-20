@@ -4,12 +4,13 @@ import CloseSmall from '~icons/lucide/x';
 import Picture from '~icons/lucide/image';
 import PictureAlbum from '~icons/lucide/images';
 import { useI18n } from 'vue-i18n';
-import type { WallhavenSource } from '../../../api';
+import type { WallpaperProvider, WallhavenSource } from '../../../api';
 import WallhavenSourceTabs from './WallhavenSourceTabs.vue';
 
 defineProps<{
   activeView: 'switcher' | 'wallhaven';
   wallhavenSource: WallhavenSource;
+  provider: WallpaperProvider;
   wallhavenLoading: boolean;
   scheduleEnabled: boolean;
   schedulerRunning: boolean;
@@ -82,6 +83,7 @@ const { t } = useI18n();
         :aria-label="t('wallpaperSwitcher.sourceToggle')"
       >
         <WallhavenSourceTabs
+          :provider="provider"
           :model-value="wallhavenSource"
           :disabled="wallhavenLoading"
           @update:model-value="emit('setWallhavenSource', $event)"

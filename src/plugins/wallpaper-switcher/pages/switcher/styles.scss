@@ -623,10 +623,11 @@
   .filters--preview-style {
     @apply grid items-center gap-3 pt-2.5 px-[14px] pb-2 overflow-hidden;
 
-    grid-template-columns: minmax(195px, 1fr) minmax(222px, 1.1fr) minmax(
-        202px,
-        auto
-      );
+    grid-template-columns: auto minmax(150px, 1fr) minmax(220px, 1.1fr) auto;
+
+    @media (width < 850px) {
+      grid-template-columns: auto minmax(0, 1fr);
+    }
   }
 
   .wallhaven-search {
@@ -727,7 +728,7 @@
   }
 
   .grid-wrap {
-    @apply min-h-0 pt-2 px-3;
+    @apply min-h-0 pt-2 px-3 overflow-hidden;
   }
 
   .wallpaper-grid {

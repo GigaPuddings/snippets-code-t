@@ -68,13 +68,15 @@ const wallhaven = useWallhaven({
 
 const {
   activeView,
-  wallhavenPage,
-  wallhavenLastPage,
   wallhavenLoading,
   wallhavenError,
   wallhavenKeyword,
   wallhavenCategory,
   wallhavenSource,
+  onlineProvider,
+  setOnlineProvider,
+  feedRevision,
+  hasMore,
   previewWallpaper,
   previewLoading,
   previewLoadFailed,
@@ -82,7 +84,7 @@ const {
   downloadProgress,
   loadedThumbIds,
   wallhavenSourceLabel,
-  visibleWallpapers,
+  wallpapers,
   openWallhavenGrid,
   backToSwitcher,
   openPreview,
@@ -96,8 +98,7 @@ const {
   setWallhavenCategory,
   setWallpaperFromWallhaven,
   downloadWallpaperFromWallhaven,
-  prevWallhavenPage,
-  nextWallhavenPage,
+  loadMoreWallpapers,
   setupListeners
 } = wallhaven;
 
@@ -134,7 +135,10 @@ const sourceLabel = computed(() => {
   if (status.value?.currentSource === 'System')
     return t('wallpaperSwitcher.systemSettings');
   if (config.value.mode === 'fixed') return t('wallpaperSwitcher.fixedImage');
-  if (config.value.mode === 'wallhaven') return 'Wallhaven';
+  if (config.value.mode === 'wallhaven')
+    return config.value.onlineProvider === 'wallspic'
+      ? 'Wallspic'
+      : 'Wallhaven';
   return t('wallpaperSwitcher.localFolder');
 });
 
@@ -337,6 +341,7 @@ onUnmounted(() => {
     <SwitcherTitlebar
       :active-view="activeView"
       :wallhaven-source="wallhavenSource"
+      :provider="onlineProvider"
       :wallhaven-loading="wallhavenLoading"
       :schedule-enabled="config.scheduleEnabled"
       :scheduler-running="Boolean(status?.schedulerRunning)"
@@ -383,23 +388,24 @@ onUnmounted(() => {
       :category="wallhavenCategory"
       :loading="wallhavenLoading"
       :error="wallhavenError"
-      :wallpapers="visibleWallpapers"
+      :wallpapers="wallpapers"
+      :provider="onlineProvider"
+      :revision="feedRevision"
+      :has-more="hasMore"
       :loaded-thumb-ids="loadedThumbIds"
       :working-actions="workingActions"
       :download-progress="downloadProgress"
-      :page="wallhavenPage"
-      :last-page="wallhavenLastPage"
       :source-label="wallhavenSourceLabel"
       :screen-label="screenLabel"
       :set-thumb-ref="setThumbRef"
       @refresh="refreshWallhaven"
       @set-category="setWallhavenCategory"
+      @set-provider="setOnlineProvider"
       @open-preview="openPreview"
       @mark-thumb-loaded="markThumbLoaded"
       @set-wallpaper="setWallpaperFromWallhaven"
       @download-wallpaper="downloadWallpaperFromWallhaven"
-      @prev-page="prevWallhavenPage"
-      @next-page="nextWallhavenPage"
+      @load-more="loadMoreWallpapers"
     />
 
     <WallpaperPreviewModal

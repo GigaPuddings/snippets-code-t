@@ -10,7 +10,15 @@ export type FolderSort =
   | 'modifiedAscending'
   | 'modifiedDescending'
   | 'createdAscending';
-export type WallhavenSource = 'hot' | 'toplist' | 'favorites';
+export type WallhavenSource = 'latest' | 'hot' | 'toplist' | 'favorites';
+export type WallpaperProvider = 'wallhaven' | 'wallspic';
+
+export const wallpaperSources = (
+  provider: WallpaperProvider
+): WallhavenSource[] =>
+  provider === 'wallspic'
+    ? ['latest', 'hot']
+    : ['latest', 'hot', 'toplist', 'favorites'];
 
 export interface WallpaperConfig {
   mode: WallpaperMode;
@@ -22,6 +30,7 @@ export interface WallpaperConfig {
   folderSort: FolderSort;
   autoRestore: boolean;
   wallhavenSource: WallhavenSource;
+  onlineProvider: WallpaperProvider;
   wallhavenCategory: string;
   wallhavenQuery: string | null;
   folderSeenPaths: string[];
@@ -57,6 +66,8 @@ export interface WallhavenThumbs {
 }
 
 export interface WallhavenWallpaper {
+  provider?: WallpaperProvider;
+  tags?: string[];
   id: string;
   url: string;
   shortUrl?: string | null;
@@ -77,6 +88,7 @@ export interface WallhavenPage {
 }
 
 export interface WallhavenFetchParams {
+  provider?: WallpaperProvider;
   source: WallhavenSource;
   page?: number;
   query?: string | null;
@@ -93,6 +105,7 @@ export const defaultWallpaperConfig = (): WallpaperConfig => ({
   folderSort: 'createdAscending',
   autoRestore: true,
   wallhavenSource: 'hot',
+  onlineProvider: 'wallspic',
   wallhavenCategory: 'general',
   wallhavenQuery: null,
   folderSeenPaths: [],

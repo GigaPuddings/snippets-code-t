@@ -832,7 +832,7 @@ export default {
     wallpaperSwitcher: {
       name: 'Wallpaper Switcher',
       description:
-        'Windows desktop wallpaper switching, local folder rotation, and Wallhaven online wallpapers.'
+        'Windows desktop wallpaper switching, local folder rotation, and Wallspic / Wallhaven online wallpapers.'
     },
     localLauncher: {
       name: 'Apps and Bookmarks Launcher',
@@ -1665,10 +1665,17 @@ export default {
   wallpaperSwitcher: {
     title: 'Wallpaper Switcher',
     titleSubtitle: 'Desktop appearance workspace',
-    wallhavenTitle: 'Wallhaven Wallpapers',
+    wallhavenTitle: 'Online Wallpapers',
     back: 'Back',
     close: 'Close',
-    openWallhaven: 'Open Wallhaven wallpapers',
+    openWallhaven: 'Open online wallpapers',
+    provider: 'Wallpaper website',
+    latest: 'Latest',
+    loadedCount: '{count} loaded',
+    loadMore: 'Load more',
+    allLoaded: 'All loaded',
+    repeatedPage: 'The source returned a repeated page. Refresh to try again.',
+    screenResolution: 'Screen {resolution}',
     sourceToggle: 'Wallpaper source switcher',
     categoryToggle: 'Wallpaper category switcher',
     unsupported:
@@ -1691,7 +1698,7 @@ export default {
     localFolder: 'Local folder',
     localFolderCaption: 'Rotate your library',
     systemSettings: 'Windows Settings',
-    wallhavenOnline: 'Wallhaven Online',
+    wallhavenOnline: 'Online Library',
     wallhavenCaption: 'Discover online',
     stepOne: 'Step 1 · Source',
     chooseSource: 'Choose wallpaper source',
@@ -1710,7 +1717,7 @@ export default {
     folderCreateTimeHint: 'Switches in image creation time order',
     hot: 'Hot',
     toplist: 'Toplist',
-    favorites: 'Favorites',
+    favorites: 'Most Favorited',
     hotWithLabel: 'Hot',
     toplistWithLabel: 'Toplist',
     favoritesWithLabel: 'Favorites',
@@ -1742,7 +1749,7 @@ export default {
     trayQuickSwitchHint:
       'Right-click the tray to switch without opening this window',
     cache: 'Cache',
-    wallhavenCache: 'Wallhaven cache',
+    wallhavenCache: 'Online wallpaper cache',
     clearing: 'Clearing',
     clearCache: 'Clear cache',
     opening: 'Opening',
@@ -1753,9 +1760,11 @@ export default {
     clear: 'Clear',
     refresh: 'Refresh',
     autoMatch: 'Auto match {resolution}',
-    loadingWallhaven: 'Loading Wallhaven wallpapers...',
+    loadingWallhaven: 'Loading online wallpapers...',
     retry: 'Retry',
     noWallpapers: 'No wallpapers available',
+    noVerifiedPeople:
+      'No landscape wallpapers have both Asian and women tags. Try another source or load more.',
     preview: 'Preview',
     setWallpaper: 'Set wallpaper',
     setting: 'Setting',
@@ -1767,7 +1776,7 @@ export default {
     downloading: 'Downloading',
     download: 'Download',
     page: 'Page {page}',
-    sourceNote: 'Source: {source} · SFW',
+    sourceNote: 'Source: {source}',
     prevPage: 'Previous',
     nextPage: 'Next',
     loadingPreview: 'Loading preview...',
@@ -1787,7 +1796,7 @@ export default {
     categories: {
       general: 'General',
       anime: 'Anime',
-      people: 'People',
+      people: 'Asian Women',
       nature: 'Nature'
     },
     time: {
@@ -1805,6 +1814,8 @@ export default {
       cacheCleared: 'Cache cleared',
       wallhavenNetworkError:
         'Wallhaven connection failed. Please try again later or check your proxy/network.',
+      onlineNetworkError:
+        'Wallpaper website connection failed. Retry or check your proxy/network.',
       settingWallpaper: 'Setting wallpaper...',
       wallpaperSet: 'Wallpaper set',
       downloadingWallpaper: 'Downloading wallpaper...',

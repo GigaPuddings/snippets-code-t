@@ -284,12 +284,19 @@ const updateAutoRestore = (event: Event): void =>
           <template v-else-if="config.mode === 'wallhaven'">
             <div class="detail-title">
               <div>
-                <span>Wallhaven</span>
+                <span>
+                  {{
+                    config.onlineProvider === 'wallspic'
+                      ? 'Wallspic'
+                      : 'Wallhaven'
+                  }}
+                </span>
                 <strong>{{ t('wallpaperSwitcher.onlineSourceHint') }}</strong>
               </div>
             </div>
             <div class="online-source-tabs" role="tablist">
               <WallhavenSourceTabs
+                :provider="config.onlineProvider || 'wallhaven'"
                 tab-class="button"
                 :model-value="config.wallhavenSource"
                 @update:model-value="setSource"

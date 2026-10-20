@@ -7,7 +7,9 @@ import PreviewOpen from '~icons/lucide/eye';
 import Refresh from '~icons/lucide/refresh-cw';
 import Search from '~icons/lucide/search';
 import { useI18n } from 'vue-i18n';
-import type { WallhavenWallpaper } from '../../../api';
+import { RecycleScroller } from 'vue-virtual-scroller';
+import 'vue-virtual-scroller/dist/vue-virtual-scroller.css';
+import type { WallpaperProvider, WallhavenWallpaper } from '../../../api';
 import type { DownloadProgress } from '../../../composables/useWallhaven';
 import DownloadProgressIndicator from './DownloadProgressIndicator.vue';
 
@@ -15,6 +17,9 @@ type WallhavenWorkingAction = 'setting' | 'downloading';
 
 const props = defineProps<{
   keyword: string;
+  provider: WallpaperProvider;
+  revision: number;
+  hasMore: boolean;
   category: string;
   loading: boolean;
   error: string;
@@ -22,8 +27,6 @@ const props = defineProps<{
   loadedThumbIds: Set<string>;
   workingActions: Map<string, WallhavenWorkingAction>;
   downloadProgress: Map<string, DownloadProgress>;
-  page: number;
-  lastPage: number;
   sourceLabel: string;
   screenLabel: string;
   setThumbRef: (wallpaper: WallhavenWallpaper, element: Element | null) => void;
@@ -37,11 +40,60 @@ const emit = defineEmits<{
   (event: 'markThumbLoaded', value: string): void;
   (event: 'setWallpaper', value: WallhavenWallpaper): void;
   (event: 'downloadWallpaper', value: WallhavenWallpaper): void;
-  (event: 'prevPage'): void;
-  (event: 'nextPage'): void;
+  (event: 'loadMore'): void;
+  (event: 'setProvider', value: WallpaperProvider): void;
 }>();
 
 const { t } = useI18n();
+const scrollerRef = ref<{ $el: HTMLElement } | null>(null);
+const viewportWidth = ref(900);
+const columns = computed(() =>
+  Math.min(3, Math.max(1, Math.floor(viewportWidth.value / 260)))
+);
+const rowHeight = computed(
+  () =>
+    Math.ceil(
+      ((viewportWidth.value - (columns.value - 1) * 12) / columns.value - 2) /
+        1.6
+    ) + 54
+);
+const rows = computed(() => {
+  const result = [];
+  for (let index = 0; index < props.wallpapers.length; index += columns.value) {
+    result.push({
+      id: props.wallpapers[index].id,
+      items: props.wallpapers.slice(index, index + columns.value)
+    });
+  }
+  return result;
+});
+let resizeObserver: ResizeObserver | null = null;
+watch(
+  scrollerRef,
+  (scroller) => {
+    resizeObserver?.disconnect();
+    const element = scroller?.$el;
+    if (!(element instanceof HTMLElement)) return;
+    const measure = () => {
+      viewportWidth.value = Math.max(1, element.clientWidth);
+    };
+    resizeObserver = new ResizeObserver(measure);
+    resizeObserver.observe(element);
+    measure();
+  },
+  { flush: 'post' }
+);
+onUnmounted(() => resizeObserver?.disconnect());
+const onScroll = (event: Event) => {
+  const element = event.target as HTMLElement;
+  if (
+    element.scrollTop + element.clientHeight >= element.scrollHeight - 350 &&
+    props.hasMore &&
+    !props.loading &&
+    !props.error
+  )
+    emit('loadMore');
+};
 
 const categories = [
   { value: 'general', labelKey: 'wallpaperSwitcher.categories.general' },
@@ -62,6 +114,20 @@ const progressFor = (id: string): DownloadProgress | undefined =>
 <template>
   <div class="wallhaven-view">
     <section class="filters filters--preview-style">
+      <select
+        class="h-8 rounded-md border border-[var(--wallpaper-border)] bg-[var(--wallpaper-panel)] px-2 text-[var(--wallpaper-text)]"
+        :value="provider"
+        :aria-label="t('wallpaperSwitcher.provider')"
+        @change="
+          emit(
+            'setProvider',
+            ($event.target as HTMLSelectElement).value as WallpaperProvider
+          )
+        "
+      >
+        <option value="wallspic">Wallspic</option>
+        <option value="wallhaven">Wallhaven</option>
+      </select>
       <div class="search-box wallhaven-search">
         <input
           :value="keyword"
@@ -101,7 +167,14 @@ const progressFor = (id: string): DownloadProgress | undefined =>
 
       <div class="wallhaven-meta">
         <span>
-          {{ t('wallpaperSwitcher.autoMatch', { resolution: screenLabel }) }}
+          {{
+            t(
+              provider === 'wallspic'
+                ? 'wallpaperSwitcher.screenResolution'
+                : 'wallpaperSwitcher.autoMatch',
+              { resolution: screenLabel }
+            )
+          }}
         </span>
         <button
           type="button"
@@ -118,128 +191,173 @@ const progressFor = (id: string): DownloadProgress | undefined =>
       <div v-if="loading && wallpapers.length === 0" class="empty-state">
         {{ t('wallpaperSwitcher.loadingWallhaven') }}
       </div>
-      <div v-else-if="error" class="empty-state error-state">
+      <div
+        v-else-if="error && wallpapers.length === 0"
+        class="empty-state error-state"
+      >
         <span>{{ error }}</span>
-        <button type="button" @click="emit('refresh')">
+        <button type="button" @click="emit('loadMore')">
           {{ t('wallpaperSwitcher.retry') }}
         </button>
       </div>
       <div v-else-if="wallpapers.length === 0" class="empty-state">
-        {{ t('wallpaperSwitcher.noWallpapers') }}
+        {{
+          t(
+            category === 'people'
+              ? 'wallpaperSwitcher.noVerifiedPeople'
+              : 'wallpaperSwitcher.noWallpapers'
+          )
+        }}
       </div>
-      <div v-else class="wallpaper-grid">
-        <article
-          v-for="wallpaper in wallpapers"
-          :key="wallpaper.id"
-          class="wallpaper-card"
-        >
-          <button
-            type="button"
-            class="thumb"
-            @click="emit('openPreview', wallpaper)"
+      <RecycleScroller
+        v-else
+        :key="revision"
+        ref="scrollerRef"
+        class="h-full overflow-y-auto"
+        :items="rows"
+        :item-size="rowHeight"
+        :buffer="350"
+        key-field="id"
+        @scroll.passive="onScroll"
+      >
+        <template #default="{ item }">
+          <div
+            class="wallpaper-grid"
+            :style="{
+              gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+              height: `${rowHeight}px`,
+              paddingBottom: '12px'
+            }"
           >
-            <div
-              v-if="!loadedThumbIds.has(wallpaper.id)"
-              class="thumb-skeleton"
-            ></div>
-            <img
-              :ref="
-                (element) => setThumbRef(wallpaper, element as Element | null)
-              "
-              :alt="wallpaper.resolution"
-              loading="lazy"
-              @load="emit('markThumbLoaded', wallpaper.id)"
-            />
-            <span>{{ wallpaper.resolution }}</span>
-            <DownloadProgressIndicator
-              v-if="progressFor(wallpaper.id)"
-              :progress="progressFor(wallpaper.id)!"
-            />
-          </button>
-          <div class="card-actions" @click.stop>
-            <button
-              type="button"
-              :title="t('wallpaperSwitcher.preview')"
-              @click="emit('openPreview', wallpaper)"
+            <article
+              v-for="wallpaper in item.items"
+              :key="wallpaper.id"
+              class="wallpaper-card"
             >
-              <PreviewOpen :width="16" :height="16" />
-              {{ t('wallpaperSwitcher.preview') }}
-            </button>
-            <button
-              type="button"
-              :title="t('wallpaperSwitcher.setWallpaper')"
-              :class="{
-                'is-working': workingActionFor(wallpaper.id) === 'setting'
-              }"
-              :disabled="Boolean(workingActionFor(wallpaper.id))"
-              :aria-busy="workingActionFor(wallpaper.id) === 'setting'"
-              @click="emit('setWallpaper', wallpaper)"
-            >
-              <Loading
-                v-if="workingActionFor(wallpaper.id) === 'setting'"
-                :width="16"
-                :height="16"
-                class="animate-spin"
-              />
-              <Computer v-else :width="16" :height="16" />
-              <span>
-                {{
-                  workingActionFor(wallpaper.id) === 'setting'
-                    ? t('wallpaperSwitcher.setting')
-                    : t('wallpaperSwitcher.set')
-                }}
-              </span>
-            </button>
-            <button
-              type="button"
-              :title="t('wallpaperSwitcher.download')"
-              :class="{
-                'is-working': workingActionFor(wallpaper.id) === 'downloading'
-              }"
-              :disabled="Boolean(workingActionFor(wallpaper.id))"
-              :aria-busy="workingActionFor(wallpaper.id) === 'downloading'"
-              @click="emit('downloadWallpaper', wallpaper)"
-            >
-              <Loading
-                v-if="workingActionFor(wallpaper.id) === 'downloading'"
-                :width="16"
-                :height="16"
-                class="animate-spin"
-              />
-              <Download v-else :width="16" :height="16" />
-              <span>
-                {{
-                  workingActionFor(wallpaper.id) === 'downloading'
-                    ? t('wallpaperSwitcher.downloading')
-                    : t('wallpaperSwitcher.download')
-                }}
-              </span>
-            </button>
+              <button
+                type="button"
+                class="thumb"
+                @click="emit('openPreview', wallpaper)"
+              >
+                <div
+                  v-if="!loadedThumbIds.has(wallpaper.id)"
+                  class="thumb-skeleton"
+                ></div>
+                <img
+                  :ref="
+                    (element) =>
+                      setThumbRef(wallpaper, element as Element | null)
+                  "
+                  :alt="wallpaper.resolution"
+                  loading="lazy"
+                  @load="emit('markThumbLoaded', wallpaper.id)"
+                />
+                <span>{{ wallpaper.resolution }}</span>
+                <DownloadProgressIndicator
+                  v-if="progressFor(wallpaper.id)"
+                  :progress="progressFor(wallpaper.id)!"
+                />
+              </button>
+              <div class="card-actions" @click.stop>
+                <button
+                  type="button"
+                  :title="t('wallpaperSwitcher.preview')"
+                  @click="emit('openPreview', wallpaper)"
+                >
+                  <PreviewOpen :width="16" :height="16" />
+                  {{ t('wallpaperSwitcher.preview') }}
+                </button>
+                <button
+                  type="button"
+                  :title="t('wallpaperSwitcher.setWallpaper')"
+                  :class="{
+                    'is-working': workingActionFor(wallpaper.id) === 'setting'
+                  }"
+                  :disabled="Boolean(workingActionFor(wallpaper.id))"
+                  :aria-busy="workingActionFor(wallpaper.id) === 'setting'"
+                  @click="emit('setWallpaper', wallpaper)"
+                >
+                  <Loading
+                    v-if="workingActionFor(wallpaper.id) === 'setting'"
+                    :width="16"
+                    :height="16"
+                    class="animate-spin"
+                  />
+                  <Computer v-else :width="16" :height="16" />
+                  <span>
+                    {{
+                      workingActionFor(wallpaper.id) === 'setting'
+                        ? t('wallpaperSwitcher.setting')
+                        : t('wallpaperSwitcher.set')
+                    }}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  :title="t('wallpaperSwitcher.download')"
+                  :class="{
+                    'is-working':
+                      workingActionFor(wallpaper.id) === 'downloading'
+                  }"
+                  :disabled="Boolean(workingActionFor(wallpaper.id))"
+                  :aria-busy="workingActionFor(wallpaper.id) === 'downloading'"
+                  @click="emit('downloadWallpaper', wallpaper)"
+                >
+                  <Loading
+                    v-if="workingActionFor(wallpaper.id) === 'downloading'"
+                    :width="16"
+                    :height="16"
+                    class="animate-spin"
+                  />
+                  <Download v-else :width="16" :height="16" />
+                  <span>
+                    {{
+                      workingActionFor(wallpaper.id) === 'downloading'
+                        ? t('wallpaperSwitcher.downloading')
+                        : t('wallpaperSwitcher.download')
+                    }}
+                  </span>
+                </button>
+              </div>
+            </article>
           </div>
-        </article>
-      </div>
+        </template>
+      </RecycleScroller>
     </section>
 
     <footer class="pager">
-      <span>{{ t('wallpaperSwitcher.page', { page }) }}</span>
+      <span>
+        {{ t('wallpaperSwitcher.loadedCount', { count: wallpapers.length }) }}
+      </span>
       <span class="source-note">
         {{ t('wallpaperSwitcher.sourceNote', { source: sourceLabel }) }}
       </span>
       <div class="pager-actions">
-        <button
-          type="button"
-          :disabled="page <= 1 || loading"
-          @click="emit('prevPage')"
+        <span
+          v-if="error"
+          role="alert"
+          class="max-w-[35vw] truncate"
+          :title="error"
         >
-          {{ t('wallpaperSwitcher.prevPage') }}
-        </button>
+          {{ error }}
+        </span>
         <button
+          v-if="hasMore || error"
           type="button"
-          :disabled="page >= lastPage || loading"
-          @click="emit('nextPage')"
+          :disabled="loading"
+          :aria-busy="loading || undefined"
+          @click="emit('loadMore')"
         >
-          {{ t('wallpaperSwitcher.nextPage') }}
+          <Loading v-if="loading" class="animate-spin" width="14" height="14" />
+          {{
+            loading
+              ? t('common.loading')
+              : error
+                ? t('wallpaperSwitcher.retry')
+                : t('wallpaperSwitcher.loadMore')
+          }}
         </button>
+        <span v-else>{{ t('wallpaperSwitcher.allLoaded') }}</span>
       </div>
     </footer>
   </div>
