@@ -15,6 +15,7 @@ import type { SyntaxNode } from '@lezer/common';
 import { renderNoteMarkdown } from '@/utils/markdown';
 import { configurePreviewImage } from '@/components/MarkdownPreview/rendering';
 import { TableWidget } from './table';
+import { trailingCodeParagraph } from './document';
 
 export interface PreviewTarget {
   kind: 'image' | 'table';
@@ -610,6 +611,35 @@ export function livePreview(options: PreviewOptions): Extension {
       provide: (field) => EditorView.decorations.from(field)
     }),
     EditorView.domEventHandlers({
+      mousedown(event, view) {
+        if (
+          event.button !== 0 ||
+          event.shiftKey ||
+          event.ctrlKey ||
+          event.metaKey ||
+          event.altKey ||
+          event.target !== view.contentDOM
+        )
+          return false;
+        const last = view.contentDOM.lastElementChild;
+        if (
+          !last?.classList.contains('md-code-last') ||
+          event.clientY < last.getBoundingClientRect().bottom
+        )
+          return false;
+        const paragraph = trailingCodeParagraph(view.state);
+        if (!paragraph) return false;
+        event.preventDefault();
+        // Establish the click position before editing, so redo maps the caret
+        // from the fence end into the new paragraph instead of the old code.
+        view.dispatch({
+          selection: { anchor: view.state.doc.length },
+          userEvent: 'select.pointer'
+        });
+        view.dispatch(paragraph);
+        view.focus();
+        return true;
+      },
       mouseover(event, view) {
         const line = (event.target as HTMLElement).closest<HTMLElement>(
           '.md-code-line'

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   Compartment,
+  EditorState,
   type Transaction,
   type TransactionSpec
 } from '@codemirror/state';
@@ -9,28 +10,32 @@ import { syntaxTree } from '@codemirror/language';
 import { EditorView } from '@codemirror/view';
 import {
   createDocumentState,
+  ancestorAt,
   continueOrderedListOnMarkerSpace,
   clearSelectionFormatting,
   extractHeadings,
   insertMarkdownNewline,
   prefixSelection,
   wrapSelection,
-  selectionIsCurrent
+  selectionIsCurrent,
+  trailingCodeParagraph
 } from './document';
 import { livePreview, previewTargets } from './preview';
 
-function pressEnter(text: string, position = text.length) {
+function pressEnter(text: string, position?: number) {
   let state = createDocumentState(text);
-  state = state.update({ selection: { anchor: position } }).state;
+  state = state.update({
+    selection: { anchor: position ?? state.doc.length }
+  }).state;
+  let lastTransaction: Transaction | undefined;
   const view = {
     get state() {
       return state;
     },
     dispatch(transaction: Transaction | TransactionSpec) {
-      state =
-        'state' in transaction
-          ? transaction.state
-          : state.update(transaction).state;
+      lastTransaction =
+        'state' in transaction ? transaction : state.update(transaction);
+      state = lastTransaction.state;
     }
   };
   const handled = insertMarkdownNewline(
@@ -39,7 +44,8 @@ function pressEnter(text: string, position = text.length) {
   return {
     handled,
     content: state.sliceDoc(),
-    position: state.selection.main.head
+    position: state.selection.main.head,
+    scrolledIntoView: lastTransaction?.scrollIntoView ?? false
   };
 }
 
@@ -87,6 +93,94 @@ function previewMarkers(content: string) {
 }
 
 describe('Markdown source document', () => {
+  it.each([
+    '1. question',
+    '1. question\n   answer',
+    '1. question\n   ',
+    '1. ',
+    '> 1. question',
+    '1. parent\n   1. child\n      ',
+    '- [ ] ',
+    '- [x] '
+  ])(
+    'scrolls the new caret into view when continuing or exiting markup: %s',
+    (source) => {
+      expect(pressEnter(source).scrolledIntoView).toBe(true);
+    }
+  );
+
+  it.each([
+    '```java\nclass User {}\n```',
+    '```java\nclass User {}\n```   ',
+    '~~~java\nclass User {}\n~~~',
+    '```\n```',
+    '> ```java\n> class User {}\n> ```',
+    '- item\n\n  ```java\n  class User {}\n  ```'
+  ])(
+    'creates undoable prose after a closed terminal code block: %s',
+    (source) => {
+      let state = createDocumentState(source, [history()]);
+      state = state.update({ selection: { anchor: state.doc.length } }).state;
+      const edit = trailingCodeParagraph(state);
+      expect(edit).not.toBeNull();
+      if (!edit) throw new Error('Expected a paragraph edit');
+      const transaction = state.update(edit);
+      expect(transaction.scrollIntoView).toBe(true);
+      state = transaction.state;
+      expect(state.sliceDoc()).toBe(source + '\n\n');
+      expect(ancestorAt(state, ['FencedCode'])).toBeNull();
+      const target = {
+        get state() {
+          return state;
+        },
+        dispatch(tr: Transaction) {
+          state = tr.state;
+        }
+      };
+      expect(undo(target)).toBe(true);
+      expect(state.sliceDoc()).toBe(source);
+      expect(redo(target)).toBe(true);
+      expect(state.selection.main.head).toBe(state.doc.length);
+    }
+  );
+
+  it.each([
+    '```java\nclass User {}',
+    '```java\nclass User {}\n```\n',
+    '```java\nclass User {}\n```\n\nprose',
+    'plain text',
+    ''
+  ])(
+    'does not add paragraphs to open code or an existing prose position: %s',
+    (source) => {
+      expect(trailingCodeParagraph(createDocumentState(source))).toBeNull();
+    }
+  );
+
+  it('does not add a paragraph to a read-only document', () => {
+    expect(
+      trailingCodeParagraph(
+        createDocumentState('```\ncode\n```', [EditorState.readOnly.of(true)])
+      )
+    ).toBeNull();
+  });
+
+  it('preserves CRLF while creating real document lines after code and within ordered prose', () => {
+    const source = '```java\r\nclass User {}\r\n```';
+    const state = createDocumentState(source);
+    const edit = trailingCodeParagraph(state);
+    if (!edit) throw new Error('Expected a paragraph edit');
+    const next = state.update(edit).state;
+    expect(next.doc.lines).toBe(state.doc.lines + 2);
+    expect(next.sliceDoc()).toBe(source + '\r\n\r\n');
+    expect(next.selection.main.head).toBe(next.doc.length);
+    expect(pressEnter('intro\r\n\r\n1. question').content).toBe(
+      'intro\r\n\r\n1. question\r\n   '
+    );
+    expect(pressEnter('intro\r\n\r\n1. question\r\n   ').content).toBe(
+      'intro\r\n\r\n1. question\r\n\r\n'
+    );
+  });
   it.each([
     ['1. question\n   2.', '1. question\n2. '],
     ['1. question\n   answer\n   2.', '1. question\n   answer\n2. '],

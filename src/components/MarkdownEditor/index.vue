@@ -125,7 +125,12 @@
 <script setup lang="ts">
 import type { CSSProperties } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { Compartment, EditorState, type Extension } from '@codemirror/state';
+import {
+  Compartment,
+  EditorState,
+  Text,
+  type Extension
+} from '@codemirror/state';
 import {
   EditorView,
   Decoration,
@@ -561,8 +566,12 @@ function extensions(): Extension[] {
               : null;
           if (edit) {
             editor.dispatch({
-              changes: { from: selection.from, insert: edit.insert },
+              changes: {
+                from: selection.from,
+                insert: Text.of(edit.insert.split('\n'))
+              },
               selection: { anchor: selection.from + edit.cursorOffset },
+              scrollIntoView: true,
               userEvent: 'input'
             });
             return true;
@@ -574,13 +583,18 @@ function extensions(): Extension[] {
         key: 'Shift-Enter',
         run: (editor) => {
           if (editor.state.readOnly) return false;
-          editor.dispatch(
-            editor.state.replaceSelection(
-              ancestorAt(editor.state, ['FencedCode', 'CodeBlock'])
-                ? '\n'
-                : '\\\n'
-            )
-          );
+          editor.dispatch({
+            ...editor.state.replaceSelection(
+              Text.of([
+                ancestorAt(editor.state, ['FencedCode', 'CodeBlock'])
+                  ? ''
+                  : '\\',
+                ''
+              ])
+            ),
+            scrollIntoView: true,
+            userEvent: 'input'
+          });
           return true;
         }
       },
@@ -596,7 +610,7 @@ function extensions(): Extension[] {
           }
           const end = code.to;
           editor.dispatch({
-            changes: { from: end, insert: '\n\n' },
+            changes: { from: end, insert: Text.of(['', '', '']) },
             selection: { anchor: end + 2 },
             scrollIntoView: true
           });
@@ -1499,7 +1513,11 @@ defineExpose({
   }
 
   .cm-editor .cm-content {
+    flex-grow: 0;
+    // Keep the text inset outside the selection rectangle's coordinate box.
+    width: calc(100% - 2 * var(--editor-content-padding-inline));
     min-height: 100%;
+    padding-inline: 0;
     caret-color: var(--markdown-text);
   }
 
@@ -1596,8 +1614,18 @@ defineExpose({
     padding-inline: 12px;
     font-size: var(--markdown-code-size);
     line-height: var(--markdown-code-line-height);
-    background: var(--code-block-bg);
     border-inline: 1px solid var(--code-block-border);
+  }
+
+  .cm-editor .cm-line.md-code-line::before {
+    position: absolute;
+    inset: 0;
+    // CodeMirror draws selection at -2; keep the code surface below it.
+    z-index: -3;
+    pointer-events: none;
+    content: '';
+    background: var(--code-block-bg);
+    border-radius: inherit;
   }
 
   .cm-editor .cm-line.md-code-first {

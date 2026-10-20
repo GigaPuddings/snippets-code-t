@@ -1,9 +1,11 @@
 import {
   EditorState,
+  Text,
   type Extension,
   type TransactionSpec
 } from '@codemirror/state';
 import { insertNewlineContinueMarkup } from '@codemirror/lang-markdown';
+import { isolateHistory } from '@codemirror/commands';
 import { markdownLanguageSupport } from '@/utils/markdown-language';
 import { syntaxTree } from '@codemirror/language';
 import type { EditorView } from '@codemirror/view';
@@ -64,6 +66,24 @@ export function extractHeadings(state: EditorState) {
   return headings;
 }
 
+/** A click below a terminal, closed fence creates an editable prose paragraph. */
+export function trailingCodeParagraph(
+  state: EditorState
+): TransactionSpec | null {
+  if (state.readOnly) return null;
+  const end = state.doc.length;
+  const code = ancestorAt(state, ['FencedCode'], end);
+  if (code?.to !== end || code.getChildren('CodeMark').length !== 2)
+    return null;
+  return {
+    changes: { from: end, insert: Text.of(['', '', '']) },
+    selection: { anchor: end + 2 },
+    scrollIntoView: true,
+    annotations: isolateHistory.of('full'),
+    userEvent: 'input'
+  };
+}
+
 /** Keep the product's explicit rule: Enter in an ordered item continues prose. */
 export function insertMarkdownNewline(
   view: Pick<EditorView, 'state' | 'dispatch'>
@@ -72,13 +92,17 @@ export function insertMarkdownNewline(
   const selection = state.selection.main;
   if (state.readOnly) return false;
   if (ancestorAt(state, ['FencedCode', 'CodeBlock'])) return false;
+  const dispatch = (spec: TransactionSpec): void =>
+    view.dispatch(
+      state.update(spec, { scrollIntoView: true, userEvent: 'input' })
+    );
   const line = state.doc.lineAt(selection.from);
   const emptyTask = /^(\s*)[-+*]\s+\[[ xX]\]\s*$/.exec(line.text);
   if (
     emptyTask &&
     ancestorAt(state, ['BulletList'], line.from + emptyTask[1].length + 1)
   ) {
-    view.dispatch({
+    dispatch({
       changes: { from: line.from, to: selection.to, insert: emptyTask[1] },
       selection: { anchor: line.from + emptyTask[1].length },
       userEvent: 'input'
@@ -100,7 +124,7 @@ export function insertMarkdownNewline(
       ));
   if (ordered && inOrdered) {
     if (!ordered[4].trim()) {
-      view.dispatch({
+      dispatch({
         changes: { from: line.from, to: selection.to, insert: quotePrefix },
         selection: { anchor: line.from + quotePrefix.length }
       });
@@ -109,7 +133,7 @@ export function insertMarkdownNewline(
         quotePrefix +
         ordered[1] +
         ' '.repeat(ordered[2].length + ordered[3].length);
-      view.dispatch(state.replaceSelection('\n' + indent));
+      dispatch(state.replaceSelection(Text.of(['', indent])));
     }
     return true;
   }
@@ -129,15 +153,15 @@ export function insertMarkdownNewline(
           state.doc.sliceString(parentLine.from, parentMark.from) +
           ' '.repeat(parentMark.to - parentMark.from + gap);
       }
-      const insert = quotePrefix.trimEnd() + '\n' + indent;
-      view.dispatch({
+      const insert = Text.of([quotePrefix.trimEnd(), indent]);
+      dispatch({
         changes: { from: line.from, to: selection.to, insert },
         selection: { anchor: line.from + insert.length }
       });
     } else {
-      view.dispatch(
+      dispatch(
         state.replaceSelection(
-          '\n' + quotePrefix + (bodyLine.match(/^\s*/)?.[0] || '')
+          Text.of(['', quotePrefix + (bodyLine.match(/^\s*/)?.[0] || '')])
         )
       );
     }
@@ -191,6 +215,7 @@ export function continueOrderedListOnMarkerSpace(
   view.dispatch({
     changes: { from: line.from, to, insert },
     selection: { anchor: line.from + insert.length },
+    scrollIntoView: true,
     userEvent: 'input'
   });
   return true;
