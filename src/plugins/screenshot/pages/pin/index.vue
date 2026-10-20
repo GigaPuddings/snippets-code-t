@@ -12,8 +12,7 @@
       :style="imageWrapperStyle"
       @wheel.capture="handleWheel"
       @contextmenu.prevent="handleContextMenu"
-      data-tauri-drag-region
-      @mousedown="handleMouseDown"
+      data-tauri-drag-region="deep"
     >
       <img
         :src="imageBlobUrl"
@@ -21,7 +20,6 @@
         :style="imageStyle"
         @load="handleImageLoad"
         draggable="false"
-        data-tauri-drag-region
       />
     </div>
 
@@ -31,22 +29,18 @@
       @contextmenu.prevent="handleContextMenu"
     >
       <header class="ocr-header">
-        <div
-          class="ocr-titlebar"
-          data-tauri-drag-region
-          @mousedown="handleMouseDown"
-        >
-          <div class="ocr-title-copy" data-tauri-drag-region>
-            <div class="ocr-window-title" data-tauri-drag-region>
+        <div class="ocr-titlebar" data-tauri-drag-region="deep">
+          <div class="ocr-title-copy">
+            <div class="ocr-window-title">
               <text-recognition width="18" height="18" />
-              <span data-tauri-drag-region>{{ $t('pin.ocrResult') }}</span>
+              <span>{{ $t('pin.ocrResult') }}</span>
             </div>
-            <div class="ocr-source-inline" data-tauri-drag-region>
-              <span class="ocr-source-name" data-tauri-drag-region>
+            <div class="ocr-source-inline">
+              <span class="ocr-source-name">
                 {{ ocrFileName }}
               </span>
-              <span class="ocr-meta-dot" data-tauri-drag-region>·</span>
-              <span data-tauri-drag-region>{{ ocrImageMeta }}</span>
+              <span class="ocr-meta-dot">·</span>
+              <span>{{ ocrImageMeta }}</span>
             </div>
           </div>
 
@@ -57,7 +51,7 @@
               :title="recognitionModelTitle"
             >
               <Loading
-                v-if="ocrLoading"
+                v-if="ocrLoading || isTranslating"
                 class="ocr-loading-icon"
                 width="14"
                 height="14"
@@ -213,6 +207,23 @@
                 </div>
               </header>
 
+              <div
+                v-if="isTranslating"
+                class="flex shrink-0 items-center gap-2 border-b border-ocr px-4 py-2 text-ui-caption text-ocr-secondary"
+                role="status"
+                aria-live="polite"
+              >
+                <Loading
+                  class="animate-spin motion-reduce:animate-none"
+                  width="14"
+                  height="14"
+                  aria-hidden="true"
+                />
+                <span>
+                  {{ translationProgressLabel }}
+                </span>
+              </div>
+
               <div v-if="ocrLoading && !ocrText.trim()" class="ocr-state">
                 <div class="ocr-ai-orbit">
                   <Magic width="22" height="22" />
@@ -314,18 +325,20 @@
           <CustomButton
             class="ocr-action-btn translate-main"
             type="text"
-            :title="$t('pin.translate')"
-            :disabled="!ocrText.trim() || isTranslating"
+            :title="isTranslating ? translatingLabel : $t('pin.translate')"
+            :loading="isTranslating"
+            :disabled="!ocrText.trim() || ocrLoading"
             @click.stop="handleTranslateOcr"
           >
             <Translate v-if="!isTranslating" width="18" height="18" />
-            <Loading v-else class="ocr-loading-icon" width="18" height="18" />
-            <span>{{ $t('pin.translate') }}</span>
+            <span>
+              {{ isTranslating ? translatingLabel : $t('pin.translate') }}
+            </span>
           </CustomButton>
           <CustomButton
             class="ocr-action-btn translate-arrow"
             type="text"
-            :disabled="!ocrText.trim() || isTranslating"
+            :disabled="!ocrText.trim() || ocrLoading || isTranslating"
             @click.stop="toggleTranslateMenu"
           >
             <Down width="14" height="14" />
@@ -362,7 +375,7 @@
             class="ocr-action-btn ocr-engine-main"
             type="text"
             :title="$t('pin.ocrLanguage')"
-            :disabled="ocrLoading"
+            :disabled="ocrLoading || isTranslating"
             @click.stop="toggleOcrLanguageMenu"
           >
             <TextRecognition width="18" height="18" />
@@ -371,7 +384,7 @@
           <CustomButton
             class="ocr-action-btn ocr-engine-arrow"
             type="text"
-            :disabled="ocrLoading"
+            :disabled="ocrLoading || isTranslating"
             @click.stop="toggleOcrLanguageMenu"
           >
             <Down width="14" height="14" />
@@ -404,7 +417,7 @@
             class="ocr-action-btn ocr-engine-main"
             type="text"
             :title="$t('pin.recognizeAgain')"
-            :disabled="ocrLoading || !imageData"
+            :disabled="ocrLoading || isTranslating || !imageData"
             @click.stop="recognizeCurrentImage"
           >
             <Magic width="17" height="17" />
@@ -533,7 +546,7 @@ import {
   sortOcrTextBlocksByReadingOrder
 } from '@/plugins/screenshot/utils/ocr';
 
-const { t } = useI18n();
+const { t, te } = useI18n();
 
 const containerRef = ref<HTMLDivElement>();
 const appWindow = ref<Window | null>(null);
@@ -568,6 +581,21 @@ const ocrSelectionTranslation = ref<{
 const isResultPaneCollapsed = ref(false);
 
 const isTranslating = ref(false);
+const translatedRecordCount = ref(0);
+const translationRecordCount = ref(0);
+// Installed plugins can run on a host whose locale catalog predates these keys.
+const translatingLabel = computed(() =>
+  te('pin.translating') ? t('pin.translating') : t('common.loading')
+);
+const translationProgressLabel = computed(() => {
+  const progress = {
+    completed: translatedRecordCount.value,
+    total: translationRecordCount.value
+  };
+  return te('pin.translationProgress')
+    ? t('pin.translationProgress', progress)
+    : `${translatingLabel.value} ${progress.completed}/${progress.total}`;
+});
 const showTranslateMenu = ref(false);
 const translateMenuAnchorRef = ref<HTMLElement>();
 const translateMenuStyle = ref<CSSProperties>({});
@@ -723,6 +751,7 @@ const ocrStatusText = computed(() => {
 
 const recognitionSourceLabel = computed(() => {
   if (ocrLoading.value) return t('pin.aiRecognizing');
+  if (isTranslating.value) return translatingLabel.value;
   if (recognitionEngine.value === 'ai') return t('pin.aiVision');
   return t('pin.aiVision');
 });
@@ -1114,7 +1143,7 @@ const recognizeTextBlocksFromImage = async (
 };
 
 const recognizeCurrentImage = async () => {
-  if (!imageData.value) return;
+  if (!imageData.value || isTranslating.value) return;
 
   const requestId = ++ocrRequestId;
   ocrSelectionTranslation.value = null;
@@ -1362,7 +1391,7 @@ const handleTranslateOcr = async () => {
   showTranslateMenu.value = false;
   showOcrLanguageMenu.value = false;
 
-  if (!ocrText.value.trim() || isTranslating.value) return;
+  if (!ocrText.value.trim() || ocrLoading.value || isTranslating.value) return;
 
   const selectedSourceText = getSelectedTextInsideOcrSurface();
   const recordsToTranslate = selectedSourceText
@@ -1381,6 +1410,8 @@ const handleTranslateOcr = async () => {
     return;
   }
 
+  translatedRecordCount.value = 0;
+  translationRecordCount.value = Math.max(1, recordsToTranslate.length);
   isTranslating.value = true;
 
   try {
@@ -1391,6 +1422,7 @@ const handleTranslateOcr = async () => {
         selectedSourceText,
         sourceLanguage
       );
+      translatedRecordCount.value = 1;
       if (translatedText) {
         ocrSelectionTranslation.value = {
           sourceText: selectedSourceText,
@@ -1404,6 +1436,7 @@ const handleTranslateOcr = async () => {
           record.text,
           sourceLanguage
         );
+        translatedRecordCount.value++;
         if (translatedText) {
           record.translatedText = translatedText.trim();
         }
@@ -1415,6 +1448,7 @@ const handleTranslateOcr = async () => {
         ocrText.value,
         sourceLanguage
       );
+      translatedRecordCount.value = 1;
       if (translatedText) {
         setOcrTextFromPlainText(translatedText);
       }
@@ -1809,28 +1843,6 @@ const handleClose = async () => {
 
 const globalContextMenuHandler = (e: MouseEvent) => {
   e.preventDefault();
-};
-
-const handleMouseDown = async (event: MouseEvent) => {
-  // 只响应左键，并且只在拖拽区域（data-tauri-drag-region）上响应
-  if (event.button === 0 && appWindow.value) {
-    const target = event.target as HTMLElement;
-    // 检查是否点击在拖拽区域或者是拖拽区域的子元素（如果有 data-tauri-drag-region 属性）
-    if (
-      target.hasAttribute('data-tauri-drag-region') ||
-      target.closest('[data-tauri-drag-region]')
-    ) {
-      // 防止对按钮等交互元素的误判
-      if (target.closest('button') || target.closest('.ocr-view-original')) {
-        return;
-      }
-      try {
-        await appWindow.value.startDragging();
-      } catch (error) {
-        logger.error('[PIN窗口] 拖拽窗口失败', error);
-      }
-    }
-  }
 };
 
 const handleClickOutside = (event: MouseEvent) => {

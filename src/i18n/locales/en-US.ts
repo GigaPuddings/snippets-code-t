@@ -1595,6 +1595,8 @@ export default {
     noTextRecognized: 'No text recognized',
     copyText: 'Copy Text',
     translate: 'Translate',
+    translating: 'Translating',
+    translationProgress: 'Translating blocks: {completed}/{total}',
     ocrLanguage: 'OCR Language',
     ocrLanguageAuto: 'Auto',
     ocrLanguageZh: 'Chinese',

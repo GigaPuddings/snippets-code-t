@@ -1507,6 +1507,8 @@ export default {
     noTextRecognized: '未识别到文字',
     copyText: '复制文本',
     translate: '翻译',
+    translating: '翻译中',
+    translationProgress: '正在翻译内容块：{completed}/{total}',
     ocrLanguage: '识别语言',
     ocrLanguageAuto: '自动',
     ocrLanguageZh: '简中',
