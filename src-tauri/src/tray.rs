@@ -7,6 +7,7 @@ use crate::plugins::system_theme::{
 use crate::plugins::wallpaper_switcher::{
     load_config as load_wallpaper_config, save_config as save_wallpaper_config,
     start_scheduler as start_wallpaper_scheduler, WallhavenSource, WallpaperMode,
+    WallpaperProvider,
 };
 use crate::update::check_update_and_open_window;
 use crate::window::{
@@ -67,6 +68,7 @@ struct TrayTranslations {
     wallpaper_mode_fixed: &'static str,
     wallpaper_mode_folder: &'static str,
     wallpaper_mode_hot: &'static str,
+    wallpaper_mode_latest: &'static str,
     wallpaper_mode_toplist: &'static str,
     wallpaper_mode_favorites: &'static str,
     wallpaper_settings: &'static str,
@@ -205,8 +207,9 @@ fn get_translations(lang: &str) -> TrayTranslations {
             wallpaper_mode_fixed: "Fixed Image",
             wallpaper_mode_folder: "Folder Rotation",
             wallpaper_mode_hot: "Hot",
+            wallpaper_mode_latest: "Latest",
             wallpaper_mode_toplist: "Toplist",
-            wallpaper_mode_favorites: "Favorites",
+            wallpaper_mode_favorites: "Most Favorited",
             wallpaper_settings: "More Settings...",
             wallpaper_switching_online: "Fetching the next online wallpaper. Please wait...",
             wallpaper_switch_complete: "Desktop wallpaper updated",
@@ -245,8 +248,9 @@ fn get_translations(lang: &str) -> TrayTranslations {
             wallpaper_mode_fixed: "固定图片",
             wallpaper_mode_folder: "文件夹轮换",
             wallpaper_mode_hot: "热门",
+            wallpaper_mode_latest: "最新",
             wallpaper_mode_toplist: "排行榜",
-            wallpaper_mode_favorites: "收藏",
+            wallpaper_mode_favorites: "收藏榜",
             wallpaper_settings: "更多设置...",
             wallpaper_switching_online: "正在获取下一张在线壁纸，请稍候…",
             wallpaper_switch_complete: "桌面壁纸已更新",
@@ -417,6 +421,31 @@ fn create_wallpaper_submenu(app: &AppHandle, lang: &str) -> tauri::Result<Submen
     )?;
 
     // 在线壁纸子菜单
+    let provider_wallhaven_i = CheckMenuItem::with_id(
+        app,
+        "wallpaper_provider_wallhaven",
+        "Wallhaven",
+        true,
+        config.online_provider == WallpaperProvider::Wallhaven,
+        None::<&str>,
+    )?;
+    let provider_wallspic_i = CheckMenuItem::with_id(
+        app,
+        "wallpaper_provider_wallspic",
+        "Wallspic",
+        true,
+        config.online_provider == WallpaperProvider::Wallspic,
+        None::<&str>,
+    )?;
+    let online_separator = PredefinedMenuItem::separator(app)?;
+    let online_latest_i = CheckMenuItem::with_id(
+        app,
+        "wallpaper_mode_latest",
+        trans.wallpaper_mode_latest,
+        true,
+        is_wallhaven && matches!(config.wallhaven_source, WallhavenSource::Latest),
+        None::<&str>,
+    )?;
     let online_hot_i = CheckMenuItem::with_id(
         app,
         "wallpaper_mode_hot",
@@ -429,7 +458,7 @@ fn create_wallpaper_submenu(app: &AppHandle, lang: &str) -> tauri::Result<Submen
         app,
         "wallpaper_mode_toplist",
         trans.wallpaper_mode_toplist,
-        true,
+        config.online_provider == WallpaperProvider::Wallhaven,
         is_toplist,
         None::<&str>,
     )?;
@@ -437,7 +466,7 @@ fn create_wallpaper_submenu(app: &AppHandle, lang: &str) -> tauri::Result<Submen
         app,
         "wallpaper_mode_favorites",
         trans.wallpaper_mode_favorites,
-        true,
+        config.online_provider == WallpaperProvider::Wallhaven,
         is_favorites,
         None::<&str>,
     )?;
@@ -445,7 +474,15 @@ fn create_wallpaper_submenu(app: &AppHandle, lang: &str) -> tauri::Result<Submen
         app,
         trans.wallpaper_online,
         true,
-        &[&online_hot_i, &online_toplist_i, &online_favorites_i],
+        &[
+            &provider_wallspic_i,
+            &provider_wallhaven_i,
+            &online_separator,
+            &online_latest_i,
+            &online_hot_i,
+            &online_toplist_i,
+            &online_favorites_i,
+        ],
     )?;
 
     let separator2 = PredefinedMenuItem::separator(app)?;
@@ -770,12 +807,35 @@ pub fn handle_wallpaper_menu_click(app: &AppHandle, menu_id: &str) {
             });
         }
         "wallpaper_mode_fixed"
+        | "wallpaper_provider_wallhaven"
+        | "wallpaper_provider_wallspic"
+        | "wallpaper_mode_latest"
         | "wallpaper_mode_folder"
         | "wallpaper_mode_hot"
         | "wallpaper_mode_toplist"
         | "wallpaper_mode_favorites" => {
             let mut config = load_wallpaper_config(app);
             match menu_id {
+                "wallpaper_provider_wallhaven" | "wallpaper_provider_wallspic" => {
+                    config.mode = WallpaperMode::Wallhaven;
+                    config.online_provider = if menu_id == "wallpaper_provider_wallspic" {
+                        WallpaperProvider::Wallspic
+                    } else {
+                        WallpaperProvider::Wallhaven
+                    };
+                    if config.online_provider == WallpaperProvider::Wallspic
+                        && matches!(
+                            config.wallhaven_source,
+                            WallhavenSource::Toplist | WallhavenSource::Favorites
+                        )
+                    {
+                        config.wallhaven_source = WallhavenSource::Hot;
+                    }
+                }
+                "wallpaper_mode_latest" => {
+                    config.mode = WallpaperMode::Wallhaven;
+                    config.wallhaven_source = WallhavenSource::Latest;
+                }
                 "wallpaper_mode_fixed" => {
                     config.mode = WallpaperMode::Fixed;
                     info!("[TrayMenu] 壁纸切换到固定图片模式");
@@ -791,11 +851,13 @@ pub fn handle_wallpaper_menu_click(app: &AppHandle, menu_id: &str) {
                 }
                 "wallpaper_mode_toplist" => {
                     config.mode = WallpaperMode::Wallhaven;
+                    config.online_provider = WallpaperProvider::Wallhaven;
                     config.wallhaven_source = WallhavenSource::Toplist;
                     info!("[TrayMenu] 壁纸切换到在线排行榜模式");
                 }
                 "wallpaper_mode_favorites" => {
                     config.mode = WallpaperMode::Wallhaven;
+                    config.online_provider = WallpaperProvider::Wallhaven;
                     config.wallhaven_source = WallhavenSource::Favorites;
                     info!("[TrayMenu] 壁纸切换到在线收藏模式");
                 }

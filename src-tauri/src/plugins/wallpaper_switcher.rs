@@ -17,11 +17,12 @@ use tauri::{AppHandle, Emitter};
 use walkdir::WalkDir;
 use winreg::{enums::HKEY_CURRENT_USER, RegKey};
 
+mod wallspic;
+
 const PLUGIN_ID: &str = "wallpaper-switcher";
 const CONFIG_KEY: &str = "wallpaper_switcher_config";
 const USER_AGENT: &str =
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) snippets-code-wallpaper-switcher/2.1 Safari/537.36";
-const MAX_WALLHAVEN_PAGES: u32 = 100;
 const MAX_WALLHAVEN_CACHE_BYTES: u64 = 512 * 1024 * 1024;
 const MAX_WALLHAVEN_RECENT_IDS: usize = 500;
 
@@ -54,9 +55,27 @@ pub enum FolderSort {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum WallhavenSource {
+    Latest,
     Hot,
     Toplist,
     Favorites,
+}
+
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum WallpaperProvider {
+    #[default]
+    Wallhaven,
+    Wallspic,
+}
+
+impl WallpaperProvider {
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            Self::Wallhaven => "Wallhaven",
+            Self::Wallspic => "Wallspic",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -72,6 +91,8 @@ pub struct WallpaperConfig {
     pub folder_sort: FolderSort,
     pub auto_restore: bool,
     pub wallhaven_source: WallhavenSource,
+    #[serde(default)]
+    pub online_provider: WallpaperProvider,
     pub wallhaven_category: String,
     pub wallhaven_query: Option<String>,
     #[serde(default)]
@@ -98,6 +119,7 @@ impl Default for WallpaperConfig {
             folder_sort: FolderSort::CreatedAscending,
             auto_restore: true,
             wallhaven_source: WallhavenSource::Hot,
+            online_provider: WallpaperProvider::Wallspic,
             wallhaven_category: "general".to_string(),
             wallhaven_query: None,
             folder_seen_paths: Vec::new(),
@@ -136,6 +158,8 @@ pub struct FolderScanResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WallhavenFetchParams {
+    #[serde(default)]
+    pub provider: WallpaperProvider,
     pub source: WallhavenSource,
     pub page: Option<u32>,
     pub query: Option<String>,
@@ -153,6 +177,10 @@ pub struct WallhavenPage {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WallhavenWallpaper {
+    #[serde(default)]
+    pub provider: WallpaperProvider,
+    #[serde(default)]
+    pub tags: Vec<String>,
     pub id: String,
     pub url: String,
     pub short_url: Option<String>,
@@ -313,6 +341,13 @@ fn image_name(path: &Path) -> String {
 }
 
 fn normalize_wallpaper_config_preferences(config: &mut WallpaperConfig) {
+    if config.online_provider == WallpaperProvider::Wallhaven {
+        if let Some(scope) = &mut config.wallhaven_history_scope {
+            if !scope.starts_with("Wallhaven|") && !scope.starts_with("Wallspic|") {
+                *scope = format!("Wallhaven|{}", scope);
+            }
+        }
+    }
     config.order = WallpaperOrder::Sequential;
     config.folder_sort = FolderSort::CreatedAscending;
 }
@@ -392,7 +427,7 @@ fn is_prepared_wallpaper_cache(path: &Path) -> bool {
 fn is_wallhaven_original_cache(path: &Path) -> bool {
     path.file_name()
         .and_then(OsStr::to_str)
-        .is_some_and(|name| name.starts_with("wallhaven-"))
+        .is_some_and(|name| name.starts_with("wallhaven-") || name.starts_with("wallspic-"))
 }
 
 fn cleanup_prepared_wallpaper_cache(cache: &Path, current_path: &Path) {
@@ -686,7 +721,10 @@ fn current_applied_path(config: &WallpaperConfig) -> Option<PathBuf> {
 fn wallhaven_id_from_cache_path(path: &Path) -> Option<String> {
     path.file_stem()
         .and_then(OsStr::to_str)
-        .and_then(|stem| stem.strip_prefix("wallhaven-"))
+        .and_then(|stem| {
+            stem.strip_prefix("wallhaven-")
+                .or_else(|| stem.strip_prefix("wallspic-"))
+        })
         .filter(|id| !id.is_empty())
         .map(ToOwned::to_owned)
 }
@@ -716,11 +754,12 @@ fn wallhaven_history_scope(config: &WallpaperConfig) -> String {
         Some(config.wallhaven_category.as_str()),
     )
     .unwrap_or_default();
-    wallhaven_scope(
+    let scope = wallhaven_scope(
         &config.wallhaven_source,
         &config.wallhaven_category,
         Some(&query),
-    )
+    );
+    format!("{:?}|{}", config.online_provider, scope)
 }
 
 fn prepare_wallhaven_history(config: &mut WallpaperConfig) {
@@ -774,7 +813,9 @@ pub fn load_config(app_handle: &AppHandle) -> WallpaperConfig {
                             .get_or_insert_with(|| match config.mode {
                                 WallpaperMode::Fixed => "固定图片".to_string(),
                                 WallpaperMode::Folder => "本地文件夹".to_string(),
-                                WallpaperMode::Wallhaven => "Wallhaven".to_string(),
+                                WallpaperMode::Wallhaven => {
+                                    config.online_provider.label().to_string()
+                                }
                             });
                     }
                     if status.last_switched_at.is_none() {
@@ -834,7 +875,17 @@ async fn download_wallhaven_image(
     .build()
     .map_err(|e| format!("创建 Wallhaven 客户端失败: {}", e))?;
 
-    let resolved_wallpaper = if wallpaper.short_url.is_none() {
+    if wallpaper.id.is_empty()
+        || !wallpaper
+            .id
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || character == '-')
+    {
+        return Err("壁纸标识无效".to_string());
+    }
+    let resolved_wallpaper = if wallpaper.provider == WallpaperProvider::Wallspic {
+        wallspic::resolve_detail(&client, wallpaper).await?
+    } else if wallpaper.short_url.is_none() {
         match fetch_wallhaven_detail(&client, &wallpaper.id).await {
             Ok(Some(detail)) => detail,
             Ok(None) => wallpaper.clone(),
@@ -849,6 +900,15 @@ async fn download_wallhaven_image(
     } else {
         wallpaper.clone()
     };
+    let image_url = url::Url::parse(&resolved_wallpaper.path).map_err(|_| "壁纸原图地址无效")?;
+    let allowed = image_url.scheme() == "https"
+        && match wallpaper.provider {
+            WallpaperProvider::Wallhaven => image_url.host_str() == Some("w.wallhaven.cc"),
+            WallpaperProvider::Wallspic => wallspic::image_url(&resolved_wallpaper.path),
+        };
+    if !allowed {
+        return Err("壁纸原图来源无效".to_string());
+    }
     emit_wallpaper_download_progress(
         app_handle,
         &resolved_wallpaper.id,
@@ -859,11 +919,17 @@ async fn download_wallhaven_image(
 
     let extension = if resolved_wallpaper.file_type.contains("png") {
         "png"
+    } else if resolved_wallpaper.file_type.contains("webp") {
+        "webp"
     } else {
         "jpg"
     };
-    let target =
-        cache_dir(app_handle)?.join(format!("wallhaven-{}.{}", resolved_wallpaper.id, extension));
+    let target = cache_dir(app_handle)?.join(format!(
+        "{}-{}.{}",
+        resolved_wallpaper.provider.label().to_ascii_lowercase(),
+        resolved_wallpaper.id,
+        extension
+    ));
     if target.is_file() {
         if let Ok(metadata) = fs::metadata(&target) {
             if metadata.len() > 0 {
@@ -888,7 +954,14 @@ async fn download_wallhaven_image(
             let mut response = client
                 .get(&resolved_wallpaper.path)
                 .header(reqwest::header::ACCEPT_ENCODING, "identity")
-                .header(reqwest::header::REFERER, "https://wallhaven.cc/")
+                .header(
+                    reqwest::header::REFERER,
+                    if resolved_wallpaper.provider == WallpaperProvider::Wallspic {
+                        "https://wallspic.com/"
+                    } else {
+                        "https://wallhaven.cc/"
+                    },
+                )
                 .send()
                 .await
                 .map_err(|e| format!("下载壁纸失败: {}", reqwest_error_details(&e)))?
@@ -984,6 +1057,7 @@ async fn download_wallhaven_image(
             last_error
         }
     })?;
+    image::guess_format(&bytes).map_err(|_| "来源未返回有效图片，请重试")?;
     fs::write(&target, &bytes).map_err(|e| format!("保存壁纸缓存失败: {}", e))?;
     Ok(target)
 }
@@ -1124,7 +1198,7 @@ async fn switch_from_wallhaven(
 ) -> Result<String, String> {
     let current_id = current_wallhaven_id(&config);
     prepare_wallhaven_history(&mut config);
-    let mut last_error = "Wallhaven 没有返回可用壁纸".to_string();
+    let mut last_error = format!("{} 没有返回可用壁纸", config.online_provider.label());
 
     // Reuse candidates from the most recently opened Wallhaven page. This
     // avoids another search request for tray switching while preserving the
@@ -1134,7 +1208,12 @@ async fn switch_from_wallhaven(
             Ok(downloaded) => {
                 record_wallhaven_seen(&mut config, wallpaper.id);
                 save_config(app_handle, &config)?;
-                return apply_wallpaper_path(app_handle, &downloaded, "Wallhaven").await;
+                return apply_wallpaper_path(
+                    app_handle,
+                    &downloaded,
+                    config.online_provider.label(),
+                )
+                .await;
             }
             Err(error) => {
                 last_error = error;
@@ -1152,17 +1231,27 @@ async fn switch_from_wallhaven(
             .iter()
             .cloned()
             .collect::<HashSet<_>>();
-        for _ in 0..10 {
-            let page = random_index(10) as u32 + 1;
+        let mut available_pages = 1;
+        for attempt in 0..10 {
+            let page = if attempt == 0 {
+                1
+            } else {
+                random_index(available_pages as usize) as u32 + 1
+            };
             let params = WallhavenFetchParams {
+                provider: config.online_provider,
                 source: config.wallhaven_source.clone(),
                 page: Some(page),
                 query: config.wallhaven_query.clone(),
                 category: Some(config.wallhaven_category.clone()),
             };
             let page = fetch_wallhaven_page(app_handle, params).await?;
+            available_pages = page.last_page.max(1);
             if page.data.is_empty() {
-                last_error = "Wallhaven 没有返回可用壁纸".to_string();
+                last_error = format!("{} 没有返回可用壁纸", config.online_provider.label());
+                if available_pages == 1 {
+                    return Err(last_error);
+                }
                 continue;
             }
 
@@ -1183,7 +1272,8 @@ async fn switch_from_wallhaven(
             let downloaded = download_wallhaven_image(app_handle, &wallpaper).await?;
             record_wallhaven_seen(&mut config, wallpaper.id);
             save_config(app_handle, &config)?;
-            return apply_wallpaper_path(app_handle, &downloaded, "Wallhaven").await;
+            return apply_wallpaper_path(app_handle, &downloaded, config.online_provider.label())
+                .await;
         }
 
         if reset_history {
@@ -1332,6 +1422,13 @@ fn normalize_wallhaven_query(query: Option<String>, category: Option<&str>) -> O
         .filter(|value| !value.is_empty())
         .map(normalize_keyword_alias);
 
+    if category == Some("people") {
+        return Some(
+            format!("{} +asian +women", keyword.unwrap_or_default())
+                .trim()
+                .to_string(),
+        );
+    }
     if category == Some("nature") {
         return Some(match keyword {
             Some(value) => append_keyword_once(&value, "nature"),
@@ -1344,7 +1441,8 @@ fn normalize_wallhaven_query(query: Option<String>, category: Option<&str>) -> O
 
 fn wallhaven_api_sorting(source: &WallhavenSource) -> &'static str {
     match source {
-        WallhavenSource::Hot => "date_added",
+        WallhavenSource::Latest => "date_added",
+        WallhavenSource::Hot => "hot",
         WallhavenSource::Toplist => "toplist",
         WallhavenSource::Favorites => "favorites",
     }
@@ -1352,6 +1450,7 @@ fn wallhaven_api_sorting(source: &WallhavenSource) -> &'static str {
 
 fn wallhaven_web_sorting(source: &WallhavenSource) -> &'static str {
     match source {
+        WallhavenSource::Latest => "date_added",
         WallhavenSource::Hot => "hot",
         WallhavenSource::Toplist => "toplist",
         WallhavenSource::Favorites => "favorites",
@@ -1585,6 +1684,8 @@ fn parse_wallhaven_html_response(body: &str, fallback_page: u32) -> Result<Wallh
         let path = wallhaven_full_path_from_thumb(&id, &thumb);
 
         data.push(WallhavenWallpaper {
+            provider: WallpaperProvider::Wallhaven,
+            tags: Vec::new(),
             id,
             url,
             short_url: None,
@@ -1603,20 +1704,15 @@ fn parse_wallhaven_html_response(body: &str, fallback_page: u32) -> Result<Wallh
         });
     }
 
-    let pagination =
-        Regex::new(r#"data-pagination="\{&quot;total&quot;:(\d+),&quot;current&quot;:(\d+),"#)
-            .ok()
-            .and_then(|re| re.captures(body));
-    let last_page = pagination
-        .as_ref()
-        .and_then(|capture| capture.get(1))
-        .and_then(|value| value.as_str().parse::<u32>().ok())
-        .unwrap_or(fallback_page);
-    let page = pagination
-        .as_ref()
-        .and_then(|capture| capture.get(2))
-        .and_then(|value| value.as_str().parse::<u32>().ok())
-        .unwrap_or(fallback_page);
+    let document = scraper::Html::parse_document(body);
+    let selector = scraper::Selector::parse("[data-pagination]").unwrap();
+    let pagination = document
+        .select(&selector)
+        .find_map(|element| element.value().attr("data-pagination"))
+        .and_then(|value| serde_json::from_str::<serde_json::Value>(value).ok())
+        .unwrap_or(serde_json::Value::Null);
+    let last_page = json_u32(&pagination, "total").unwrap_or(fallback_page);
+    let page = json_u32(&pagination, "current").unwrap_or(fallback_page);
 
     Ok(WallhavenPage {
         data,
@@ -1653,6 +1749,16 @@ fn parse_wallhaven_wallpaper(value: &serde_json::Value) -> Option<WallhavenWallp
     };
 
     Some(WallhavenWallpaper {
+        provider: WallpaperProvider::Wallhaven,
+        tags: value
+            .get("tags")
+            .and_then(|tags| tags.as_array())
+            .map(|tags| {
+                tags.iter()
+                    .filter_map(|tag| json_string(tag, "name"))
+                    .collect()
+            })
+            .unwrap_or_default(),
         id,
         url: json_string(value, "url").unwrap_or_else(|| path.clone()),
         short_url: json_string(value, "short_url"),
@@ -1836,6 +1942,11 @@ async fn fetch_wallhaven_api_search(
     width: u32,
     height: u32,
 ) -> Result<WallhavenPage, String> {
+    if matches!(source, WallhavenSource::Hot) {
+        return Err(
+            "Wallhaven 热门暂不可用，请重试或切换到最新；不会用最新结果替代热门".to_string(),
+        );
+    }
     let query = build_wallhaven_query(source, page, category, request_query, width, height, false);
     let (status, headers, body) = send_wallhaven_request(
         client,
@@ -1901,13 +2012,32 @@ async fn fetch_wallhaven_page(
 ) -> Result<WallhavenPage, String> {
     require_enabled(app_handle)?;
     let (screen_width, screen_height) = screen_size(app_handle);
-    let page = params.page.unwrap_or(1).clamp(1, MAX_WALLHAVEN_PAGES);
+    let page = params.page.unwrap_or(1).max(1);
+    if params.provider == WallpaperProvider::Wallspic {
+        let result = wallspic::fetch_page(&params).await?;
+        let query = normalize_wallhaven_query(params.query.clone(), params.category.as_deref());
+        let scope = format!(
+            "{:?}|{}",
+            params.provider,
+            wallhaven_scope(
+                &params.source,
+                params.category.as_deref().unwrap_or("general"),
+                query.as_deref()
+            )
+        );
+        remember_wallhaven_candidates(&scope, &result.data);
+        return Ok(result);
+    }
     let category = params.category.as_deref();
     let request_query = normalize_wallhaven_query(params.query.clone(), category);
-    let request_scope = wallhaven_scope(
-        &params.source,
-        category.unwrap_or("general"),
-        request_query.as_deref(),
+    let request_scope = format!(
+        "{:?}|{}",
+        params.provider,
+        wallhaven_scope(
+            &params.source,
+            category.unwrap_or("general"),
+            request_query.as_deref(),
+        )
     );
     info!(
         "[WallpaperSwitcher] Wallhaven search source={:?} page={} category={:?} query={} screen={}x{}",
@@ -2050,10 +2180,11 @@ pub async fn wallpaper_save_config(
 
     save_config(&app_handle, &config)?;
     if config.schedule_enabled && config.auto_restore {
-        start_scheduler(app_handle)?;
+        start_scheduler(app_handle.clone())?;
     } else {
         stop_scheduler();
     }
+    let _ = crate::tray::recreate_tray_menu(&app_handle);
     Ok(())
 }
 
@@ -2151,13 +2282,14 @@ pub async fn wallpaper_set_wallhaven_image(
     wallpaper: WallhavenWallpaper,
 ) -> Result<String, String> {
     require_enabled(&app_handle)?;
+    let downloaded = download_wallhaven_image(&app_handle, &wallpaper).await?;
     let mut config = load_config(&app_handle);
     config.mode = WallpaperMode::Wallhaven;
+    config.online_provider = wallpaper.provider;
     prepare_wallhaven_history(&mut config);
-    let downloaded = download_wallhaven_image(&app_handle, &wallpaper).await?;
     record_wallhaven_seen(&mut config, wallpaper.id.clone());
     save_config(&app_handle, &config)?;
-    apply_wallpaper_path(&app_handle, &downloaded, "Wallhaven").await
+    apply_wallpaper_path(&app_handle, &downloaded, wallpaper.provider.label()).await
 }
 
 #[tauri::command]
@@ -2237,5 +2369,55 @@ pub fn apply_runtime_change(app_handle: &AppHandle, enabled: bool) {
         ensure_scheduler_runtime(app_handle);
     } else {
         stop_scheduler();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn legacy_config_preserves_wallhaven_and_new_config_uses_wallspic() {
+        let current = WallpaperConfig::default();
+        assert_eq!(current.online_provider, WallpaperProvider::Wallspic);
+        let mut legacy = serde_json::to_value(&current).unwrap();
+        legacy.as_object_mut().unwrap().remove("onlineProvider");
+        let migrated: WallpaperConfig = serde_json::from_value(legacy).unwrap();
+        assert_eq!(migrated.online_provider, WallpaperProvider::Wallhaven);
+        let legacy_request: WallhavenFetchParams =
+            serde_json::from_str(r#"{"source":"hot","page":1}"#).unwrap();
+        assert_eq!(legacy_request.provider, WallpaperProvider::Wallhaven);
+    }
+
+    #[test]
+    fn online_history_separates_providers_and_people_query_is_required() {
+        let mut config = WallpaperConfig::default();
+        let first = wallhaven_history_scope(&config);
+        config.online_provider = WallpaperProvider::Wallhaven;
+        assert_ne!(first, wallhaven_history_scope(&config));
+        assert_eq!(
+            normalize_wallhaven_query(None, Some("people")).as_deref(),
+            Some("+asian +women")
+        );
+        assert_eq!(wallhaven_web_sorting(&WallhavenSource::Hot), "hot");
+        assert_eq!(
+            wallhaven_api_sorting(&WallhavenSource::Latest),
+            "date_added"
+        );
+        assert_eq!(
+            wallhaven_id_from_cache_path(Path::new("wallspic-ws-181761.jpg")).as_deref(),
+            Some("ws-181761")
+        );
+    }
+
+    #[test]
+    fn html_pagination_accepts_reordered_keys_and_pages_after_one_hundred() {
+        let page = parse_wallhaven_html_response(
+            r#"<nav data-pagination='{ "current": 101, "total": 142 }'></nav>"#,
+            1,
+        )
+        .unwrap();
+        assert_eq!(page.page, 101);
+        assert_eq!(page.last_page, 142);
     }
 }
