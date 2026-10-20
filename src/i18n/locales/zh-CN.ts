@@ -1664,11 +1664,18 @@ export default {
     clear: '清空',
     refresh: '刷新',
     autoMatch: '自动匹配 {resolution}',
+    autoMatchHint:
+      '按主屏幕最低分辨率筛选；无结果时尝试 1920 × 1080。较小图片可能被排除。',
+    hotHint: '热门仅包含网站当前的热门结果，数量可能较少。',
+    toplistHint: '排行榜采用近一个月统计，与当前热门结果不同。',
+    browseMonthlyToplist: '浏览月榜',
     loadingWallhaven: '正在加载在线壁纸...',
     retry: '重试',
     noWallpapers: '暂无可用壁纸',
-    noVerifiedPeople:
-      '暂无同时标记为亚洲、女性的横向壁纸，可切换网站或继续加载。',
+    noVerifiedPeople: '暂无符合当前筛选条件的亚洲女性壁纸。',
+    noVerifiedWallspicPeople:
+      'Wallspic 未返回同时标记为亚洲、女性的横向壁纸；普通女性图片不会自动纳入。',
+    searchPeopleOnWallhaven: '切换到 Wallhaven 检索亚洲女性',
     preview: '预览',
     setWallpaper: '设为壁纸',
     setting: '设置中',

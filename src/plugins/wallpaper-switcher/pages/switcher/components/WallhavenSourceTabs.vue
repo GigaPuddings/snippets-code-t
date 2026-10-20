@@ -46,6 +46,8 @@ const selectSource = (source: WallhavenSource, disabled?: boolean) => {
       type="button"
       :class="{ [activeClass || 'active']: modelValue === option.value }"
       :disabled="disabled"
+      :title="t(option.labelKey)"
+      :aria-pressed="modelValue === option.value"
       @click="selectSource(option.value, disabled)"
     >
       {{ t(option.labelKey) }}
@@ -58,6 +60,7 @@ const selectSource = (source: WallhavenSource, disabled?: boolean) => {
         [disabledClass || 'disabled']: disabled
       }"
       role="tab"
+      :aria-selected="modelValue === option.value"
       tabindex="0"
       @click="selectSource(option.value, disabled)"
       @keydown.enter.prevent="selectSource(option.value, disabled)"

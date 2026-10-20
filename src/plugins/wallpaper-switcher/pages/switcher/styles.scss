@@ -1509,13 +1509,13 @@
   }
 
   .online-source-tabs {
-    @apply grid grid-cols-3 h-8 mb-2 overflow-hidden rounded-lg border;
+    @apply grid grid-flow-col auto-cols-fr h-8 mb-2 overflow-hidden rounded-lg border;
 
     background: var(--wallpaper-panel);
     border-color: var(--wallpaper-border);
 
     button {
-      @apply h-full py-0 px-1 text-[9px] font-semibold border-0 border-r cursor-pointer;
+      @apply min-w-0 h-full py-0 px-1 overflow-hidden text-[9px] font-semibold text-ellipsis whitespace-nowrap border-0 border-r cursor-pointer;
 
       color: var(--wallpaper-muted);
       background: transparent;

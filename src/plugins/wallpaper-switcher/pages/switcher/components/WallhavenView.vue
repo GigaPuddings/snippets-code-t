@@ -6,10 +6,15 @@ import Loading from '~icons/lucide/loader-circle';
 import PreviewOpen from '~icons/lucide/eye';
 import Refresh from '~icons/lucide/refresh-cw';
 import Search from '~icons/lucide/search';
+import Info from '~icons/lucide/info';
 import { useI18n } from 'vue-i18n';
 import { RecycleScroller } from 'vue-virtual-scroller';
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css';
-import type { WallpaperProvider, WallhavenWallpaper } from '../../../api';
+import type {
+  WallpaperProvider,
+  WallhavenSource,
+  WallhavenWallpaper
+} from '../../../api';
 import type { DownloadProgress } from '../../../composables/useWallhaven';
 import DownloadProgressIndicator from './DownloadProgressIndicator.vue';
 
@@ -18,6 +23,7 @@ type WallhavenWorkingAction = 'setting' | 'downloading';
 const props = defineProps<{
   keyword: string;
   provider: WallpaperProvider;
+  source: WallhavenSource;
   revision: number;
   hasMore: boolean;
   category: string;
@@ -42,6 +48,7 @@ const emit = defineEmits<{
   (event: 'downloadWallpaper', value: WallhavenWallpaper): void;
   (event: 'loadMore'): void;
   (event: 'setProvider', value: WallpaperProvider): void;
+  (event: 'setSource', value: WallhavenSource): void;
 }>();
 
 const { t } = useI18n();
@@ -166,7 +173,13 @@ const progressFor = (id: string): DownloadProgress | undefined =>
       </div>
 
       <div class="wallhaven-meta">
-        <span>
+        <span
+          :title="
+            provider === 'wallhaven'
+              ? t('wallpaperSwitcher.autoMatchHint')
+              : undefined
+          "
+        >
           {{
             t(
               provider === 'wallspic'
@@ -185,6 +198,31 @@ const progressFor = (id: string): DownloadProgress | undefined =>
           <Refresh :width="14" :height="14" :class="{ spinning: loading }" />
         </button>
       </div>
+      <p
+        v-if="
+          provider === 'wallhaven' && (source === 'hot' || source === 'toplist')
+        "
+        class="col-span-full m-0 flex items-center gap-1.5 text-[11px] leading-relaxed text-[var(--wallpaper-muted)]"
+      >
+        <Info class="shrink-0" width="13" height="13" />
+        <span>
+          {{
+            t(
+              source === 'hot'
+                ? 'wallpaperSwitcher.hotHint'
+                : 'wallpaperSwitcher.toplistHint'
+            )
+          }}
+        </span>
+        <button
+          v-if="source === 'hot'"
+          type="button"
+          class="shrink-0 border-0 bg-transparent p-0 text-[var(--wallpaper-primary)] underline underline-offset-2 cursor-pointer"
+          @click="emit('setSource', 'toplist')"
+        >
+          {{ t('wallpaperSwitcher.browseMonthlyToplist') }}
+        </button>
+      </p>
     </section>
 
     <section class="grid-wrap">
@@ -204,10 +242,20 @@ const progressFor = (id: string): DownloadProgress | undefined =>
         {{
           t(
             category === 'people'
-              ? 'wallpaperSwitcher.noVerifiedPeople'
+              ? provider === 'wallspic'
+                ? 'wallpaperSwitcher.noVerifiedWallspicPeople'
+                : 'wallpaperSwitcher.noVerifiedPeople'
               : 'wallpaperSwitcher.noWallpapers'
           )
         }}
+        <button
+          v-if="provider === 'wallspic' && category === 'people'"
+          type="button"
+          class="rounded-md border border-[var(--wallpaper-border)] bg-[var(--wallpaper-panel)] px-4 py-2 text-[var(--wallpaper-primary)] hover:bg-[var(--wallpaper-hover)] cursor-pointer"
+          @click="emit('setProvider', 'wallhaven')"
+        >
+          {{ t('wallpaperSwitcher.searchPeopleOnWallhaven') }}
+        </button>
       </div>
       <RecycleScroller
         v-else

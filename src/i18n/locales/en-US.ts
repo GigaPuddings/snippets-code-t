@@ -1760,11 +1760,20 @@ export default {
     clear: 'Clear',
     refresh: 'Refresh',
     autoMatch: 'Auto match {resolution}',
+    autoMatchHint:
+      'Filters by your primary screen size, trying 1920 × 1080 if no results are found. Smaller images may be excluded.',
+    hotHint:
+      'Hot contains the website’s current trending results and may be a short list.',
+    toplistHint:
+      'Toplist ranks the past month and differs from the current Hot results.',
+    browseMonthlyToplist: 'Monthly toplist',
     loadingWallhaven: 'Loading online wallpapers...',
     retry: 'Retry',
     noWallpapers: 'No wallpapers available',
-    noVerifiedPeople:
-      'No landscape wallpapers have both Asian and women tags. Try another source or load more.',
+    noVerifiedPeople: 'No Asian-women wallpapers match the current filters.',
+    noVerifiedWallspicPeople:
+      'Wallspic returned no landscape images with both Asian and women tags. Other women images are not included automatically.',
+    searchPeopleOnWallhaven: 'Search Asian women on Wallhaven',
     preview: 'Preview',
     setWallpaper: 'Set wallpaper',
     setting: 'Setting',

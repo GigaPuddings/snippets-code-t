@@ -1878,7 +1878,7 @@ fn build_wallhaven_query(
             "categories".to_string(),
             category_bits(category).to_string(),
         ),
-        ("topRange".to_string(), "6M".to_string()),
+        ("topRange".to_string(), "1M".to_string()),
         ("order".to_string(), "desc".to_string()),
         ("atleast".to_string(), format!("{}x{}", width, height)),
         ("page".to_string(), page.to_string()),
@@ -2419,5 +2419,48 @@ mod tests {
         .unwrap();
         assert_eq!(page.page, 101);
         assert_eq!(page.last_page, 142);
+    }
+
+    #[test]
+    fn monthly_toplist_preserves_asian_women_filter_and_screen_resolution() {
+        let query = build_wallhaven_query(
+            &WallhavenSource::Toplist,
+            2,
+            Some("people"),
+            normalize_wallhaven_query(None, Some("people")).as_deref(),
+            2560,
+            1600,
+            true,
+        )
+        .into_iter()
+        .collect::<std::collections::HashMap<_, _>>();
+        assert_eq!(query["sorting"], "toplist");
+        assert_eq!(query["topRange"], "1M");
+        assert_eq!(query["categories"], "001");
+        assert_eq!(query["purity"], "100");
+        assert_eq!(query["q"], "+asian +women");
+        assert_eq!(query["atleast"], "2560x1600");
+        assert_eq!(query["page"], "2");
+    }
+
+    #[test]
+    fn monthly_html_retains_the_three_reported_asian_women_examples() {
+        let page = parse_wallhaven_html_response(
+            include_str!("wallpaper_switcher/fixtures/wallhaven-asian-monthly.html"),
+            1,
+        )
+        .unwrap();
+        assert_eq!(page.page, 1);
+        assert_eq!(page.last_page, 3);
+        let ids = page
+            .data
+            .iter()
+            .map(|item| item.id.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(ids, ["mlogek", "8g8661", "zpvqwy"]);
+        assert!(page
+            .data
+            .iter()
+            .all(|item| item.dimension_x >= 2560 && item.dimension_y >= 1600));
     }
 }

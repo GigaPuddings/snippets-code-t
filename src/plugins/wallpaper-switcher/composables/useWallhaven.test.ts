@@ -157,6 +157,32 @@ describe('online wallpaper feed', () => {
     expect(state.wallhavenError.value).toBe('wallpaperSwitcher.repeatedPage');
   });
 
+  it('keeps strict empty Wallspic results until the user switches, preserving filters', async () => {
+    const state = feed();
+    await state.setOnlineProvider('wallspic');
+    state.wallhavenKeyword.value = 'outdoors';
+    mocks.fetch.mockResolvedValueOnce(page(1, [], 1));
+    await state.setWallhavenCategory('people');
+    expect(state.wallpapers.value).toEqual([]);
+    expect(state.onlineProvider.value).toBe('wallspic');
+    await state.setOnlineProvider('wallhaven');
+    expect(mocks.fetch.mock.calls.at(-1)?.[0]).toMatchObject({
+      provider: 'wallhaven',
+      category: 'people',
+      query: 'outdoors',
+      source: 'hot',
+      page: 1
+    });
+    await state.setWallhavenSource('toplist');
+    expect(mocks.fetch.mock.calls.at(-1)?.[0]).toMatchObject({
+      provider: 'wallhaven',
+      category: 'people',
+      query: 'outdoors',
+      source: 'toplist',
+      page: 1
+    });
+  });
+
   it('uses source capabilities when switching from a Wallhaven ranking to Wallspic', async () => {
     const state = feed();
     await state.setWallhavenSource('toplist');
