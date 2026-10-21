@@ -1669,6 +1669,8 @@ export default {
     views: 'Views',
     asianWomen: 'Asian women',
     natureHint: 'Nature wallpapers in General and Anime categories by default',
+    categorySelectionHint:
+      'Click for single selection; Ctrl/⌘+click toggles multiple items. Keep at least one selected.',
     topRanges: {
       '1d': 'Last day',
       '3d': 'Last three days',

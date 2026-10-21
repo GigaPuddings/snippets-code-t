@@ -72,6 +72,8 @@ pub struct WallhavenFilters {
     pub asian_women: bool,
     // Missing in older filter objects; fall back to the legacy category only then.
     pub nature: Option<bool>,
+    // Visible category buttons, including Nature's implicit search scope.
+    pub selection: Option<String>,
     pub seed: Option<String>,
 }
 
@@ -82,6 +84,7 @@ impl Default for WallhavenFilters {
             top_range: "1M".into(),
             asian_women: false,
             nature: None,
+            selection: None,
             seed: None,
         }
     }

@@ -1575,6 +1575,7 @@ export default {
     views: '浏览量',
     asianWomen: '亚洲女性',
     natureHint: '筛选自然主题壁纸，默认包含通用与动漫分类',
+    categorySelectionHint: '点击单选；按住 Ctrl／⌘ 点击切换多选，至少保留一项',
     topRanges: {
       '1d': '近一天',
       '3d': '近三天',

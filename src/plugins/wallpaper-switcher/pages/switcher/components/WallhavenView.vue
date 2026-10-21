@@ -18,6 +18,10 @@ import {
   type WallhavenWallpaper
 } from '../../../api';
 import type { DownloadProgress } from '../../../composables/useWallhaven';
+import {
+  getWallhavenSelection,
+  selectWallhavenType
+} from '../../../composables/wallhavenSelection';
 import DownloadProgressIndicator from './DownloadProgressIndicator.vue';
 
 type WallhavenWorkingAction = 'setting' | 'downloading';
@@ -108,10 +112,14 @@ const categories = [
   { index: 1, labelKey: 'wallpaperSwitcher.categories.anime' },
   { index: 2, labelKey: 'wallpaperSwitcher.categories.people' }
 ];
-const toggleCategory = (index: number) => {
-  const bits = props.wallhavenFilters.categories.split('');
-  bits[index] = bits[index] === '1' ? '0' : '1';
-  if (bits.includes('1')) emit('setFilters', { categories: bits.join('') });
+const selection = computed(() => getWallhavenSelection(props.wallhavenFilters));
+const selectCategory = (index: number, event: MouseEvent) => {
+  const patch = selectWallhavenType(
+    props.wallhavenFilters,
+    index,
+    event.ctrlKey || event.metaKey
+  );
+  if (patch) emit('setFilters', patch);
 };
 const filterSelectClass =
   'h-8 min-w-0 rounded-md border border-[var(--wallpaper-border)] bg-[var(--wallpaper-panel)] px-2 text-[var(--wallpaper-text)]';
@@ -190,25 +198,28 @@ const progressFor = (id: string): DownloadProgress | undefined =>
             :key="item.index"
             type="button"
             :class="{
-              active: wallhavenFilters.categories[item.index] === '1'
+              active: selection[item.index] === '1'
             }"
-            :aria-pressed="wallhavenFilters.categories[item.index] === '1'"
-            @click="toggleCategory(item.index)"
+            :aria-pressed="selection[item.index] === '1'"
+            :title="t('wallpaperSwitcher.categorySelectionHint')"
+            @click="selectCategory(item.index, $event)"
           >
             {{ t(item.labelKey) }}
           </button>
           <button
             type="button"
-            :class="{ active: wallhavenFilters.nature }"
-            :aria-pressed="Boolean(wallhavenFilters.nature)"
-            :title="t('wallpaperSwitcher.natureHint')"
-            @click="emit('setFilters', { nature: !wallhavenFilters.nature })"
+            :class="{ active: selection[3] === '1' }"
+            :aria-pressed="selection[3] === '1'"
+            :title="`${t('wallpaperSwitcher.natureHint')}\n${t('wallpaperSwitcher.categorySelectionHint')}`"
+            @click="selectCategory(3, $event)"
           >
             {{ t('wallpaperSwitcher.categories.nature') }}
           </button>
         </div>
         <label
-          v-if="wallhavenFilters.categories === '001'"
+          v-if="
+            wallhavenFilters.categories === '001' && !wallhavenFilters.nature
+          "
           class="flex h-8 cursor-pointer items-center gap-1.5 whitespace-nowrap text-xs text-[var(--wallpaper-text)]"
         >
           <input

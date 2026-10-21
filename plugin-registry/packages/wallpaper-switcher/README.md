@@ -14,7 +14,10 @@ Windows desktop wallpaper switching plugin for Snippets Code.
 - Combine Wallhaven General, Anime, and People categories. An optional Asian women
   preset is available when only People is selected; it is not applied to Wallspic.
 - Filter Nature wallpapers by tag across General and Anime, with saved preferences
-  shared by browsing and automatic rotation. Selecting People clears Nature.
+  shared by browsing and automatic rotation.
+- Click a type for single selection; Ctrl/Command-click toggles multiple types.
+  Nature alone highlights only Nature, while keeping its General + Anime search
+  scope. Explicit combinations are saved and restored.
 - Load more images by scrolling, with deduplication, retry, and virtualized rows.
   Random Wallhaven listings keep one seed across pages.
 - Wallhaven searches retain primary-screen resolution matching with a 1080p fallback.

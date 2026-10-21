@@ -2,6 +2,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, type Ref } from 'vue';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { useI18n } from 'vue-i18n';
 import modal from '@/utils/modal';
+import { filtersForWallhavenSelection } from './wallhavenSelection';
 import {
   downloadWallhavenWallpaper,
   fetchWallhaven,
@@ -223,19 +224,20 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
   };
   const setWallhavenFilters = async (patch: Partial<WallhavenFilters>) => {
     if (onlineProvider.value !== 'wallhaven') return;
-    wallhavenFilters.value = { ...wallhavenFilters.value, ...patch };
-    if (patch.nature) {
-      wallhavenFilters.value.categories = '110';
-      wallhavenFilters.value.asianWomen = false;
+    const next = { ...wallhavenFilters.value, ...patch };
+    let selection = patch.selection ?? null;
+    if (selection === null) {
+      if (patch.asianWomen) selection = '0010';
+      else if (patch.nature === true) selection = '0001';
+      else if (patch.categories) selection = `${patch.categories}0`;
+      else if (patch.nature === false) selection = `${next.categories}0`;
     }
-    // The Asian women preset requires the People category alone.
-    if (patch.asianWomen) {
-      wallhavenFilters.value.categories = '001';
-      wallhavenFilters.value.nature = false;
+    if (selection !== null) {
+      const normalized = filtersForWallhavenSelection(next, selection);
+      if (!normalized) return;
+      Object.assign(next, normalized);
     }
-    if (patch.categories?.[2] === '1') wallhavenFilters.value.nature = false;
-    if (patch.categories && patch.categories !== '001')
-      wallhavenFilters.value.asianWomen = false;
+    wallhavenFilters.value = next;
     await fetchWallhavenData(1);
   };
   const setOnlineProvider = async (provider: WallpaperProvider) => {

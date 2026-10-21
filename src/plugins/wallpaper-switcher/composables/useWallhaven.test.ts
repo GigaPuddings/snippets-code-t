@@ -274,6 +274,37 @@ describe('online wallpaper feed', () => {
     expect(state.wallhavenFilters.value.nature).toBe(false);
   });
 
+  it('persists explicit type buttons separately from the effective Nature scope', async () => {
+    const state = feed();
+    await state.setWallhavenFilters({ selection: '0001' });
+    expect(state.wallhavenFilters.value).toMatchObject({
+      selection: '0001',
+      categories: '110',
+      nature: true
+    });
+    await state.setWallhavenFilters({ selection: '1000' });
+    expect(state.wallhavenFilters.value).toMatchObject({
+      selection: '1000',
+      categories: '100',
+      nature: false
+    });
+    await state.setWallhavenFilters({ selection: '1001' });
+    await state.openWallhavenGrid();
+    expect(state.wallhavenFilters.value).toMatchObject({
+      selection: '1001',
+      categories: '100',
+      nature: true
+    });
+    const count = mocks.fetch.mock.calls.length;
+    await state.setWallhavenFilters({ selection: '0000' });
+    expect(mocks.fetch).toHaveBeenCalledTimes(count);
+    await state.loadMoreWallpapers();
+    expect(mocks.fetch.mock.calls.at(-1)?.[0]).toMatchObject({
+      page: 2,
+      wallhavenFilters: { selection: '1001', categories: '100', nature: true }
+    });
+  });
+
   it('clears saved free-text conditions so the filter bar represents the full request', async () => {
     const config = ref({
       ...defaultWallpaperConfig(),
