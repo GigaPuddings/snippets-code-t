@@ -33,6 +33,7 @@ export interface WallhavenFilters {
   categories: string;
   topRange: WallhavenTopRange;
   asianWomen: boolean;
+  nature?: boolean | null;
   seed?: string | null;
 }
 
@@ -76,6 +77,8 @@ export const wallhavenFiltersForConfig = (
   asianWomen:
     config.wallhavenFilters?.asianWomen ??
     config.wallhavenCategory === 'people',
+  nature:
+    config.wallhavenFilters?.nature ?? config.wallhavenCategory === 'nature',
   seed: config.wallhavenFilters?.seed ?? null
 });
 

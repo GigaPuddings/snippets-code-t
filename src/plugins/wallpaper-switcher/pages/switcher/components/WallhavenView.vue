@@ -197,6 +197,15 @@ const progressFor = (id: string): DownloadProgress | undefined =>
           >
             {{ t(item.labelKey) }}
           </button>
+          <button
+            type="button"
+            :class="{ active: wallhavenFilters.nature }"
+            :aria-pressed="Boolean(wallhavenFilters.nature)"
+            :title="t('wallpaperSwitcher.natureHint')"
+            @click="emit('setFilters', { nature: !wallhavenFilters.nature })"
+          >
+            {{ t('wallpaperSwitcher.categories.nature') }}
+          </button>
         </div>
         <label
           v-if="wallhavenFilters.categories === '001'"

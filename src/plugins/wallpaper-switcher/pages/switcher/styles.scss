@@ -545,7 +545,7 @@
   }
 
   .wallhaven-tabs {
-    @apply grid grid-cols-3 w-auto min-w-[190px] h-8 p-0 overflow-hidden rounded-md border shadow-none;
+    @apply grid grid-cols-4 w-auto min-w-[250px] h-8 p-0 overflow-hidden rounded-md border shadow-none;
 
     background: var(--wallpaper-soft);
     border-color: var(--wallpaper-border);

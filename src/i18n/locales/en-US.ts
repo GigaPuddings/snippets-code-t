@@ -1668,6 +1668,7 @@ export default {
     relevance: 'Relevance',
     views: 'Views',
     asianWomen: 'Asian women',
+    natureHint: 'Nature wallpapers in General and Anime categories by default',
     topRanges: {
       '1d': 'Last day',
       '3d': 'Last three days',

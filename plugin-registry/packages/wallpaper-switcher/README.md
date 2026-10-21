@@ -13,6 +13,8 @@ Windows desktop wallpaper switching plugin for Snippets Code.
   sorting. Toplist has seven time ranges, from one day to one year.
 - Combine Wallhaven General, Anime, and People categories. An optional Asian women
   preset is available when only People is selected; it is not applied to Wallspic.
+- Filter Nature wallpapers by tag across General and Anime, with saved preferences
+  shared by browsing and automatic rotation. Selecting People clears Nature.
 - Load more images by scrolling, with deduplication, retry, and virtualized rows.
   Random Wallhaven listings keep one seed across pages.
 - Wallhaven searches retain primary-screen resolution matching with a 1080p fallback.

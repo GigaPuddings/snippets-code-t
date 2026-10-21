@@ -70,6 +70,8 @@ pub struct WallhavenFilters {
     pub categories: String,
     pub top_range: String,
     pub asian_women: bool,
+    // Missing in older filter objects; fall back to the legacy category only then.
+    pub nature: Option<bool>,
     pub seed: Option<String>,
 }
 
@@ -79,6 +81,7 @@ impl Default for WallhavenFilters {
             categories: "100".into(),
             top_range: "1M".into(),
             asian_women: false,
+            nature: None,
             seed: None,
         }
     }
@@ -89,6 +92,7 @@ impl WallhavenFilters {
         Self {
             categories: category_bits(category).to_string(),
             asian_women: category == Some("people"),
+            nature: Some(category == Some("nature")),
             ..Self::default()
         }
     }
@@ -851,7 +855,11 @@ fn online_query(params: &WallhavenFetchParams) -> Option<String> {
             .map(normalize_keyword_alias);
     }
     if let Some(filters) = &params.wallhaven_filters {
-        let keyword = normalize_wallhaven_query(params.query.clone(), None);
+        let category = filters
+            .nature
+            .unwrap_or(params.category.as_deref() == Some("nature"))
+            .then_some("nature");
+        let keyword = normalize_wallhaven_query(params.query.clone(), category);
         return if filters.asian_women {
             Some(
                 format!("{} +asian +women", keyword.unwrap_or_default())
@@ -2610,5 +2618,59 @@ mod tests {
                 .validate()
                 .is_err());
         }
+    }
+
+    #[test]
+    fn nature_preset_uses_the_same_tag_for_browsing_and_rotation() {
+        let mut config = WallpaperConfig {
+            online_provider: WallpaperProvider::Wallhaven,
+            wallhaven_source: WallhavenSource::Toplist,
+            wallhaven_filters: Some(WallhavenFilters {
+                categories: "110".into(),
+                top_range: "1y".into(),
+                nature: Some(true),
+                ..WallhavenFilters::default()
+            }),
+            ..WallpaperConfig::default()
+        };
+        let scope = wallhaven_history_scope(&config);
+        let mut params = wallpaper_request_from_config(&config);
+        params.page = Some(2);
+        let query = build_wallhaven_query(&params, 2560, 1600)
+            .into_iter()
+            .collect::<std::collections::HashMap<_, _>>();
+        assert_eq!(query["q"], "nature");
+        assert_eq!(query["categories"], "110");
+        assert_eq!(query["topRange"], "1y");
+        assert_eq!(query["page"], "2");
+        assert_eq!(scope, online_request_scope(&params));
+        params.query = Some("nature".into());
+        assert_eq!(online_query(&params).as_deref(), Some("nature"));
+        config.wallhaven_filters.as_mut().unwrap().nature = Some(false);
+        assert_ne!(scope, wallhaven_history_scope(&config));
+        assert_eq!(online_query(&wallpaper_request_from_config(&config)), None);
+        config.online_provider = WallpaperProvider::Wallspic;
+        config.wallhaven_filters.as_mut().unwrap().nature = Some(true);
+        assert_eq!(online_query(&wallpaper_request_from_config(&config)), None);
+    }
+
+    #[test]
+    fn legacy_nature_filters_migrate_without_overriding_explicit_false() {
+        let mut config = WallpaperConfig {
+            online_provider: WallpaperProvider::Wallhaven,
+            wallhaven_category: "nature".into(),
+            ..WallpaperConfig::default()
+        };
+        normalize_wallpaper_config_preferences(&mut config);
+        assert_eq!(
+            config.wallhaven_filters.as_ref().unwrap().nature,
+            Some(true)
+        );
+        let mut params: WallhavenFetchParams = serde_json::from_str(
+            r#"{"source":"hot","category":"nature","wallhavenFilters":{"categories":"110","asianWomen":false}}"#
+        ).unwrap();
+        assert_eq!(online_query(&params).as_deref(), Some("nature"));
+        params.wallhaven_filters.as_mut().unwrap().nature = Some(false);
+        assert_eq!(online_query(&params), None);
     }
 }

@@ -1574,6 +1574,7 @@ export default {
     relevance: '相关度',
     views: '浏览量',
     asianWomen: '亚洲女性',
+    natureHint: '筛选自然主题壁纸，默认包含通用与动漫分类',
     topRanges: {
       '1d': '近一天',
       '3d': '近三天',

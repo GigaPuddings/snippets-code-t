@@ -224,8 +224,16 @@ export function useWallhaven({ config, refreshStatus }: UseWallhavenOptions) {
   const setWallhavenFilters = async (patch: Partial<WallhavenFilters>) => {
     if (onlineProvider.value !== 'wallhaven') return;
     wallhavenFilters.value = { ...wallhavenFilters.value, ...patch };
+    if (patch.nature) {
+      wallhavenFilters.value.categories = '110';
+      wallhavenFilters.value.asianWomen = false;
+    }
     // The Asian women preset requires the People category alone.
-    if (patch.asianWomen) wallhavenFilters.value.categories = '001';
+    if (patch.asianWomen) {
+      wallhavenFilters.value.categories = '001';
+      wallhavenFilters.value.nature = false;
+    }
+    if (patch.categories?.[2] === '1') wallhavenFilters.value.nature = false;
     if (patch.categories && patch.categories !== '001')
       wallhavenFilters.value.asianWomen = false;
     await fetchWallhavenData(1);

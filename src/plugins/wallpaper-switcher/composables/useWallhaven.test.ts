@@ -211,6 +211,69 @@ describe('online wallpaper feed', () => {
     );
   });
 
+  it('persists Nature across sorting, pagination and provider switches', async () => {
+    const config = ref({
+      ...defaultWallpaperConfig(),
+      onlineProvider: 'wallhaven' as const
+    });
+    const state = useWallhaven({
+      config,
+      refreshStatus: vi.fn(async () => undefined)
+    });
+    await state.setWallhavenFilters({ asianWomen: true });
+    await state.setWallhavenFilters({ nature: true });
+    await state.setWallhavenSource('toplist');
+    await state.setWallhavenFilters({ topRange: '1y' });
+    await state.loadMoreWallpapers();
+    expect(mocks.fetch.mock.calls.at(-1)?.[0]).toMatchObject({
+      page: 2,
+      source: 'toplist',
+      query: null,
+      wallhavenFilters: {
+        nature: true,
+        categories: '110',
+        asianWomen: false,
+        topRange: '1y'
+      }
+    });
+    expect(config.value.wallhavenFilters?.nature).toBe(true);
+    await state.openWallhavenGrid();
+    expect(state.wallhavenFilters.value.nature).toBe(true);
+    await state.setOnlineProvider('wallspic');
+    expect(mocks.fetch.mock.calls.at(-1)?.[0].wallhavenFilters).toBeNull();
+    await state.setOnlineProvider('wallhaven');
+    expect(mocks.fetch.mock.calls.at(-1)?.[0].wallhavenFilters.nature).toBe(
+      true
+    );
+    await state.setWallhavenFilters({ asianWomen: true });
+    expect(state.wallhavenFilters.value.nature).toBe(false);
+  });
+
+  it('restores legacy Nature while respecting an explicitly disabled preset', async () => {
+    const config = ref({
+      ...defaultWallpaperConfig(),
+      onlineProvider: 'wallhaven' as const,
+      wallhavenCategory: 'nature',
+      wallhavenFilters: {
+        categories: '110',
+        topRange: '1M' as const,
+        asianWomen: false
+      }
+    });
+    const state = useWallhaven({
+      config,
+      refreshStatus: vi.fn(async () => undefined)
+    });
+    await state.openWallhavenGrid();
+    expect(state.wallhavenFilters.value.nature).toBe(true);
+    await state.setWallhavenFilters({ nature: false });
+    await state.openWallhavenGrid();
+    expect(state.wallhavenFilters.value.nature).toBe(false);
+    await state.setWallhavenFilters({ nature: true });
+    await state.setWallhavenFilters({ categories: '111' });
+    expect(state.wallhavenFilters.value.nature).toBe(false);
+  });
+
   it('clears saved free-text conditions so the filter bar represents the full request', async () => {
     const config = ref({
       ...defaultWallpaperConfig(),
