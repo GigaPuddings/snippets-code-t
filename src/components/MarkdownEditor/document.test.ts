@@ -11,16 +11,21 @@ import { EditorView } from '@codemirror/view';
 import {
   createDocumentState,
   ancestorAt,
-  continueOrderedListOnMarkerSpace,
   clearSelectionFormatting,
   extractHeadings,
+  insertFencedCodeBlock,
   insertMarkdownNewline,
   prefixSelection,
   wrapSelection,
   selectionIsCurrent,
   trailingCodeParagraph
 } from './document';
-import { livePreview, previewTargets } from './preview';
+import {
+  livePreview,
+  previewTargets,
+  setPreviewFocus,
+  sourceRangeIsActive
+} from './preview';
 
 function pressEnter(text: string, position?: number) {
   let state = createDocumentState(text);
@@ -93,13 +98,45 @@ function previewMarkers(content: string) {
 }
 
 describe('Markdown source document', () => {
+  it('renders the first line until the editor is actively used and hides source on blur', () => {
+    const source = '# Heading\n\nText';
+    let state = createDocumentState(source, [livePreview(options)]);
+    const hidesHeadingMark = () => {
+      let hidden = false;
+      for (const decorations of state.facet(EditorView.decorations)) {
+        if (typeof decorations === 'function') continue;
+        decorations.between(0, 2, (from, to, decoration) => {
+          if (from === 0 && to === 2 && !decoration.spec.class) hidden = true;
+        });
+      }
+      return hidden;
+    };
+    expect(sourceRangeIsActive(state, 0, 9)).toBe(false);
+    expect(hidesHeadingMark()).toBe(true);
+    state = state.update({ effects: setPreviewFocus.of(true) }).state;
+    expect(sourceRangeIsActive(state, 0, 9)).toBe(true);
+    expect(hidesHeadingMark()).toBe(false);
+    state = state.update({ effects: setPreviewFocus.of(false) }).state;
+    expect(hidesHeadingMark()).toBe(true);
+    expect(state.sliceDoc()).toBe(source);
+  });
+
+  it('reveals a keyboard-selected line while a newly loaded note starts rendered', () => {
+    let state = createDocumentState('**Bold**', [livePreview(options)]);
+    state = state.update({
+      selection: { anchor: 3 },
+      userEvent: 'select'
+    }).state;
+    expect(sourceRangeIsActive(state, 0, 8)).toBe(true);
+    const next = createDocumentState('**Next**', [livePreview(options)]);
+    expect(sourceRangeIsActive(next, 0, 8)).toBe(false);
+  });
+
   it.each([
     '1. question',
     '1. question\n   answer',
-    '1. question\n   ',
     '1. ',
     '> 1. question',
-    '1. parent\n   1. child\n      ',
     '- [ ] ',
     '- [x] '
   ])(
@@ -175,47 +212,62 @@ describe('Markdown source document', () => {
     expect(next.sliceDoc()).toBe(source + '\r\n\r\n');
     expect(next.selection.main.head).toBe(next.doc.length);
     expect(pressEnter('intro\r\n\r\n1. question').content).toBe(
-      'intro\r\n\r\n1. question\r\n   '
+      'intro\r\n\r\n1. question\r\n2. '
     );
-    expect(pressEnter('intro\r\n\r\n1. question\r\n   ').content).toBe(
-      'intro\r\n\r\n1. question\r\n\r\n'
+    expect(pressEnter('intro\r\n\r\n1. ').content).toBe('intro\r\n\r\n');
+  });
+
+  it('parses mixed file line endings and an attachment beside prose as real lines', () => {
+    const source =
+      'intro\r\n\r\ntext\n<img src="images/a.png">\n### heading\n\n```js\nconst n = 1;\n```';
+    const state = createDocumentState(source);
+    expect(state.doc.lines).toBe(9);
+    expect(extractHeadings(state).map((heading) => heading.text)).toEqual([
+      'heading'
+    ]);
+    expect(previewTargets(state).map((target) => target.kind)).toEqual([
+      'image'
+    ]);
+    expect(ancestorAt(state, ['FencedCode'], state.doc.length)?.name).toBe(
+      'FencedCode'
     );
   });
-  it.each([
-    ['1. question\n   2.', '1. question\n2. '],
-    ['1. question\n   answer\n   2.', '1. question\n   answer\n2. '],
-    ['3. first\n1. second\n   5.', '3. first\n1. second\n5. '],
-    ['1. parent\n   1. child\n      2.', '1. parent\n   1. child\n   2. '],
-    ['> 1. question\n>    2.', '> 1. question\n> 2. ']
-  ])(
-    'promotes an explicitly typed next number from prose to a sibling: %s',
-    (source, expected) => {
-      const view = commandView(source, source.length);
-      expect(
-        continueOrderedListOnMarkerSpace(
-          view as Parameters<typeof continueOrderedListOnMarkerSpace>[0]
-        )
-      ).toBe(true);
-      expect(view.state.sliceDoc()).toBe(expected);
+
+  it.each(['\n', '\r\n'])(
+    'accepts pasted or generated newlines in a %j document as one undoable edit',
+    (separator) => {
+      const original = `intro${separator}${separator}text`;
+      let state = createDocumentState(original, [history()]);
+      const insert = '\n<img src="images/a.png">\n### heading\r\n\r\n**bold**';
+      state = state.update({
+        changes: { from: state.doc.length, insert }
+      }).state;
+      expect(state.doc.lines).toBe(7);
+      expect(extractHeadings(state).map((heading) => heading.text)).toEqual([
+        'heading'
+      ]);
+      expect(previewTargets(state)).toHaveLength(1);
+      const target = {
+        get state() {
+          return state;
+        },
+        dispatch(transaction: Transaction) {
+          state = transaction.state;
+        }
+      };
+      expect(undo(target)).toBe(true);
+      expect(state.sliceDoc()).toBe(original);
     }
   );
 
-  it.each([
-    '1. question\n   1.',
-    '1. question\n   answer 2.',
-    '1. question\n   4.',
-    '```\n1. code\n   2.\n```'
-  ])('leaves nested or literal markers alone: %s', (source) => {
-    const view = commandView(
-      source,
-      source.endsWith('```') ? source.length - 4 : source.length
-    );
-    expect(
-      continueOrderedListOnMarkerSpace(
-        view as Parameters<typeof continueOrderedListOnMarkerSpace>[0]
-      )
-    ).toBe(false);
-    expect(view.state.sliceDoc()).toBe(source);
+  it('keeps a selection inside inserted text when normalizing its line breaks', () => {
+    const state = createDocumentState('intro\r\ntext').update({
+      changes: { from: 0, insert: '**a\nb**' },
+      selection: { anchor: 2, head: 5 }
+    }).state;
+    expect(state.sliceDoc(2, 5)).toBe('a\r\nb');
+    expect(state.selection.main.from).toBe(2);
+    expect(state.selection.main.to).toBe(5);
   });
   it.each([
     ['1. first\n1. second\n1. third', ['1.', '2.', '3.']],
@@ -260,26 +312,25 @@ describe('Markdown source document', () => {
     expect(state.sliceDoc()).toBe('修改' + original);
   });
 
-  it('continues numbered items as prose without generating another number', () => {
-    expect(pressEnter('1. question').content).toBe('1. question\n   ');
-    expect(pressEnter('1. question\n   answer').content).toBe(
-      '1. question\n   answer\n   '
-    );
-    expect(pressEnter('1. question\n   ').content).toBe('1. question\n\n');
-    expect(pressEnter('1. ').content).toBe('');
+  it('uses native numbered-list continuation and exit behavior', () => {
+    expect(pressEnter('1. question').content).toBe('1. question\n2. ');
+    expect(pressEnter('> 1. question').content).toBe('> 1. question\n> 2. ');
     expect(pressEnter('1. parent\n   1. child').content).toBe(
-      '1. parent\n   1. child\n      '
+      '1. parent\n   1. child\n   2. '
     );
-  });
-
-  it('exits only the current ordered-list level and preserves quote containers', () => {
-    expect(pressEnter('1. parent\n   1. child\n      ').content).toBe(
-      '1. parent\n   1. child\n\n   '
+    expect(pressEnter('1. ').content).toBe('');
+    const loose = pressEnter('1. question\n2. ').content;
+    const exited = pressEnter(loose).content;
+    expect(exited).toBe('1. question\n\n');
+    const after = createDocumentState(
+      exited + '### heading\n\n' + '```js\nconst n = 1;\n```'
     );
-    expect(pressEnter('> 1. question').content).toBe('> 1. question\n>    ');
-    expect(pressEnter('> 1. question\n>    ').content).toBe(
-      '> 1. question\n>\n> '
-    );
+    expect(extractHeadings(after).map((heading) => heading.text)).toEqual([
+      'heading'
+    ]);
+    expect(
+      ancestorAt(after, ['FencedCode'], after.doc.length)?.parent?.name
+    ).toBe('Document');
   });
 
   it('keeps bullet continuation while leaving letter prefixes and code to normal text commands', () => {
@@ -290,10 +341,11 @@ describe('Markdown source document', () => {
     expect(pressEnter('```java\n1. answer\n```', 17).handled).toBe(false);
   });
 
-  it('exits empty task items instead of inserting a blank line before the marker', () => {
+  it('uses native empty task item behavior', () => {
     expect(pressEnter('- [ ] ').content).toBe('');
     expect(pressEnter('- [x] ').content).toBe('');
-    expect(pressEnter('- [ ] first\n- [ ] ').content).toBe('- [ ] first\n');
+    const loose = pressEnter('- [ ] first\n- [ ] ').content;
+    expect(pressEnter(loose).content).toBe('- [ ] first\n\n');
   });
 
   it('recognizes headings, GFM tables and wiki links only outside code', () => {
@@ -350,6 +402,56 @@ describe('Markdown source document', () => {
     const code = commandView('`a*b`', 1, 4);
     wrapSelection(code as Parameters<typeof wrapSelection>[0], '`');
     expect(code.state.sliceDoc()).toBe('a*b');
+  });
+
+  it('inserts a fenced code block at the line start without carrying indentation', () => {
+    const blank = commandView('  ', 2);
+    insertFencedCodeBlock(blank);
+    expect(blank.state.sliceDoc()).toBe('```\n\n```');
+    expect(blank.state.selection.main.head).toBe(4);
+
+    const prose = commandView('before after', 7);
+    insertFencedCodeBlock(prose);
+    expect(prose.state.sliceDoc()).toBe('before \n```\n\n```\nafter');
+
+    const selected = commandView('intro\n  code\noutro', 8, 12);
+    insertFencedCodeBlock(selected);
+    expect(selected.state.sliceDoc()).toBe('intro\n```\ncode\n```\noutro');
+
+    const fullLine = commandView('first\nsecond', 0, 6);
+    insertFencedCodeBlock(fullLine);
+    expect(fullLine.state.sliceDoc()).toBe('```\nfirst\n```\nsecond');
+
+    const windowsLine = commandView('  \r\nnext', 2);
+    insertFencedCodeBlock(windowsLine);
+    expect(windowsLine.state.sliceDoc()).toBe('```\r\n\r\n```\r\nnext');
+    expect(windowsLine.state.selection.main.head).toBe(4);
+
+    const windowsSelection = commandView('first\r\nsecond', 0, 6);
+    insertFencedCodeBlock(windowsSelection);
+    expect(windowsSelection.state.sliceDoc()).toBe(
+      '```\r\nfirst\r\n```\r\nsecond'
+    );
+  });
+
+  it('parses bold text containing Chinese parentheses inside adjacent prose', () => {
+    const strongIn = (source: string) => {
+      const state = createDocumentState(source);
+      const strong: string[] = [];
+      syntaxTree(state).iterate({
+        enter(node) {
+          if (node.name === 'StrongEmphasis')
+            strong.push(state.doc.sliceString(node.from, node.to));
+        }
+      });
+      return strong;
+    };
+    expect(strongIn('前**（文本）**后')).toEqual(['**（文本）**']);
+    expect(strongIn('新增**知识库问答（RAG）**模式')).toEqual([
+      '**知识库问答（RAG）**'
+    ]);
+    expect(strongIn('`前**（文本）**后`')).toEqual([]);
+    expect(strongIn('\\**（文本）**')).toEqual([]);
   });
 
   it('does not prefix the next unselected line when a selection ends at its start', () => {

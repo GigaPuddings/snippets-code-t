@@ -1,10 +1,11 @@
 import {
   EditorState,
   Text,
+  type ChangeSpec,
   type Extension,
   type TransactionSpec
 } from '@codemirror/state';
-import { insertNewlineContinueMarkup } from '@codemirror/lang-markdown';
+import { insertNewlineContinueMarkupCommand } from '@codemirror/lang-markdown';
 import { isolateHistory } from '@codemirror/commands';
 import { markdownLanguageSupport } from '@/utils/markdown-language';
 import { syntaxTree } from '@codemirror/language';
@@ -25,9 +26,38 @@ export function createDocumentState(
   extensions: Extension[] = []
 ) {
   return EditorState.create({
-    doc: content,
+    doc: Text.of(content.split(/\r\n?|\n/)),
     extensions: [
       EditorState.lineSeparator.of(content.includes('\r\n') ? '\r\n' : '\n'),
+      // lineSeparator controls serialization and string insertion. Commands,
+      // attachments and paste may use a different separator, so repair embedded
+      // separators into Text lines in the same transaction (including undo).
+      EditorState.transactionFilter.of((transaction) => {
+        if (!transaction.docChanged) return transaction;
+        const changes: ChangeSpec[] = [];
+        transaction.changes.iterChanges((_from, _to, from, _end, inserted) => {
+          let position = from;
+          inserted.toJSON().forEach((line, index) => {
+            for (const match of line.matchAll(/\r\n?|\n/g)) {
+              const start = position + match.index;
+              // A CR before an existing Text line break belongs to that CRLF.
+              const beforeBreak =
+                match[0] === '\r' &&
+                match.index === line.length - 1 &&
+                index < inserted.lines - 1;
+              changes.push({
+                from: start,
+                to: start + match[0].length,
+                insert: beforeBreak ? '' : Text.of(['', ''])
+              });
+            }
+            position += line.length + 1;
+          });
+        });
+        return changes.length
+          ? [transaction, { changes, sequential: true }]
+          : transaction;
+      }),
       markdownLanguageSupport(),
       ...extensions
     ]
@@ -84,142 +114,7 @@ export function trailingCodeParagraph(
   };
 }
 
-/** Keep the product's explicit rule: Enter in an ordered item continues prose. */
-export function insertMarkdownNewline(
-  view: Pick<EditorView, 'state' | 'dispatch'>
-): boolean {
-  const { state } = view;
-  const selection = state.selection.main;
-  if (state.readOnly) return false;
-  if (ancestorAt(state, ['FencedCode', 'CodeBlock'])) return false;
-  const dispatch = (spec: TransactionSpec): void =>
-    view.dispatch(
-      state.update(spec, { scrollIntoView: true, userEvent: 'input' })
-    );
-  const line = state.doc.lineAt(selection.from);
-  const emptyTask = /^(\s*)[-+*]\s+\[[ xX]\]\s*$/.exec(line.text);
-  if (
-    emptyTask &&
-    ancestorAt(state, ['BulletList'], line.from + emptyTask[1].length + 1)
-  ) {
-    dispatch({
-      changes: { from: line.from, to: selection.to, insert: emptyTask[1] },
-      selection: { anchor: line.from + emptyTask[1].length },
-      userEvent: 'input'
-    });
-    return true;
-  }
-  const quotePrefix = /^(?:[ \t]*>[ \t]?)+/.exec(line.text)?.[0] || '';
-  const bodyLine = line.text.slice(quotePrefix.length);
-  const ordered = /^(\s*)(\d+[.)])(\s+)(.*)$/.exec(bodyLine);
-  const list = ancestorAt(state, ['OrderedList', 'BulletList']);
-  const inOrdered =
-    (list?.name === 'OrderedList' ? list : null) ||
-    (!bodyLine.trim() &&
-      line.number > 1 &&
-      ancestorAt(
-        state,
-        ['OrderedList'],
-        state.doc.line(line.number - 1).to - 1
-      ));
-  if (ordered && inOrdered) {
-    if (!ordered[4].trim()) {
-      dispatch({
-        changes: { from: line.from, to: selection.to, insert: quotePrefix },
-        selection: { anchor: line.from + quotePrefix.length }
-      });
-    } else {
-      const indent =
-        quotePrefix +
-        ordered[1] +
-        ' '.repeat(ordered[2].length + ordered[3].length);
-      dispatch(state.replaceSelection(Text.of(['', indent])));
-    }
-    return true;
-  }
-  if (inOrdered) {
-    if (!bodyLine.trim()) {
-      const parentItem =
-        inOrdered.parent?.name === 'ListItem' ? inOrdered.parent : null;
-      const parentMark = parentItem?.getChild('ListMark');
-      let indent = quotePrefix;
-      if (parentMark) {
-        const parentLine = state.doc.lineAt(parentMark.from);
-        const gap =
-          /^[ \t]*/.exec(
-            state.doc.sliceString(parentMark.to, parentLine.to)
-          )?.[0].length || 1;
-        indent =
-          state.doc.sliceString(parentLine.from, parentMark.from) +
-          ' '.repeat(parentMark.to - parentMark.from + gap);
-      }
-      const insert = Text.of([quotePrefix.trimEnd(), indent]);
-      dispatch({
-        changes: { from: line.from, to: selection.to, insert },
-        selection: { anchor: line.from + insert.length }
-      });
-    } else {
-      dispatch(
-        state.replaceSelection(
-          Text.of(['', quotePrefix + (bodyLine.match(/^\s*/)?.[0] || '')])
-        )
-      );
-    }
-    return true;
-  }
-  return insertNewlineContinueMarkup(view as EditorView);
-}
-
-/** Match the legacy editor: typing the next marker ends an ordered item's prose. */
-export function continueOrderedListOnMarkerSpace(
-  view: {
-    readonly state: EditorState;
-    dispatch: (transaction: TransactionSpec) => void;
-  },
-  from = view.state.selection.main.from,
-  to = view.state.selection.main.to
-): boolean {
-  const { state } = view;
-  if (state.readOnly || from !== to || state.selection.ranges.length !== 1)
-    return false;
-  if (ancestorAt(state, ['FencedCode', 'CodeBlock'], from)) return false;
-  const line = state.doc.lineAt(from);
-  if (from !== line.to) return false;
-  let item = ancestorAt(state, ['ListItem'], from);
-  while (item && state.doc.lineAt(item.from).number === line.number) {
-    let parent = item.parent;
-    while (parent && parent.name !== 'ListItem') parent = parent.parent;
-    item = parent;
-  }
-  const list = item?.parent;
-  if (!item || list?.name !== 'OrderedList') return false;
-  const firstMark = list.getChild('ListItem')?.getChild('ListMark');
-  if (!firstMark) return false;
-  const marker = state.doc.sliceString(firstMark.from, firstMark.to);
-  let nextNumber = Number(marker.slice(0, -1)) + 1;
-  for (
-    let sibling = list.firstChild;
-    sibling && sibling.from !== item.from;
-    sibling = sibling.nextSibling
-  ) {
-    if (sibling.name === 'ListItem') nextNumber++;
-  }
-  const parentLine = state.doc.lineAt(item.from);
-  const prefix = state.doc.sliceString(parentLine.from, item.from);
-  const quotePrefix = /^(?:[ \t]*>[ \t]?)+/.exec(prefix)?.[0] || '';
-  if (!line.text.startsWith(quotePrefix)) return false;
-  const typed = /^[ \t]*(\d+)([.)])$/.exec(line.text.slice(quotePrefix.length));
-  if (!typed || Number(typed[1]) !== nextNumber || typed[2] !== marker.at(-1))
-    return false;
-  const insert = prefix + typed[1] + typed[2] + ' ';
-  view.dispatch({
-    changes: { from: line.from, to, insert },
-    selection: { anchor: line.from + insert.length },
-    scrollIntoView: true,
-    userEvent: 'input'
-  });
-  return true;
-}
+export const insertMarkdownNewline = insertNewlineContinueMarkupCommand();
 
 export function wrapSelection(
   view: EditorView,
@@ -287,6 +182,40 @@ export function wrapSelection(
       head: from + insert.length - (wrapped ? 0 : after.length)
     },
     scrollIntoView: true
+  });
+  view.focus();
+}
+
+/** Insert a block fence on its own line, even when the caret is indented. */
+export function insertFencedCodeBlock(view: {
+  readonly state: EditorState;
+  dispatch: (transaction: TransactionSpec) => void;
+  focus: () => void;
+}) {
+  const { state } = view;
+  if (state.readOnly) return;
+  const { from, to } = state.selection.main;
+  const firstLine = state.doc.lineAt(from);
+  const lastLine = state.doc.lineAt(to);
+  const before = state.doc.sliceString(firstLine.from, from);
+  const endsAtLineStart = to > from && lastLine.from === to;
+  const after = endsAtLineStart ? '' : state.doc.sliceString(to, lastLine.to);
+  const replaceFrom = before.trim() ? from : firstLine.from;
+  const replaceTo = after.trim() || endsAtLineStart ? to : lastLine.to;
+  const selected = state.doc.sliceString(from, to);
+  const code = endsAtLineStart ? selected.slice(0, -1) : selected;
+  const leading = before.trim() ? '\n' : '';
+  const trailing =
+    after.trim() || (endsAtLineStart && to < state.doc.length) ? '\n' : '';
+  const insert = Text.of(
+    `${leading}\`\`\`\n${code}\n\`\`\`${trailing}`.split('\n')
+  );
+  const anchor = replaceFrom + leading.length + 4;
+  view.dispatch({
+    changes: { from: replaceFrom, to: replaceTo, insert },
+    selection: { anchor, head: anchor + code.length },
+    scrollIntoView: true,
+    userEvent: 'input.format'
   });
   view.focus();
 }

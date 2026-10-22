@@ -1,4 +1,5 @@
 import {
+  StateEffect,
   StateField,
   type EditorState,
   type Extension,
@@ -130,12 +131,25 @@ export function sourceRangeIsActive(
   from: number,
   to: number
 ) {
+  if (state.readOnly || !state.field(previewHasFocus, false)) return false;
   return state.selection.ranges.some((range) => {
     const first = state.doc.lineAt(range.from);
     const last = state.doc.lineAt(range.to);
     return first.from <= to && last.to >= from;
   });
 }
+
+export const setPreviewFocus = StateEffect.define<boolean>();
+const previewHasFocus = StateField.define<boolean>({
+  create: () => false,
+  update(value, transaction) {
+    for (const effect of transaction.effects)
+      if (effect.is(setPreviewFocus)) value = effect.value;
+    if (transaction.isUserEvent('select') || transaction.isUserEvent('input'))
+      value = true;
+    return !transaction.state.readOnly && value;
+  }
+});
 
 export function previewTargets(state: EditorState): PreviewTarget[] {
   const targets: PreviewTarget[] = [];
@@ -585,12 +599,18 @@ export function livePreview(options: PreviewOptions): Extension {
     return Decoration.set(ranges, true);
   };
   return [
+    previewHasFocus,
+    EditorView.focusChangeEffect.of((_state, focused) =>
+      setPreviewFocus.of(focused)
+    ),
     StateField.define<DecorationSet>({
       create: build,
       update(value, transaction) {
         if (
           transaction.docChanged ||
           transaction.startState.readOnly !== transaction.state.readOnly ||
+          transaction.startState.field(previewHasFocus, false) !==
+            transaction.state.field(previewHasFocus, false) ||
           syntaxTree(transaction.startState) !== syntaxTree(transaction.state)
         )
           return build(transaction.state);
@@ -611,6 +631,18 @@ export function livePreview(options: PreviewOptions): Extension {
       provide: (field) => EditorView.decorations.from(field)
     }),
     EditorView.domEventHandlers({
+      mouseup(event, view) {
+        // A note can be replaced while this same editor DOM still has focus.
+        // An explicit click starts editing even if the caret stays at zero.
+        if (
+          event.button === 0 &&
+          view.hasFocus &&
+          !view.state.readOnly &&
+          !view.state.field(previewHasFocus)
+        )
+          view.dispatch({ effects: setPreviewFocus.of(true) });
+        return false;
+      },
       mousedown(event, view) {
         if (
           event.button !== 0 ||

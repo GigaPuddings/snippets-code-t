@@ -25,10 +25,43 @@ const wikilinks: MarkdownConfig = {
   ]
 };
 
+// Lezer applies CommonMark's punctuation boundary rule to emphasis. In prose
+// such as 前**（文本）**后 it leaves the whole span literal, while the note's HTML
+// renderer already supports this syntax. Keep live preview in sync.
+const fullwidthParenthesisStrong: MarkdownConfig = {
+  parseInline: [
+    {
+      name: 'FullwidthParenthesisStrong',
+      before: 'Emphasis',
+      parse(cx, next, pos) {
+        if (next !== 42 || cx.char(pos + 1) !== 42 || cx.char(pos + 2) === 42)
+          return -1;
+        const close = cx.text.indexOf('**', pos + 2 - cx.offset);
+        if (close < 0) return -1;
+        const to = cx.offset + close + 2;
+        const content = cx.slice(pos + 2, to - 2);
+        if (
+          !content ||
+          content !== content.trim() ||
+          !/（[^\n]*）/u.test(content)
+        )
+          return -1;
+        return cx.addElement(
+          cx.elt('StrongEmphasis', pos, to, [
+            cx.elt('EmphasisMark', pos, pos + 2),
+            ...cx.parser.parseInline(content, pos + 2),
+            cx.elt('EmphasisMark', to - 2, to)
+          ])
+        );
+      }
+    }
+  ]
+};
+
 export function markdownLanguageSupport() {
   return markdown({
     base: markdownLanguage,
-    extensions: [wikilinks],
+    extensions: [wikilinks, fullwidthParenthesisStrong],
     addKeymap: false,
     codeLanguages: (name) => {
       if (/^(js|jsx|ts|tsx|javascript|typescript)$/i.test(name))

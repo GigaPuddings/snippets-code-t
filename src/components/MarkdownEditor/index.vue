@@ -194,8 +194,8 @@ import {
   ancestorAt,
   clearSelectionFormatting,
   createDocumentState,
-  continueOrderedListOnMarkerSpace,
   extractHeadings,
+  insertFencedCodeBlock,
   insertMarkdownNewline,
   prefixSelection,
   selectionIsCurrent,
@@ -504,11 +504,6 @@ function extensions(): Extension[] {
       )
     ]),
     modeCompartment.of(previewExtension()),
-    EditorView.inputHandler.of((editor, from, to, text) =>
-      viewMode.value === 'preview' && text === ' '
-        ? continueOrderedListOnMarkerSpace(editor, from, to)
-        : false
-    ),
     editableCompartment.of([
       EditorState.readOnly.of(props.disabled || viewMode.value === 'reading'),
       EditorView.editable.of(!props.disabled && viewMode.value !== 'reading')
@@ -1089,7 +1084,9 @@ const menuCommands: EditorMenuCommands = {
   setHeading: (level) => prefix('#'.repeat(level) + ' '),
   setParagraph: () => prefix(''),
   toggleBlockquote: () => prefix('> '),
-  insertCodeBlock: () => wrap('```\n', '\n```'),
+  insertCodeBlock: () => {
+    if (view) insertFencedCodeBlock(view);
+  },
   formatCodeBlock: formatCurrentCode,
   insertHorizontalRule: () => {
     replaceSelection('\n\n---\n\n');
