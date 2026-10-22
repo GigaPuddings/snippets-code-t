@@ -2491,7 +2491,7 @@ mod tests {
     fn online_history_separates_providers_and_people_query_is_required() {
         let mut config = WallpaperConfig::default();
         let first = wallhaven_history_scope(&config);
-        config.online_provider = WallpaperProvider::Wallhaven;
+        config.online_provider = WallpaperProvider::Wallspic;
         assert_ne!(first, wallhaven_history_scope(&config));
         assert_eq!(
             normalize_wallhaven_query(None, Some("people")).as_deref(),
@@ -2559,6 +2559,7 @@ mod tests {
     #[test]
     fn provider_filters_migrate_legacy_people_without_restricting_wallspic() {
         let mut config = WallpaperConfig {
+            online_provider: WallpaperProvider::Wallspic,
             wallhaven_category: "people".into(),
             ..WallpaperConfig::default()
         };
@@ -2573,6 +2574,16 @@ mod tests {
         );
         config.wallhaven_filters.as_mut().unwrap().asian_women = false;
         assert_eq!(online_query(&wallpaper_request_from_config(&config)), None);
+
+        let mut wallhaven_legacy = WallpaperConfig {
+            wallhaven_category: "people".into(),
+            ..WallpaperConfig::default()
+        };
+        normalize_wallpaper_config_preferences(&mut wallhaven_legacy);
+        assert_eq!(
+            wallhaven_legacy.wallspic_category.as_deref(),
+            Some("general")
+        );
     }
 
     #[test]
