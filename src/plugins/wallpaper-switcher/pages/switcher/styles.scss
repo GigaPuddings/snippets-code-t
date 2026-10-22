@@ -17,6 +17,7 @@
 
   @apply w-screen h-screen overflow-hidden text-xs rounded-[6px];
 
+  box-sizing: border-box;
   color: var(--wallpaper-text);
   color-scheme: light dark;
   background: var(--wallpaper-bg);
@@ -122,18 +123,6 @@
 
     &:hover {
       background: var(--wallpaper-hover);
-    }
-  }
-
-  .online-entry-btn {
-    color: var(--wallpaper-primary);
-    background: var(--wallpaper-active);
-    border-color: var(--wallpaper-border-strong);
-
-    &:hover {
-      color: var(--wallpaper-primary);
-      background: var(--wallpaper-hover);
-      border-color: var(--wallpaper-border-strong);
     }
   }
 
@@ -968,12 +957,12 @@
 
 // Wallpaper workspace redesign
 .wallpaper-window.wallpaper-window--redesigned {
-  @apply rounded-[10px];
+  @apply rounded-md;
 
   box-shadow: 0 18px 52px rgb(15 23 42 / 12%);
 
   .titlebar {
-    @apply h-12 py-0 pr-3 pl-3.5;
+    @apply gap-2 h-12 py-0 pr-3 pl-3.5;
 
     background: color-mix(in srgb, var(--wallpaper-panel) 94%, transparent);
     backdrop-filter: blur(18px);
@@ -984,28 +973,28 @@
   }
 
   .title-icon {
-    @apply flex items-center justify-center w-7 h-7 flex-none rounded-lg;
+    @apply flex items-center justify-center w-7 h-7 flex-none rounded-md;
 
     color: var(--wallpaper-primary);
     background: var(--wallpaper-active);
   }
 
   .title-copy {
-    @apply flex flex-col justify-center min-w-0 leading-none;
+    @apply flex flex-col justify-center min-w-0 overflow-hidden leading-none;
 
     strong {
-      @apply text-[13px] font-bold;
+      @apply overflow-hidden text-[13px] font-bold text-ellipsis whitespace-nowrap;
     }
 
     small {
-      @apply mt-1 text-[9px] font-medium;
+      @apply mt-1 overflow-hidden text-[9px] font-medium text-ellipsis whitespace-nowrap;
 
       color: var(--wallpaper-muted);
     }
   }
 
   .title-status {
-    @apply inline-flex items-center gap-1.5 h-6 ml-1 py-0 px-2 text-[10px] font-semibold rounded-full;
+    @apply inline-flex items-center gap-1.5 h-6 flex-none py-0 px-2 text-[10px] font-semibold whitespace-nowrap rounded-md;
 
     color: var(--wallpaper-muted);
     background: var(--wallpaper-soft);
@@ -1037,19 +1026,7 @@
   }
 
   .window-actions {
-    @apply gap-1.5;
-  }
-
-  .online-entry-btn {
-    @apply inline-flex items-center justify-center gap-1.5 h-7 py-0 px-2.5 text-[11px] font-semibold rounded-lg cursor-pointer;
-
-    color: var(--wallpaper-primary);
-    background: var(--wallpaper-active);
-    border: 1px solid var(--wallpaper-border-strong);
-
-    &:hover {
-      background: var(--wallpaper-hover);
-    }
+    @apply gap-4 ml-auto;
   }
 
   .switcher-home {
@@ -1074,7 +1051,7 @@
   }
 
   .wallpaper-stage {
-    @apply relative min-w-0 min-h-0 overflow-hidden rounded-2xl;
+    @apply relative min-w-0 min-h-0 overflow-hidden rounded-md;
 
     background: #0f172a;
     border: 1px solid rgb(255 255 255 / 12%);
@@ -1117,7 +1094,7 @@
 
   .eyebrow-pill,
   .source-pill {
-    @apply inline-flex items-center h-6 py-0 px-2.5 text-[10px] font-semibold rounded-full;
+    @apply inline-flex items-center h-6 py-0 px-2.5 text-[10px] font-semibold rounded-md;
 
     color: rgb(255 255 255 / 92%);
     background: rgb(15 23 42 / 42%);
@@ -1173,7 +1150,7 @@
   }
 
   .stage-btn {
-    @apply inline-flex items-center justify-center gap-1.5 w-full h-9 py-0 px-3 text-[11px] font-semibold rounded-lg cursor-pointer;
+    @apply inline-flex items-center justify-center gap-1.5 w-full h-9 py-0 px-3 text-[11px] font-semibold rounded-md cursor-pointer;
 
     transition:
       transform 0.16s ease,
@@ -1204,7 +1181,7 @@
   }
 
   .source-workspace {
-    @apply grid grid-rows-[auto_auto_auto] content-start gap-3 min-w-0 min-h-0 p-4 rounded-2xl border overflow-hidden;
+    @apply grid grid-rows-[auto_auto_minmax(0,1fr)] gap-4 min-w-0 min-h-0 p-4 rounded-md border overflow-hidden;
 
     background: var(--wallpaper-panel);
     border-color: var(--wallpaper-border);
@@ -1212,21 +1189,15 @@
   }
 
   .section-heading {
-    @apply flex items-start justify-between gap-3;
+    @apply flex items-center justify-between gap-3;
 
     h2 {
-      @apply mt-1 mx-0 mb-0 text-sm font-bold;
+      @apply m-0 text-sm font-bold;
     }
   }
 
-  .section-kicker {
-    @apply text-[9px] font-bold tracking-[0.11em] uppercase;
-
-    color: var(--wallpaper-primary);
-  }
-
   .ready-state {
-    @apply inline-flex items-center gap-1 h-6 py-0 px-2 text-[9px] font-semibold rounded-full;
+    @apply inline-flex items-center gap-1 h-6 py-0 px-2 text-[9px] font-semibold rounded-md;
 
     color: #15803d;
     background: #f0fdf4;
@@ -1244,7 +1215,7 @@
     @apply grid grid-cols-3 gap-1.5;
 
     > button {
-      @apply flex flex-col items-center justify-center gap-1 h-[58px] min-w-0 py-1.5 px-1 border rounded-xl cursor-pointer;
+      @apply flex flex-col items-center justify-center gap-1 h-[58px] min-w-0 py-1.5 px-1 border rounded-md cursor-pointer;
 
       color: var(--wallpaper-muted);
       background: var(--wallpaper-soft);
@@ -1283,14 +1254,18 @@
   }
 
   .source-detail {
-    @apply flex flex-col p-3 rounded-xl;
+    @apply flex flex-col gap-3 min-h-0 p-3 rounded-md overflow-y-auto;
 
     background: var(--wallpaper-soft);
     border: 1px solid var(--wallpaper-border);
   }
 
+  .source-detail--online {
+    @apply gap-2.5;
+  }
+
   .detail-title {
-    @apply flex items-start justify-between gap-2 mb-2.5;
+    @apply flex items-start justify-between gap-2;
 
     > div {
       @apply flex flex-col min-w-0;
@@ -1307,6 +1282,58 @@
     }
   }
 
+  .online-source-tag {
+    @apply flex-none py-1 px-2 rounded-md text-[10px] font-semibold;
+
+    color: var(--wallpaper-primary);
+    background: var(--wallpaper-active);
+  }
+
+  .online-provider-picker {
+    @apply grid grid-flow-col auto-cols-fr gap-0.5 w-full h-[34px] min-w-0 p-0.5 rounded-md border;
+
+    background: var(--wallpaper-panel);
+    border-color: var(--wallpaper-border);
+
+    button {
+      @apply min-w-0 h-full py-0 px-2 overflow-hidden text-[10px] font-semibold text-ellipsis whitespace-nowrap border-0 rounded-md cursor-pointer;
+
+      color: var(--wallpaper-text);
+      background: transparent;
+
+      &.active {
+        color: #fff;
+        background: var(--wallpaper-primary);
+      }
+
+      &:hover:not(.active) {
+        background: var(--wallpaper-hover);
+      }
+    }
+  }
+
+  .online-source-picker {
+    @apply grid grid-flow-col auto-cols-fr gap-1.5 w-full min-w-0;
+
+    button {
+      @apply h-[30px] min-w-0 py-0 px-1 overflow-hidden text-[10px] font-semibold text-ellipsis whitespace-nowrap rounded-md border cursor-pointer;
+
+      color: var(--wallpaper-text);
+      background: var(--wallpaper-panel);
+      border-color: var(--wallpaper-border);
+
+      &.active {
+        color: #fff;
+        background: var(--wallpaper-primary);
+        border-color: var(--wallpaper-primary);
+      }
+
+      &:hover:not(.active) {
+        background: var(--wallpaper-hover);
+      }
+    }
+  }
+
   .text-action {
     @apply inline-flex items-center gap-1 h-6 flex-none py-0 px-2 text-[9px] font-semibold border-0 rounded-md cursor-pointer;
 
@@ -1315,7 +1342,7 @@
   }
 
   .path-picker {
-    @apply flex items-center gap-2.5 w-full min-w-0 mt-0 p-2.5 text-left rounded-lg border cursor-pointer;
+    @apply flex items-center gap-2.5 w-full min-w-0 mt-auto p-2.5 text-left rounded-md border cursor-pointer;
 
     color: var(--wallpaper-text);
     background: var(--wallpaper-panel);
@@ -1333,7 +1360,7 @@
     color: var(--wallpaper-muted);
 
     select {
-      @apply h-7 min-w-0 flex-1 py-0 px-2 text-[9px] font-semibold rounded-lg border outline-none;
+      @apply h-7 min-w-0 flex-1 py-0 px-2 text-[9px] font-semibold rounded-md border outline-none;
 
       color: var(--wallpaper-text);
       background: var(--wallpaper-input);
@@ -1346,7 +1373,7 @@
   }
 
   .path-icon {
-    @apply flex items-center justify-center w-8 h-8 flex-none rounded-lg;
+    @apply flex items-center justify-center w-8 h-8 flex-none rounded-md;
 
     color: var(--wallpaper-primary);
     background: var(--wallpaper-active);
@@ -1373,7 +1400,7 @@
   }
 
   .browse-online-btn {
-    @apply flex items-center gap-2.5 w-full min-w-0 mt-0 py-2 px-2.5 text-left rounded-lg border cursor-pointer;
+    @apply flex items-center gap-2.5 w-full min-w-0 mt-auto py-2 px-2.5 text-left rounded-md border cursor-pointer;
 
     color: var(--wallpaper-primary);
     background: var(--wallpaper-active);
@@ -1407,7 +1434,7 @@
   }
 
   .automation-card {
-    @apply grid grid-cols-[minmax(190px,1.25fr)_minmax(145px,0.95fr)_90px_140px_minmax(142px,1fr)] items-center gap-3 min-w-0 min-h-0 py-2.5 px-4 rounded-2xl border;
+    @apply grid grid-cols-[200px_minmax(0,1fr)] items-center gap-3 min-w-0 min-h-0 py-2.5 px-4 rounded-md border;
 
     background: var(--wallpaper-panel);
     border-color: var(--wallpaper-border);
@@ -1417,8 +1444,12 @@
   .automation-intro {
     @apply flex items-center gap-3 min-w-0;
 
+    > div {
+      @apply min-w-0;
+    }
+
     h2 {
-      @apply mt-0.5 mx-0 mb-0 text-xs font-bold;
+      @apply m-0 text-xs font-bold;
     }
 
     p {
@@ -1428,15 +1459,19 @@
     }
   }
 
+  .automation-controls {
+    @apply grid grid-cols-[minmax(0,1.42fr)_minmax(0,1fr)_minmax(0,1.46fr)_minmax(0,1.12fr)] items-center gap-3 min-w-0;
+  }
+
   .automation-icon {
-    @apply flex items-center justify-center w-9 h-9 flex-none rounded-xl;
+    @apply flex items-center justify-center w-9 h-9 flex-none rounded-md;
 
     color: var(--wallpaper-primary);
     background: var(--wallpaper-active);
   }
 
   .schedule-toggle {
-    @apply flex items-center justify-between gap-2 min-w-0 cursor-pointer;
+    @apply flex items-center justify-between gap-2 w-full max-w-[140px] min-w-0 cursor-pointer;
 
     > span:first-child {
       @apply min-w-0;
@@ -1452,7 +1487,7 @@
   }
 
   .switch-control {
-    @apply relative w-9 h-5 flex-none rounded-full;
+    @apply relative w-9 h-5 flex-none rounded-md;
 
     background: var(--wallpaper-border);
     transition: background 0.16s ease;
@@ -1486,7 +1521,7 @@
   }
 
   .number-input {
-    @apply flex items-center h-8 overflow-hidden rounded-lg border;
+    @apply flex items-center h-8 overflow-hidden rounded-md border;
 
     background: var(--wallpaper-input);
     border-color: var(--wallpaper-border);
@@ -1505,7 +1540,7 @@
   }
 
   .mini-segmented {
-    @apply grid grid-cols-2 h-8 p-0.5 rounded-lg;
+    @apply grid grid-cols-2 h-8 p-0.5 rounded-md;
 
     background: var(--wallpaper-soft);
     border: 1px solid var(--wallpaper-border);
@@ -1528,9 +1563,33 @@
     @apply flex items-center gap-2 min-w-0 cursor-pointer;
 
     > input {
-      @apply w-3.5 h-3.5 flex-none;
+      @apply grid place-items-center w-3.5 h-3.5 flex-none appearance-none rounded-md border cursor-pointer;
 
-      accent-color: var(--wallpaper-primary);
+      background: var(--wallpaper-panel);
+      border-color: var(--wallpaper-border);
+
+      &::after {
+        @apply block w-1 h-2 opacity-0;
+
+        content: '';
+        border-right: 2px solid #fff;
+        border-bottom: 2px solid #fff;
+        transform: translateY(-1px) rotate(45deg);
+      }
+
+      &:checked {
+        background: var(--wallpaper-primary);
+        border-color: var(--wallpaper-primary);
+
+        &::after {
+          @apply opacity-100;
+        }
+      }
+
+      &:focus-visible {
+        outline: 2px solid var(--wallpaper-primary);
+        outline-offset: 2px;
+      }
     }
 
     > span {
@@ -1549,7 +1608,7 @@
   }
 
   .utility-bar {
-    @apply flex items-center gap-3 min-w-0 py-2 px-3 rounded-2xl border;
+    @apply flex items-center gap-3 min-w-0 py-2 px-3 rounded-md border;
 
     background: var(--wallpaper-panel);
     border-color: var(--wallpaper-border);
@@ -1595,7 +1654,7 @@
 
   .utility-btn,
   .save-btn {
-    @apply inline-flex items-center justify-center h-8 rounded-lg cursor-pointer;
+    @apply inline-flex items-center justify-center h-8 rounded-md cursor-pointer;
   }
 
   .utility-btn {

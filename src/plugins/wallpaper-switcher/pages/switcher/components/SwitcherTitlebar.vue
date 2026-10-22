@@ -2,7 +2,6 @@
 import Back from '~icons/lucide/arrow-left';
 import CloseSmall from '~icons/lucide/x';
 import Picture from '~icons/lucide/image';
-import PictureAlbum from '~icons/lucide/images';
 import { useI18n } from 'vue-i18n';
 
 defineProps<{
@@ -14,7 +13,6 @@ defineProps<{
 const emit = defineEmits<{
   (event: 'back'): void;
   (event: 'close'): void;
-  (event: 'openWallhaven'): void;
 }>();
 
 const { t } = useI18n();
@@ -27,17 +25,6 @@ const { t } = useI18n();
       <span class="title-copy">
         <strong>{{ t('wallpaperSwitcher.title') }}</strong>
         <small>{{ t('wallpaperSwitcher.titleSubtitle') }}</small>
-      </span>
-      <span
-        class="title-status"
-        :class="{ active: scheduleEnabled && schedulerRunning }"
-      >
-        <span></span>
-        {{
-          scheduleEnabled && schedulerRunning
-            ? t('wallpaperSwitcher.scheduleRunning')
-            : t('wallpaperSwitcher.schedulePaused')
-        }}
       </span>
     </div>
     <div v-else class="title">
@@ -52,15 +39,17 @@ const { t } = useI18n();
       <span>{{ t('wallpaperSwitcher.wallhavenTitle') }}</span>
     </div>
     <div v-if="activeView === 'switcher'" class="window-actions">
-      <button
-        type="button"
-        class="online-entry-btn"
-        :title="t('wallpaperSwitcher.openWallhaven')"
-        @click="emit('openWallhaven')"
+      <span
+        class="title-status"
+        :class="{ active: scheduleEnabled && schedulerRunning }"
       >
-        <PictureAlbum :width="18" :height="18" />
-        <span>{{ t('wallpaperSwitcher.browseOnline') }}</span>
-      </button>
+        <span></span>
+        {{
+          scheduleEnabled && schedulerRunning
+            ? t('wallpaperSwitcher.scheduleRunning')
+            : t('wallpaperSwitcher.schedulePaused')
+        }}
+      </span>
       <button
         type="button"
         class="icon-btn"

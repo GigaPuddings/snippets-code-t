@@ -186,7 +186,7 @@ impl Default for WallpaperConfig {
             folder_sort: FolderSort::CreatedAscending,
             auto_restore: true,
             wallhaven_source: WallhavenSource::Hot,
-            online_provider: WallpaperProvider::Wallspic,
+            online_provider: WallpaperProvider::Wallhaven,
             wallhaven_category: "general".to_string(),
             wallhaven_query: None,
             wallhaven_filters: None,
@@ -2475,9 +2475,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn legacy_config_preserves_wallhaven_and_new_config_uses_wallspic() {
+    fn legacy_and_new_configs_default_to_wallhaven() {
         let current = WallpaperConfig::default();
-        assert_eq!(current.online_provider, WallpaperProvider::Wallspic);
+        assert_eq!(current.online_provider, WallpaperProvider::Wallhaven);
         let mut legacy = serde_json::to_value(&current).unwrap();
         legacy.as_object_mut().unwrap().remove("onlineProvider");
         let migrated: WallpaperConfig = serde_json::from_value(legacy).unwrap();

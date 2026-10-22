@@ -345,7 +345,6 @@ onUnmounted(() => {
       :scheduler-running="Boolean(status?.schedulerRunning)"
       @back="backToSwitcher"
       @close="closeWindow"
-      @open-wallhaven="openWallhavenGrid"
     />
 
     <section v-if="status && !status.supported" class="unsupported">

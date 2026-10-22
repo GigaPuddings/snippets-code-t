@@ -31,8 +31,8 @@ Windows desktop wallpaper switching plugin for Snippets Code.
 
 The current implementation targets Windows desktop wallpaper APIs. Other operating systems display an unsupported-platform notice.
 
-New configurations use Wallspic. Existing configurations retain Wallhaven until
-the user changes the website in the online library or tray menu. Cached files
+New configurations use Wallhaven. Existing configurations keep their saved
+provider until the user changes it in the home panel, online library, or tray menu. Cached files
 and rotation history are separated by provider.
 
 Provider-specific filters and the Wallspic source require the corresponding updated Snippets Code

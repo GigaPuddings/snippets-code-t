@@ -179,7 +179,7 @@ export const defaultWallpaperConfig = (): WallpaperConfig => ({
   folderSort: 'createdAscending',
   autoRestore: true,
   wallhavenSource: 'hot',
-  onlineProvider: 'wallspic',
+  onlineProvider: 'wallhaven',
   wallhavenCategory: 'general',
   wallhavenQuery: null,
   folderSeenPaths: [],

@@ -15,8 +15,11 @@ import type {
   FolderSort,
   WallpaperConfig,
   WallpaperMode,
-  WallpaperOrder
+  WallpaperOrder,
+  WallpaperProvider,
+  WallhavenSource
 } from '../../../api';
+import { wallpaperSources } from '../../../api';
 
 const props = defineProps<{
   config: WallpaperConfig;
@@ -47,7 +50,7 @@ const emit = defineEmits<{
   (event: 'persistConfig'): void;
 }>();
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 
 const modeOptions: Array<{
   value: WallpaperMode;
@@ -71,6 +74,22 @@ const modeOptions: Array<{
   }
 ];
 
+const onlineProviders: Array<{ value: WallpaperProvider; label: string }> = [
+  { value: 'wallhaven', label: 'Wallhaven' },
+  { value: 'wallspic', label: 'Wallspic' }
+];
+const homeOnlineSources: WallhavenSource[] = [
+  'hot',
+  'toplist',
+  'favorites',
+  'latest'
+];
+const availableOnlineSources = computed(() =>
+  homeOnlineSources.filter((source) =>
+    wallpaperSources(props.config.onlineProvider).includes(source)
+  )
+);
+
 const folderSortOptions: Array<{ value: FolderSort; labelKey: string }> = [
   {
     value: 'createdAscending',
@@ -91,6 +110,24 @@ const patchConfig = (patch: Partial<WallpaperConfig>): void => {
 };
 
 const setMode = (mode: WallpaperMode): void => patchConfig({ mode });
+const setOnlineProvider = (provider: WallpaperProvider): void => {
+  const source =
+    homeOnlineSources.includes(props.config.wallhavenSource) &&
+    wallpaperSources(provider).includes(props.config.wallhavenSource)
+      ? props.config.wallhavenSource
+      : 'hot';
+  patchConfig({ onlineProvider: provider, wallhavenSource: source });
+};
+const setOnlineSource = (source: WallhavenSource): void => {
+  if (availableOnlineSources.value.includes(source))
+    patchConfig({ wallhavenSource: source });
+};
+const onlineSourceLabel = (source: WallhavenSource): string =>
+  t(
+    source === 'favorites' && locale.value === 'en-US'
+      ? 'wallpaperSwitcher.favoritesWithLabel'
+      : `wallpaperSwitcher.${source}`
+  );
 const setOrder = (order: WallpaperOrder): void => patchConfig({ order });
 const updateFolderSort = (event: Event): void =>
   patchConfig({
@@ -185,9 +222,6 @@ const updateAutoRestore = (event: Event): void =>
       <aside class="source-workspace">
         <header class="section-heading">
           <div>
-            <span class="section-kicker">
-              {{ t('wallpaperSwitcher.stepOne') }}
-            </span>
             <h2>{{ t('wallpaperSwitcher.chooseSource') }}</h2>
           </div>
           <span class="ready-state">
@@ -224,7 +258,10 @@ const updateAutoRestore = (event: Event): void =>
           </button>
         </div>
 
-        <div class="source-detail">
+        <div
+          class="source-detail"
+          :class="{ 'source-detail--online': config.mode === 'wallhaven' }"
+        >
           <template v-if="config.mode === 'folder'">
             <div class="detail-title">
               <div>
@@ -289,10 +326,42 @@ const updateAutoRestore = (event: Event): void =>
                 </span>
                 <strong>{{ t('wallpaperSwitcher.onlineSourceHint') }}</strong>
               </div>
+              <span class="online-source-tag">
+                {{ onlineSourceLabel(config.wallhavenSource) }}
+              </span>
             </div>
-            <span class="text-xs text-[var(--wallpaper-muted)]">
-              {{ t(`wallpaperSwitcher.${config.wallhavenSource}`) }}
-            </span>
+            <div
+              class="online-provider-picker"
+              role="group"
+              :aria-label="t('wallpaperSwitcher.provider')"
+            >
+              <button
+                v-for="provider in onlineProviders"
+                :key="provider.value"
+                type="button"
+                :class="{ active: config.onlineProvider === provider.value }"
+                :aria-pressed="config.onlineProvider === provider.value"
+                @click="setOnlineProvider(provider.value)"
+              >
+                {{ provider.label }}
+              </button>
+            </div>
+            <div
+              class="online-source-picker"
+              role="group"
+              :aria-label="t('wallpaperSwitcher.sortBy')"
+            >
+              <button
+                v-for="source in availableOnlineSources"
+                :key="source"
+                type="button"
+                :class="{ active: config.wallhavenSource === source }"
+                :aria-pressed="config.wallhavenSource === source"
+                @click="setOnlineSource(source)"
+              >
+                {{ onlineSourceLabel(source) }}
+              </button>
+            </div>
             <button
               type="button"
               class="browse-online-btn"
@@ -343,71 +412,70 @@ const updateAutoRestore = (event: Event): void =>
       <div class="automation-intro">
         <span class="automation-icon"><Time :width="20" :height="20" /></span>
         <div>
-          <span class="section-kicker">
-            {{ t('wallpaperSwitcher.stepTwo') }}
-          </span>
           <h2>{{ t('wallpaperSwitcher.automationTitle') }}</h2>
           <p>{{ t('wallpaperSwitcher.automationHint') }}</p>
         </div>
       </div>
 
-      <label class="schedule-toggle">
-        <span>
-          <strong>{{ t('wallpaperSwitcher.enableSchedule') }}</strong>
-        </span>
-        <input
-          :checked="config.scheduleEnabled"
-          type="checkbox"
-          @change="updateScheduleEnabled"
-        />
-        <span class="switch-control" aria-hidden="true"></span>
-      </label>
-
-      <label class="compact-control">
-        <span>{{ t('wallpaperSwitcher.interval') }}</span>
-        <span class="number-input">
+      <div class="automation-controls">
+        <label class="schedule-toggle">
+          <span>
+            <strong>{{ t('wallpaperSwitcher.enableSchedule') }}</strong>
+          </span>
           <input
-            :value="config.intervalMinutes"
-            type="number"
-            min="1"
-            max="1440"
-            @input="updateInterval"
+            :checked="config.scheduleEnabled"
+            type="checkbox"
+            @change="updateScheduleEnabled"
           />
-          <small>{{ t('wallpaperSwitcher.minutes') }}</small>
-        </span>
-      </label>
+          <span class="switch-control" aria-hidden="true"></span>
+        </label>
 
-      <div class="compact-control order-control">
-        <span>{{ t('wallpaperSwitcher.rotationOrder') }}</span>
-        <div class="mini-segmented">
-          <button
-            type="button"
-            :class="{ active: config.order === 'sequential' }"
-            @click="setOrder('sequential')"
-          >
-            {{ t('wallpaperSwitcher.sequential') }}
-          </button>
-          <button
-            type="button"
-            :class="{ active: config.order === 'random' }"
-            @click="setOrder('random')"
-          >
-            {{ t('wallpaperSwitcher.random') }}
-          </button>
+        <label class="compact-control">
+          <span>{{ t('wallpaperSwitcher.interval') }}</span>
+          <span class="number-input">
+            <input
+              :value="config.intervalMinutes"
+              type="number"
+              min="1"
+              max="1440"
+              @input="updateInterval"
+            />
+            <small>{{ t('wallpaperSwitcher.minutes') }}</small>
+          </span>
+        </label>
+
+        <div class="compact-control order-control">
+          <span>{{ t('wallpaperSwitcher.rotationOrder') }}</span>
+          <div class="mini-segmented">
+            <button
+              type="button"
+              :class="{ active: config.order === 'sequential' }"
+              @click="setOrder('sequential')"
+            >
+              {{ t('wallpaperSwitcher.sequential') }}
+            </button>
+            <button
+              type="button"
+              :class="{ active: config.order === 'random' }"
+              @click="setOrder('random')"
+            >
+              {{ t('wallpaperSwitcher.random') }}
+            </button>
+          </div>
         </div>
-      </div>
 
-      <label class="restore-check">
-        <input
-          :checked="config.autoRestore"
-          type="checkbox"
-          @change="updateAutoRestore"
-        />
-        <span>
-          <strong>{{ t('wallpaperSwitcher.autoRestoreShort') }}</strong>
-          <small>{{ t('wallpaperSwitcher.autoRestoreHint') }}</small>
-        </span>
-      </label>
+        <label class="restore-check">
+          <input
+            :checked="config.autoRestore"
+            type="checkbox"
+            @change="updateAutoRestore"
+          />
+          <span>
+            <strong>{{ t('wallpaperSwitcher.autoRestoreShort') }}</strong>
+            <small>{{ t('wallpaperSwitcher.autoRestoreHint') }}</small>
+          </span>
+        </label>
+      </div>
     </section>
 
     <footer class="utility-bar">

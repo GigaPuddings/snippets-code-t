@@ -308,6 +308,7 @@ describe('online wallpaper feed', () => {
   it('clears saved free-text conditions so the filter bar represents the full request', async () => {
     const config = ref({
       ...defaultWallpaperConfig(),
+      onlineProvider: 'wallspic' as const,
       wallhavenQuery: 'old keyword'
     });
     const state = useWallhaven({
