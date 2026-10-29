@@ -1,10 +1,15 @@
 //! Package locations, user-requested directory moves, and install staging directories.
 use super::persistence::AppConfigManager;
-use super::plugin_manifest::validate_plugin_package_id;
+use super::plugin_manifest::{
+    read_plugin_package_manifest, validate_local_plugin_manifest, validate_plugin_package_id,
+    validate_plugin_relative_path,
+};
 use log::{info, warn};
+use std::collections::BTreeMap;
 use std::fs;
+use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{command, AppHandle, Manager};
 use walkdir::WalkDir;
@@ -12,6 +17,150 @@ use walkdir::WalkDir;
 const PLUGIN_PACKAGES_DIR_NAME: &str = "plugins";
 
 const PLUGIN_PACKAGES_ROOT_DIR_NAME: &str = "packages";
+
+// Local installs, downloaded installs, uninstall and directory changes share one
+// filesystem critical section. Downloads themselves do not hold this lock.
+pub(super) static PLUGIN_PACKAGE_MUTATION_LOCK: Mutex<()> = Mutex::new(());
+
+pub(super) struct PluginPackageStagingDir {
+    path: PathBuf,
+    preserve: bool,
+}
+
+impl PluginPackageStagingDir {
+    pub(super) fn new(parent: &Path, purpose: &str) -> Result<Self, String> {
+        let path = parent.join(format!(".package-{}-{}", purpose, uuid::Uuid::new_v4()));
+        fs::create_dir(&path)
+            .map_err(|e| format!("创建插件暂存目录失败: {} ({})", path.display(), e))?;
+        Ok(Self {
+            path,
+            preserve: false,
+        })
+    }
+
+    pub(super) fn path(&self) -> &Path {
+        &self.path
+    }
+
+    pub(super) fn preserve_for_recovery(&mut self) {
+        self.preserve = true;
+    }
+}
+
+impl Drop for PluginPackageStagingDir {
+    fn drop(&mut self) {
+        if !self.preserve {
+            if let Err(error) = fs::remove_dir_all(&self.path) {
+                warn!(
+                    "[Plugin] 清理插件暂存目录失败: {} ({})",
+                    self.path.display(),
+                    error
+                );
+            }
+        }
+    }
+}
+
+fn plugin_package_entries(root: &Path) -> Result<BTreeMap<PathBuf, bool>, String> {
+    let metadata = fs::symlink_metadata(root)
+        .map_err(|e| format!("读取插件目录失败: {} ({})", root.display(), e))?;
+    #[cfg(windows)]
+    let is_link = {
+        use std::os::windows::fs::MetadataExt;
+        metadata.file_attributes() & 0x400 != 0
+    };
+    #[cfg(not(windows))]
+    let is_link = metadata.file_type().is_symlink();
+    if !metadata.is_dir() || is_link {
+        return Err(format!("插件包必须是普通目录: {}", root.display()));
+    }
+    let mut entries = BTreeMap::new();
+    for entry in WalkDir::new(root).follow_links(false) {
+        let entry = entry.map_err(|e| format!("读取插件包失败: {}", e))?;
+        let relative = entry.path().strip_prefix(root).map_err(|e| e.to_string())?;
+        if relative.as_os_str().is_empty() || relative == Path::new(".install-meta.json") {
+            continue;
+        }
+        if !entry.file_type().is_file() && !entry.file_type().is_dir() {
+            return Err(format!(
+                "插件包包含不支持的链接或文件: {}",
+                entry.path().display()
+            ));
+        }
+        entries.insert(relative.to_path_buf(), entry.file_type().is_dir());
+    }
+    Ok(entries)
+}
+
+// Install timestamps do not change a package's contents. Compare every other
+// path and stream file bytes so large resource packages do not fill memory.
+pub(super) fn plugin_package_contents_match(left: &Path, right: &Path) -> Result<bool, String> {
+    let left_entries = plugin_package_entries(left)?;
+    if left_entries != plugin_package_entries(right)? {
+        return Ok(false);
+    }
+    for (relative, is_dir) in left_entries {
+        if is_dir {
+            continue;
+        }
+        let compare = || -> std::io::Result<bool> {
+            let mut left = BufReader::new(fs::File::open(left.join(&relative))?);
+            let mut right = BufReader::new(fs::File::open(right.join(&relative))?);
+            if left.get_ref().metadata()?.len() != right.get_ref().metadata()?.len() {
+                return Ok(false);
+            }
+            let mut left_bytes = [0_u8; 64 * 1024];
+            let mut right_bytes = [0_u8; 64 * 1024];
+            loop {
+                let size = left.read(&mut left_bytes)?;
+                right.read_exact(&mut right_bytes[..size])?;
+                if left_bytes[..size] != right_bytes[..size] {
+                    return Ok(false);
+                }
+                if size == 0 {
+                    return Ok(right.read(&mut right_bytes)? == 0);
+                }
+            }
+        };
+        if !compare().map_err(|e| format!("比较插件文件失败: {} ({})", relative.display(), e))?
+        {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+pub(super) fn validate_plugin_package_dir(
+    package_dir: &Path,
+    expected_id: &str,
+) -> Result<(), String> {
+    let manifest = read_plugin_package_manifest(&package_dir.join("plugin.json"))?;
+    if validate_local_plugin_manifest(&manifest)? != expected_id {
+        return Err(format!(
+            "插件清单 id 与目录不一致: {}",
+            package_dir.display()
+        ));
+    }
+    if let Some(entry) = manifest.get("entry") {
+        let mut paths = ["frontend", "backend"]
+            .iter()
+            .filter_map(|key| entry.get(key).and_then(serde_json::Value::as_str))
+            .collect::<Vec<_>>();
+        if let Some(styles) = entry.get("styles").and_then(serde_json::Value::as_array) {
+            paths.extend(styles.iter().filter_map(serde_json::Value::as_str));
+        }
+        for relative in paths {
+            validate_plugin_relative_path(relative)?;
+            if !package_dir.join(relative).is_file() {
+                return Err(format!(
+                    "插件入口文件不存在: {}",
+                    package_dir.join(relative).display()
+                ));
+            }
+        }
+    }
+    Ok(())
+}
 
 pub(super) fn plugin_packages_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
     if let Some(configured_root) = configured_plugin_install_root_dir(app_handle)? {
@@ -95,57 +244,166 @@ fn same_path(left: &Path, right: &Path) -> bool {
 }
 
 fn move_installed_plugin_packages(old_dir: &Path, new_dir: &Path) -> Result<usize, String> {
-    if same_path(old_dir, new_dir) || !old_dir.exists() {
+    if same_path(old_dir, new_dir) {
+        return Ok(0);
+    }
+    if !old_dir
+        .try_exists()
+        .map_err(|e| format!("读取原插件目录失败: {} ({})", old_dir.display(), e))?
+    {
         return Ok(0);
     }
 
     fs::create_dir_all(new_dir)
         .map_err(|e| format!("创建插件安装目录失败: {} ({})", new_dir.display(), e))?;
 
-    let entries = fs::read_dir(old_dir)
+    let old_dir = normalized_existing_path(old_dir);
+    let new_dir = normalized_existing_path(new_dir);
+    if new_dir.starts_with(&old_dir) || old_dir.starts_with(&new_dir) {
+        return Err("插件安装目录不能互相嵌套".into());
+    }
+
+    let entries = fs::read_dir(&old_dir)
         .map_err(|e| format!("读取原插件目录失败: {} ({})", old_dir.display(), e))?;
 
-    let mut moved_count = 0;
-    for entry in entries.flatten() {
+    // Preflight the entire set before creating any destination package. An
+    // existing, different package is a conflict, never a successful skip.
+    let mut missing = Vec::new();
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("读取原插件目录条目失败: {}", e))?;
         let source_path = entry.path();
-        if !source_path.join("plugin.json").is_file() {
+        let file_type = entry.file_type().map_err(|e| {
+            format!(
+                "读取原插件目录条目类型失败: {} ({})",
+                source_path.display(),
+                e
+            )
+        })?;
+        if file_type.is_file() {
             continue;
+        }
+        if file_type.is_symlink() {
+            return Err(format!(
+                "插件安装目录包含不支持的链接: {}",
+                source_path.display()
+            ));
+        }
+        match fs::metadata(source_path.join("plugin.json")) {
+            Ok(metadata) if metadata.is_file() => {}
+            Ok(_) => continue,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => {
+                return Err(format!(
+                    "读取原插件清单失败: {} ({})",
+                    source_path.display(),
+                    error
+                ))
+            }
         }
 
         let Some(plugin_dir_name) = source_path.file_name() else {
             continue;
         };
+        let plugin_id = plugin_dir_name.to_str().ok_or("插件目录名无效")?;
+        validate_plugin_package_dir(&source_path, plugin_id)?;
         let target_path = new_dir.join(plugin_dir_name);
-        if target_path.exists() {
+        if target_path
+            .try_exists()
+            .map_err(|e| format!("读取目标插件目录失败: {} ({})", target_path.display(), e))?
+        {
+            validate_plugin_package_dir(&target_path, plugin_id).map_err(|error| {
+                format!(
+                    "插件目录迁移冲突 '{}': 目标包无效，仍保留原安装位置。{}",
+                    plugin_id, error
+                )
+            })?;
+            if !plugin_package_contents_match(&source_path, &target_path)? {
+                return Err(format!(
+                    "插件目录迁移冲突 '{}': 目标包版本或内容不同，仍保留原安装位置。请先处理 {}",
+                    plugin_id,
+                    target_path.display()
+                ));
+            }
             continue;
         }
-
-        let temp_path = new_dir.join(format!(
-            ".move-tmp-{}-{}",
-            plugin_dir_name.to_string_lossy(),
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .map_err(|e| format!("生成迁移临时目录失败: {}", e))?
-                .as_millis()
-        ));
-
-        if let Err(error) = copy_plugin_package_dir(&source_path, &temp_path).and_then(|_| {
-            fs::rename(&temp_path, &target_path).map_err(|e| {
-                format!(
-                    "完成插件迁移失败: {} -> {} ({})",
-                    temp_path.display(),
-                    target_path.display(),
-                    e
-                )
-            })
-        }) {
-            let _ = fs::remove_dir_all(&temp_path);
-            return Err(error);
-        }
-        moved_count += 1;
+        missing.push((source_path, target_path));
     }
 
-    Ok(moved_count)
+    if missing.is_empty() {
+        return Ok(0);
+    }
+    let staging = PluginPackageStagingDir::new(&new_dir, "move")?;
+    for (source, target) in &missing {
+        let staged = staging
+            .path()
+            .join(target.file_name().ok_or("插件目录名无效")?);
+        copy_plugin_package_dir(source, &staged)?;
+        validate_plugin_package_dir(
+            &staged,
+            target
+                .file_name()
+                .and_then(|id| id.to_str())
+                .ok_or("插件目录名无效")?,
+        )?;
+        if !plugin_package_contents_match(source, &staged)? {
+            return Err(format!("插件迁移校验失败: {}", source.display()));
+        }
+    }
+    let mut published: Vec<PathBuf> = Vec::new();
+    for (_, target) in &missing {
+        let staged = staging
+            .path()
+            .join(target.file_name().ok_or("插件目录名无效")?);
+        // Never replace a directory created by another process during staging.
+        let result = target.try_exists().and_then(|exists| {
+            if exists {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::AlreadyExists,
+                    "目标插件目录已存在",
+                ));
+            }
+            fs::rename(&staged, target)
+        });
+        if let Err(error) = result {
+            for path in published {
+                if let Err(error) = fs::remove_dir_all(&path) {
+                    warn!(
+                        "[Plugin] 清理未完成迁移的副本失败: {} ({})",
+                        path.display(),
+                        error
+                    );
+                }
+            }
+            return Err(format!(
+                "完成插件迁移失败: {} ({})，仍保留原安装位置",
+                target.display(),
+                error
+            ));
+        }
+        published.push(target.clone());
+    }
+    Ok(missing.len())
+}
+
+fn save_plugin_install_dir(
+    manager: &mut AppConfigManager,
+    path: Option<String>,
+) -> Result<(), String> {
+    let previous = manager.get_config().clone();
+    let mut config = previous.clone();
+    config.plugin_install_dir = path;
+    manager.update_config(config);
+    if let Err(error) = manager.save() {
+        manager.update_config(previous);
+        return match manager.save() {
+            Ok(()) => Err(error),
+            Err(restore_error) => Err(format!(
+                "{}；恢复原安装目录配置失败: {}",
+                error, restore_error
+            )),
+        };
+    }
+    Ok(())
 }
 
 #[command]
@@ -158,6 +416,9 @@ pub fn get_plugin_install_dir(app_handle: AppHandle) -> Result<String, String> {
 
 #[command]
 pub fn set_plugin_install_dir(app_handle: AppHandle, path: Option<String>) -> Result<(), String> {
+    let _guard = PLUGIN_PACKAGE_MUTATION_LOCK
+        .lock()
+        .map_err(|e| format!("获取插件目录锁失败: {}", e))?;
     let old_plugins_dir = plugin_packages_dir(&app_handle)?;
     let configured_path = path
         .map(|value| value.trim().to_string())
@@ -205,10 +466,7 @@ pub fn set_plugin_install_dir(app_handle: AppHandle, path: Option<String>) -> Re
         let mut manager = config_state
             .write()
             .map_err(|e| format!("获取配置锁失败: {}", e))?;
-        let mut config = manager.get_config().clone();
-        config.plugin_install_dir = normalized_path;
-        manager.update_config(config);
-        manager.save()?;
+        save_plugin_install_dir(&mut manager, normalized_path)?;
         crate::uninstall::record_plugin_dir(&new_plugins_dir);
         info!("✅ [Plugin] 插件安装目录已更新");
         return Ok(());
@@ -217,10 +475,7 @@ pub fn set_plugin_install_dir(app_handle: AppHandle, path: Option<String>) -> Re
     let workspace_root =
         crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
     let mut manager = AppConfigManager::new(&workspace_root)?;
-    let mut config = manager.get_config().clone();
-    config.plugin_install_dir = normalized_path;
-    manager.update_config(config);
-    manager.save()?;
+    save_plugin_install_dir(&mut manager, normalized_path)?;
     crate::uninstall::record_plugin_dir(&new_plugins_dir);
     info!("✅ [Plugin] 插件安装目录已更新");
     Ok(())
@@ -324,6 +579,14 @@ pub(super) fn cleanup_stale_plugin_install_temp_dirs(app_handle: &AppHandle) {
 mod tests {
     use super::*;
 
+    struct TestDir(PathBuf);
+
+    impl Drop for TestDir {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
     fn move_test_dir(name: &str) -> PathBuf {
         std::env::temp_dir().join(format!(
             "snippets-code-plugin-move-{}-{}-{}",
@@ -339,7 +602,14 @@ mod tests {
     fn write_test_plugin(root: &Path, plugin_id: &str, marker: &str) {
         let plugin_dir = root.join(plugin_id);
         fs::create_dir_all(&plugin_dir).unwrap();
-        fs::write(plugin_dir.join("plugin.json"), "{}").unwrap();
+        fs::write(
+            plugin_dir.join("plugin.json"),
+            serde_json::json!({
+                "schemaVersion": 1, "kind": "local", "id": plugin_id, "version": "1.0.0"
+            })
+            .to_string(),
+        )
+        .unwrap();
         fs::write(plugin_dir.join("marker.txt"), marker).unwrap();
     }
 
@@ -352,13 +622,14 @@ mod tests {
     }
 
     #[test]
-    fn plugin_directory_move_copies_missing_packages_without_overwriting_targets() {
+    fn plugin_directory_move_reuses_identical_packages_and_copies_missing_packages() {
         let root = move_test_dir("copy");
+        let _cleanup = TestDir(root.clone());
         let old_dir = root.join("old");
         let new_dir = root.join("new");
         write_test_plugin(&old_dir, "missing", "source");
         write_test_plugin(&old_dir, "existing", "source");
-        write_test_plugin(&new_dir, "existing", "current");
+        write_test_plugin(&new_dir, "existing", "source");
 
         let moved_count = move_installed_plugin_packages(&old_dir, &new_dir).unwrap();
 
@@ -369,8 +640,102 @@ mod tests {
         );
         assert_eq!(
             fs::read_to_string(new_dir.join("existing/marker.txt")).unwrap(),
-            "current"
+            "source"
         );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn plugin_directory_move_ignores_unrelated_regular_files() {
+        let root = move_test_dir("regular-files");
+        let _cleanup = TestDir(root.clone());
+        let old_dir = root.join("old");
+        let new_dir = root.join("new");
+        write_test_plugin(&old_dir, "demo", "usable");
+        fs::write(old_dir.join("README.md"), "local notes").unwrap();
+        fs::write(old_dir.join("install.log"), "previous install log").unwrap();
+
+        assert_eq!(
+            move_installed_plugin_packages(&old_dir, &new_dir).unwrap(),
+            1
+        );
+
+        assert_eq!(
+            fs::read_to_string(new_dir.join("demo/marker.txt")).unwrap(),
+            "usable"
+        );
+        assert_eq!(
+            fs::read_to_string(old_dir.join("README.md")).unwrap(),
+            "local notes"
+        );
+        assert_eq!(
+            fs::read_to_string(old_dir.join("install.log")).unwrap(),
+            "previous install log"
+        );
+        assert_eq!(fs::read_dir(&new_dir).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn plugin_directory_round_trip_rejects_stale_target_without_downgrading() {
+        let root = move_test_dir("round-trip");
+        let _cleanup = TestDir(root.clone());
+        let default_dir = root.join("default");
+        let custom_dir = root.join("custom");
+        write_test_plugin(&default_dir, "demo", "v1");
+        move_installed_plugin_packages(&default_dir, &custom_dir).unwrap();
+        fs::write(custom_dir.join("demo/marker.txt"), "v2").unwrap();
+        let result = move_installed_plugin_packages(&custom_dir, &default_dir);
+        assert!(
+            result.is_err(),
+            "a stale package must not silently replace the active v2"
+        );
+        assert_eq!(
+            fs::read_to_string(custom_dir.join("demo/marker.txt")).unwrap(),
+            "v2"
+        );
+        assert_eq!(
+            fs::read_to_string(default_dir.join("demo/marker.txt")).unwrap(),
+            "v1"
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn plugin_directory_move_rejects_corrupt_target() {
+        let root = move_test_dir("corrupt");
+        let _cleanup = TestDir(root.clone());
+        let old_dir = root.join("old");
+        let new_dir = root.join("new");
+        write_test_plugin(&old_dir, "demo", "usable");
+        fs::create_dir_all(new_dir.join("demo")).unwrap();
+        fs::write(new_dir.join("demo/plugin.json"), "corrupt").unwrap();
+        assert!(move_installed_plugin_packages(&old_dir, &new_dir).is_err());
+        assert_eq!(
+            fs::read_to_string(old_dir.join("demo/marker.txt")).unwrap(),
+            "usable"
+        );
+        assert_eq!(
+            fs::read_to_string(new_dir.join("demo/plugin.json")).unwrap(),
+            "corrupt"
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn failed_plugin_directory_config_save_preserves_active_location() {
+        let root = move_test_dir("config-save");
+        let _cleanup = TestDir(root.clone());
+        let mut manager = AppConfigManager::new(&root).unwrap();
+        save_plugin_install_dir(&mut manager, Some("C:/original".into())).unwrap();
+        let config_path = root.join(".snippets-code/app.json");
+        let old_config = fs::read(&config_path).unwrap();
+        fs::create_dir(root.join(".snippets-code/.app.json.backup")).unwrap();
+        assert!(save_plugin_install_dir(&mut manager, Some("C:/new".into())).is_err());
+        assert_eq!(
+            manager.get_config().plugin_install_dir.as_deref(),
+            Some("C:/original")
+        );
+        assert_eq!(fs::read(config_path).unwrap(), old_config);
         fs::remove_dir_all(root).unwrap();
     }
 }

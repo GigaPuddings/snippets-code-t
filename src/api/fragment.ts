@@ -36,6 +36,7 @@ function markdownFileToContentType(file: MarkdownFile): ContentType {
   };
 
   return {
+    contentRevision: file.contentRevision,
     id: filePath,
     title: file.title,
     content: file.content,
@@ -482,13 +483,39 @@ export interface EditFragmentParams {
  * }
  * ```
  */
-export async function editFragment(
+export function editFragment(
   params: EditFragmentParams
-): Promise<string | null> {
+): Promise<string | null>;
+export function editFragment(
+  params: EditFragmentParams,
+  options: markdownApi.ProtectedSaveOptions
+): Promise<markdownApi.MarkdownSaveResult>;
+export async function editFragment(
+  params: EditFragmentParams,
+  options?: markdownApi.ProtectedSaveOptions
+): Promise<string | null | markdownApi.MarkdownSaveResult> {
   try {
     // ID 应该是文件路径
     const filePath =
       typeof params.id === 'string' ? params.id : String(params.id);
+
+    if (options) {
+      // Checked editor saves must not move files or attachments before the
+      // backend verifies the snapshot. Category moves use their own command.
+      return await markdownApi.updateMarkdownFile(
+        filePath,
+        params.content,
+        {
+          title: params.title,
+          tags: params.tags || [],
+          ...(params.fragmentType ? { type: params.fragmentType } : {}),
+          language: params.metadata?.language as string | undefined,
+          framework: params.metadata?.framework as string | undefined,
+          kind: params.metadata?.kind as string | undefined
+        },
+        options
+      );
+    }
 
     // 读取当前文件以获取旧标题
     const currentFile = await markdownApi.readMarkdownFile(filePath);
@@ -608,7 +635,8 @@ export async function moveFragmentToCategory(
 export async function convertFragmentType(
   id: number | string,
   targetType: FragmentType,
-  updates: ConvertFragmentTypeUpdates = {}
+  updates: ConvertFragmentTypeUpdates = {},
+  options?: markdownApi.ProtectedSaveOptions
 ): Promise<ContentType> {
   const filePath = typeof id === 'string' ? id : String(id);
   const currentFile = await markdownApi.readMarkdownFile(filePath);
@@ -617,6 +645,25 @@ export async function convertFragmentType(
     targetType,
     updates
   );
+
+  if (options) {
+    const result = await markdownApi.updateMarkdownFile(
+      filePath,
+      update.content,
+      update.metadata,
+      options
+    );
+    const path = result.newPath || filePath;
+    return markdownFileToContentType({
+      ...currentFile,
+      ...update.metadata,
+      content: result.content ?? update.content,
+      type: targetType,
+      filePath: path,
+      id: path,
+      contentRevision: result.contentRevision
+    });
+  }
 
   if (update.metadata.title && update.metadata.title !== currentFile.title) {
     update.content = await syncAttachmentsOnRename(

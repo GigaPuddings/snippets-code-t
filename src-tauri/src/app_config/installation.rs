@@ -2,7 +2,9 @@
 use super::download::download_plugin_url_to_temp;
 use super::package_paths::{
     cleanup_stale_plugin_install_temp_dirs, copy_plugin_package_dir,
-    create_plugin_install_temp_dir, plugin_packages_dir,
+    create_plugin_install_temp_dir, normalized_existing_path, plugin_package_contents_match,
+    plugin_packages_dir, validate_plugin_package_dir, PluginPackageStagingDir,
+    PLUGIN_PACKAGE_MUTATION_LOCK,
 };
 use super::packages::{plugin_package_record, write_plugin_install_metadata, LocalPluginPackage};
 use super::persistence::AppConfigManager;
@@ -48,6 +50,76 @@ pub struct InstallPluginPackageFromUrlRequest {
 
 static PLUGIN_INSTALL_LOCK: LazyLock<tokio::sync::Mutex<()>> =
     LazyLock::new(|| tokio::sync::Mutex::new(()));
+
+fn replace_plugin_package_with(
+    source_dir: &Path,
+    target_dir: &Path,
+    was_enabled: bool,
+    mut runtime: impl FnMut(bool),
+    copy: impl FnOnce(&Path, &Path) -> Result<(), String>,
+    metadata: impl FnOnce(&Path) -> Result<(), String>,
+    mut rename: impl FnMut(&Path, &Path) -> io::Result<()>,
+) -> Result<(), String> {
+    let parent = target_dir.parent().ok_or("插件目录缺少父目录")?;
+    let source = normalized_existing_path(source_dir);
+    if normalized_existing_path(parent).starts_with(&source) {
+        return Err("插件来源目录不能包含安装目录".into());
+    }
+
+    // Keep manifests below the transaction root, so inventory never sees the
+    // staged or previous package as another installed plugin.
+    let mut transaction = PluginPackageStagingDir::new(parent, "install")?;
+    let staged = transaction.path().join("staged");
+    let previous = transaction.path().join("previous");
+    fs::create_dir(&staged).map_err(|e| format!("创建插件暂存包失败: {}", e))?;
+    copy(source_dir, &staged)?;
+    metadata(&staged)?;
+    let plugin_id = target_dir
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or("插件目录名无效")?;
+    validate_plugin_package_dir(&staged, plugin_id)?;
+    if !plugin_package_contents_match(source_dir, &staged)? {
+        return Err("插件暂存校验失败，未修改已安装插件".into());
+    }
+
+    let had_previous = target_dir.exists();
+    if had_previous {
+        // Do not broadcast an intermediate disabled state to other WebViews.
+        runtime(false);
+        if let Err(error) = rename(target_dir, &previous) {
+            if was_enabled {
+                runtime(true);
+            }
+            return Err(format!(
+                "备份旧插件目录失败: {} ({})",
+                target_dir.display(),
+                error
+            ));
+        }
+    }
+    if let Err(error) = rename(&staged, target_dir) {
+        if had_previous {
+            if let Err(restore_error) = rename(&previous, target_dir) {
+                // This is the only copy of the old package. Keep it outside
+                // .install-tmp-* so stale download cleanup cannot delete it.
+                transaction.preserve_for_recovery();
+                let _ = fs::remove_dir_all(&staged);
+                return Err(format!(
+                    "提交插件失败: {}；恢复旧插件失败: {}。旧包保留在 {}",
+                    error,
+                    restore_error,
+                    previous.display()
+                ));
+            }
+            if was_enabled {
+                runtime(true);
+            }
+        }
+        return Err(format!("提交插件失败，已保留原安装状态: {}", error));
+    }
+    Ok(())
+}
 
 fn extract_plugin_zip_package(zip_path: &Path, target_dir: &Path) -> Result<(), String> {
     let file = File::open(zip_path)
@@ -187,6 +259,9 @@ pub fn install_local_plugin_package(
     source_path: String,
     overwrite: bool,
 ) -> Result<LocalPluginPackage, String> {
+    let _guard = PLUGIN_PACKAGE_MUTATION_LOCK
+        .lock()
+        .map_err(|e| format!("获取插件目录锁失败: {}", e))?;
     let source_path = PathBuf::from(source_path);
     let (source_dir, temp_dir) = resolve_plugin_install_source(&app_handle, &source_path)?;
     let manifest_path = source_dir.join("plugin.json");
@@ -214,24 +289,24 @@ pub fn install_local_plugin_package(
             .transpose()?;
         let rebuild_search_index =
             search_index_contract_changed(previous_manifest.as_ref(), &manifest);
-        if target_dir.exists() {
-            if !overwrite {
-                return Err(format!("插件 '{}' 已安装", plugin_id));
-            }
-            // 停止旧运行时后再覆盖目录；此时不能广播插件状态，否则其他
-            // WebView 会在旧目录仍存在时重新读回旧插件清单。
-            apply_plugin_runtime_effects(&app_handle, &plugin_id, false);
-            fs::remove_dir_all(&target_dir)
-                .map_err(|e| format!("移除旧插件目录失败: {} ({})", target_dir.display(), e))?;
+        if target_dir.exists() && !overwrite {
+            return Err(format!("插件 '{}' 已安装", plugin_id));
         }
-
-        fs::create_dir_all(&target_dir)
-            .map_err(|e| format!("创建插件目录失败: {} ({})", target_dir.display(), e))?;
-        if let Err(error) = copy_plugin_package_dir(&source_dir, &target_dir) {
-            let _ = fs::remove_dir_all(&target_dir);
-            return Err(error);
-        }
-        write_plugin_install_metadata(&target_dir)?;
+        replace_plugin_package_with(
+            &source_dir,
+            &target_dir,
+            is_plugin_enabled(&app_handle, &plugin_id),
+            |enabled| apply_plugin_runtime_effects(&app_handle, &plugin_id, enabled),
+            copy_plugin_package_dir,
+            |staged| {
+                write_plugin_install_metadata(staged)?;
+                if read_plugin_package_manifest(&staged.join("plugin.json"))? != manifest {
+                    return Err("插件清单在安装期间发生变化，请重试".into());
+                }
+                Ok(())
+            },
+            |from, to| fs::rename(from, to),
+        )?;
 
         info!("✅ [Plugin] installed local package {}", plugin_id);
         if is_plugin_enabled(&app_handle, &plugin_id) {
@@ -387,6 +462,9 @@ pub fn uninstall_local_plugin_package(
     plugin_id: String,
     delete_data: Option<bool>,
 ) -> Result<(), String> {
+    let _guard = PLUGIN_PACKAGE_MUTATION_LOCK
+        .lock()
+        .map_err(|e| format!("获取插件目录锁失败: {}", e))?;
     validate_plugin_package_id(&plugin_id)?;
     let delete_data = delete_data.unwrap_or(false);
 
@@ -440,4 +518,252 @@ pub fn uninstall_local_plugin_package(
     refresh_plugin_shell_integration(&app_handle, &plugin_id, false);
     crate::sync_data::materialize_local_config_change_best_effort(&app_handle, "已安装插件列表");
     data_cleanup_result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::cell::Cell;
+
+    struct InstallFixture {
+        root: PathBuf,
+        source: PathBuf,
+        target: PathBuf,
+    }
+
+    impl InstallFixture {
+        fn new() -> Self {
+            let root = std::env::temp_dir()
+                .join(format!("snippets-plugin-install-{}", uuid::Uuid::new_v4()));
+            let source = root.join("source");
+            let target = root.join("plugins/demo");
+            for (path, version) in [(&source, "2.0.0"), (&target, "1.0.0")] {
+                fs::create_dir_all(path).unwrap();
+                fs::write(
+                    path.join("plugin.json"),
+                    serde_json::json!({
+                        "schemaVersion": 1, "kind": "local", "id": "demo", "version": version
+                    })
+                    .to_string(),
+                )
+                .unwrap();
+                fs::write(path.join("runtime.js"), version).unwrap();
+            }
+            Self {
+                root,
+                source,
+                target,
+            }
+        }
+
+        fn assert_old_package_usable(&self) {
+            assert_eq!(
+                fs::read_to_string(self.target.join("runtime.js")).unwrap(),
+                "1.0.0"
+            );
+            assert_eq!(
+                read_plugin_package_manifest(&self.target.join("plugin.json")).unwrap()["version"],
+                "1.0.0"
+            );
+            assert_eq!(
+                fs::read_dir(self.target.parent().unwrap()).unwrap().count(),
+                1
+            );
+        }
+    }
+
+    impl Drop for InstallFixture {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.root);
+        }
+    }
+
+    #[test]
+    fn failed_plugin_copy_preserves_old_package_and_running_state() {
+        let fixture = InstallFixture::new();
+        let running = Cell::new(true);
+        let result = replace_plugin_package_with(
+            &fixture.source,
+            &fixture.target,
+            true,
+            |enabled| running.set(enabled),
+            |_, target| {
+                assert!(
+                    running.get(),
+                    "old runtime must run until preparation succeeds"
+                );
+                fs::write(target.join("partial.js"), "partial").unwrap();
+                Err("injected copy failure".into())
+            },
+            write_plugin_install_metadata,
+            |from, to| fs::rename(from, to),
+        );
+        assert!(result.is_err());
+        fixture.assert_old_package_usable();
+        assert!(running.get());
+    }
+
+    #[test]
+    fn failed_plugin_metadata_preserves_old_package_and_running_state() {
+        let fixture = InstallFixture::new();
+        // A directory at the metadata filename deterministically rejects the real write.
+        fs::create_dir(fixture.source.join(".install-meta.json")).unwrap();
+        let running = Cell::new(true);
+        let result = replace_plugin_package_with(
+            &fixture.source,
+            &fixture.target,
+            true,
+            |enabled| running.set(enabled),
+            copy_plugin_package_dir,
+            |staged| {
+                assert!(
+                    running.get(),
+                    "metadata must be written before stopping the old runtime"
+                );
+                write_plugin_install_metadata(staged)
+            },
+            |from, to| fs::rename(from, to),
+        );
+        assert!(result.is_err());
+        fixture.assert_old_package_usable();
+        assert!(running.get());
+    }
+
+    #[test]
+    fn incomplete_plugin_staging_is_rejected_before_stopping_old_runtime() {
+        let fixture = InstallFixture::new();
+        let running = Cell::new(true);
+        let result = replace_plugin_package_with(
+            &fixture.source,
+            &fixture.target,
+            true,
+            |enabled| running.set(enabled),
+            |source, target| {
+                copy_plugin_package_dir(source, target)?;
+                fs::remove_file(target.join("runtime.js")).unwrap();
+                Ok(())
+            },
+            write_plugin_install_metadata,
+            |from, to| fs::rename(from, to),
+        );
+        assert!(result.is_err());
+        fixture.assert_old_package_usable();
+        assert!(running.get());
+    }
+
+    #[test]
+    fn failed_plugin_switch_restores_old_package_and_running_state() {
+        let fixture = InstallFixture::new();
+        let running = Cell::new(true);
+        let mut rename_count = 0;
+        let result = replace_plugin_package_with(
+            &fixture.source,
+            &fixture.target,
+            true,
+            |enabled| running.set(enabled),
+            copy_plugin_package_dir,
+            write_plugin_install_metadata,
+            |from, to| {
+                rename_count += 1;
+                if rename_count == 2 {
+                    return Err(io::Error::other("injected switch failure"));
+                }
+                fs::rename(from, to)
+            },
+        );
+        assert!(result.is_err());
+        fixture.assert_old_package_usable();
+        assert!(running.get());
+    }
+
+    #[test]
+    fn failed_plugin_switch_does_not_enable_previously_disabled_runtime() {
+        let fixture = InstallFixture::new();
+        let running = Cell::new(false);
+        let mut rename_count = 0;
+        let result = replace_plugin_package_with(
+            &fixture.source,
+            &fixture.target,
+            false,
+            |enabled| running.set(enabled),
+            copy_plugin_package_dir,
+            write_plugin_install_metadata,
+            |from, to| {
+                rename_count += 1;
+                if rename_count == 2 {
+                    return Err(io::Error::other("injected switch failure"));
+                }
+                fs::rename(from, to)
+            },
+        );
+        assert!(result.is_err());
+        fixture.assert_old_package_usable();
+        assert!(!running.get());
+    }
+
+    #[test]
+    fn failed_plugin_rollback_keeps_old_package_and_reports_recovery_path() {
+        let fixture = InstallFixture::new();
+        let running = Cell::new(true);
+        let mut rename_count = 0;
+        let error = replace_plugin_package_with(
+            &fixture.source,
+            &fixture.target,
+            true,
+            |enabled| running.set(enabled),
+            copy_plugin_package_dir,
+            write_plugin_install_metadata,
+            |from, to| {
+                rename_count += 1;
+                if rename_count > 1 {
+                    return Err(io::Error::other("injected filesystem failure"));
+                }
+                fs::rename(from, to)
+            },
+        )
+        .unwrap_err();
+        let transaction = fs::read_dir(fixture.target.parent().unwrap())
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap()
+            .path();
+        let previous = transaction.join("previous");
+        assert_eq!(
+            fs::read_to_string(previous.join("runtime.js")).unwrap(),
+            "1.0.0"
+        );
+        assert!(error.contains(&previous.display().to_string()));
+        assert!(!transaction.join("staged").exists());
+        assert!(!running.get());
+    }
+
+    #[test]
+    fn successful_plugin_switch_commits_metadata_and_cleans_staging() {
+        let fixture = InstallFixture::new();
+        replace_plugin_package_with(
+            &fixture.source,
+            &fixture.target,
+            false,
+            |_| {},
+            copy_plugin_package_dir,
+            write_plugin_install_metadata,
+            |from, to| fs::rename(from, to),
+        )
+        .unwrap();
+        assert_eq!(
+            fs::read_to_string(fixture.target.join("runtime.js")).unwrap(),
+            "2.0.0"
+        );
+        let metadata: serde_json::Value =
+            serde_json::from_slice(&fs::read(fixture.target.join(".install-meta.json")).unwrap())
+                .unwrap();
+        assert!(metadata["installedAt"].as_str().is_some());
+        assert_eq!(
+            fs::read_dir(fixture.target.parent().unwrap())
+                .unwrap()
+                .count(),
+            1
+        );
+    }
 }

@@ -9,16 +9,19 @@ import {
   type IndexMaintenanceController
 } from './useIndexMaintenance';
 import { useDataCleanup, type DataCleanupController } from './useDataCleanup';
+import { useDataBackup, type DataBackupController } from './useDataBackup';
 
 export type DataManagerController = StorageLocationsController &
   IndexMaintenanceController &
-  DataCleanupController;
+  DataCleanupController &
+  DataBackupController;
 
 export function useDataManager(): DataManagerController {
   const pluginStore = usePluginStore();
   const storage = useStorageLocations();
   const indexes = useIndexMaintenance();
   const cleanup = useDataCleanup();
+  const backup = useDataBackup();
 
   onMounted(async () => {
     await Promise.all([
@@ -34,5 +37,5 @@ export function useDataManager(): DataManagerController {
     }
   );
 
-  return { ...storage, ...indexes, ...cleanup };
+  return { ...storage, ...indexes, ...cleanup, ...backup };
 }

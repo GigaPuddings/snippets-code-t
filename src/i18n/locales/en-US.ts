@@ -52,6 +52,8 @@ export default {
     systemStatus: 'Capability Status',
     manage: 'Manage',
     quickActionDescriptions: {
+      note: 'Capture ideas and knowledge',
+      code: 'Save reusable code',
       workspace: 'Open the workspace panel',
       launcher: 'Launch applications quickly',
       todo: 'Manage your tasks',
@@ -194,6 +196,9 @@ export default {
     autoHideDisabled: 'Auto hide disabled',
     editorLineHeight: 'Editor Line Spacing',
     editorLineHeightDesc: 'Adjust line spacing in the note editor',
+    editorStickyHeadings: 'Show Current Heading When Scrolling',
+    editorStickyHeadingsDesc:
+      'Show the current section heading in the filename area after it scrolls out of view',
     exitApp: 'Exit App',
     exitAppDesc: 'Exit the application',
     exitAppConfirm: 'Are you sure you want to exit?',
@@ -671,9 +676,9 @@ export default {
     marketplaceUpdateAvailable: 'Update available',
     marketplaceDependencyMissing: 'Missing dependency',
     marketplaceIncompatible: 'App update required',
-    gitSyncInstallTitle: 'Install Git Sync first',
+    gitSyncInstallTitle: 'Restoring data from Git?',
     gitSyncInstallDesc:
-      'Before restoring existing data, install and configure Git Sync first, then install other plugins to keep new local settings separate from restored data.',
+      'Install and configure Git Sync before restoring existing Git data. For everyday use, you can install the plugins below directly.',
     gitSyncInstallAction: 'Install Git Sync',
     gitSyncConfigureTitle: 'Finish Git Sync configuration',
     gitSyncConfigureDesc:
@@ -710,6 +715,9 @@ export default {
     sizeUnknown: 'Unknown',
     minAppVersion: 'Min app {version}',
     dependenciesLabel: 'Requires {dependencies}',
+    optionalDependenciesLabel: 'Optional features (install on demand):',
+    optionalCapabilityUnavailable:
+      'Install and enable {plugin} in Settings → Plugins to use this action.',
     dependencyMissing: 'Missing dependency plugin {id}',
     dependencyIncompatible: 'Dependency plugin {plugin} requires a newer app',
     installingPlugin: 'plugin',
@@ -797,6 +805,8 @@ export default {
     },
     screenshot: {
       name: 'Screenshot and OCR',
+      ocrInstallHint:
+        'Install RapidOCR or install and enable Local AI with a vision model in Settings → Plugins to recognize text.',
       description:
         'Screenshot annotation, color picker, pin windows, OCR, and screenshot translation.',
       resourceHint:
@@ -950,6 +960,36 @@ export default {
 
   // Data Management
   dataManager: {
+    backupTitle: 'Full backup and isolated recovery',
+    backupDesc:
+      'Includes workspace files, category metadata, core database, application preferences and plugin user state. Plugin packages, models and indexes in the application data directory are excluded. Custom resource directories inside the workspace are retained. External attachment folders are not followed; copy those separately.',
+    backupHint:
+      'Save your edits and pause sync before exporting. A changed source causes a retryable error. Backups are unencrypted and may contain private data. To recover, select the backup first, then a parent outside the backup and current data directories. A new recovery subdirectory is created; current data stays in place.',
+    exportBackup: 'Export full backup',
+    restoreBackup: 'Restore to new directory',
+    backupParent: 'Select a parent directory for the new backup',
+    backupSource: '1/2 Select a backup directory containing manifest.json',
+    recoveryParent: '2/2 Select a recovery parent outside the backup directory',
+    backupDestinationOverlap:
+      'Destination "{destination}" overlaps protected directory "{protectedPath}". Select a parent outside the backup, current workspace and application data directories.',
+    backupDestinationSeparate:
+      'The recovery destination cannot be inside the backup, current workspace or application data directories. Start again: select the backup, then a parent outside those directories. A new recovery subdirectory will be created.',
+    backupSuccess: 'Backup created and verified',
+    backupFailed: 'Backup failed; you can retry',
+    recoverySuccess:
+      'Recovered to an isolated directory; current data is still active',
+    recoveryFailed: 'Recovery failed; you can retry',
+    backupDirectory: 'Backup directory',
+    backupDirectoryDesc: 'Keep the entire directory, including manifest.json.',
+    recoveryDirectory: 'Recovered data',
+    recoveryDesc:
+      'Workspace and app data are isolated here. Sync, plugins and external path settings start disabled.',
+    recoveryFiles: 'Manual recovery files',
+    recoveryFilesDesc:
+      'Original settings, deleted notes and raw frontend state (including editor drafts) are preserved for manual recovery. They are never applied automatically to other workspaces.',
+    activateRecovery: 'Use recovered data and restart',
+    activateRecoveryConfirm:
+      'Switch the application startup path to this recovered app data and restart now? Save your current edits first. Existing data stays in its original location. Plugins must be reinstalled and enabled manually; sync and external path settings must be reviewed again.',
     title: 'Data & Storage',
     locationsTitle: 'Storage Locations',
     locationsDesc:
@@ -1245,6 +1285,21 @@ export default {
 
   // Category/Snippets
   category: {
+    saveConflict:
+      'The file changed on disk. Autosave is paused and your draft is retained. Save a copy or reload the disk version.',
+    draftRecovered:
+      'An unsaved local draft was recovered. Review it before saving; disk changes will block overwriting.',
+    saveRetryHint:
+      'Save failed. Autosave is paused. Retry, save a copy, or reload from disk.',
+    draftStorageFailed:
+      'The recovery draft could not be stored. Save or make a copy now; closing may lose unsaved changes.',
+    saveDraftCopy: 'Save draft copy',
+    reloadDisk: 'Reload from disk',
+    reloadDiskConfirm:
+      'Discard this draft and load the disk version? The local recovery draft will be deleted.',
+    recoveredTitle: 'Recovered draft',
+    copySavedNewerDraft:
+      'A copy was saved. Edits made during saving remain in the current draft.',
     backToFolders: 'Back to folders',
     newFolder: 'New Folder',
     delete: 'Delete',
@@ -1294,6 +1349,7 @@ export default {
 
   // Content Editing
   content: {
+    stickyHeadingHint: 'Current section: {heading}; click to edit the filename',
     handleLinkFailed: 'Failed to handle link',
     createNoteFailed: 'Failed to create note',
     aiAssistant: 'AI Assistant',
@@ -1549,7 +1605,10 @@ export default {
 
   // Loading Page
   loading: {
-    title: 'Opening snippet workspace'
+    title: 'Opening snippet workspace',
+    failed: 'The workspace could not finish starting. Retry or view logs.',
+    openLogs: 'View logs',
+    actionFailed: 'The action could not be completed. Please retry.'
   },
 
   // Notification
@@ -2114,7 +2173,11 @@ export default {
     more: 'More',
     about: 'About',
     aboutApp: 'About Snippets Code',
+    view: 'View',
+    whatsNew: "What's New",
+    currentRelease: 'Release notes for the current version {version}',
     checkUpdateMenu: 'Check for Updates…',
+    viewUpdate: 'View Update…',
     exitApp: 'Quit Snippets Code',
     updateAvailable: 'Update available',
     version: 'Version {version}',

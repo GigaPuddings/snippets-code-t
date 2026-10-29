@@ -31,6 +31,27 @@ const createManifest = (
 });
 
 describe('plugin manifest storage loader', () => {
+  it('preserves optional dependencies separately from required dependencies', () => {
+    const manifest = normalizePluginPackageManifest(
+      createManifest({
+        dependencies: ['required'],
+        optionalDependencies: ['optional', 42]
+      })
+    );
+    expect(manifest?.dependencies).toEqual(['required']);
+    expect(manifest?.optionalDependencies).toEqual(['optional']);
+  });
+
+  it('accepts legacy manifests without optional dependencies', () => {
+    const manifest = normalizePluginPackageManifest(
+      createManifest({
+        dependencies: ['required']
+      })
+    );
+    expect(manifest?.dependencies).toEqual(['required']);
+    expect(manifest?.optionalDependencies).toBeUndefined();
+  });
+
   it('keeps a valid storage contract from plugin manifests', () => {
     const manifest = normalizePluginPackageManifest(
       createManifest({

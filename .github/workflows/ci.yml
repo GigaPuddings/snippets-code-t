@@ -34,7 +34,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 'lts/*'
+          node-version-file: '.nvmrc'
           cache: 'pnpm'
 
       - name: Install dependencies
@@ -42,6 +42,9 @@ jobs:
 
       - name: Type check
         run: pnpm typecheck
+
+      - name: Release versions and local marketplace
+        run: pnpm release:check
 
       - name: Unit tests
         run: pnpm test
@@ -62,7 +65,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 'lts/*'
+          node-version-file: '.nvmrc'
           cache: 'pnpm'
 
       - name: Install dependencies
@@ -100,7 +103,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 'lts/*'
+          node-version-file: '.nvmrc'
           cache: 'pnpm'
 
       - name: Install dependencies
@@ -131,7 +134,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 'lts/*'
+          node-version-file: '.nvmrc'
           cache: 'pnpm'
 
       - name: Install dependencies

@@ -53,7 +53,7 @@ https://raw.githubusercontent.com/GigaPuddings/snippets-code-t/main/plugin-regis
 
 纯资源包需要和它的父功能插件双向关联：
 
-- 父级 marketplace 条目声明 `dependencies`，例如 `screen-recorder` 依赖 `screen-recorder-ffmpeg`。
+- 父级 manifest 与 marketplace 条目声明 `dependencies`（必需）或 `optionalDependencies`（可选）。例如录屏必需 FFmpeg，截图可选 RapidOCR/翻译/本地 AI，翻译可选离线 runtime。
 - 资源 marketplace 条目声明 `resourceFor`，例如 `screen-recorder-ffmpeg` 设置 `resourceFor: "screen-recorder"`。
 
 设置页会把纯资源包展示在父功能插件下面，所以资源插件不一定会作为单独的顶层 marketplace 行出现。

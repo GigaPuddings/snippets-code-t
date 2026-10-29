@@ -134,15 +134,6 @@ onMounted(async () => {
 
     store.applyTheme();
   });
-
-  // 监听前端主题变化事件（由 theme.ts 全局监听器触发）
-  // 仅在 auto 模式下同步样式，不修改 store.theme
-  // await listen('theme-changed', (event: any) => {
-  //   console.log('[Layout] theme-changed received:', JSON.stringify(event.payload));
-  //   if (store.theme === 'auto') {
-  //     store.applyTheme();
-  //   }
-  // });
 });
 
 onUnmounted(() => {
@@ -153,5 +144,3 @@ onUnmounted(() => {
   unlistenLocalAiNavigation = null;
 });
 </script>
-
-<style scoped></style>

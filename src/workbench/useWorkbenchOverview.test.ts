@@ -15,7 +15,12 @@ vi.mock('vue', async (importOriginal) => ({
   ...(await importOriginal<typeof import('vue')>()),
   onMounted: vi.fn()
 }));
-vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }));
+vi.mock('vue-i18n', () => ({
+  useI18n: () => ({
+    t: (key: string, params?: Record<string, unknown>) =>
+      params ? `${key}:${JSON.stringify(params)}` : key
+  })
+}));
 vi.mock('vue-router', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock('@/api/markdown', () => mocks);
 vi.mock('@/ai', () => ({
@@ -37,14 +42,19 @@ vi.mock('@/store', () => ({
 
 import { useWorkbenchOverview } from './useWorkbenchOverview';
 
-const file = {
+const file: MarkdownFile = {
   id: 'note',
   title: 'Note',
+  content: '',
   filePath: 'E:/Workspace/note.md',
+  created: '2026-01-01T00:00:00Z',
   modified: '2026-01-01T00:00:00Z',
   categoryId: 1,
-  type: 'note'
-} as MarkdownFile;
+  categoryName: 'Notes',
+  type: 'note',
+  tags: [],
+  favorite: false
+};
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -55,6 +65,48 @@ beforeEach(() => {
 });
 
 describe('workbench refresh isolation', () => {
+  it('loads metadata only while preserving counts, favorites, and recent routes', async () => {
+    mocks.getAllFiles.mockResolvedValue([
+      file,
+      {
+        ...file,
+        id: 'snippet',
+        title: 'Snippet',
+        filePath: 'E:/Workspace/snippet.md',
+        modified: '2026-02-01T00:00:00Z',
+        type: 'code',
+        favorite: true
+      }
+    ]);
+    const controller = useWorkbenchOverview();
+
+    await controller.refresh();
+
+    expect(mocks.getAllFiles).toHaveBeenCalledWith({ includeContent: false });
+    expect(
+      controller.metrics.value.find((metric) => metric.id === 'content')
+    ).toMatchObject({
+      value: 2,
+      meta: 'settings.workbench.metrics.contentMeta:{"snippets":1,"notes":1}'
+    });
+    expect(controller.layers.value[0].stats).toContainEqual({
+      label: 'settings.workbench.stats.favorites',
+      value: 1
+    });
+    expect(controller.recentItems.value).toMatchObject([
+      {
+        title: 'Snippet',
+        type: 'code',
+        path: '/config/category/contentList/1/content/E%3A%2FWorkspace%2Fsnippet.md'
+      },
+      {
+        title: 'Note',
+        type: 'note',
+        path: '/config/category/contentList/1/content/E%3A%2FWorkspace%2Fnote.md'
+      }
+    ]);
+  });
+
   it.each([
     'initialize',
     'loadEnabledPluginEntries',

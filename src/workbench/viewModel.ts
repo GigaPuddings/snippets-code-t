@@ -3,7 +3,14 @@ import Application from '~icons/lucide/puzzle';
 import Library from '~icons/lucide/library';
 import MessageSearch from '~icons/lucide/search';
 import Brain from '~icons/lucide/brain';
+import EditTwo from '~icons/lucide/square-pen';
+import FileCodeOne from '~icons/lucide/file-code';
 import { AI_PROVIDER_CAPABILITIES } from '@/ai';
+import {
+  configNavigationTabs,
+  type ConfigNavigationTab
+} from '@/plugins/navigation';
+import type { PluginId } from '@/plugins/types';
 import { DEFAULT_SEARCH_PROVIDER_TIMEOUT_MS } from '@/search/sourceCatalog';
 import type { MarkdownFile } from '@/types';
 import { compareTimestamps } from '@/utils/time-format';
@@ -21,6 +28,54 @@ export interface WorkbenchAction {
   path: string;
   query?: Record<string, string>;
 }
+
+export type WorkbenchQuickAction = Pick<
+  ConfigNavigationTab,
+  'id' | 'labelKey' | 'icon' | 'path'
+>;
+
+const quickActionIds = new Set(['workspace', 'launcher', 'todo', 'aiChat']);
+
+export const buildWorkbenchQuickActions = (
+  workspaceRoot: string,
+  isPluginEnabled: (pluginId: PluginId) => boolean
+): WorkbenchQuickAction[] => {
+  const createActions: WorkbenchQuickAction[] = workspaceRoot
+    ? [
+        {
+          id: 'note',
+          labelKey: 'nav.newNote',
+          icon: EditTwo,
+          path: '/config/category/contentList?create=note'
+        },
+        {
+          id: 'code',
+          labelKey: 'fragmentType.newSnippet',
+          icon: FileCodeOne,
+          path: '/config/category/contentList?create=code'
+        }
+      ]
+    : [];
+
+  return [
+    ...createActions,
+    ...configNavigationTabs
+      .filter(
+        (tab) =>
+          quickActionIds.has(tab.id) &&
+          (!tab.pluginId || isPluginEnabled(tab.pluginId))
+      )
+      .map((tab) =>
+        tab.id === 'workspace' && !workspaceRoot
+          ? {
+              ...tab,
+              labelKey: 'workbenchHome.configureWorkspace',
+              path: '/config/category/settings?tab=data'
+            }
+          : tab
+      )
+  ];
+};
 
 export interface WorkbenchStat {
   label: string;

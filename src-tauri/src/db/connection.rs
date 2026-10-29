@@ -138,7 +138,7 @@ pub fn get_data_dir_info(app_handle: tauri::AppHandle) -> serde_json::Value {
     })
 }
 
-fn backup_connection_to_path(
+pub(crate) fn backup_connection_to_path(
     source: &rusqlite::Connection,
     target_path: &std::path::Path,
 ) -> Result<(), String> {

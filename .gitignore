@@ -19,12 +19,30 @@ target
 *.local
 _tmp*
 
+# 本地环境配置；示例模板仍可提交
+.env
+.env.*
+!.env.example
+!.env.*.example
+!.env.sample
+!.env.template
+
+# 测试报告、编译状态和工具缓存
+coverage/
+.nyc_output/
+.cache/
+.eslintcache
+*.tsbuildinfo
+/.superpowers/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
 .idea
 .DS_Store
+Thumbs.db
+[Dd]esktop.ini
 .cursorignore
 *.suo
 *.ntvs*
@@ -47,6 +65,12 @@ _tmp*
 .release-notes.tmp
 release-notes.txt
 RELEASE_NOTES_TEMP.md
+
+# 本地评审和实施过程记录；docs 仅提交长期维护的说明与规范
+/docs/DAILY_RELIABILITY_*.md
+/docs/PRODUCT_REVIEW_*.md
+/docs/PROJECT_AUDIT_*.md
+/docs/superpowers/
 
 # RapidOCR 本地二进制和模型较大，由 pnpm rapidocr:install 下载
 src-tauri/resources/rapidocr/*

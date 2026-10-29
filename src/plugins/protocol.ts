@@ -76,6 +76,8 @@ export interface PluginPackageManifest {
   nativeHost?: PluginNativeHostSecurity;
   permissions?: string[];
   dependencies?: string[];
+  /** Installed only on explicit request; never part of required dependency traversal. */
+  optionalDependencies?: string[];
   resourceFor?: string;
   compatibleAppVersion?: string;
   minAppVersion?: string;

@@ -44,9 +44,9 @@
 <script setup lang="ts">
 import RightSmall from '~icons/lucide/chevron-right';
 import { useI18n } from 'vue-i18n';
-import type { ConfigNavigationTab } from '@/plugins/navigation';
+import type { WorkbenchQuickAction } from '@/workbench/viewModel';
 
-defineProps<{ actions: ConfigNavigationTab[] }>();
+defineProps<{ actions: WorkbenchQuickAction[] }>();
 const emit = defineEmits<{ navigate: [path: string] }>();
 const { t } = useI18n();
 const quickActionDescription = (id: string): string =>

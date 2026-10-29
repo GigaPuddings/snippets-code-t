@@ -214,6 +214,49 @@
 }
 
 // ============================================
+// Document actions are teleported to body; inherit the live app theme here.
+// ============================================
+.content-actions-dropdown.el-dropdown__popper.el-popper {
+  --el-bg-color-overlay: var(--settings-surface);
+  --el-text-color-regular: var(--workspace-nav-text);
+  --el-border-color-light: var(--settings-border);
+  --el-border-color-lighter: var(--settings-border);
+  --el-dropdown-menu-box-shadow: var(--toast-shadow);
+  --el-dropdown-menuItem-hover-fill: var(--app-ui-hover-bg);
+  --el-dropdown-menuItem-hover-color: var(--workspace-nav-heading);
+
+  @apply rounded-ui-lg;
+
+  .el-dropdown-menu {
+    @apply m-0 min-w-52 rounded-ui-lg p-1.5;
+  }
+
+  .el-dropdown-menu__item {
+    @apply ui-menu-item px-2.5 py-1;
+
+    svg {
+      @apply shrink-0;
+    }
+
+    &.is-active {
+      @apply bg-ui-selected text-ui-heading;
+    }
+
+    &.is-disabled {
+      @apply cursor-default text-ui-muted opacity-50;
+
+      &:hover {
+        @apply bg-transparent;
+      }
+    }
+  }
+
+  .el-dropdown-menu__item--divided {
+    @apply mx-2.5 my-1;
+  }
+}
+
+// ============================================
 // 笔记编辑器状态栏「视图切换」下拉深色样式
 // 使用方式: popper-class="editor-statusbar-dropdown-dark"
 // ============================================

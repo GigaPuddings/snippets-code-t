@@ -60,17 +60,45 @@ export async function readMarkdownFile(
  * @param metadata 文件元数据（可选）
  * @returns 如果文件被重命名，返回新的文件路径；否则返回 null
  */
-export async function updateMarkdownFile(
+export interface ProtectedSaveOptions {
+  expectedRevision: string;
+  expectedWorkspaceRoot: string;
+}
+
+export interface MarkdownSaveResult {
+  newPath: string | null;
+  contentRevision: string;
+  content?: string;
+  attachmentRenames?: Array<{ from: string; to: string }>;
+}
+
+export function updateMarkdownFile(
+  filePath: string,
+  content: string | undefined,
+  metadata: Partial<MarkdownFile> | undefined,
+  options: ProtectedSaveOptions
+): Promise<MarkdownSaveResult>;
+export function updateMarkdownFile(
   filePath: string,
   content?: string,
   metadata?: Partial<MarkdownFile>
-): Promise<string | null> {
+): Promise<string | null>;
+export async function updateMarkdownFile(
+  filePath: string,
+  content?: string,
+  metadata?: Partial<MarkdownFile>,
+  options?: ProtectedSaveOptions
+): Promise<string | null | MarkdownSaveResult> {
   try {
-    const newPath = await invoke<string | null>('update_markdown_file', {
-      filePath,
-      content,
-      metadata
-    });
+    const newPath = await invoke<string | null | MarkdownSaveResult>(
+      'update_markdown_file',
+      {
+        filePath,
+        content,
+        metadata,
+        ...options
+      }
+    );
     return newPath;
   } catch (error) {
     throw new Error(`更新文件失败: ${error}`);
@@ -351,12 +379,19 @@ export async function getAllFiles(options?: {
  * @param filePath 文件路径
  * @param favorite 是否收藏
  */
+export interface FavoriteSaveResult {
+  previousRevision: string;
+  contentRevision: string;
+}
 export async function toggleFavorite(
   filePath: string,
   favorite: boolean
-): Promise<void> {
+): Promise<FavoriteSaveResult | undefined> {
   try {
-    await invoke('toggle_favorite', { filePath, favorite });
+    return await invoke<FavoriteSaveResult | undefined>('toggle_favorite', {
+      filePath,
+      favorite
+    });
   } catch (error) {
     throw new Error(`切换收藏状态失败: ${error}`);
   }

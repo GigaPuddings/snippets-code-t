@@ -60,9 +60,9 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
-import { configNavigationTabs } from '@/plugins/navigation';
 import { usePluginStore } from '@/store';
 import { useWorkbenchOverview } from '@/workbench/useWorkbenchOverview';
+import { buildWorkbenchQuickActions } from '@/workbench/viewModel';
 import CapabilityStatus from './components/CapabilityStatus.vue';
 import QuickActions from './components/QuickActions.vue';
 import RecentContent from './components/RecentContent.vue';
@@ -86,13 +86,9 @@ const {
   navigateTo
 } = useWorkbenchOverview();
 
-const quickActionIds = new Set(['workspace', 'launcher', 'todo', 'aiChat']);
-
 const quickActions = computed(() =>
-  configNavigationTabs.filter(
-    (tab) =>
-      quickActionIds.has(tab.id) &&
-      (!tab.pluginId || pluginStore.isEnabled(tab.pluginId))
+  buildWorkbenchQuickActions(workspaceRoot.value, (pluginId) =>
+    pluginStore.isEnabled(pluginId)
   )
 );
 

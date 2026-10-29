@@ -14,6 +14,7 @@ mod search_history;
 mod settings;
 
 // 重新导出连接管理器
+pub(crate) use connection::backup_connection_to_path;
 pub use connection::DbConnectionManager;
 
 // 重新导出初始化函数

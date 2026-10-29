@@ -384,6 +384,13 @@ async function verifyInstallablePackage(item) {
     `${item.id}: description.i18nKey 无效`
   );
   verifyLocalPackageEntryFiles(item, manifest, packageDir);
+  for (const field of ['dependencies', 'optionalDependencies']) {
+    assert(
+      JSON.stringify([...(item[field] ?? [])].sort()) ===
+        JSON.stringify([...(manifest[field] ?? [])].sort()),
+      `${item.id}: marketplace ${field} 与 plugin.json 不一致`
+    );
+  }
 }
 
 async function runLimited(items, limit, task) {
@@ -435,17 +442,22 @@ async function main() {
   );
 
   for (const item of marketplace.plugins) {
-    if (!Array.isArray(item.dependencies)) continue;
-    for (const dependencyId of item.dependencies) {
+    for (const field of ['dependencies', 'optionalDependencies']) {
       assert(
-        typeof dependencyId === 'string' && dependencyId.length > 0,
-        `${item.id}: dependency id 无效`
+        item[field] === undefined || Array.isArray(item[field]),
+        `${item.id}: ${field} 必须为数组`
       );
-      assert(
-        ids.has(dependencyId),
-        `${item.id}: dependency 不存在: ${dependencyId}`
-      );
-      assert(dependencyId !== item.id, `${item.id}: dependency 不能指向自身`);
+      for (const dependencyId of item[field] ?? []) {
+        assert(
+          typeof dependencyId === 'string' && dependencyId.length > 0,
+          `${item.id}: dependency id 无效`
+        );
+        assert(
+          ids.has(dependencyId),
+          `${item.id}: dependency 不存在: ${dependencyId}`
+        );
+        assert(dependencyId !== item.id, `${item.id}: dependency 不能指向自身`);
+      }
     }
   }
 

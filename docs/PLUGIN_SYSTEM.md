@@ -220,11 +220,29 @@ AI context providers registered with `registerAiContextProvider` are collected b
 
 Each local plugin has an isolated JSON data file exposed through `context.storage.get`, `context.storage.set`, and `context.storage.delete`. Persistent state is stored under `<data-root>/state/plugins/<plugin-id>/data.json`, not inside the plugin package directory. Updating, disabling, or ordinary uninstalling a plugin preserves this state; only the explicit "uninstall and delete data" path removes plugin state, index data, and cache.
 
-Plugin packages and marketplace entries may declare `dependencies`. The plugin
-settings page installs missing dependencies first. This is used by
-`screenshot`: the feature plugin stays small, while the required RapidOCR
-runtime and model files live in `screenshot-rapidocr` and are installed
-automatically with the screenshot/OCR plugin.
+Plugin packages and marketplace entries may declare `dependencies` (required)
+and `optionalDependencies` (capabilities installed only on explicit request).
+The plugin settings page installs missing required dependencies first. Local AI
+still requires its llama runtime, and Screen Recorder still requires FFmpeg.
+Screenshot lists RapidOCR, Translation and Local AI as optional; its capture,
+annotation and pin actions work independently. OCR works with either RapidOCR
+or a configured local vision model. Translation lists its offline runtime as
+optional, so online translation can be installed and used independently.
+The settings page offers separate install buttons for optional capabilities;
+missing optional packages never cause a dependency repair or a circular
+dependency error. Ordinary installs do not require Git Sync. The Git Sync
+onboarding remains available for users restoring existing Git data.
+
+`optionalDependencies` is additive within schema version 1. Older manifests
+without the field retain their original required dependencies. The backend
+preserves unknown JSON fields, and existing command permissions and plugin
+enable gates continue to apply independently to each capability.
+
+Release note: these are local unreleased changes. Do not publish a changed
+manifest or runtime over an existing tag/checksum. Before release, version and
+publish the changed packages, regenerate marketplace URLs/sizes/checksums from
+those packages, and verify compatibility with older hosts. Until then, remote
+tag archives still contain their old manifests and runtime behavior.
 
 Dependencies currently contain plugin IDs, not version constraints. A newer
 marketplace version does not make an installed dependency missing. Dependency
@@ -473,7 +491,7 @@ Marketplace entries use schema version `1`:
       "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/archive/refs/tags/v1.5.6.zip",
       "sizeBytes": 694267,
       "sha256": "64 hex characters",
-      "dependencies": ["screenshot-rapidocr"],
+      "optionalDependencies": ["screenshot-rapidocr", "translation", "local-ai"],
       "status": "included"
     }
   ]

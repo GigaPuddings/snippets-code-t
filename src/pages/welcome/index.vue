@@ -145,7 +145,7 @@ const loadRecent = async () => {
   loading.value = true;
   loadError.value = false;
   try {
-    const files = await getAllFiles();
+    const files = await getAllFiles({ includeContent: false });
     if (!disposed && generation === loadGeneration)
       recentItems.value = buildWorkbenchRecentItems(files, 4);
   } catch {

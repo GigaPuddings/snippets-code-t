@@ -3,6 +3,7 @@ mod app_setup;
 mod apps;
 mod attachment;
 mod auto_start;
+mod backup;
 mod bookmarks;
 mod commands;
 mod config;
@@ -169,6 +170,12 @@ pub fn run() {
             // 插件安装/启用状态、设置页等都需要在未设置工作区时正常工作。
             let data_dir = json_config::get_data_dir(app.handle());
             app_setup::initialize_managed_state(app, &data_dir);
+
+            if let Ok(Some(root)) = json_config::get_workspace_root(app.handle()) {
+                if let Err(error) = commands::allow_workspace_assets(app.handle(), &root) {
+                    log::warn!("[Workspace] 初始化资源权限失败: {}", error);
+                }
+            }
 
             let is_setup_completed = db::is_setup_completed_internal(app.handle());
 
@@ -386,11 +393,28 @@ pub fn run() {
                         if let Some(cache_mgr) = cache_manager_clone {
                             match markdown::IndexManager::build_index(&workspace_root, &cache_mgr).await {
                                 Ok(index_manager) => {
+                                    if json_config::get_workspace_root(&app_handle_markdown)
+                                        .ok()
+                                        .flatten()
+                                        .as_deref()
+                                        != Some(workspace_root.as_path())
+                                    {
+                                        log::debug!("跳过已过期的启动索引和监听器: {}", workspace_root.display());
+                                        return;
+                                    }
                                     log::info!("搜索索引构建完成");
 
                                     // 更新索引管理器状态（替换之前的 None）
                                     if let Some(index_state) = app_handle_markdown.try_state::<Arc<RwLock<Option<markdown::IndexManager>>>>() {
                                         if let Ok(mut index_lock) = index_state.write() {
+                                            if json_config::get_workspace_root(&app_handle_markdown)
+                                                .ok()
+                                                .flatten()
+                                                .as_deref()
+                                                != Some(workspace_root.as_path())
+                                            {
+                                                return;
+                                            }
                                             *index_lock = Some(index_manager);
                                             log::info!("索引管理器状态已更新");
                                         }
@@ -403,7 +427,14 @@ pub fn run() {
                                             log::info!("文件监听器启动成功");
                                             if let Some(watcher_state) = app_handle_markdown.try_state::<Arc<Mutex<Option<markdown::FileWatcher>>>>() {
                                                 if let Ok(mut watcher_lock) = watcher_state.lock() {
-                                                    *watcher_lock = Some(watcher);
+                                                    if json_config::get_workspace_root(&app_handle_markdown)
+                                                        .ok()
+                                                        .flatten()
+                                                        .as_deref()
+                                                        == Some(workspace_root.as_path())
+                                                    {
+                                                        *watcher_lock = Some(watcher);
+                                                    }
                                                 }
                                             }
                                         }
@@ -541,6 +572,9 @@ pub fn run() {
             window::handle_window_event(window, event);
         })
         .invoke_handler(tauri::generate_handler![
+            backup::create_full_backup,
+            backup::restore_full_backup,
+            backup::activate_restored_backup,
             register_shortcut_by_frontend,    // 注册快捷键
             get_shortcuts,                    // 获取快捷键
             get_hotkey_config_map,            // 获取动态快捷键配置
@@ -558,6 +592,8 @@ pub fn run() {
             window_caption::set_titlebar_maximize_bounds, // Windows 自定义标题栏贴靠布局
             window::take_pending_local_ai_prompt, // 领取快速搜索传入的 AI 提示词
             window::take_pending_local_ai_new_chat, // 领取 AI 聊天新建对话请求
+            window::get_config_startup_failed,
+            window::retry_config_startup,
             plugins::shared::open_url,        // 打开书签或搜索 URL
             insert_text_to_last_window,       // 插入文本到上次活动窗口
             get_db_path,                      // 获取数据库路径

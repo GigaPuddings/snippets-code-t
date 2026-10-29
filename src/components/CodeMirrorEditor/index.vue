@@ -56,6 +56,7 @@ import { EditorView, ViewUpdate, keymap, lineNumbers } from '@codemirror/view';
 import { tags as t } from '@lezer/highlight';
 import { createTheme } from '@uiw/codemirror-themes';
 import { Compartment, EditorState } from '@codemirror/state';
+import { documentLineSeparator } from './lineEndings';
 import {
   history,
   historyKeymap,
@@ -223,6 +224,7 @@ const languageCompartment = new Compartment();
 const tabSizeCompartment = new Compartment();
 const keymapCompartment = new Compartment();
 const themeCompartment = new Compartment();
+const lineSeparatorCompartment = new Compartment();
 
 // 更新状态栏信息
 function updateStatusInfo(state: EditorState) {
@@ -307,6 +309,9 @@ const createEditorKeymap = (
 // 计算Codemirror扩展
 const getExtensions = (): Extension[] => {
   const extensions = [
+    lineSeparatorCompartment.of(
+      EditorState.lineSeparator.of(documentLineSeparator(props.code))
+    ),
     lineNumbers(),
     EditorView.lineWrapping,
     themeCompartment.of(customTheme.value),
@@ -322,8 +327,7 @@ const getExtensions = (): Extension[] => {
     }),
     EditorView.updateListener.of((update: ViewUpdate) => {
       if (update.docChanged) {
-        const doc = update.state.doc;
-        const value = doc.toString();
+        const value = update.state.sliceDoc();
         updateStatusInfo(update.state);
         emits('change', value, update);
         emits('update:code', value);
@@ -652,7 +656,12 @@ watch(
 
     const changedDocument =
       oldFragmentId !== undefined && fragmentId !== oldFragmentId;
-    if (code !== view.state.doc.toString()) {
+    if (code !== view.state.sliceDoc()) {
+      view.dispatch({
+        effects: lineSeparatorCompartment.reconfigure(
+          EditorState.lineSeparator.of(documentLineSeparator(code))
+        )
+      });
       view.dispatch({
         changes: {
           from: 0,

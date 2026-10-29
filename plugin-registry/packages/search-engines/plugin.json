@@ -32,7 +32,7 @@
   "entry": {
     "frontend": "dist/frontend.js",
     "styles": [
-      "dist/assets/runtime-entry-DVJRqBDH.css"
+      "dist/assets/runtime-entry-DGlQl8TJ.css"
     ]
   },
   "minAppVersion": "2.2.7",

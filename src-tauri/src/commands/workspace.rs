@@ -7,6 +7,89 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, RwLock};
 use tauri::{Emitter, Manager};
 
+pub(crate) fn allow_workspace_assets<R: tauri::Runtime>(
+    app_handle: &tauri::AppHandle<R>,
+    workspace_root: &Path,
+) -> Result<(), String> {
+    let root = workspace_root
+        .canonicalize()
+        .map_err(|e| format!("解析工作区资源目录失败: {e}"))?;
+    if !root.is_dir() {
+        return Err("工作区资源路径必须是目录".into());
+    }
+    // Extend only the asset protocol, not filesystem command permissions. Tauri
+    // keeps the configured deny patterns authoritative over this selected root.
+    app_handle
+        .asset_protocol_scope()
+        .allow_directory(&root, true)
+        .map_err(|e| format!("授权工作区资源访问失败: {e}"))?;
+    log::info!(
+        "[Workspace] 已允许工作区资源访问: {}",
+        workspace_root.display()
+    );
+    Ok(())
+}
+
+#[cfg(test)]
+mod asset_scope_tests {
+    use super::*;
+
+    #[test]
+    fn grants_custom_workspace_assets_without_opening_siblings_or_secrets() {
+        let root =
+            std::env::temp_dir().join(format!("workspace-asset-scope-{}", uuid::Uuid::new_v4()));
+        let workspace = root.join("自定义 [工作区]");
+        let nested_git = workspace.join("nested/.git/config");
+        let image = workspace.join("assets/附件原名/pixel.png");
+        let sibling = root.join("other/pixel.png");
+        for path in [&image, &sibling, &nested_git] {
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, b"fixture").unwrap();
+        }
+        let mut context = tauri::test::mock_context(tauri::test::noop_assets());
+        let config: serde_json::Value =
+            serde_json::from_str(include_str!("../../tauri.conf.json")).unwrap();
+        let mut scope_config = config["app"]["security"]["assetProtocol"]["scope"].clone();
+        // Model a workspace outside the pre-approved folders, irrespective of
+        // which drive the runner's temporary directory happens to use.
+        scope_config["allow"] = serde_json::json!([]);
+        let portable_denies: Vec<_> = scope_config["deny"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|entry| !entry.as_str().unwrap().starts_with('$'))
+            .cloned()
+            .collect();
+        scope_config["deny"] = portable_denies.into();
+        context.config_mut().app.security.asset_protocol.scope =
+            serde_json::from_value(scope_config).unwrap();
+        let app = tauri::test::mock_builder().build(context).unwrap();
+        let scope = app.asset_protocol_scope();
+        assert!(!scope.is_allowed(&image));
+        allow_workspace_assets(app.handle(), &workspace).unwrap();
+        assert!(
+            scope.is_allowed(&image),
+            "selected workspace image must be readable"
+        );
+        assert!(
+            !scope.is_allowed(&sibling),
+            "a sibling directory must not be granted"
+        );
+        assert!(
+            !scope.is_allowed(&nested_git),
+            "Git internals remain forbidden"
+        );
+        let second = root.join("second");
+        std::fs::create_dir(&second).unwrap();
+        let second_image = second.join("image.png");
+        std::fs::write(&second_image, b"fixture").unwrap();
+        allow_workspace_assets(app.handle(), &second).unwrap();
+        assert!(scope.is_allowed(&second_image));
+        assert!(!scope.is_allowed(&sibling));
+        std::fs::remove_dir_all(root).unwrap();
+    }
+}
+
 fn manage_or_replace<T: Send + Sync + 'static>(
     app_handle: &tauri::AppHandle,
     value: T,
@@ -27,6 +110,18 @@ fn initialize_workspace_runtime(
     app_handle: &tauri::AppHandle,
     workspace_root: PathBuf,
 ) -> Result<(), String> {
+    // 先使旧监听代次失效，避免新 cache 已安装而旧批次仍在排队。
+    if let Some(watcher_state) =
+        app_handle.try_state::<Arc<Mutex<Option<crate::markdown::FileWatcher>>>>()
+    {
+        let previous = watcher_state
+            .lock()
+            .map_err(|e| format!("停止旧工作区监听器失败: {}", e))?
+            .take();
+        // 释放状态锁后再关闭 notify，停止控制不会等待处理线程 join。
+        drop(previous);
+    }
+
     let config_dir = workspace_root.join(".snippets-code");
     std::fs::create_dir_all(&config_dir).map_err(|e| format!("创建工作区配置目录失败: {}", e))?;
 
@@ -75,6 +170,9 @@ fn initialize_workspace_runtime(
                         .try_state::<Arc<RwLock<Option<crate::markdown::IndexManager>>>>()
                     {
                         if let Ok(mut index_lock) = index_state.write() {
+                            if !is_current_workspace(&app_handle_index, &workspace_root_index) {
+                                return;
+                            }
                             *index_lock = Some(index_manager);
                         }
                     }
@@ -105,6 +203,9 @@ fn initialize_workspace_runtime(
                         .try_state::<Arc<Mutex<Option<crate::markdown::FileWatcher>>>>()
                     {
                         if let Ok(mut watcher_lock) = watcher_state.lock() {
+                            if !is_current_workspace(&app_handle_index, &workspace_root_index) {
+                                return;
+                            }
                             *watcher_lock = Some(watcher);
                         }
                     }

@@ -104,3 +104,6 @@ winreg = "0.56.0"
 [dependencies.tauri-plugin-sql]
 features = ["sqlite"]
 version = "2.4.0"
+
+[dev-dependencies]
+tauri = { version = "2.11.3", features = ["test"] }

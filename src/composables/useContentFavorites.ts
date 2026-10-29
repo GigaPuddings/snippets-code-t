@@ -10,6 +10,8 @@ export interface FavoriteChangeDetail {
   id: string;
   favorite: boolean;
   updated_at?: string;
+  previousRevision?: string;
+  contentRevision?: string;
 }
 
 interface UseContentFavoritesReturn {
@@ -28,6 +30,13 @@ export function applyFavoriteChange(
 ): void {
   if (!content || fileId(content.id) !== fileId(change.id)) return;
   content.favorite = change.favorite;
+  if (
+    change.previousRevision &&
+    change.contentRevision &&
+    content.contentRevision === change.previousRevision
+  ) {
+    content.contentRevision = change.contentRevision;
+  }
   if (change.updated_at) content.updated_at = change.updated_at;
 }
 
@@ -43,12 +52,13 @@ export function useContentFavorites(): UseContentFavoritesReturn {
     try {
       const listed = store.contents.find((item) => fileId(item.id) === id);
       const favorite = !(listed?.favorite ?? content.favorite ?? false);
-      await toggleFavorite(id, favorite);
+      const revision = await toggleFavorite(id, favorite);
 
       const change: FavoriteChangeDetail = {
         source: 'favorite-change',
         id,
-        favorite
+        favorite,
+        ...revision
       };
       try {
         // The backend also updates modified time. Never replace editor text.

@@ -48,6 +48,7 @@ export interface PluginMarketplaceItem {
   releaseUrl?: string;
   tags?: string[];
   dependencies?: string[];
+  optionalDependencies?: string[];
   builtinPluginId?: string;
   resourceFor?: string;
   sizeBytes?: number;

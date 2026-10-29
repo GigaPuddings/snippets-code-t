@@ -218,9 +218,8 @@
   }
 }
 
-.account-menu-popper.el-popper,
-.about-menu-popper.el-popper {
-  @apply min-w-52 rounded-ui-lg border p-1 font-ui text-ui shadow-lg;
+.account-menu-popper.el-popper {
+  @apply min-w-52 rounded-ui-lg border p-2 font-ui text-ui shadow-lg;
 
   color: var(--workspace-nav-text);
   background: var(--settings-surface);
@@ -238,16 +237,86 @@
 
     color: var(--workspace-nav-text);
 
-    &:hover,
-    &:focus {
+    &:not(.is-disabled):hover,
+    &:not(.is-disabled):focus {
       color: var(--workspace-nav-heading);
       background: var(--workspace-nav-selected);
     }
+
+    &.is-disabled {
+      color: var(--workspace-nav-text);
+      opacity: 0.45;
+    }
+  }
+
+  .el-dropdown-menu__item--divided {
+    border-color: var(--settings-border);
   }
 }
 
-.account-menu-popper.el-popper {
-  @apply p-2;
+// Include the library's popper class so lazy-loaded Element Plus styles cannot
+// remove the menu gutter or replace theme colors with their default focus fill.
+.about-menu-popper.el-dropdown__popper.el-popper,
+.view-menu-popper.el-dropdown__popper.el-popper {
+  --el-bg-color-overlay: var(--workspace-nav-bg);
+  --el-border-color-light: var(--settings-border);
+  --el-border-color-lighter: var(--settings-border);
+  --el-dropdown-menuItem-hover-fill: var(--app-ui-hover-bg);
+  --el-dropdown-menuItem-hover-color: var(--workspace-nav-heading);
+
+  @apply min-w-48 max-w-[calc(100vw-1rem)] rounded-ui border p-1 font-ui text-ui;
+
+  color: var(--workspace-nav-text);
+  background: var(--workspace-nav-bg);
+  border-color: var(--settings-border);
+  box-shadow: var(--toast-shadow);
+
+  &.el-zoom-in-top-enter-active,
+  &.el-zoom-in-top-leave-active {
+    transition: none;
+  }
+
+  &.el-zoom-in-top-enter-from,
+  &.el-zoom-in-top-leave-to {
+    opacity: 1;
+    transform: none;
+  }
+
+  .el-dropdown-menu {
+    @apply m-0 flex flex-col gap-0 bg-transparent p-0;
+  }
+
+  .el-dropdown-menu__item {
+    @apply flex h-7 items-center gap-3 rounded-md bg-transparent px-4 py-0 font-normal text-ui;
+
+    color: var(--workspace-nav-text);
+
+    &:not(.is-disabled):focus-visible {
+      color: var(--workspace-nav-heading);
+      background: var(--app-ui-hover-bg);
+    }
+
+    &.is-disabled {
+      @apply cursor-default;
+
+      color: var(--workspace-nav-muted);
+      opacity: 0.5;
+    }
+  }
+
+  // Pointer hover yields to keyboard focus, even when the pointer remains over
+  // the previous row. Element Plus moves focus again on the next pointer move.
+  .el-dropdown-menu:not(:has(:focus-visible))
+    .el-dropdown-menu__item:not(.is-disabled):hover {
+    color: var(--workspace-nav-heading);
+    background: var(--app-ui-hover-bg);
+  }
+
+  .el-dropdown-menu__item--divided {
+    @apply mx-0 my-1.5;
+
+    border-color: var(--settings-border);
+  }
 }
 
 @media (width <= 720px) {

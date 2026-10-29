@@ -5,6 +5,7 @@ import {
   buildWorkbenchRecentItems,
   buildWorkbenchLayers,
   buildWorkbenchMetrics,
+  buildWorkbenchQuickActions,
   statusChipClass,
   type WorkbenchTranslator,
   type WorkbenchViewModelInput
@@ -44,6 +45,31 @@ describe('buildWorkbenchMetrics', () => {
       { id: 'search', value: 3 },
       { id: 'ai', value: 2 }
     ]);
+  });
+});
+
+describe('buildWorkbenchQuickActions', () => {
+  it('opens the existing note and snippet creation routes when a workspace is ready', () => {
+    const actions = buildWorkbenchQuickActions('E:/Workspace', () => false);
+
+    expect(actions.map(({ id, path }) => ({ id, path }))).toEqual([
+      { id: 'note', path: '/config/category/contentList?create=note' },
+      { id: 'code', path: '/config/category/contentList?create=code' },
+      { id: 'workspace', path: '/config/category/contentList' }
+    ]);
+  });
+
+  it('offers workspace setup before creation and only exposes enabled plugins', () => {
+    const actions = buildWorkbenchQuickActions(
+      '',
+      (pluginId) => pluginId === 'todo'
+    );
+
+    expect(actions.map(({ id, path }) => ({ id, path }))).toEqual([
+      { id: 'workspace', path: '/config/category/settings?tab=data' },
+      { id: 'todo', path: '/config/todo' }
+    ]);
+    expect(actions[0].labelKey).toBe('workbenchHome.configureWorkspace');
   });
 });
 

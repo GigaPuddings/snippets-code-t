@@ -77,35 +77,151 @@
       <el-dropdown
         trigger="click"
         placement="bottom-start"
-        popper-class="about-menu-popper"
+        popper-class="view-menu-popper"
+        :show-arrow="false"
         class="shrink-0"
+        @visible-change="viewMenuOpen = $event"
+        @command="handleViewMenuCommand"
+      >
+        <button
+          type="button"
+          class="ui-action h-ui-icon-control-sm text-content"
+          :class="{
+            'bg-[var(--settings-surface)] text-ui-heading': viewMenuOpen
+          }"
+          :title="t('titlebar.view')"
+          :aria-label="t('titlebar.view')"
+          :aria-expanded="viewMenuOpen"
+          @mousedown.stop
+        >
+          {{ t('titlebar.view') }}
+        </button>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item
+              v-for="tab in visibleTabs"
+              :key="tab.id"
+              :command="`navigate:${tab.id}`"
+              :aria-current="isTabActive(tab.path) ? 'page' : undefined"
+            >
+              <span>{{ tab.label }}</span>
+              <Check
+                v-if="isTabActive(tab.path)"
+                class="ml-auto"
+                width="15"
+                height="15"
+                aria-hidden="true"
+              />
+            </el-dropdown-item>
+            <el-dropdown-item
+              command="toggleSidebar"
+              divided
+              :disabled="!showSidebarToggle"
+            >
+              <span>
+                {{
+                  sidebarCollapsed
+                    ? t('titlebar.showSidebar')
+                    : t('titlebar.hideSidebar')
+                }}
+              </span>
+            </el-dropdown-item>
+            <el-dropdown-item command="pinWindow" :disabled="isChangingState">
+              <span>
+                {{
+                  isAlwaysOnTop
+                    ? t('titlebar.unpinWindow')
+                    : t('titlebar.pinWindow')
+                }}
+              </span>
+              <Check
+                v-if="isAlwaysOnTop"
+                class="ml-auto"
+                width="15"
+                height="15"
+                aria-hidden="true"
+              />
+            </el-dropdown-item>
+            <el-dropdown-item
+              command="minimize"
+              divided
+              :disabled="!isMinimizable || isChangingState"
+            >
+              <span>{{ t('titlebar.minimize') }}</span>
+            </el-dropdown-item>
+            <el-dropdown-item
+              command="maximize"
+              :disabled="!isMaximizable || isChangingState"
+            >
+              <span>{{ title }}</span>
+            </el-dropdown-item>
+            <el-dropdown-item command="close" :disabled="isChangingState">
+              <span>{{ t('titlebar.close') }}</span>
+            </el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
+      <el-dropdown
+        trigger="click"
+        placement="bottom-start"
+        popper-class="about-menu-popper"
+        :show-arrow="false"
+        class="shrink-0"
+        @visible-change="aboutMenuOpen = $event"
         @command="handleAboutMenuCommand"
       >
         <button
           type="button"
-          class="ui-action text-content"
-          :title="t('titlebar.about')"
+          class="ui-action h-ui-icon-control-sm text-content"
+          :class="{
+            'bg-[var(--settings-surface)] text-ui-heading': aboutMenuOpen
+          }"
+          :title="
+            hasUpdate ? t('titlebar.updateAvailable') : t('titlebar.about')
+          "
           :aria-label="t('titlebar.about')"
+          :aria-expanded="aboutMenuOpen"
+          :aria-description="
+            hasUpdate ? t('titlebar.updateAvailable') : undefined
+          "
           @mousedown.stop
         >
           <span>{{ t('titlebar.about') }}</span>
+          <span
+            v-if="hasUpdate"
+            class="absolute right-0 top-0 flex h-2 w-2"
+            aria-hidden="true"
+          >
+            <span
+              class="absolute inline-flex h-full w-full animate-ping rounded-full bg-workbench-warning opacity-60 motion-reduce:animate-none"
+            ></span>
+            <span
+              class="relative inline-flex h-2 w-2 rounded-full bg-workbench-warning"
+            ></span>
+          </span>
         </button>
         <template #dropdown>
           <el-dropdown-menu>
             <el-dropdown-item command="aboutApp">
-              <Info width="17" height="17" />
               <span>{{ t('titlebar.aboutApp') }}</span>
             </el-dropdown-item>
+            <el-dropdown-item command="whatsNew">
+              <span>{{ t('titlebar.whatsNew') }}</span>
+            </el-dropdown-item>
             <el-dropdown-item command="checkUpdate">
-              <UpdateRotation width="17" height="17" />
-              <span>{{ t('titlebar.checkUpdateMenu') }}</span>
+              <span>
+                {{
+                  hasUpdate
+                    ? t('titlebar.viewUpdate')
+                    : t('titlebar.checkUpdateMenu')
+                }}
+              </span>
               <span
                 v-if="hasUpdate"
                 class="ml-auto h-1.5 w-1.5 rounded-full bg-workbench-warning"
               ></span>
             </el-dropdown-item>
             <el-dropdown-item command="exitApp" divided>
-              <Logout width="17" height="17" />
               <span>{{ t('titlebar.exitApp') }}</span>
             </el-dropdown-item>
           </el-dropdown-menu>
@@ -182,7 +298,7 @@
       >
         <button
           type="button"
-          class="ui-icon-button titlebar-button titlebar-button--more"
+          class="ui-icon-button titlebar-button"
           :title="$t('titlebar.more')"
           :aria-label="$t('titlebar.more')"
         >
@@ -244,7 +360,7 @@
 
       <button
         type="button"
-        class="ui-icon-button titlebar-button titlebar-button--window"
+        class="ui-icon-button titlebar-button"
         @click="handleTitlebar('minimize')"
         @mousedown.stop
         :disabled="!isMinimizable || isChangingState"
@@ -256,7 +372,7 @@
       <button
         ref="maximizeButton"
         type="button"
-        class="ui-icon-button titlebar-button titlebar-button--window"
+        class="ui-icon-button titlebar-button"
         :class="{ 'bg-ui-hover': maximizeHovered }"
         @click="handleTitlebar('maximize')"
         @mousedown.stop
@@ -291,7 +407,6 @@
     v-model="aboutVisible"
     :title="t('titlebar.aboutApp')"
     width="380px"
-    custom-class="about-app-dialog"
   >
     <div class="flex items-center gap-4 py-2">
       <img src="@/assets/128x128.png" alt="" class="h-14 w-14 shrink-0" />
@@ -307,6 +422,21 @@
     <p class="mt-3 text-ui leading-6 text-content">
       {{ t('userCenter.appDescription') }}
     </p>
+  </CommonDialog>
+  <CommonDialog
+    v-model="whatsNewVisible"
+    :title="t('titlebar.whatsNew')"
+    width="600px"
+  >
+    <div>
+      <p class="mb-4 text-ui-caption text-content">
+        {{ t('titlebar.currentRelease', { version: state.appVersion }) }}
+      </p>
+      <div
+        class="release-notes max-h-[min(60vh,32rem)] overflow-y-auto pr-2"
+        v-html="releaseNotesHtml"
+      ></div>
+    </div>
   </CommonDialog>
 </template>
 
@@ -324,8 +454,8 @@ import Search from '~icons/lucide/search';
 import ArrowLeft from '~icons/lucide/arrow-left';
 import ArrowRight from '~icons/lucide/arrow-right';
 import LeftBar from '~icons/lucide/panel-left';
-import Info from '~icons/lucide/info';
-import Logout from '~icons/lucide/log-out';
+import Check from '~icons/lucide/check';
+import releaseNotes from '../../../RELEASE_NOTES.md?raw';
 import { appName, appVersion, initEnv } from '@/utils/env';
 import { invoke } from '@tauri-apps/api/core';
 import { useRouter } from 'vue-router';
@@ -334,6 +464,7 @@ import ConfigQuickSearch from '@/components/ConfigQuickSearch/index.vue';
 import { CommonDialog } from '@/components/UI';
 import { useConfigQuickSearch } from '@/composables/useConfigQuickSearch';
 import { useUpdateAvailability } from '@/composables/useUpdateAvailability';
+import { markdownToHtml } from '@/utils/markdown';
 import {
   useWindowControls,
   type WindowAction
@@ -342,7 +473,8 @@ import { useTitlebarSnap } from '@/composables/useTitlebarSnap';
 import { useLayoutStore, usePluginStore } from '@/store';
 import {
   configNavigationTabs,
-  getConfigTabLabelKey
+  getConfigTabLabelKey,
+  isConfigNavigationPathActive
 } from '@/plugins/navigation';
 
 const { t } = useI18n();
@@ -355,6 +487,10 @@ const {
 } = useConfigQuickSearch();
 const { hasUpdate, checkForUpdates } = useUpdateAvailability();
 const aboutVisible = ref(false);
+const whatsNewVisible = ref(false);
+const viewMenuOpen = ref(false);
+const aboutMenuOpen = ref(false);
+const releaseNotesHtml = computed(() => markdownToHtml(releaseNotes));
 
 /** 搜索窗口的操作收纳与快捷搜索显示断点。 */
 const TITLEBAR_NARROW_BREAKPOINT = 720;
@@ -406,6 +542,8 @@ const visibleTabs = computed(() =>
     .filter((tab) => !tab.pluginId || pluginStore.isEnabled(tab.pluginId))
     .map((tab) => ({ ...tab, label: t(tab.labelKey) }))
 );
+const isTabActive = (path: string): boolean =>
+  isConfigNavigationPathActive(router.currentRoute.value.path, path);
 const isConfigRoute = computed(() =>
   router.currentRoute.value.path.startsWith('/config')
 );
@@ -454,10 +592,35 @@ const navigateTo = (path: string) => {
 const handleAboutMenuCommand = async (command: string): Promise<void> => {
   if (command === 'aboutApp') {
     aboutVisible.value = true;
+  } else if (command === 'whatsNew') {
+    whatsNewVisible.value = true;
   } else if (command === 'checkUpdate') {
     await checkForUpdates();
   } else if (command === 'exitApp') {
     await invoke('exit_application');
+  }
+};
+
+const handleViewMenuCommand = async (command: string): Promise<void> => {
+  const tab = visibleTabs.value.find(
+    (item) => command === `navigate:${item.id}`
+  );
+  if (tab) {
+    navigateTo(tab.path);
+    return;
+  }
+  switch (command) {
+    case 'toggleSidebar':
+      if (showSidebarToggle.value) toggleSidebar();
+      break;
+    case 'pinWindow':
+      await handleTitlebar('isAlwaysOnTop');
+      break;
+    case 'minimize':
+    case 'maximize':
+    case 'close':
+      await handleTitlebar(command);
+      break;
   }
 };
 
@@ -531,6 +694,12 @@ onUnmounted(() => {
 </script>
 
 <style lang="scss" scoped>
+@use '@/styles/markdown.scss' as markdown;
+
+:deep(.release-notes) {
+  @include markdown.typography;
+}
+
 .titlebar {
   @apply relative flex items-center justify-between rounded-t-md w-full h-10 leading-10 select-none pr-1 gap-1 font-ui;
 
@@ -678,7 +847,6 @@ onUnmounted(() => {
   box-shadow: 1px 0 0 rgb(255 255 255 / 10%);
 
   &--thick {
-    width: 1px;
     background: rgb(0 0 0 / 20%);
     box-shadow: 1px 0 0 rgb(255 255 255 / 15%);
   }
@@ -743,19 +911,12 @@ onUnmounted(() => {
     flex-basis: 280px;
     max-width: 30vw;
   }
-
-  .quick-search-shortcut {
-    display: none;
-  }
 }
 
 /* 极窄屏（≤640px）：应用名截断。 */
 @media (width <= 640px) {
   .titlebar-app-name {
     max-width: 7em;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 }
 

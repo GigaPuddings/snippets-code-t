@@ -20,7 +20,7 @@
       "status": "included",
       "sizeBytes": 385280,
       "sha256": "bb7a3305fe99c688253f37bc288419df87e32ff3d5e72e00b38813282846c600",
-      "dependencies": [
+      "optionalDependencies": [
         "screenshot-rapidocr",
         "translation",
         "local-ai"
@@ -143,7 +143,7 @@
       "status": "included",
       "sizeBytes": 355299,
       "sha256": "2ace37a64eed394ad730b71325d42273faac96c6745eb22fc26f51c13819b733",
-      "dependencies": [
+      "optionalDependencies": [
         "translation-offline-runtime"
       ],
       "tags": [

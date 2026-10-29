@@ -268,6 +268,7 @@ export const normalizePluginPackageManifest = (
     ...optionalContracts,
     permissions: normalizeStringArray(value.permissions),
     dependencies: normalizeStringArray(value.dependencies),
+    optionalDependencies: normalizeStringArray(value.optionalDependencies),
     resourceFor: readOptionalString(value.resourceFor),
     compatibleAppVersion: readOptionalString(value.compatibleAppVersion),
     minAppVersion: readOptionalString(value.minAppVersion),

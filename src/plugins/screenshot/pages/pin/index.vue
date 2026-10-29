@@ -536,15 +536,18 @@ import {
   detectTranslationLanguage
 } from '@/utils/text';
 import {
-  recognizeImageWithLocalAi,
   type AiOcrResult,
   type AiOcrSectionKind
 } from '@/plugins/screenshot/utils/aiOcr';
 import {
   type OcrTextBlock,
-  recognizeFromImageData,
   sortOcrTextBlocksByReadingOrder
 } from '@/plugins/screenshot/utils/ocr';
+import {
+  recognizeScreenshotText,
+  requireScreenshotPlugin,
+  screenshotCapabilityError
+} from '@/plugins/screenshot/utils/recognition';
 
 const { t, te } = useI18n();
 
@@ -564,7 +567,7 @@ const ocrTextBlocks = ref<OcrTextBlock[]>([]);
 const activeRecordId = ref<string | null>(null);
 const ocrLoading = ref(false);
 const ocrError = ref('');
-const recognitionEngine = ref<'pending' | 'ai'>('pending');
+const recognitionEngine = ref<'pending' | 'ai' | 'rapidocr'>('pending');
 const recognitionModelName = ref('');
 const ocrFileName = ref('');
 const imageWidth = ref(0);
@@ -750,6 +753,7 @@ const ocrStatusText = computed(() => {
 });
 
 const recognitionSourceLabel = computed(() => {
+  if (recognitionEngine.value === 'rapidocr') return 'RapidOCR';
   if (ocrLoading.value) return t('pin.aiRecognizing');
   if (isTranslating.value) return translatingLabel.value;
   if (recognitionEngine.value === 'ai') return t('pin.aiVision');
@@ -1107,41 +1111,6 @@ const applyAiRecognitionResult = (result: AiOcrResult): void => {
   recognitionModelName.value = result.modelName;
 };
 
-/**
- * 调用 RapidOCR 获取带 bbox 坐标的文字块，用于在图片上渲染透明可选文字层。
- * 参考 Umi-OCR 的实现方式：每个文字块按真实坐标定位在图片上。
- */
-const recognizeTextBlocksFromImage = async (
-  requestId: number
-): Promise<void> => {
-  try {
-    const result = await recognizeFromImageData(
-      imageData.value,
-      currentOcrLanguage.value === 'auto' ? 'auto' : currentOcrLanguage.value
-    );
-    if (requestId !== ocrRequestId) return;
-    ocrTextBlocks.value = sortOcrTextBlocksByReadingOrder(
-      result.blocks.filter((block) => block.text.trim())
-    );
-    ocrDiagnosticLogger.log('[Pin RapidOCR] text blocks ready', {
-      requestId,
-      blocks: ocrTextBlocks.value.length,
-      confidence: result.confidence
-    });
-  } catch (error) {
-    if (requestId !== ocrRequestId) return;
-    // RapidOCR 可能未安装或不可用，静默降级——右侧 AI 结果仍然可用
-    ocrTextBlocks.value = [];
-    ocrDiagnosticLogger.log('[Pin RapidOCR] text blocks failed (fallback)', {
-      requestId,
-      error:
-        error instanceof Error
-          ? `${error.name}: ${error.message}`
-          : String(error)
-    });
-  }
-};
-
 const recognizeCurrentImage = async () => {
   if (!imageData.value || isTranslating.value) return;
 
@@ -1163,14 +1132,16 @@ const recognizeCurrentImage = async () => {
     language: currentOcrLanguage.value
   });
 
-  // 并行发起 RapidOCR（获取 bbox 文字块）和 AI OCR（语义分段）
-  // RapidOCR 快速返回，文字层先渲染在图片上；AI OCR 慢一些，填充右侧面板
-  recognizeTextBlocksFromImage(requestId);
-
   try {
-    const aiResult = await recognizeImageWithLocalAi(
+    const aiResult = await recognizeScreenshotText(
       imageData.value,
-      currentOcrLanguage.value
+      currentOcrLanguage.value,
+      (blocks) => {
+        if (requestId !== ocrRequestId) return;
+        ocrTextBlocks.value = sortOcrTextBlocksByReadingOrder(
+          blocks.filter((block) => block.text.trim())
+        );
+      }
     );
 
     if (requestId !== ocrRequestId) return;
@@ -1179,6 +1150,7 @@ const recognizeCurrentImage = async () => {
       throw new Error('AI_OCR_EMPTY_RESPONSE');
     }
     applyAiRecognitionResult(aiResult);
+    recognitionEngine.value = aiResult.engine;
     ocrDiagnosticLogger.log('[Pin AI OCR] recognize success', {
       requestId,
       durationMs: Date.now() - startedAt,
@@ -1198,11 +1170,12 @@ const recognizeCurrentImage = async () => {
       ocrError.value = '';
       return;
     }
-    ocrError.value = t('pin.recognizeFailed');
+    ocrError.value =
+      error instanceof Error ? error.message : t('pin.recognizeFailed');
     ocrText.value = '';
     ocrRecords.value = [];
     activeRecordId.value = null;
-    modal.error(t('pin.recognizeFailed'));
+    modal.error(ocrError.value);
   } finally {
     if (requestId === ocrRequestId) {
       ocrLoading.value = false;
@@ -1415,6 +1388,9 @@ const handleTranslateOcr = async () => {
   isTranslating.value = true;
 
   try {
+    await requireScreenshotPlugin(
+      currentTranslateEngine.value === 'local-ai' ? 'local-ai' : 'translation'
+    );
     await ensureOfflineTranslatorReadyIfNeeded();
 
     if (selectedSourceText) {
@@ -1463,7 +1439,8 @@ const handleTranslateOcr = async () => {
         t('pin.offlineModelNotActivated')
       ];
       modal.error(
-        friendlyErrors.includes(errMsg) ? errMsg : t('pin.translateFailed')
+        screenshotCapabilityError(errMsg) ??
+          (friendlyErrors.includes(errMsg) ? errMsg : t('pin.translateFailed'))
       );
     }
   } finally {
@@ -2264,21 +2241,6 @@ onUnmounted(() => {
           width: 27px;
           padding: 0;
         }
-      }
-
-      .ocr-ready-badge {
-        @apply flex-shrink-0 rounded-full;
-
-        padding: 3px 7px;
-        font-weight: 600;
-        color: var(--el-color-success) !important;
-        background: color-mix(
-          in srgb,
-          var(--el-color-success) 10%,
-          transparent
-        );
-        border: 1px solid
-          color-mix(in srgb, var(--el-color-success) 22%, transparent);
       }
 
       .ocr-preview-canvas {

@@ -33,7 +33,7 @@
     "hintKey": "plugins.translation.resourceHint",
     "bundled": false
   },
-  "dependencies": [
+  "optionalDependencies": [
     "translation-offline-runtime"
   ],
   "permissions": [
@@ -43,7 +43,7 @@
   "entry": {
     "frontend": "dist/frontend.js",
     "styles": [
-      "dist/assets/runtime-entry-C0wEvixc.css"
+      "dist/assets/runtime-entry-DGNBZLWN.css"
     ]
   },
   "minAppVersion": "2.2.7",

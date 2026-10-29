@@ -2,13 +2,14 @@ use log::{debug, error, info, warn};
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::{channel, Receiver};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{channel, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::attachment::{
-    cleanup_attachments_for_deleted_files, sync_attachments_for_renamed_files,
+    cleanup_attachments_for_deleted_files, sync_attachments_for_renamed_files_in_workspace,
 };
 
 // ── 发往前端的事件负载 ────────────────────────────────────────────────────────
@@ -53,9 +54,30 @@ struct RemoveCandidate {
     was_dir: bool,
 }
 
+enum WatcherMessage {
+    Event(Event),
+    Stop,
+}
+
+struct ProcessorControl {
+    stopped: Arc<AtomicBool>,
+    sender: Sender<WatcherMessage>,
+}
+
+impl Drop for ProcessorControl {
+    fn drop(&mut self) {
+        self.stopped.store(true, Ordering::Release);
+        // 唤醒空闲接收；停止标志也会丢弃已经排队的事件和待发批次。
+        let _ = self.sender.send(WatcherMessage::Stop);
+        // 不在 Drop 中 join：替换监听器可能持有应用状态锁，也可能发生在 UI 线程。
+    }
+}
+
 // ── FileWatcher ───────────────────────────────────────────────────────────────
 
 pub struct FileWatcher {
+    // 字段按声明顺序释放，先停止处理线程，再释放 notify 的事件发送端。
+    _processor: ProcessorControl,
     _watcher: RecommendedWatcher,
     ignore_list: Arc<Mutex<HashSet<PathBuf>>>,
 }
@@ -65,15 +87,22 @@ impl FileWatcher {
     /// 使用 AppHandle 而非 WebviewWindow，使监听器生命周期与应用一致，
     /// 不受 config 窗口关闭/重新打开影响。
     pub fn start(workspace_root: PathBuf, app_handle: AppHandle) -> Result<Self, String> {
+        if !Self::is_current_workspace(&app_handle, &workspace_root) {
+            return Err("工作区已切换，跳过过期文件监听器".to_string());
+        }
         let ignore_list = Arc::new(Mutex::new(HashSet::<PathBuf>::new()));
         let ignore_clone = Arc::clone(&ignore_list);
         let root_clone = workspace_root.clone();
 
-        let (tx, rx) = channel::<Event>();
+        let (tx, rx) = channel();
+        let processor = ProcessorControl {
+            stopped: Arc::new(AtomicBool::new(false)),
+            sender: tx.clone(),
+        };
 
         let event_handler = move |res: Result<Event, notify::Error>| match res {
             Ok(event) => {
-                let _ = tx.send(event);
+                let _ = tx.send(WatcherMessage::Event(event));
             }
             Err(e) => error!("文件监听错误: {:?}", e),
         };
@@ -90,9 +119,16 @@ impl FileWatcher {
             workspace_root.display()
         );
 
-        Self::start_debounce_processor(rx, root_clone, ignore_clone, app_handle);
+        Self::start_debounce_processor(
+            rx,
+            root_clone,
+            ignore_clone,
+            app_handle,
+            Arc::clone(&processor.stopped),
+        )?;
 
         Ok(Self {
+            _processor: processor,
             _watcher: watcher,
             ignore_list,
         })
@@ -107,80 +143,99 @@ impl FileWatcher {
     // ── 防抖处理任务 ──────────────────────────────────────────────────────────
 
     fn start_debounce_processor(
-        rx: Receiver<Event>,
+        rx: Receiver<WatcherMessage>,
         workspace_root: PathBuf,
         ignore_list: Arc<Mutex<HashSet<PathBuf>>>,
         app_handle: AppHandle,
+        stopped: Arc<AtomicBool>,
+    ) -> Result<(), String> {
+        std::thread::Builder::new()
+            .name("markdown-file-watcher".to_string())
+            .spawn(move || {
+                Self::process_events(rx, &workspace_root, &stopped, |batch| {
+                    Self::handle_batch(batch, &workspace_root, &ignore_list, &app_handle, &stopped);
+                });
+                debug!("[FileWatcher] 处理线程已退出: {}", workspace_root.display());
+            })
+            .map_err(|e| format!("启动文件监听处理线程失败: {}", e))?;
+        Ok(())
+    }
+
+    fn process_events(
+        rx: Receiver<WatcherMessage>,
+        workspace_root: &Path,
+        stopped: &AtomicBool,
+        mut handle_batch: impl FnMut(Vec<(PathBuf, PendingKind)>),
     ) {
-        tauri::async_runtime::spawn(async move {
-            let debounce = Duration::from_millis(500);
-            let mut pending: HashMap<PathBuf, (PendingKind, Instant)> = HashMap::new();
-            let mut remove_candidates: HashMap<PathBuf, RemoveCandidate> = HashMap::new();
-            let mut last_event_time = Instant::now();
-            let mut total_events_received: usize = 0;
-            let mut total_batches_sent: usize = 0;
+        let debounce = Duration::from_millis(500);
+        let mut pending: HashMap<PathBuf, (PendingKind, Instant)> = HashMap::new();
+        let mut remove_candidates: HashMap<PathBuf, RemoveCandidate> = HashMap::new();
+        let mut last_event_time = Instant::now();
+        let mut total_events_received: usize = 0;
+        let mut total_batches_sent: usize = 0;
 
-            loop {
-                match rx.recv_timeout(Duration::from_millis(100)) {
-                    Ok(event) => {
-                        if Self::should_ignore(&event, &workspace_root) {
-                            continue;
-                        }
-                        last_event_time = Instant::now();
-                        let event_file_count = event.paths.len();
-                        total_events_received += event_file_count;
-                        Self::merge_event(
-                            event,
-                            &mut pending,
-                            &mut remove_candidates,
-                            last_event_time,
-                        );
+        while !stopped.load(Ordering::Acquire) {
+            match rx.recv_timeout(Duration::from_millis(100)) {
+                Ok(WatcherMessage::Stop) | Err(RecvTimeoutError::Disconnected) => break,
+                Ok(WatcherMessage::Event(event)) => {
+                    if stopped.load(Ordering::Acquire) {
+                        break;
                     }
-                    Err(_) => {
-                        if pending.is_empty() && remove_candidates.is_empty() {
-                            continue;
-                        }
+                    if Self::should_ignore(&event, workspace_root) {
+                        continue;
+                    }
+                    last_event_time = Instant::now();
+                    let event_file_count = event.paths.len();
+                    total_events_received += event_file_count;
+                    Self::merge_event(event, &mut pending, &mut remove_candidates, last_event_time);
+                }
+                Err(RecvTimeoutError::Timeout) => {
+                    if stopped.load(Ordering::Acquire) {
+                        break;
+                    }
+                    if pending.is_empty() && remove_candidates.is_empty() {
+                        continue;
+                    }
 
-                        let now = Instant::now();
-                        if now.duration_since(last_event_time) < debounce {
-                            continue;
-                        }
+                    let now = Instant::now();
+                    if now.duration_since(last_event_time) < debounce {
+                        continue;
+                    }
 
-                        // 孤立的 Remove 候选 → 升级为真正的删除事件
-                        let stale: Vec<PathBuf> = remove_candidates
-                            .iter()
-                            .filter(|(_, c)| now.duration_since(c.time) >= debounce)
-                            .map(|(p, _)| p.clone())
-                            .collect();
-                        for p in stale {
-                            let c = remove_candidates.remove(&p).unwrap();
-                            let kind = if c.was_dir {
-                                PendingKind::DirRemove
-                            } else {
-                                PendingKind::Remove
-                            };
-                            pending.entry(p).or_insert((kind, now));
-                        }
+                    // 孤立的 Remove 候选 → 升级为真正的删除事件
+                    let stale: Vec<PathBuf> = remove_candidates
+                        .iter()
+                        .filter(|(_, c)| now.duration_since(c.time) >= debounce)
+                        .map(|(p, _)| p.clone())
+                        .collect();
+                    for p in stale {
+                        let c = remove_candidates.remove(&p).unwrap();
+                        let kind = if c.was_dir {
+                            PendingKind::DirRemove
+                        } else {
+                            PendingKind::Remove
+                        };
+                        pending.entry(p).or_insert((kind, now));
+                    }
 
-                        let batch: Vec<(PathBuf, PendingKind)> =
-                            pending.drain().map(|(p, (k, _))| (p, k)).collect();
+                    let batch: Vec<(PathBuf, PendingKind)> =
+                        pending.drain().map(|(p, (k, _))| (p, k)).collect();
 
-                        if !batch.is_empty() {
-                            total_batches_sent += 1;
-                            let merged = total_events_received - batch.len();
-                            debug!(
+                    if !batch.is_empty() {
+                        total_batches_sent += 1;
+                        let merged = total_events_received - batch.len();
+                        debug!(
                                 "🔄 [FileWatcher] 批量处理 {} 个变更事件（累计收到 {} 个，合并 {} 个，已发送 {} 批）",
                                 batch.len(),
                                 total_events_received,
                                 merged,
                                 total_batches_sent
                             );
-                            Self::handle_batch(batch, &workspace_root, &ignore_list, &app_handle);
-                        }
+                        handle_batch(batch);
                     }
                 }
             }
-        });
+        }
     }
 
     // ── 事件合并 ──────────────────────────────────────────────────────────────
@@ -274,7 +329,13 @@ impl FileWatcher {
         workspace_root: &Path,
         ignore_list: &Arc<Mutex<HashSet<PathBuf>>>,
         app_handle: &AppHandle,
+        stopped: &Arc<AtomicBool>,
     ) {
+        if stopped.load(Ordering::Acquire)
+            || !Self::is_current_workspace(app_handle, workspace_root)
+        {
+            return;
+        }
         let mut md_created: Vec<(PathBuf, String)> = Vec::new();
         let mut md_modified: Vec<(PathBuf, String)> = Vec::new();
         let mut md_deleted: Vec<(PathBuf, String)> = Vec::new();
@@ -424,6 +485,11 @@ impl FileWatcher {
         // ── 更新 CacheManager ─────────────────────────────────────────────────
         if let Some(cs) = app_handle.try_state::<Arc<RwLock<crate::markdown::CacheManager>>>() {
             if let Ok(mut cache) = cs.write() {
+                // 工作区切换会先停止旧 watcher 再替换 cache；等待锁期间可能已失效。
+                // 持锁期间不读取其他应用状态，避免与切换路径发生锁顺序反转。
+                if stopped.load(Ordering::Acquire) {
+                    return;
+                }
                 let mut dirty = false;
 
                 for (path, rel) in md_created
@@ -474,6 +540,12 @@ impl FileWatcher {
             }
         }
 
+        if stopped.load(Ordering::Acquire)
+            || !Self::is_current_workspace(app_handle, workspace_root)
+        {
+            return;
+        }
+
         // ── 发送事件到 config 窗口 ────────────────────────────────────────────
         // Git 同步、文件列表、编辑器均在 config 窗口，无需广播到其他窗口。
         let win = app_handle.get_webview_window("config");
@@ -495,7 +567,14 @@ impl FileWatcher {
                     .map(|path| path.to_string_lossy().to_string())
                     .collect();
                 let app_handle_clone = app_handle.clone();
-                tokio::spawn(async move {
+                let root = workspace_root.to_path_buf();
+                let stopped = Arc::clone(stopped);
+                tauri::async_runtime::spawn(async move {
+                    if stopped.load(Ordering::Acquire)
+                        || !Self::is_current_workspace(&app_handle_clone, &root)
+                    {
+                        return;
+                    }
                     if let Err(e) =
                         cleanup_attachments_for_deleted_files(&app_handle_clone, &deleted_abs_paths)
                             .await
@@ -516,14 +595,27 @@ impl FileWatcher {
                         )
                     })
                     .collect();
-                let app_handle_clone = app_handle.clone();
-                tokio::spawn(async move {
-                    if let Err(e) =
-                        sync_attachments_for_renamed_files(&app_handle_clone, &renamed_abs).await
-                    {
-                        warn!("同步重命名文件的附件失败: {}", e);
+                let root = workspace_root.to_path_buf();
+                // 配置也从原工作区读取，不能从可能已被替换的全局 WorkspaceManager 获取。
+                match crate::markdown::workspace::read_workspace(&root.join(".snippets-code")) {
+                    Ok(workspace) => {
+                        let config = workspace.settings.attachment;
+                        let stopped = Arc::clone(stopped);
+                        tauri::async_runtime::spawn_blocking(move || {
+                            if stopped.load(Ordering::Acquire) {
+                                return;
+                            }
+                            if let Err(e) = sync_attachments_for_renamed_files_in_workspace(
+                                &root,
+                                &config,
+                                &renamed_abs,
+                            ) {
+                                warn!("同步重命名文件的附件失败: {}", e);
+                            }
+                        });
                     }
-                });
+                    Err(e) => warn!("读取原工作区附件配置失败，跳过附件重命名: {}", e),
+                }
             }
 
             let payload = FilesBatchPayload {
@@ -577,6 +669,13 @@ impl FileWatcher {
 
     // ── 辅助 ──────────────────────────────────────────────────────────────────
 
+    fn is_current_workspace(app_handle: &AppHandle, workspace_root: &Path) -> bool {
+        crate::json_config::get_workspace_root(app_handle)
+            .ok()
+            .flatten()
+            .is_some_and(|current| current == workspace_root)
+    }
+
     fn rel(workspace_root: &Path, path: &Path) -> Option<String> {
         path.strip_prefix(workspace_root)
             .ok()
@@ -601,5 +700,179 @@ impl FileWatcher {
                 || (!p.exists() && p.extension().is_none())
         });
         !relevant
+    }
+}
+
+#[cfg(test)]
+mod watcher_lifecycle_tests {
+    use super::*;
+
+    #[test]
+    fn disconnected_event_channel_stops_the_processor_within_a_bound() {
+        let (events_tx, events_rx) = channel();
+        let (finished_tx, finished_rx) = channel();
+        drop(events_tx);
+
+        std::thread::spawn(move || {
+            FileWatcher::process_events(
+                events_rx,
+                Path::new("workspace"),
+                &AtomicBool::new(false),
+                |_| panic!("a disconnected idle watcher must not produce batches"),
+            );
+            finished_tx.send(()).unwrap();
+        });
+
+        assert!(
+            finished_rx.recv_timeout(Duration::from_secs(2)).is_ok(),
+            "the processor kept running after its event channel disconnected"
+        );
+    }
+
+    #[test]
+    fn disconnected_event_channel_discards_the_pending_workspace_batch() {
+        let (events_tx, events_rx) = channel();
+        let (batches_tx, batches_rx) = channel();
+        let (finished_tx, finished_rx) = channel();
+        events_tx
+            .send(WatcherMessage::Event(
+                Event::new(EventKind::Create(notify::event::CreateKind::File))
+                    .add_path(PathBuf::from("workspace/old-note.md")),
+            ))
+            .unwrap();
+        drop(events_tx);
+
+        std::thread::spawn(move || {
+            FileWatcher::process_events(
+                events_rx,
+                Path::new("workspace"),
+                &AtomicBool::new(false),
+                |batch| batches_tx.send(batch).unwrap(),
+            );
+            finished_tx.send(()).unwrap();
+        });
+
+        let finished = finished_rx.recv_timeout(Duration::from_secs(2));
+        assert!(
+            batches_rx.try_recv().is_err(),
+            "a pending batch from a disconnected workspace was still applied"
+        );
+        assert!(finished.is_ok(), "the disconnected processor did not exit");
+    }
+
+    #[test]
+    fn dropping_control_stops_an_idle_processor_with_a_live_event_sender() {
+        let (events_tx, events_rx) = channel();
+        let (finished_tx, finished_rx) = channel();
+        let stopped = Arc::new(AtomicBool::new(false));
+        let processor = ProcessorControl {
+            stopped: Arc::clone(&stopped),
+            sender: events_tx.clone(),
+        };
+        std::thread::spawn(move || {
+            FileWatcher::process_events(events_rx, Path::new("workspace"), &stopped, |_| {
+                panic!("an idle watcher must not produce batches");
+            });
+            finished_tx.send(()).unwrap();
+        });
+
+        drop(processor);
+        assert!(
+            finished_rx.recv_timeout(Duration::from_secs(2)).is_ok(),
+            "dropping the watcher control did not stop its processor"
+        );
+        drop(events_tx);
+    }
+
+    #[test]
+    fn stop_message_discards_a_pending_batch_without_waiting_for_disconnect() {
+        let (events_tx, events_rx) = channel();
+        let (batches_tx, batches_rx) = channel();
+        let (finished_tx, finished_rx) = channel();
+        events_tx
+            .send(WatcherMessage::Event(
+                Event::new(EventKind::Create(notify::event::CreateKind::File))
+                    .add_path(PathBuf::from("workspace/old-note.md")),
+            ))
+            .unwrap();
+        events_tx.send(WatcherMessage::Stop).unwrap();
+        std::thread::spawn(move || {
+            FileWatcher::process_events(
+                events_rx,
+                Path::new("workspace"),
+                &AtomicBool::new(false),
+                |batch| batches_tx.send(batch).unwrap(),
+            );
+            finished_tx.send(()).unwrap();
+        });
+
+        assert!(
+            finished_rx.recv_timeout(Duration::from_secs(2)).is_ok(),
+            "an explicit stop message must end the processor"
+        );
+        assert!(batches_rx.try_recv().is_err());
+        drop(events_tx);
+    }
+
+    #[test]
+    fn cancelled_generation_does_not_apply_queued_batches_with_a_live_sender() {
+        let (events_tx, events_rx) = channel();
+        let (finished_tx, finished_rx) = channel();
+        let stopped = Arc::new(AtomicBool::new(false));
+        events_tx
+            .send(WatcherMessage::Event(
+                Event::new(EventKind::Create(notify::event::CreateKind::File))
+                    .add_path(PathBuf::from("workspace/old-note.md")),
+            ))
+            .unwrap();
+        stopped.store(true, Ordering::Release);
+        std::thread::spawn(move || {
+            FileWatcher::process_events(events_rx, Path::new("workspace"), &stopped, |_| {
+                panic!("a cancelled workspace must not apply a queued batch");
+            });
+            finished_tx.send(()).unwrap();
+        });
+
+        assert!(finished_rx.recv_timeout(Duration::from_secs(2)).is_ok());
+        drop(events_tx);
+    }
+
+    #[test]
+    fn idle_timeout_flushes_the_coalesced_batch_and_keeps_listening() {
+        let (events_tx, events_rx) = channel();
+        let (batches_tx, batches_rx) = channel();
+        let (finished_tx, finished_rx) = channel();
+        for kind in [
+            EventKind::Create(notify::event::CreateKind::File),
+            EventKind::Modify(notify::event::ModifyKind::Data(
+                notify::event::DataChange::Content,
+            )),
+        ] {
+            events_tx
+                .send(WatcherMessage::Event(
+                    Event::new(kind).add_path(PathBuf::from("workspace/note.md")),
+                ))
+                .unwrap();
+        }
+        std::thread::spawn(move || {
+            FileWatcher::process_events(
+                events_rx,
+                Path::new("workspace"),
+                &AtomicBool::new(false),
+                |batch| batches_tx.send(batch).unwrap(),
+            );
+            finished_tx.send(()).unwrap();
+        });
+
+        assert_eq!(
+            batches_rx.recv_timeout(Duration::from_secs(2)).unwrap(),
+            vec![(PathBuf::from("workspace/note.md"), PendingKind::Create)]
+        );
+        assert!(
+            finished_rx.try_recv().is_err(),
+            "idle timeout is not a stop"
+        );
+        drop(events_tx);
+        assert!(finished_rx.recv_timeout(Duration::from_secs(2)).is_ok());
     }
 }

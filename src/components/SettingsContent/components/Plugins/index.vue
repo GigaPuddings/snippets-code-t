@@ -200,6 +200,32 @@
                   {{ label }}
                 </span>
               </div>
+              <div
+                v-if="item.optionalDependencies?.length"
+                class="mt-2 flex flex-wrap items-center gap-2 text-xs text-panel-text-secondary"
+              >
+                <span>{{ t('plugins.optionalDependenciesLabel') }}</span>
+                <CustomButton
+                  v-for="dependency in getOptionalMarketplaceDependencies(item)"
+                  :key="dependency.id"
+                  size="small"
+                  plain
+                  :loading="isMarketplaceItemInstalling(dependency)"
+                  :disabled="
+                    !canInstallMarketplaceItem(dependency) &&
+                    !canUpdateMarketplaceItem(dependency)
+                  "
+                  @click="
+                    handleInstallMarketplace(
+                      dependency,
+                      canUpdateMarketplaceItem(dependency)
+                    )
+                  "
+                >
+                  {{ pluginText(dependency.name) }}
+                  · {{ marketplaceStatusText(dependency) }}
+                </CustomButton>
+              </div>
               <div v-if="item.tags?.length" class="marketplace-tags">
                 <span
                   v-for="tag in item.tags"
@@ -822,6 +848,15 @@ const getMarketplaceDependencyNames = (item: PluginMarketplaceItem): string[] =>
     )
     .map((dependency) => pluginText(dependency.name));
 
+const getOptionalMarketplaceDependencies = (
+  item: PluginMarketplaceItem
+): PluginMarketplaceItem[] =>
+  (item.optionalDependencies ?? [])
+    .map((id) => getMarketplaceItemById(id))
+    .filter((dependency): dependency is PluginMarketplaceItem =>
+      Boolean(dependency)
+    );
+
 const formatBytes = (value?: number | null): string => {
   if (!Number.isFinite(value) || !value || value <= 0) {
     return t('plugins.sizeUnknown');
@@ -1012,11 +1047,6 @@ const handleInstallMarketplace = async (
   update = false
 ) => {
   if (!item.packageUrl) return;
-
-  if (!update && item.id !== GIT_SYNC_PLUGIN_ID && !isGitSyncInstalled.value) {
-    modal.warning(t('plugins.gitSyncInstallFirstWarning'), 'bottom-right');
-    return;
-  }
 
   pluginStore.setMarketplaceInstallRequested(item.id, true);
   try {

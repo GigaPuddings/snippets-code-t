@@ -25,11 +25,34 @@
               :max="2"
               :step="0.05"
               :show-tooltip="false"
+              :disabled="configurationStore.editorSettingsSaving"
               @change="changeEditorLineHeight"
             />
             <span class="line-height-value">
               {{ editorLineHeightDraft.toFixed(2) }}
             </span>
+          </div>
+        </section>
+
+        <!-- 滚动时显示当前标题 -->
+        <section class="summarize-section">
+          <div class="summarize-label">
+            <div class="summarize-label-title">
+              {{ $t('settings.editorStickyHeadings') }}
+            </div>
+            <div class="summarize-label-desc">
+              {{ $t('settings.editorStickyHeadingsDesc') }}
+            </div>
+          </div>
+          <div class="summarize-input-wrapper">
+            <CustomSwitch
+              :model-value="configurationStore.editorStickyHeadings"
+              :disabled="configurationStore.editorSettingsSaving"
+              :aria-label="$t('settings.editorStickyHeadings')"
+              :active-text="$t('common.on')"
+              :inactive-text="$t('common.off')"
+              @change="changeEditorStickyHeadings"
+            />
           </div>
         </section>
 
@@ -145,7 +168,7 @@
             >
               <el-option
                 :label="$t('settings.attachment.formatObsidian')"
-                value="obsidian"
+                value="snippets-code"
               />
               <el-option
                 :label="$t('settings.attachment.formatSimple')"
@@ -221,11 +244,12 @@ const previewPath = computed(() => {
 
 function generateExampleFilename(format: string): string {
   const now = new Date();
-  const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+  const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
   const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '');
 
   switch (format) {
     case 'snippets-code':
+    case 'obsidian':
       return `Pasted image ${dateStr}${timeStr}.png`;
     case 'simple':
       return `image-${dateStr}-${timeStr}.png`;
@@ -274,6 +298,14 @@ const changeEditorLineHeight = async (value: number | number[]) => {
     await configurationStore.updateEditorLineHeight(nextValue);
   } catch (error) {
     editorLineHeightDraft.value = configurationStore.editorLineHeight;
+    modal.msg(`${t('settings.settingFailed')}: ${error}`, 'error');
+  }
+};
+
+const changeEditorStickyHeadings = async (value: boolean): Promise<void> => {
+  try {
+    await configurationStore.updateEditorStickyHeadings(value);
+  } catch (error) {
     modal.msg(`${t('settings.settingFailed')}: ${error}`, 'error');
   }
 };

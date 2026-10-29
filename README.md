@@ -100,12 +100,12 @@ OCR、FFmpeg 和 llama.cpp 等运行资源通过资源包分发，不随核心�
 | 依赖 | 要求 |
 | --- | --- |
 | Windows 工具链 | MSVC C++ 构建工具与 Windows SDK；桌面运行需要 WebView2 |
-| Node.js | `^20.19.0` 或 `>=22.12.0`，与 `package.json` 的 `engines` 一致 |
+| Node.js | 开发和 CI 统一使用 `22.19.0`，由 `.nvmrc` 与 `.node-version` 固定 |
 | pnpm | CI 使用 pnpm 9；安装依赖时使用仓库锁文件 |
 | Rust | stable 工具链，Windows 使用 MSVC target；仓库未声明最低 Rust 版本 |
 | Git | 克隆源码及 Git 同步使用 |
 
-仓库中的 `.nvmrc` 和 `.node-version` 目前仍固定为 `18.18.2`，与 `package.json` 不一致。使用版本管理工具时，应手动选择符合 `engines` 的 Node.js 版本；`.npmrc` 启用了 `engine-strict`。
+使用版本管理工具切换到仓库固定的 Node.js `22.19.0` 后再安装依赖；所有 workflow 从 `.nvmrc` 读取同一版本。该版本符合 `package.json` 的 `engines` 约束，`.npmrc` 启用了 `engine-strict`。
 
 ```bash
 git clone https://github.com/GigaPuddings/snippets-code-t.git
@@ -317,6 +317,7 @@ pnpm typecheck
 pnpm test
 pnpm lint
 pnpm lint:style
+pnpm release:check
 ```
 
 在 `src-tauri` 目录执行后端检查：
@@ -326,7 +327,7 @@ cargo clippy --all-targets -- -D warnings
 cargo test
 ```
 
-CI 在 Linux 上执行前端检查，在 Windows 上执行 Rust 检查和桌面编译。仅通过前端构建不足以验证原生窗口、快捷键或插件后端行为。
+CI 在 Linux 上执行前端检查，在 Windows 上执行 Rust 检查和桌面编译。`pnpm release:check` 校验应用版本一致性和本地插件市场，CI 与两条发布流程都会执行，不访问远程市场。仅通过前端构建不足以验证原生窗口、快捷键或插件后端行为。
 
 ### 官方插件开发
 
@@ -356,6 +357,8 @@ node scripts/verify-plugin-marketplace.mjs --local
 6. 提交 Pull Request，说明问题、最终行为、验证结果和兼容性影响。提交前检查 `git status --short`，排除无关改动与临时文件。
 
 ## 相关文档
+
+完整分类与文档维护约定见 [文档索引](docs/README.md)。
 
 - [数据存储与管理](docs/DATA_MANAGEMENT.md)：数据目录、持久状态、索引、迁移与清理。
 - [跨设备数据同步](docs/DATA_SYNC.md)：Git 同步范围、恢复流程和配置冲突。

@@ -65,6 +65,45 @@ static WINDOW_READY_GENERATION: AtomicU64 = AtomicU64::new(0);
 // 启动过渡耗时统计起点（loading 显示时记录）
 static STARTUP_TRANSITION_STARTED_AT: LazyLock<Mutex<Option<Instant>>> =
     LazyLock::new(|| Mutex::new(None));
+static CONFIG_STARTUP_FAILED: AtomicBool = AtomicBool::new(false);
+
+fn take_timed_out_window(
+    states: &mut HashMap<String, WindowReadyState>,
+    label: &str,
+    generation: u64,
+) -> Option<WindowReadyState> {
+    if states
+        .get(label)
+        .is_some_and(|state| state.generation == generation && !state.ready)
+    {
+        states.remove(label)
+    } else {
+        None
+    }
+}
+
+fn report_config_startup_failure(app: &AppHandle) {
+    CONFIG_STARTUP_FAILED.store(true, Ordering::Release);
+    show_loading_window();
+    let _ = app.emit("config-startup-failed", ());
+}
+
+#[tauri::command]
+pub fn get_config_startup_failed() -> bool {
+    CONFIG_STARTUP_FAILED.load(Ordering::Acquire)
+}
+
+#[tauri::command]
+pub async fn retry_config_startup(window: WebviewWindow) -> Result<(), String> {
+    if window.label() != "loading" {
+        return Err("Startup recovery is only available in the loading window".into());
+    }
+    if !CONFIG_STARTUP_FAILED.swap(false, Ordering::AcqRel) {
+        return Ok(());
+    }
+    open_config_with_loading_transition().await;
+    Ok(())
+}
 
 // 快速搜索和配置页运行在不同 WebView 中。首次创建配置窗口时，导航事件
 // 可能早于前端监听器注册，因此在进程内保留一份一次性提示词作为可靠兜底。
@@ -1250,6 +1289,9 @@ fn window_is_ready(label: &str) -> bool {
 }
 
 fn register_window_ready_listener(app: &AppHandle, label: &str) -> Result<(), String> {
+    if label == "config" {
+        CONFIG_STARTUP_FAILED.store(false, Ordering::Release);
+    }
     reset_window_ready_state(app, label);
     let generation = WINDOW_READY_GENERATION.fetch_add(1, Ordering::Relaxed) + 1;
     let mut states = WINDOW_READY_STATES.lock().map_err(|e| e.to_string())?;
@@ -1328,15 +1370,15 @@ fn register_window_ready_listener(app: &AppHandle, label: &str) -> Result<(), St
     let label_for_timeout = label.to_string();
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(Duration::from_secs(30)).await;
-        let timed_out = WINDOW_READY_STATES
-            .lock()
-            .map(|states| {
-                states
-                    .get(&label_for_timeout)
-                    .is_some_and(|state| state.generation == generation && !state.ready)
-            })
-            .unwrap_or(false);
-        if timed_out {
+        let timed_out = WINDOW_READY_STATES.lock().ok().and_then(|mut states| {
+            take_timed_out_window(&mut states, &label_for_timeout, generation)
+        });
+        if let Some(state) = timed_out {
+            // Retire this generation before destroying its window, so late ready
+            // events cannot reveal it or remove the next attempt's listener.
+            if let Some(listener_id) = state.listener_id {
+                app_for_timeout.unlisten(listener_id);
+            }
             warn!(
                 "[Window] 首屏初始化超时，取消打开 label={}",
                 label_for_timeout
@@ -1345,9 +1387,8 @@ fn register_window_ready_listener(app: &AppHandle, label: &str) -> Result<(), St
                 let _ = window.hide();
                 let _ = window.destroy();
             }
-            reset_window_ready_state(&app_for_timeout, &label_for_timeout);
             if label_for_timeout == "config" {
-                close_and_destroy_loading_window();
+                report_config_startup_failure(&app_for_timeout);
             }
         }
     });
@@ -1422,6 +1463,7 @@ fn defer_window_show(
 
 // 启动阶段：先显示 loading，在屏幕外预加载 config，待 config_ready 再切换
 pub async fn open_config_with_loading_transition() {
+    CONFIG_STARTUP_FAILED.store(false, Ordering::Release);
     WindowManager::close_search_window_if_visible();
     {
         let mut started = match STARTUP_TRANSITION_STARTED_AT.lock() {
@@ -1478,7 +1520,9 @@ pub async fn open_config_with_loading_transition() {
                 "open_config_with_loading_transition: 创建 config 窗口失败: {}",
                 error
             );
-            cancel_startup_transition_for_user_action("config_build_failed");
+            if let Some(app) = APP.get() {
+                report_config_startup_failure(app);
+            }
             return;
         }
     };
@@ -3905,6 +3949,31 @@ pub fn close_setup_window() {
 #[cfg(test)]
 mod window_ready_tests {
     use super::WindowReadyState;
+
+    #[test]
+    fn timeout_removes_only_the_unready_generation_and_ignores_late_ready() {
+        let mut states = std::collections::HashMap::new();
+        states.insert(
+            "config".into(),
+            WindowReadyState {
+                generation: 2,
+                ..Default::default()
+            },
+        );
+        assert!(super::take_timed_out_window(&mut states, "config", 1).is_none());
+        assert!(super::take_timed_out_window(&mut states, "config", 2).is_some());
+        assert!(!states.contains_key("config"));
+        states.insert(
+            "config".into(),
+            WindowReadyState {
+                generation: 3,
+                ..Default::default()
+            },
+        );
+        assert!(super::take_timed_out_window(&mut states, "config", 2).is_none());
+        states.get_mut("config").unwrap().mark_ready();
+        assert!(super::take_timed_out_window(&mut states, "config", 3).is_none());
+    }
 
     #[test]
     fn first_open_waits_for_ready_and_preloads_only_once() {

@@ -195,8 +195,7 @@ impl FileSystemManager {
                 content
             )
         };
-        fs::write(&file_path, full_content)
-            .map_err(|e| map_io_error(&e, "写入文件", &file_path))?;
+        super::safe_write::create(&file_path, full_content.as_bytes())?;
 
         debug!("📝 创建文件（含 Front Matter）: {}", file_path.display());
         Ok(file_path)
@@ -324,85 +323,64 @@ impl FileSystemManager {
         content: Option<&str>,
         metadata: Option<&FrontMatter>,
     ) -> Result<(), String> {
+        self.update_markdown_file_checked(file_path, content, metadata, None)
+            .map(|_| ())
+    }
+
+    pub fn update_markdown_file_checked(
+        &self,
+        file_path: &Path,
+        content: Option<&str>,
+        metadata: Option<&FrontMatter>,
+        expected_revision: Option<&str>,
+    ) -> Result<String, String> {
         let full_path = if file_path.is_absolute() {
             file_path.to_path_buf()
         } else {
             self.workspace_root.join(file_path)
         };
-
         self.validate_path(&full_path)?;
-
-        match (content, metadata) {
-            (Some(new_content), Some(meta)) => {
-                // 同时更新内容和元数据：写入 frontmatter + body
-                let full_content = if new_content.is_empty() {
-                    format_frontmatter_block(meta)
-                        .map_err(|e| format!("格式化 frontmatter 失败: {}", e))?
-                        .trim_end()
-                        .to_string()
-                } else {
-                    format!(
-                        "{}\n\n{}",
-                        format_frontmatter_block(meta)
-                            .map_err(|e| format!("格式化 frontmatter 失败: {}", e))?
-                            .trim_end(),
-                        new_content
-                    )
-                };
-                fs::write(&full_path, full_content)
-                    .map_err(|e| map_io_error(&e, "写入文件", &full_path))?;
-                debug!("✏️ 更新文件（含 Front Matter）: {}", full_path.display());
-                return Ok(());
-            }
-            (None, Some(meta)) => {
-                // 仅更新元数据：保留原 body，替换 frontmatter
-                let raw =
-                    fs::read_to_string(&full_path).map_err(|e| format!("读取文件失败: {}", e))?;
-                let (_, existing_body) = try_parse_front_matter(&raw);
-                let full_content = if existing_body.is_empty() {
-                    format_frontmatter_block(meta)?.trim_end().to_string()
-                } else {
-                    format!(
-                        "{}\n\n{}",
-                        format_frontmatter_block(meta)?.trim_end(),
-                        existing_body
-                    )
-                };
-                fs::write(&full_path, full_content)
-                    .map_err(|e| map_io_error(&e, "写入文件", &full_path))?;
-                debug!("✏️ 更新文件 Front Matter: {}", full_path.display());
-                return Ok(());
-            }
-            (Some(new_content), None) => {
-                // 仅更新内容：若有现有 frontmatter 则保留
-                let raw = fs::read_to_string(&full_path);
-                let full_content = if let Ok(existing) = raw {
-                    let (existing_fm, _) = try_parse_front_matter(&existing);
-                    if let Some(fm) = existing_fm {
-                        let block = format_frontmatter_block(&fm)
-                            .unwrap_or_else(|_| "---\n---\n".to_string());
-                        format!("{}\n\n{}", block.trim_end(), new_content)
+        let raw = fs::read_to_string(&full_path).map_err(|e| e.to_string())?;
+        super::safe_write::check_revision(raw.as_bytes(), expected_revision)?;
+        let (existing_metadata, _) = try_parse_front_matter(&raw);
+        let full_content = match (content, metadata) {
+            (Some(body), meta) => {
+                if let Some(meta) = meta.or(existing_metadata.as_ref()) {
+                    let block = format_frontmatter_block(meta)?;
+                    if body.is_empty() {
+                        block.trim_end().to_string()
                     } else {
-                        new_content.to_string()
+                        format!("{}\n\n{}", block.trim_end(), body)
                     }
                 } else {
-                    new_content.to_string()
-                };
-                fs::write(&full_path, full_content)
-                    .map_err(|e| map_io_error(&e, "写入文件", &full_path))?;
-                debug!("✏️ 更新文件内容: {}", full_path.display());
-                return Ok(());
+                    body.to_string()
+                }
             }
-            (None, None) => {
-                // 无操作
-            }
+            (None, Some(meta)) => Self::replace_frontmatter(&raw, meta)?,
+            (None, None) => return Ok(super::safe_write::revision(raw.as_bytes())),
         };
+        // Also protect legacy writes from changes made while preparing content.
+        super::safe_write::replace(
+            &full_path,
+            full_content.as_bytes(),
+            Some(&super::safe_write::revision(raw.as_bytes())),
+        )
+    }
 
-        Ok(())
+    fn replace_frontmatter(content: &str, metadata: &FrontMatter) -> Result<String, String> {
+        let block = format_frontmatter_block(metadata)?;
+        if parse_front_matter(content).is_ok() {
+            let raw = content.trim_start();
+            let closing = 3 + raw[3..].find("\n---").ok_or("Front matter 缺少结束标记")?;
+            Ok(format!("{}{}", block.trim_end(), &raw[closing + 4..]))
+        } else {
+            Ok(format!("{}\n\n{}", block.trim_end(), content))
+        }
     }
 
     /// 更新文件的 Front Matter 元数据（用于 cache → frontmatter 迁移）
     /// 读取文件 → 解析/替换 frontmatter → 写回
+    #[cfg(test)]
     pub fn update_file_frontmatter(
         &self,
         file_path: &Path,
@@ -419,18 +397,12 @@ impl FileSystemManager {
         let content = fs::read_to_string(&full_path)
             .map_err(|e| format!("读取文件失败 '{}': {}", full_path.display(), e))?;
 
-        let frontmatter_block = format_frontmatter_block(metadata)?;
-        let new_content = if parse_front_matter(&content).is_ok() {
-            // Preserve the original suffix after the closing delimiter, including
-            // CRLFs, blank lines and code indentation. The body parser trims them.
-            let raw = content.trim_start();
-            let closing = 3 + raw[3..].find("\n---").ok_or("Front matter 缺少结束标记")?;
-            format!("{}{}", frontmatter_block.trim_end(), &raw[closing + 4..])
-        } else {
-            format!("{}\n\n{}", frontmatter_block.trim_end(), content)
-        };
-
-        fs::write(&full_path, new_content).map_err(|e| map_io_error(&e, "写入文件", &full_path))?;
+        let new_content = Self::replace_frontmatter(&content, metadata)?;
+        super::safe_write::replace(
+            &full_path,
+            new_content.as_bytes(),
+            Some(&super::safe_write::revision(content.as_bytes())),
+        )?;
 
         debug!("✏️ 更新文件 Front Matter: {}", full_path.display());
         Ok(())
@@ -601,7 +573,7 @@ impl FileSystemManager {
     // 返回指定文件夹下的所有 .md 文件
     //
     // # Arguments
-    // * `category` - 可选的 Category 名称，如果为 None 则列出根目录的文件（未分类的文件）
+    // * `category` - None 递归列出所有文件；未分类包含根目录和同名文件夹中的文件
     //
     // # Returns
     // * `Ok(Vec<PathBuf>)` - Markdown 文件路径列表
@@ -612,27 +584,35 @@ impl FileSystemManager {
         match category {
             Some(cat) => {
                 // 指定分类：列出该分类文件夹下的文件（不递归）
-                let folder_path = self.workspace_root.join(cat);
-
-                // 验证路径安全性
-                self.validate_path(&folder_path)?;
-
-                if !folder_path.exists() {
-                    debug!("   ⚠️ 分类文件夹不存在: {}", folder_path.display());
-                    return Ok(Vec::new());
+                let mut folders = vec![self.workspace_root.join(cat)];
+                if cat == "未分类" {
+                    // 导入和既有笔记可能直接位于根目录；它们与同名文件夹
+                    // 中的条目都使用分类 ID 0，不应要求移动文件后才可见。
+                    folders.push(self.workspace_root.clone());
                 }
 
-                let entries =
-                    fs::read_dir(&folder_path).map_err(|e| format!("读取目录失败: {}", e))?;
+                for folder_path in folders {
+                    // 验证路径安全性
+                    self.validate_path(&folder_path)?;
 
-                for entry in entries {
-                    let entry = entry.map_err(|e| format!("读取目录项失败: {}", e))?;
-                    let path = entry.path();
+                    if !folder_path.exists() {
+                        debug!("   ⚠️ 分类文件夹不存在: {}", folder_path.display());
+                        continue;
+                    }
 
-                    // 只包含 .md 文件（不包含子目录）
-                    if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("md") {
-                        debug!("   ✅ 找到分类文件: {}", path.display());
-                        files.push(path);
+                    let entries =
+                        fs::read_dir(&folder_path).map_err(|e| format!("读取目录失败: {}", e))?;
+
+                    for entry in entries {
+                        let entry = entry.map_err(|e| format!("读取目录项失败: {}", e))?;
+                        let path = entry.path();
+
+                        // 只包含 .md 文件（不包含子目录）
+                        if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("md")
+                        {
+                            debug!("   ✅ 找到分类文件: {}", path.display());
+                            files.push(path);
+                        }
                     }
                 }
             }

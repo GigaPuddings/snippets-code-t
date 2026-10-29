@@ -35,6 +35,7 @@ declare global {
 
   // 内容类型
   interface ContentType {
+    contentRevision?: string;
     id: string | number;
     title: string;
     content: string;
@@ -88,6 +89,8 @@ declare global {
     autoUpdateCheck: boolean;
     autoHideOnBlur: boolean;
     editorLineHeight: number;
+    editorStickyHeadings: boolean;
+    editorSettingsSaving: boolean;
   }
 
   // 添加搜索引擎配置类型

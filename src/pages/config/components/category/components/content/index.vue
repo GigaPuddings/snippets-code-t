@@ -8,11 +8,17 @@
         <el-input
           ref="titleInputRef"
           class="content-title-input"
-          :model-value="draftTitle"
-          :title="draftTitle"
+          :model-value="showHeading ? contextHeading : draftTitle"
+          :readonly="showHeading"
+          :title="
+            showHeading
+              ? t('content.stickyHeadingHint', { heading: contextHeading })
+              : draftTitle
+          "
           placeholder=""
           @input="handleTitleInput"
-          @blur="commitTitleChange"
+          @focus="handleTitleFocus"
+          @blur="handleTitleBlur"
           @keydown.enter.prevent="commitTitleChange"
         />
 
@@ -77,6 +83,8 @@
           <el-dropdown
             trigger="click"
             placement="bottom-end"
+            popper-class="content-actions-dropdown"
+            :show-arrow="false"
             @command="handleContentMenuCommand"
           >
             <button
@@ -90,34 +98,48 @@
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item command="save" :disabled="state.isLoading">
+                  <Save width="16" height="16" aria-hidden="true" />
                   {{ t('common.save') }}
                 </el-dropdown-item>
-                <el-dropdown-item command="copyTitle">
+                <el-dropdown-item command="copyTitle" divided>
+                  <Type width="16" height="16" aria-hidden="true" />
                   {{ t('content.copyTitle') }}
                 </el-dropdown-item>
                 <el-dropdown-item command="copyContent">
+                  <Copy width="16" height="16" aria-hidden="true" />
                   {{ t('content.copyContent') }}
                 </el-dropdown-item>
                 <el-dropdown-item
                   v-if="currentEditorType === 'note'"
                   command="copyNoteLink"
                 >
+                  <Link width="16" height="16" aria-hidden="true" />
                   {{ t('content.copyNoteLink') }}
                 </el-dropdown-item>
                 <el-dropdown-item
                   v-if="currentEditorType === 'note'"
                   command="outline"
-                  :class="{ 'text-primary': isOutlineVisible }"
+                  divided
+                  :class="{ 'is-active': isOutlineVisible }"
                 >
-                  {{ t('noteEditor.outline') }}
+                  <ListTree width="16" height="16" aria-hidden="true" />
+                  <span class="flex-1">{{ t('noteEditor.outline') }}</span>
+                  <Check
+                    v-if="isOutlineVisible"
+                    width="16"
+                    height="16"
+                    aria-hidden="true"
+                  />
                 </el-dropdown-item>
                 <el-dropdown-item
                   v-if="currentEditorType === 'note'"
                   command="addTag"
                 >
+                  <Tags width="16" height="16" aria-hidden="true" />
                   {{ t('tags.addTag') }}
                 </el-dropdown-item>
-                <el-dropdown-item command="aiAssist">
+                <el-dropdown-item command="aiAssist" divided>
+                  <Sparkles width="16" height="16" aria-hidden="true" />
                   {{ t('content.aiAssistant') }}
                 </el-dropdown-item>
               </el-dropdown-menu>
@@ -151,7 +173,57 @@
           />
         </div>
       </div>
+      <div
+        v-if="saveIssue || draftStorageError"
+        role="alert"
+        class="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-panel-border bg-panel-bg px-3 py-2 text-panel-text"
+      >
+        <span class="min-w-0 flex-1">
+          {{
+            t(
+              draftStorageError
+                ? 'category.draftStorageFailed'
+                : saveIssue === 'conflict'
+                  ? 'category.saveConflict'
+                  : saveIssue === 'recovered'
+                    ? 'category.draftRecovered'
+                    : 'category.saveRetryHint'
+            )
+          }}
+        </span>
+        <CustomButton
+          size="small"
+          :disabled="state.isLoading"
+          @click="retryProtectedSave"
+        >
+          {{ t('common.save') }}
+        </CustomButton>
+        <CustomButton
+          size="small"
+          :disabled="state.isLoading"
+          @click="saveDraftCopy"
+        >
+          {{ t('category.saveDraftCopy') }}
+        </CustomButton>
+        <CustomButton
+          size="small"
+          :disabled="state.isLoading"
+          @click="showReloadConfirmation = true"
+        >
+          {{ t('category.reloadDisk') }}
+        </CustomButton>
+      </div>
     </div>
+
+    <ConfirmDialog
+      v-model="showReloadConfirmation"
+      :title="t('common.warning')"
+      :confirm-text="t('category.reloadDisk')"
+      :cancel-text="t('common.cancel')"
+      @confirm="reloadDiskVersion"
+    >
+      <p>{{ t('category.reloadDiskConfirm') }}</p>
+    </ConfirmDialog>
 
     <!-- 创建新笔记确认对话框 -->
     <ConfirmDialog
@@ -305,6 +377,7 @@
             :current-title="state.title"
             :current-fragment-id="state.currentContent?.id"
             :line-height="store.editorLineHeight"
+            :sticky-headings="stickyHeadingEnabled"
             :document-properties="noteProperties"
             :dark="isDark"
             @update:content="handleEditorChange"
@@ -314,6 +387,7 @@
             @outline-toggle="handleOutlineToggle"
             @backlink-navigate="handleBacklinkNavigate"
             @scroll-position="handleEditorScrollPosition"
+            @sticky-heading-change="setContextHeading"
           />
         </div>
       </div>
@@ -322,7 +396,16 @@
 </template>
 
 <script setup lang="ts">
+import { useContentHeading } from './useContentHeading';
 import UiEllipsisVertical from '~icons/lucide/ellipsis-vertical';
+import Save from '~icons/lucide/save';
+import Type from '~icons/lucide/type';
+import Copy from '~icons/lucide/copy';
+import Link from '~icons/lucide/link';
+import ListTree from '~icons/lucide/list-tree';
+import Tags from '~icons/lucide/tags';
+import Sparkles from '~icons/lucide/sparkles';
+import Check from '~icons/lucide/check';
 import BookOpen from '~icons/lucide/book-open';
 import EditTwo from '~icons/lucide/square-pen';
 import Star from '~icons/lucide/star';
@@ -340,7 +423,7 @@ import {
   convertFragmentType,
   moveFragmentToCategory
 } from '@/api/fragment';
-import { searchMarkdownFiles } from '@/api/markdown';
+import { searchMarkdownFiles, createMarkdownFile } from '@/api/markdown';
 import { debounce } from '@/utils';
 import { logger } from '@/utils/logger';
 import { parseFragment } from '@/utils/fragment';
@@ -352,7 +435,12 @@ import {
 import { useI18n } from 'vue-i18n';
 import modal from '@/utils/modal';
 import TagInput from '@/components/TagInput/index.vue';
-import { useRouter } from 'vue-router';
+import { useRouter, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
+import {
+  applySavedAttachmentRenames,
+  createEditorDraftStore,
+  type EditorDraft
+} from '@/utils/editorDrafts';
 import { ConfirmDialog, CustomButton } from '@/components/UI';
 import { findBacklinks, getBacklinkStats } from '@/utils/wikilink-updater';
 import BacklinkUpdateDialog from '@/components/UI/BacklinkUpdateDialog.vue';
@@ -365,10 +453,6 @@ import {
 } from '@/utils/markdown';
 import type { DocumentSelection } from '@/components/MarkdownEditor/document';
 import { getWorkspaceRoot } from '@/api/markdown';
-import {
-  syncAttachmentsOnRename,
-  cleanupUnusedAttachments
-} from '@/plugins/attachments/api';
 import {
   convertFragmentContent,
   FRAGMENT_TYPE_CONVERSION_REQUEST_EVENT,
@@ -556,6 +640,78 @@ const aiSelection = reactive({
 
 // 工作区根目录
 const workspaceRoot = ref<string>('');
+const draftStore = createEditorDraftStore(localStorage);
+const saveIssue = ref<'conflict' | 'recovered' | 'failed' | null>(null);
+const draftStorageError = ref(false);
+const showReloadConfirmation = ref(false);
+let pendingSave: Promise<boolean | undefined> | null = null;
+
+const currentDraft = (): EditorDraft => ({
+  title: draftTitle.value,
+  content: state.editorContent,
+  tags: [...state.tags],
+  contentRevision: state.currentContent?.contentRevision
+});
+const persistDraft = (): boolean => {
+  if (!state.currentContent || state.isInitializing || !workspaceRoot.value)
+    return true;
+  try {
+    const draft = currentDraft();
+    draftStore.record(
+      workspaceRoot.value,
+      String(state.currentContent.id),
+      draft,
+      {
+        title: state.currentContent.title,
+        content: state.currentContent.content,
+        tags: [...(state.currentContent.tags || [])]
+      },
+      Boolean(pendingSave || saveIssue.value)
+    );
+    draftStorageError.value = false;
+    return true;
+  } catch (error) {
+    console.error('[Content] Recovery draft could not be persisted', error);
+    draftStorageError.value = true;
+    return false;
+  }
+};
+const restoreDraft = () => {
+  saveIssue.value = null;
+  if (!state.currentContent) return;
+  try {
+    const draft = draftStore.read(
+      workspaceRoot.value,
+      String(state.currentContent.id)
+    );
+    if (!draft) return;
+    state.editorContent = draft.content;
+    state.title = draft.title;
+    draftTitle.value = draft.title;
+    state.tags = [...draft.tags];
+    state.currentContent.contentRevision = draft.contentRevision;
+    state.contentChanged = true;
+    titleDirty.value = draft.title !== originalTitle.value;
+    saveIssue.value = 'recovered';
+  } catch (error) {
+    console.error('[Content] Recovery draft could not be read', error);
+    draftStorageError.value = true;
+    saveIssue.value = 'failed';
+  }
+};
+const recordSaveFailure = (error: unknown) => {
+  saveIssue.value = String(error).includes('MARKDOWN_SAVE_CONFLICT')
+    ? 'conflict'
+    : 'failed';
+  persistDraft();
+};
+watch(
+  () => [draftTitle.value, state.editorContent, [...state.tags]],
+  () => {
+    persistDraft();
+  },
+  { flush: 'sync' }
+);
 
 const route = useRoute();
 const router = useRouter();
@@ -789,6 +945,33 @@ const retryLoadEditor = () => {
 
 // 标题输入框引用
 const titleInputRef = ref<any>(null);
+const stickyHeadingEnabled = computed(
+  () => store.editorStickyHeadings && currentEditorType.value === 'note'
+);
+const {
+  heading: contextHeading,
+  titleFocused,
+  showHeading,
+  setHeading: setContextHeading,
+  clearHeading: clearContextHeading
+} = useContentHeading(
+  stickyHeadingEnabled,
+  computed(() => `${workspaceRoot.value}/${state.currentContent?.id ?? ''}`)
+);
+
+const handleTitleFocus = () => {
+  const wasShowingHeading = showHeading.value;
+  titleFocused.value = true;
+  if (wasShowingHeading)
+    nextTick(() => {
+      if (titleFocused.value) titleInputRef.value?.select();
+    });
+};
+
+const handleTitleBlur = () => {
+  commitTitleChange();
+  titleFocused.value = false;
+};
 
 // 编辑器视图模式状态
 const editorViewMode = ref<'reading' | 'preview' | 'source'>('preview');
@@ -796,6 +979,7 @@ const isOutlineVisible = ref(false);
 
 // 处理视图模式变化
 const handleViewModeChange = (mode: 'reading' | 'preview' | 'source') => {
+  clearContextHeading();
   editorViewMode.value = mode;
 };
 
@@ -893,7 +1077,7 @@ const handleTagsChange = (newTags: string[]) => {
 };
 
 // 保存内容的核心逻辑（提取公共部分）
-const performSave = async (
+const performSaveNow = async (
   data: Partial<ContentType> = {},
   options: { updateRoute?: boolean } = {}
 ) => {
@@ -904,7 +1088,6 @@ const performSave = async (
 
   // 检测标题是否改变
   const titleChanged = state.title !== originalTitle.value;
-  const oldTitle = originalTitle.value;
   const newTitle = state.title;
   const saveSnapshot = { ...state.currentContent };
   const savedTags = [...state.tags];
@@ -945,47 +1128,11 @@ const performSave = async (
   // 获取编辑器元数据（仅在内容变化时更新）
   const metadata = getEditorMetadata();
 
-  // 标题改变且内容有变化时，如果是 Markdown 格式，同步附件
-  let finalContent = serializedContent;
-  if (
-    titleChanged &&
-    contentChanged &&
-    oldTitle &&
-    state.currentContent.format === 'markdown'
-  ) {
-    try {
-      const updatedContent = await syncAttachmentsOnRename(
-        oldTitle,
-        newTitle,
-        finalContent
-      );
-
-      // 只有在内容实际改变时才显示通知（说明有附件被同步）
-      if (updatedContent !== finalContent) {
-        finalContent = updatedContent;
-
-        // 更新编辑器内容以反映路径变化
-        if (
-          editorType === 'note' &&
-          state.currentContent?.id === saveSnapshot.id &&
-          state.editorContent === serializedContent
-        ) {
-          state.editorContent = updatedContent;
-          noteEditorRef.value?.setMarkdown(updatedContent);
-        }
-
-        // 显示成功通知（右上角）
-        modal.success(t('settings.attachment.syncSuccessMessage'), 'top-right');
-      }
-    } catch (error) {
-      console.error('[performSave] 附件同步失败:', error);
-
-      // 显示错误通知（右上角）
-      modal.error(t('settings.attachment.syncErrorMessage'), 'top-right');
-
-      // 继续保存，即使附件同步失败
-    }
-  }
+  // Preserve existing attachment links until the protected save commits.
+  const finalContent = serializedContent;
+  const savedDraft = currentDraft();
+  const saveWorkspace = workspaceRoot.value;
+  persistDraft();
 
   // 准备更新参数（用于 store）
   const updateParams = {
@@ -1004,37 +1151,33 @@ const performSave = async (
     category_id: saveSnapshot.category_id ?? null
   };
 
-  const newPath = await editFragment(apiParams);
+  if (!saveSnapshot.contentRevision)
+    throw new Error('Missing document revision; reload or save a copy');
+  const result = await editFragment(apiParams, {
+    expectedRevision: saveSnapshot.contentRevision,
+    expectedWorkspaceRoot: saveWorkspace
+  });
+  const newPath = result.newPath;
+  const committedContent = result.content ?? finalContent;
+  updateParams.content = committedContent;
+  updateParams.contentRevision = result.contentRevision;
+  try {
+    draftStore.acknowledge(
+      saveWorkspace,
+      String(saveSnapshot.id),
+      savedDraft,
+      result.contentRevision,
+      newPath || String(saveSnapshot.id),
+      result.attachmentRenames
+    );
+  } catch (error) {
+    draftStorageError.value = true;
+    console.error('[Content] Draft acknowledgement failed', error);
+  }
+  saveIssue.value = null;
 
   // A completed save belongs to its original document, even if navigation
   // happened while IPC was pending.
-  if (state.currentContent?.id !== saveSnapshot.id) {
-    updateStore({ ...updateParams, ...(newPath ? { id: newPath } : {}) });
-    return false;
-  }
-
-  // 清理未使用的附件（如果是 Markdown 格式）
-  if (state.currentContent.format === 'markdown') {
-    try {
-      const deletedCount = await cleanupUnusedAttachments(
-        newTitle,
-        state.editorContent
-      );
-      // 只有在实际删除了文件时才显示通知
-      if (deletedCount > 0) {
-        modal.success(
-          t('settings.attachment.unusedCleanupSuccessMessage', {
-            count: deletedCount
-          }),
-          'top-right'
-        );
-      }
-    } catch (error) {
-      console.error('[performSave] 清理未使用附件失败:', error);
-      // 不阻止保存操作
-    }
-  }
-
   if (state.currentContent?.id !== saveSnapshot.id) {
     updateStore({ ...updateParams, ...(newPath ? { id: newPath } : {}) });
     return false;
@@ -1086,12 +1229,22 @@ const performSave = async (
     };
   }
 
+  // Update the document path/baseline before the synchronous draft watcher.
+  // Rebase only attachment paths; text typed during IPC must survive.
+  state.editorContent =
+    state.editorContent === serializedContent
+      ? committedContent
+      : applySavedAttachmentRenames(
+          state.editorContent,
+          result.attachmentRenames
+        );
+
   state.contentChanged =
-    state.editorContent !== finalContent ||
+    state.editorContent !== committedContent ||
     state.title !== newTitle ||
     JSON.stringify(state.tags) !== JSON.stringify(savedTags);
   state.lastSavedAt = new Date();
-  state.lastSavedContentHash = computeContentHash(finalContent);
+  state.lastSavedContentHash = computeContentHash(committedContent);
 
   // 更新原始标题
   originalTitle.value = newTitle;
@@ -1113,6 +1266,92 @@ const performSave = async (
     console.debug('[performSave] 通知自动同步失败:', error);
   }
   return true;
+};
+
+// Serialize explicit saves and route saves against the latest committed baseline.
+const performSave = async (
+  data: Partial<ContentType> = {},
+  options: { updateRoute?: boolean } = {}
+) => {
+  while (pendingSave) await pendingSave;
+  const operation = performSaveNow(data, options);
+  pendingSave = operation;
+  try {
+    const saved = await operation;
+    if (saved && pendingSave === operation) {
+      pendingSave = null;
+      // Programmatic attachment rewrites also trigger the draft watcher.
+      // Clear a clean snapshot only after the committed baseline is installed.
+      persistDraft();
+    }
+    return saved;
+  } finally {
+    if (pendingSave === operation) pendingSave = null;
+  }
+};
+const retryProtectedSave = async () => {
+  debouncedSave.cancel();
+  try {
+    await saveContent();
+  } catch {
+    /* The banner retains both versions. */
+  }
+};
+const reloadDiskVersion = async () => {
+  if (!state.currentContent || state.isLoading) return;
+  debouncedSave.cancel();
+  try {
+    draftStore.remove(workspaceRoot.value, String(state.currentContent.id));
+    saveIssue.value = null;
+    await fetchContentById(String(state.currentContent.id));
+  } catch (error) {
+    recordSaveFailure(error);
+  }
+};
+const saveDraftCopy = async () => {
+  if (!state.currentContent || state.isLoading) return;
+  state.isLoading = true;
+  const snapshot = currentDraft();
+  const originalId = String(state.currentContent.id);
+  try {
+    const path = await createMarkdownFile(
+      state.currentContent.category_name || null,
+      {
+        title: snapshot.title.trim() || t('category.recoveredTitle'),
+        content: snapshot.content,
+        tags: snapshot.tags,
+        type: state.currentContent.type || 'code',
+        ...getEditorMetadata()
+      },
+      { expectedWorkspaceRoot: workspaceRoot.value }
+    );
+    if (
+      snapshot.content !== state.editorContent ||
+      snapshot.title !== draftTitle.value ||
+      JSON.stringify(snapshot.tags) !== JSON.stringify(state.tags)
+    ) {
+      modal.success(t('category.copySavedNewerDraft'));
+      return;
+    }
+    draftStore.remove(workspaceRoot.value, originalId);
+    state.contentChanged = false;
+    titleDirty.value = false;
+    saveIssue.value = null;
+    const cid = route.params.cid;
+    await router.push(
+      cid
+        ? `/config/category/contentList/${cid}/content/${encodeURIComponent(path)}`
+        : `/config/category/contentList/content/${encodeURIComponent(path)}`
+    );
+    window.dispatchEvent(
+      new CustomEvent('refresh-data', { detail: { source: 'draft-copy' } })
+    );
+  } catch (error) {
+    recordSaveFailure(error);
+    handleSaveError(error, 'saveDraftCopy');
+  } finally {
+    state.isLoading = false;
+  }
 };
 
 // 保存内容的核心逻辑
@@ -1151,6 +1390,7 @@ const saveContent = async (data: Partial<ContentType> = {}) => {
     saved = Boolean(await performSave(data));
   } catch (error) {
     console.error('[Content] 保存失败:', error);
+    recordSaveFailure(error);
     handleSaveError(error, 'saveContent');
     throw error;
   } finally {
@@ -1175,7 +1415,7 @@ const handleContentMenuCommand = async (command: string) => {
     showTagEditor.value = true;
     return;
   }
-  if (command === 'aiAssist' && currentEditorType.value === 'note') {
+  if (command === 'aiAssist') {
     showAiAssist.value = true;
     return;
   }
@@ -1205,10 +1445,9 @@ const handleContentMenuCommand = async (command: string) => {
 };
 
 // 使用 debounce，保留 cancel 方法
-const debouncedSave = debounce(
-  saveContent as (...args: unknown[]) => unknown,
-  300
-);
+const debouncedSave = debounce(() => {
+  if (!saveIssue.value) void saveContent().catch(() => {});
+}, 300);
 
 // 处理反向链接更新确认
 const handleBacklinkUpdateConfirm = async () => {
@@ -1251,6 +1490,7 @@ const saveContentWithoutBacklinkCheck = async (
     modal.success(t('category.saveSuccess'));
   } catch (error) {
     console.error('[Content] 保存失败:', error);
+    recordSaveFailure(error);
     handleSaveError(error, 'saveContent');
     throw error;
   } finally {
@@ -1293,7 +1533,7 @@ const syncDraftTitleToState = () => {
 };
 
 const handleTitleInput = (value: string) => {
-  if (state.isInitializing) return;
+  if (state.isInitializing || showHeading.value) return;
   draftTitle.value = value;
   titleDirty.value = value.trim() !== state.title.trim();
   scheduleDeferredEditorMount(600);
@@ -1388,9 +1628,14 @@ const handleFragmentTypeConversionRequest = (event: Event): void => {
       }
 
       const currentContentId = state.currentContent?.id ?? requestedContentId;
+      if (!state.currentContent?.contentRevision || saveIssue.value) {
+        throw new Error('Resolve the recovery draft before converting');
+      }
       commitTitleChange();
       debouncedSave.cancel();
       syncDraftTitleToState();
+      persistDraft();
+      const draftBeforeConversion = currentDraft();
       state.isLoading = true;
       state.isInitializing = true;
       beginEditorLoading();
@@ -1411,7 +1656,18 @@ const handleFragmentTypeConversionRequest = (event: Event): void => {
           content: convertedContent,
           metadata: state.currentContent?.metadata,
           tags: state.tags
+        },
+        {
+          expectedRevision: state.currentContent.contentRevision,
+          expectedWorkspaceRoot: workspaceRoot.value
         }
+      );
+      draftStore.acknowledge(
+        workspaceRoot.value,
+        String(currentContentId),
+        draftBeforeConversion,
+        converted.contentRevision!,
+        String(converted.id)
       );
       const newPath =
         normalizePathForCompare(converted.id) !==
@@ -1425,10 +1681,10 @@ const handleFragmentTypeConversionRequest = (event: Event): void => {
         type: detail.targetType,
         format: detail.targetType === 'note' ? 'markdown' : 'plain'
       };
-      state.editorContent = convertedContent;
+      state.editorContent = converted.content;
       state.contentChanged = false;
       state.lastSavedAt = new Date();
-      state.lastSavedContentHash = computeContentHash(convertedContent);
+      state.lastSavedContentHash = computeContentHash(converted.content);
       originalTitle.value = converted.title;
       draftTitle.value = converted.title;
       titleDirty.value = false;
@@ -1466,6 +1722,7 @@ const handleFragmentTypeConversionRequest = (event: Event): void => {
       finishMountedEditorLoading();
       detail.resolve(state.currentContent);
     } catch (error) {
+      recordSaveFailure(error);
       await nextTick();
       failEditorLoading();
       detail.reject(error);
@@ -1874,9 +2131,10 @@ const fetchContentById = async (id: string) => {
       state.lastSavedContentHash = computeContentHash(
         parsedContent.content || ''
       );
+      restoreDraft();
       await nextTick();
       if (currentEditorType.value === 'note' && noteEditorRef.value) {
-        noteEditorRef.value.setMarkdown(newContent);
+        noteEditorRef.value.setMarkdown(state.editorContent);
       }
       finishMountedEditorLoading();
     } else {
@@ -1937,6 +2195,7 @@ const fetchContent = async () => {
       state.lastSavedContentHash = computeContentHash(
         parsedContent.content || ''
       );
+      restoreDraft();
 
       const isNewEmptyContent =
         parsedContent.title === 'New Fragment' &&
@@ -2028,19 +2287,6 @@ watch(
       hideAiSelection();
     }
 
-    // 如果路由参数变化，先自动保存当前内容（如果有更改）
-    if (oldId && state.currentContent && hasUnsavedChanges()) {
-      try {
-        // 取消 debounce，立即保存
-        debouncedSave.cancel();
-        // 保存时不更新路由，让用户的导航正常进行
-        await performSave({}, { updateRoute: false });
-      } catch (error) {
-        console.error('[Content] 切换前自动保存失败:', error);
-        // 即使保存失败，也继续导航（避免卡住）
-      }
-    }
-
     // 加载新内容（但不在初始化时执行，由 onMounted 处理）
     if (newId && oldId !== undefined) {
       await fetchContent();
@@ -2117,6 +2363,7 @@ const handleRefreshData = async (event: Event) => {
       state.currentContent,
       customEvent.detail as FavoriteChangeDetail
     );
+    persistDraft();
     return;
   }
 
@@ -2244,22 +2491,46 @@ const handleDirsChanged = async (event: Event) => {
   }
 };
 
-// 组件卸载前保存
-onBeforeUnmount(async () => {
+// Route saves must complete before changing the current document.
+const saveBeforeNavigation = async (to: {
+  params: Record<string, unknown>;
+  query: Record<string, unknown>;
+}) => {
+  if (
+    to.query.skipReload === 'true' &&
+    String(to.params.id) === String(state.currentContent?.id)
+  )
+    return true;
+  debouncedSave.cancel();
+  try {
+    if (pendingSave) await pendingSave;
+    if (!hasUnsavedChanges()) return true;
+    persistDraft();
+    if (saveIssue.value) return false;
+    await performSave({}, { updateRoute: false });
+    return !hasUnsavedChanges();
+  } catch (error) {
+    recordSaveFailure(error);
+    return false;
+  }
+};
+onBeforeRouteLeave(saveBeforeNavigation);
+onBeforeRouteUpdate((to, from) =>
+  to.params.id === from.params.id ? true : saveBeforeNavigation(to)
+);
+onBeforeUnmount(() => {
   contentLoadGeneration++;
   cancelDeferredEditorMount();
   cancelEditorReadyTransition();
-  if (state.currentContent && hasUnsavedChanges()) {
-    debouncedSave.cancel();
-    syncDraftTitleToState();
-    await saveContent();
-  }
+  debouncedSave.cancel();
+  persistDraft();
 });
 
 // 监听浏览器关闭/刷新事件
 onMounted(async () => {
   // 注册清理函数（必须在 await 之前）
   const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+    persistDraft();
     if (hasUnsavedChanges()) {
       e.preventDefault();
       e.returnValue = '';
@@ -2379,10 +2650,6 @@ onMounted(async () => {
 
   .editor-stage:has(.backlink-sidebar.is-visible) {
     @apply max-w-none pr-0;
-
-    .editor-surface :deep(.editor-main) {
-      @apply pr-8;
-    }
   }
 }
 

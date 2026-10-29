@@ -105,8 +105,7 @@ pub fn update_editor_settings(
         let mut manager = config_state
             .write()
             .map_err(|e| format!("获取配置锁失败: {}", e))?;
-        manager.update_editor_settings(settings);
-        manager.save()?;
+        manager.save_editor_settings(settings)?;
         drop(manager);
         crate::sync_data::materialize_local_config_change_best_effort(&app_handle, "编辑器设置");
         info!("✅ [AppConfig] 编辑器显示设置已更新");

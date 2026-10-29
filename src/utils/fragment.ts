@@ -49,6 +49,10 @@ export function parseFragment(fragment: unknown): ContentType {
         : undefined;
 
     return {
+      contentRevision:
+        typeof data.contentRevision === 'string'
+          ? data.contentRevision
+          : undefined,
       id:
         typeof data.id === 'number' || typeof data.id === 'string'
           ? data.id

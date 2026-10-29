@@ -11,6 +11,6 @@ export const translationPlugin: BuiltinPlugin = {
   hotkeys: ['translate', 'selection_translate'],
   trayItems: ['translate'],
   searchSources: [],
-  dependencies: ['translation-offline-runtime'],
+  optionalDependencies: ['translation-offline-runtime'],
   resourceHintKey: 'plugins.translation.resourceHint'
 };

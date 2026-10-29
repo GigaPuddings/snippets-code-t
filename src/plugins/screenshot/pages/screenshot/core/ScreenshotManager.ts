@@ -30,6 +30,10 @@ import { Window } from '@tauri-apps/api/window';
 import { logger, ocrDiagnosticLogger } from '@/utils/logger';
 import i18n from '@/i18n';
 import {
+  requireScreenshotPlugin,
+  screenshotCapabilityError
+} from '@/plugins/screenshot/utils/recognition';
+import {
   chatWithAi,
   getAiProviderStatus,
   LOCAL_AI_PROVIDER_ID,
@@ -4020,6 +4024,7 @@ export class ScreenshotManager {
 
     try {
       const pipelineStartedAt = performance.now();
+      await requireScreenshotPlugin('translation');
       let cropDurationMs = 0;
       let ocrLoadDurationMs = 0;
       let ocrDurationMs = 0;
@@ -4623,6 +4628,7 @@ export class ScreenshotManager {
       const { x, y, width, height } = this.selectionRect;
 
       // 阶段1：检查并启动 AI 模型服务（如果服务未运行，启动可能需要几秒）
+      await requireScreenshotPlugin('local-ai');
       this.translationOverlay.loadingStage = 'starting-service';
       this.draw();
       this.onStateChange?.();
@@ -4800,23 +4806,26 @@ export class ScreenshotManager {
       this.translationOverlay.blocks = [];
       this.translationOverlay.paragraphBlocks = [];
       this.translationOverlay.errorMessage =
-        message.includes('mmproj') || message.includes('vision')
+        screenshotCapabilityError(message) ??
+        (message.includes('mmproj') || message.includes('vision')
           ? i18n.global.t('screenshotTool.visionModelRequired')
           : i18n.global.t('screenshotTool.aiTranslationFailed', {
               error: message.slice(0, 80)
-            });
+            }));
       this.draw();
       this.onStateChange?.();
     }
   }
 
   private getOcrTranslationErrorMessage(message: string): string {
+    const capabilityError = screenshotCapabilityError(message);
+    if (capabilityError) return capabilityError;
     if (message.includes('OCR_RECOGNITION_LOW_QUALITY')) {
       return i18n.global.t('screenshotTool.ocrLowQuality');
     }
 
     if (message.includes('RAPIDOCR_UNAVAILABLE')) {
-      return i18n.global.t('screenshotTool.ocrUnavailable');
+      return `${i18n.global.t('screenshotTool.ocrUnavailable')} ${i18n.global.t('plugins.screenshot.ocrInstallHint')}`;
     }
 
     return message

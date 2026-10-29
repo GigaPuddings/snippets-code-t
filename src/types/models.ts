@@ -10,6 +10,8 @@ import type { ProductSearchAction } from '@/search/productActions';
  * 用于搜索结果和列表展示
  */
 export interface ContentType {
+  /** Fingerprint of the exact disk snapshot last read/saved. */
+  contentRevision?: string;
   /** 内容 ID */
   id: string | number;
   /** 标题 */
@@ -167,6 +169,7 @@ export interface SyncResult {
  * Markdown 文件元数据
  */
 export interface MarkdownFile {
+  contentRevision?: string;
   /** Stable frontmatter UUID, separate from the legacy path-based UI id. */
   documentId?: string;
   aiSource?: AiNoteSource;
@@ -249,6 +252,7 @@ export interface AppConfig {
   editor?: {
     lineNumbers: boolean;
     lineHeight: number;
+    stickyHeadings: boolean;
   };
   quick_search?: {
     preview_visible: boolean;

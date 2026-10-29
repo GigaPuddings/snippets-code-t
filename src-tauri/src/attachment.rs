@@ -31,11 +31,18 @@ fn default_show_image_path() -> bool {
     true
 }
 
+fn normalize_filename_format(format: &str) -> &str {
+    match format {
+        "obsidian" => "snippets-code",
+        other => other,
+    }
+}
+
 impl From<&AttachmentSettings> for AttachmentConfig {
     fn from(settings: &AttachmentSettings) -> Self {
         Self {
             path_template: settings.path_template.clone(),
-            filename_format: settings.filename_format.clone(),
+            filename_format: normalize_filename_format(&settings.filename_format).to_string(),
             default_image_scale_percent: settings.default_image_scale_percent.clamp(25, 200),
             responsive_images: settings.responsive_images,
             show_image_path: settings.show_image_path,
@@ -47,7 +54,7 @@ impl From<AttachmentConfig> for AttachmentSettings {
     fn from(config: AttachmentConfig) -> Self {
         Self {
             path_template: config.path_template,
-            filename_format: config.filename_format,
+            filename_format: normalize_filename_format(&config.filename_format).to_string(),
             default_image_scale_percent: config.default_image_scale_percent.clamp(25, 200),
             responsive_images: config.responsive_images,
             show_image_path: config.show_image_path,
@@ -72,7 +79,7 @@ fn get_workspace_root(app_handle: &tauri::AppHandle) -> Result<PathBuf, String> 
 }
 
 /// 获取附件配置（从缓存的 WorkspaceManager 状态读取）
-fn get_attachment_config_internal(
+pub(crate) fn get_attachment_config_internal(
     app_handle: &tauri::AppHandle,
 ) -> Result<AttachmentSettings, String> {
     // 尝试从应用状态获取 WorkspaceManager
@@ -134,7 +141,7 @@ fn generate_filename(format: &str, original_name: &str) -> Result<String, String
     let now = chrono::Local::now();
 
     match format {
-        "obsidian" => Ok(format!(
+        "snippets-code" | "obsidian" => Ok(format!(
             "Pasted image {}.{}",
             now.format("%Y%m%d%H%M%S"),
             extension
@@ -238,8 +245,24 @@ pub async fn save_image_attachment(
     // 2. 获取附件配置
     let config = get_attachment_config_internal(&app_handle)?;
 
+    save_image_attachment_in_workspace(
+        &workspace_root,
+        &config,
+        &note_file_path,
+        &image_data,
+        original_name,
+    )
+}
+
+fn save_image_attachment_in_workspace(
+    workspace_root: &Path,
+    config: &AttachmentSettings,
+    note_file_path: &str,
+    image_data: &str,
+    original_name: String,
+) -> Result<AttachmentInfo, String> {
     // 3. 提取笔记文件名（不含扩展名）
-    let note_name = Path::new(&note_file_path)
+    let note_name = Path::new(note_file_path)
         .file_stem()
         .and_then(|s| s.to_str())
         .ok_or("Invalid note file path")?;
@@ -260,14 +283,14 @@ pub async fn save_image_attachment(
 
     // 8. 解码 Base64 并保存文件
     let image_bytes = general_purpose::STANDARD
-        .decode(&image_data)
+        .decode(image_data)
         .map_err(|e| format!("Failed to decode base64: {}", e))?;
 
     let file_path = attachment_dir.join(&final_name);
     fs::write(&file_path, &image_bytes).map_err(|e| format!("Failed to write file: {}", e))?;
 
     // 9. 计算相对路径
-    let relative_path = calculate_relative_path(&note_file_path, &file_path, &workspace_root)?;
+    let relative_path = calculate_relative_path(note_file_path, &file_path, workspace_root)?;
 
     // 10. 返回附件信息
     Ok(AttachmentInfo {
@@ -280,7 +303,113 @@ pub async fn save_image_attachment(
     })
 }
 
-/// 同步附件（笔记重命名时）
+#[derive(Debug, Clone, Serialize)]
+pub(crate) struct AttachmentPathRename {
+    pub from: String,
+    pub to: String,
+}
+
+pub(crate) struct AttachmentRename {
+    old_dir: PathBuf,
+    new_dir: PathBuf,
+    pub paths: Vec<AttachmentPathRename>,
+}
+
+impl AttachmentRename {
+    pub fn prepare(
+        workspace_root: &Path,
+        config: &AttachmentSettings,
+        old_note: &Path,
+        new_note: &Path,
+    ) -> Result<Option<Self>, String> {
+        let old_name = old_note
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .ok_or("Invalid note path")?;
+        let new_name = new_note
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .ok_or("Invalid note path")?;
+        if old_name == new_name || !config.path_template.contains("${noteFileName}") {
+            return Ok(None);
+        }
+        let old_dir =
+            workspace_root.join(config.path_template.replace("${noteFileName}", old_name));
+        let new_dir =
+            workspace_root.join(config.path_template.replace("${noteFileName}", new_name));
+        // Missing old directories can belong to notes renamed by a legacy client.
+        // Keep their existing links rather than inventing a missing destination.
+        if !old_dir.exists() || old_dir == new_dir {
+            return Ok(None);
+        }
+        if new_dir.exists() {
+            return Err(format!("附件目录已存在，未重命名: {}", new_dir.display()));
+        }
+        let from = format!(
+            "{}/",
+            calculate_relative_path(&old_note.to_string_lossy(), &old_dir, workspace_root)?
+                .trim_end_matches('/')
+        );
+        let to = format!(
+            "{}/",
+            calculate_relative_path(&new_note.to_string_lossy(), &new_dir, workspace_root)?
+                .trim_end_matches('/')
+        );
+        let encode = |path: &str| {
+            path.split('/')
+                .map(|part| urlencoding::encode(part).into_owned())
+                .collect::<Vec<_>>()
+                .join("/")
+        };
+        let encoded_from = encode(&from);
+        let encoded_to = encode(&to);
+        let mut paths = vec![AttachmentPathRename { from, to }];
+        if encoded_from != paths[0].from {
+            paths.push(AttachmentPathRename {
+                from: encoded_from,
+                to: encoded_to,
+            });
+        }
+        Ok(Some(Self {
+            old_dir,
+            new_dir,
+            paths,
+        }))
+    }
+
+    pub fn rewrite(&self, content: &str) -> String {
+        self.paths
+            .iter()
+            .fold(content.to_string(), |content, path| {
+                content.replace(&path.from, &path.to)
+            })
+    }
+
+    pub fn apply(&self) -> Result<(), String> {
+        if self.new_dir.exists() {
+            return Err(format!(
+                "附件目录已存在，未重命名: {}",
+                self.new_dir.display()
+            ));
+        }
+        if let Some(parent) = self.new_dir.parent() {
+            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        fs::rename(&self.old_dir, &self.new_dir).map_err(|e| format!("重命名附件目录失败: {e}"))
+    }
+
+    pub fn rollback(&self) -> Result<(), String> {
+        if self.old_dir.exists() {
+            return Err(format!(
+                "原附件目录已存在，附件保留于 {}",
+                self.new_dir.display()
+            ));
+        }
+        fs::rename(&self.new_dir, &self.old_dir).map_err(|e| format!("回滚附件目录失败: {e}"))
+    }
+}
+
+/// 同步附件（保留旧插件的独立命令；编辑器保存由后端统一提交）
 #[command]
 pub async fn sync_attachments_on_rename(
     old_note_name: String,
@@ -291,41 +420,19 @@ pub async fn sync_attachments_on_rename(
     let workspace_root = get_workspace_root(&app_handle)?;
     let config = get_attachment_config_internal(&app_handle)?;
 
-    // 1. 计算旧附件文件夹路径
-    let old_dir = workspace_root.join(
-        config
-            .path_template
-            .replace("${noteFileName}", &old_note_name),
-    );
-
-    // 2. 计算新附件文件夹路径
-    let new_dir = workspace_root.join(
-        config
-            .path_template
-            .replace("${noteFileName}", &new_note_name),
-    );
-
-    // 3. 重命名附件文件夹（如果存在）
-    if old_dir.exists() {
-        fs::rename(&old_dir, &new_dir)
-            .map_err(|e| format!("Failed to rename attachment directory: {}", e))?;
+    let old_note = workspace_root.join(format!("{old_note_name}.md"));
+    let new_note = workspace_root.join(format!("{new_note_name}.md"));
+    if let Some(rename) = AttachmentRename::prepare(&workspace_root, &config, &old_note, &new_note)?
+    {
+        rename.apply()?;
+        Ok(rename.rewrite(&note_content))
+    } else {
+        Ok(note_content)
     }
-
-    // 4. 更新笔记内容中的图片链接
-    let old_path_pattern = config
-        .path_template
-        .replace("${noteFileName}", &old_note_name);
-    let new_path_pattern = config
-        .path_template
-        .replace("${noteFileName}", &new_note_name);
-
-    let updated_content = note_content.replace(&old_path_pattern, &new_path_pattern);
-
-    Ok(updated_content)
 }
 
-/// 清理附件（笔记删除时）
-/// 返回是否实际删除了附件文件夹
+/// 笔记删除时仅清理空附件目录；同名笔记或其他笔记可能仍引用其中的文件。
+/// 返回是否实际移除了空目录。
 #[command]
 pub async fn cleanup_attachments_on_delete(
     note_name: String,
@@ -334,18 +441,40 @@ pub async fn cleanup_attachments_on_delete(
     let workspace_root = get_workspace_root(&app_handle)?;
     let config = get_attachment_config_internal(&app_handle)?;
 
-    // 计算附件文件夹路径
-    let attachment_dir =
-        workspace_root.join(config.path_template.replace("${noteFileName}", &note_name));
+    cleanup_note_attachments(&workspace_root, &config, &note_name)
+}
 
-    // 检查附件文件夹是否存在
-    if attachment_dir.exists() {
-        // 删除附件文件夹
-        fs::remove_dir_all(&attachment_dir)
-            .map_err(|e| format!("Failed to remove attachment directory: {}", e))?;
-        Ok(true) // 实际删除了附件
-    } else {
-        Ok(false) // 没有附件需要删除
+fn cleanup_note_attachments(
+    workspace_root: &Path,
+    config: &AttachmentSettings,
+    note_name: &str,
+) -> Result<bool, String> {
+    let attachment_dir =
+        workspace_root.join(config.path_template.replace("${noteFileName}", note_name));
+
+    if !attachment_dir.is_dir() {
+        return Ok(false);
+    }
+    let root = workspace_root
+        .canonicalize()
+        .map_err(|e| format!("Failed to resolve workspace directory: {}", e))?;
+    let target = attachment_dir
+        .canonicalize()
+        .map_err(|e| format!("Failed to resolve attachment directory: {}", e))?;
+    if target == root || !target.starts_with(&root) {
+        return Ok(false);
+    }
+
+    // A note name does not establish ownership, even for a default template.
+    // remove_dir preserves all files and also rejects concurrent additions.
+    match fs::remove_dir(&attachment_dir) {
+        Ok(()) => Ok(true),
+        Err(error) if error.kind() == std::io::ErrorKind::DirectoryNotEmpty => Ok(false),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(format!(
+            "Failed to remove empty attachment directory: {}",
+            error
+        )),
     }
 }
 
@@ -650,8 +779,33 @@ pub async fn update_attachment_config(
     Ok(())
 }
 
-/// 清理孤立附件（没有对应笔记的附件文件夹）
-/// 扫描附件目录，对每个附件文件夹检查是否存在对应的笔记文件
+fn remove_orphaned_attachment_directory(
+    path: &Path,
+    note_names: &std::collections::HashSet<String>,
+) -> std::io::Result<bool> {
+    if !path.is_dir() {
+        return Ok(false);
+    }
+    let Some(folder_name) = path.file_name().and_then(|name| name.to_str()) else {
+        return Ok(false);
+    };
+    if folder_name.starts_with('.')
+        || folder_name.starts_with('_')
+        || note_names.contains(folder_name)
+    {
+        return Ok(false);
+    }
+    // A renamed/copied note can still reference this directory by its old name.
+    // Remove only an empty directory; the OS also rejects a concurrent addition.
+    match fs::remove_dir(path) {
+        Ok(()) => Ok(true),
+        Err(error) if error.kind() == std::io::ErrorKind::DirectoryNotEmpty => Ok(false),
+        Err(error) => Err(error),
+    }
+}
+
+/// 仅清理没有对应笔记的空附件目录。
+/// 目录名不能证明附件已无引用；包含文件的目录交由显式清理流程处理。
 #[command]
 pub async fn cleanup_orphaned_attachments(app_handle: tauri::AppHandle) -> Result<usize, String> {
     let workspace_root = get_workspace_root(&app_handle)?;
@@ -726,32 +880,14 @@ pub async fn cleanup_orphaned_attachments(app_handle: tauri::AppHandle) -> Resul
     if let Ok(entries) = fs::read_dir(&attachment_base) {
         for entry in entries.flatten() {
             let path = entry.path();
-            if !path.is_dir() {
-                continue;
-            }
-
-            // 获取文件夹名（即笔记文件名）
-            let folder_name = match path.file_name().and_then(|n| n.to_str()) {
-                Some(name) => name,
-                None => continue,
-            };
-
-            // 跳过隐藏文件夹和非笔记文件夹
-            if folder_name.starts_with('.') || folder_name.starts_with('_') {
-                continue;
-            }
-
-            // 只在整个工作区中都找不到同名 Markdown 文件时，
-            // 才认为这是孤立附件并删除。
-            if !note_names.contains(folder_name) {
-                match fs::remove_dir_all(&path) {
-                    Ok(_) => {
-                        log::info!("🗑️ [Attachment] 删除孤立附件文件夹: {}", folder_name);
-                        deleted_count += 1;
-                    }
-                    Err(e) => {
-                        log::warn!("⚠️ [Attachment] 删除孤立附件失败 {}: {}", folder_name, e);
-                    }
+            match remove_orphaned_attachment_directory(&path, &note_names) {
+                Ok(true) => {
+                    log::info!("🗑️ [Attachment] 删除孤立附件文件夹: {}", path.display());
+                    deleted_count += 1;
+                }
+                Ok(false) => {}
+                Err(e) => {
+                    log::warn!("⚠️ [Attachment] 删除孤立附件失败 {}: {}", path.display(), e);
                 }
             }
         }
@@ -760,7 +896,7 @@ pub async fn cleanup_orphaned_attachments(app_handle: tauri::AppHandle) -> Resul
     Ok(deleted_count)
 }
 
-/// 处理文件删除时的附件清理（内部使用，供文件监控调用）
+/// 文件监控只清理空附件目录，保留可能被其他笔记或恢复操作使用的文件。
 pub async fn cleanup_attachments_for_deleted_files(
     app_handle: &tauri::AppHandle,
     deleted_files: &[String],
@@ -788,20 +924,14 @@ pub async fn cleanup_attachments_for_deleted_files(
             continue;
         }
 
-        // 计算附件文件夹路径
-        let attachment_dir =
-            workspace_root.join(config.path_template.replace("${noteFileName}", note_name));
-
-        // 删除附件文件夹（如果存在）
-        if attachment_dir.exists() {
-            match fs::remove_dir_all(&attachment_dir) {
-                Ok(_) => {
-                    log::info!("🗑️ [Attachment] 文件删除时清理附件: {}", note_name);
-                    deleted_count += 1;
-                }
-                Err(e) => {
-                    log::warn!("⚠️ [Attachment] 清理附件失败 {}: {}", note_name, e);
-                }
+        match cleanup_note_attachments(&workspace_root, &config, note_name) {
+            Ok(true) => {
+                log::info!("🗑️ [Attachment] 文件删除时清理空附件目录: {}", note_name);
+                deleted_count += 1;
+            }
+            Ok(false) => {}
+            Err(e) => {
+                log::warn!("⚠️ [Attachment] 清理附件失败 {}: {}", note_name, e);
             }
         }
     }
@@ -809,17 +939,31 @@ pub async fn cleanup_attachments_for_deleted_files(
     Ok(deleted_count)
 }
 
-/// 处理文件重命名时的附件同步（内部使用，供文件监控调用）
-pub async fn sync_attachments_for_renamed_files(
-    app_handle: &tauri::AppHandle,
-    renamed_files: &[(String, String)], // (old_path, new_path)
+/// 使用文件监控捕获的工作区和配置同步附件，避免延迟任务读取到新工作区。
+pub(crate) fn sync_attachments_for_renamed_files_in_workspace(
+    workspace_root: &Path,
+    config: &AttachmentSettings,
+    renamed_files: &[(String, String)],
 ) -> Result<usize, String> {
-    let workspace_root = get_workspace_root(app_handle)?;
-    let config = get_attachment_config_internal(app_handle)?;
-
     let mut synced_count = 0;
+    let belongs_to_workspace = |path: &Path| {
+        path.is_absolute()
+            && path
+                .strip_prefix(workspace_root)
+                .ok()
+                .is_some_and(|relative| {
+                    !relative.as_os_str().is_empty()
+                        && relative
+                            .components()
+                            .all(|component| matches!(component, std::path::Component::Normal(_)))
+                })
+    };
 
     for (old_path, new_path) in renamed_files {
+        if !belongs_to_workspace(Path::new(old_path)) || !belongs_to_workspace(Path::new(new_path))
+        {
+            continue;
+        }
         // 获取旧笔记文件名（不含扩展名）
         let old_note_name = Path::new(old_path)
             .file_stem()
@@ -874,4 +1018,421 @@ pub async fn sync_attachments_for_renamed_files(
     }
 
     Ok(synced_count)
+}
+
+#[cfg(test)]
+mod attachment_cleanup_tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    struct Workspace(PathBuf);
+
+    impl Workspace {
+        fn new() -> Self {
+            let suffix = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            let root = std::env::temp_dir().join(format!(
+                "snippets-attachment-cleanup-{}-{suffix}",
+                std::process::id()
+            ));
+            fs::create_dir(&root).unwrap();
+            Self(root)
+        }
+
+        fn attachment_dir(&self, name: &str) -> PathBuf {
+            let path = self.0.join("assets").join(name);
+            fs::create_dir_all(&path).unwrap();
+            path
+        }
+    }
+
+    impl Drop for Workspace {
+        fn drop(&mut self) {
+            assert!(self.0.starts_with(std::env::temp_dir()));
+            assert!(self
+                .0
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .starts_with("snippets-attachment-cleanup-"));
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn renamed_note_keeps_images_in_its_original_attachment_directory() {
+        let workspace = Workspace::new();
+        let original_assets = workspace.attachment_dir("old");
+        let image = original_assets.join("image.png");
+        fs::write(&image, b"original image bytes").unwrap();
+        fs::write(
+            workspace.0.join("renamed.md"),
+            "![image](assets/old/image.png)",
+        )
+        .unwrap();
+        let note_names = HashSet::from(["renamed".to_string()]);
+
+        assert!(!remove_orphaned_attachment_directory(&original_assets, &note_names).unwrap());
+        assert_eq!(fs::read(image).unwrap(), b"original image bytes");
+    }
+
+    #[test]
+    fn rename_sync_rejects_note_paths_from_another_workspace() {
+        let workspace_a = Workspace::new();
+        let workspace_b = Workspace::new();
+        let old_assets_b = workspace_b.attachment_dir("old");
+        fs::write(old_assets_b.join("pixel.png"), b"workspace B image").unwrap();
+        let renamed = vec![(
+            workspace_a.0.join("old.md").to_string_lossy().into_owned(),
+            workspace_a.0.join("new.md").to_string_lossy().into_owned(),
+        )];
+
+        let synced = sync_attachments_for_renamed_files_in_workspace(
+            &workspace_b.0,
+            &AttachmentSettings::default(),
+            &renamed,
+        )
+        .unwrap();
+
+        assert_eq!(synced, 0, "foreign note paths must not rename B's assets");
+        assert_eq!(
+            fs::read(old_assets_b.join("pixel.png")).unwrap(),
+            b"workspace B image"
+        );
+        assert!(!workspace_b.0.join("assets/new").exists());
+    }
+
+    #[test]
+    fn rename_sync_requires_both_note_paths_to_belong_to_the_workspace() {
+        for old_is_foreign in [true, false] {
+            let workspace_a = Workspace::new();
+            let workspace_b = Workspace::new();
+            let old_assets_b = workspace_b.attachment_dir("old");
+            fs::write(old_assets_b.join("pixel.png"), b"workspace B image").unwrap();
+            let (old_root, new_root) = if old_is_foreign {
+                (&workspace_a.0, &workspace_b.0)
+            } else {
+                (&workspace_b.0, &workspace_a.0)
+            };
+            let renamed = vec![(
+                old_root.join("old.md").to_string_lossy().into_owned(),
+                new_root.join("new.md").to_string_lossy().into_owned(),
+            )];
+
+            let synced = sync_attachments_for_renamed_files_in_workspace(
+                &workspace_b.0,
+                &AttachmentSettings::default(),
+                &renamed,
+            )
+            .unwrap();
+
+            assert_eq!(synced, 0);
+            assert_eq!(
+                fs::read(old_assets_b.join("pixel.png")).unwrap(),
+                b"workspace B image"
+            );
+            assert!(!workspace_b.0.join("assets/new").exists());
+        }
+    }
+
+    #[test]
+    fn rename_sync_uses_the_captured_workspace_and_attachment_settings() {
+        let workspace_a = Workspace::new();
+        let workspace_b = Workspace::new();
+        let config_a = AttachmentSettings {
+            path_template: "media/${noteFileName}/".into(),
+            ..AttachmentSettings::default()
+        };
+        let old_assets_a = workspace_a.0.join("media/old");
+        fs::create_dir_all(&old_assets_a).unwrap();
+        fs::write(old_assets_a.join("pixel.png"), b"workspace A image").unwrap();
+        let old_assets_b = workspace_b.attachment_dir("old");
+        fs::write(old_assets_b.join("pixel.png"), b"workspace B image").unwrap();
+        let captured = (workspace_a.0.clone(), config_a);
+        let renamed = vec![(
+            workspace_a.0.join("old.md").to_string_lossy().into_owned(),
+            workspace_a.0.join("new.md").to_string_lossy().into_owned(),
+        )];
+
+        let synced =
+            sync_attachments_for_renamed_files_in_workspace(&captured.0, &captured.1, &renamed)
+                .unwrap();
+
+        assert_eq!(synced, 1);
+        assert!(!old_assets_a.exists());
+        assert_eq!(
+            fs::read(workspace_a.0.join("media/new/pixel.png")).unwrap(),
+            b"workspace A image"
+        );
+        assert_eq!(
+            fs::read(old_assets_b.join("pixel.png")).unwrap(),
+            b"workspace B image"
+        );
+        assert!(!workspace_b.0.join("assets/new").exists());
+    }
+
+    #[test]
+    fn empty_orphan_directory_is_removed() {
+        let workspace = Workspace::new();
+        let orphan = workspace.attachment_dir("orphan");
+
+        assert!(remove_orphaned_attachment_directory(&orphan, &HashSet::new()).unwrap());
+        assert!(!orphan.exists());
+    }
+
+    #[test]
+    fn empty_directory_owned_by_an_existing_note_is_retained() {
+        let workspace = Workspace::new();
+        let assets = workspace.attachment_dir("note");
+        fs::write(workspace.0.join("note.md"), "").unwrap();
+        let note_names = HashSet::from(["note".to_string()]);
+
+        assert!(!remove_orphaned_attachment_directory(&assets, &note_names).unwrap());
+        assert!(assets.is_dir());
+    }
+
+    #[test]
+    fn nested_and_unreferenced_files_are_retained_without_guessing_ownership() {
+        let workspace = Workspace::new();
+        let assets = workspace.attachment_dir("unknown");
+        let nested = assets.join("nested");
+        fs::create_dir(&nested).unwrap();
+        fs::write(nested.join("keep.png"), b"retained image").unwrap();
+
+        assert!(!remove_orphaned_attachment_directory(&assets, &HashSet::new()).unwrap());
+        assert_eq!(
+            fs::read(nested.join("keep.png")).unwrap(),
+            b"retained image"
+        );
+    }
+
+    #[test]
+    fn deleting_a_note_preserves_images_used_by_a_same_named_note_in_another_category() {
+        let workspace = Workspace::new();
+        let assets = workspace.attachment_dir("shared");
+        let image = assets.join("pixel.png");
+        fs::write(&image, b"shared image").unwrap();
+        fs::create_dir_all(workspace.0.join("category-a")).unwrap();
+        fs::create_dir_all(workspace.0.join("category-b")).unwrap();
+        let deleted_note = workspace.0.join("category-a/shared.md");
+        fs::write(&deleted_note, "![image](../assets/shared/pixel.png)").unwrap();
+        fs::write(
+            workspace.0.join("category-b/shared.md"),
+            "![image](../assets/shared/pixel.png)",
+        )
+        .unwrap();
+        fs::remove_file(&deleted_note).unwrap();
+
+        assert!(
+            !cleanup_note_attachments(&workspace.0, &AttachmentSettings::default(), "shared")
+                .unwrap()
+        );
+        assert_eq!(fs::read(image).unwrap(), b"shared image");
+    }
+
+    #[test]
+    fn deleting_a_note_preserves_images_referenced_from_a_differently_named_note() {
+        let workspace = Workspace::new();
+        let assets = workspace.attachment_dir("original");
+        fs::write(assets.join("pixel.png"), b"cross-note image").unwrap();
+        fs::write(
+            workspace.0.join("other.md"),
+            "![image](assets/original/pixel.png)",
+        )
+        .unwrap();
+
+        assert!(!cleanup_note_attachments(
+            &workspace.0,
+            &AttachmentSettings::default(),
+            "original"
+        )
+        .unwrap());
+        assert_eq!(
+            fs::read(assets.join("pixel.png")).unwrap(),
+            b"cross-note image"
+        );
+    }
+
+    #[test]
+    fn deleting_a_note_preserves_files_in_a_shared_attachment_template() {
+        let workspace = Workspace::new();
+        let assets = workspace.attachment_dir("");
+        fs::write(assets.join("first.png"), b"first image").unwrap();
+        fs::write(assets.join("second.png"), b"second image").unwrap();
+        let config = AttachmentSettings {
+            path_template: "assets/".into(),
+            ..AttachmentSettings::default()
+        };
+
+        assert!(!cleanup_note_attachments(&workspace.0, &config, "deleted").unwrap());
+        assert_eq!(fs::read(assets.join("first.png")).unwrap(), b"first image");
+        assert_eq!(
+            fs::read(assets.join("second.png")).unwrap(),
+            b"second image"
+        );
+    }
+
+    #[test]
+    fn delete_notifications_keep_nested_images_available_when_the_note_is_restored() {
+        let workspace = Workspace::new();
+        let assets = workspace.attachment_dir("restored");
+        fs::create_dir(assets.join("nested")).unwrap();
+        let image = assets.join("nested/pixel.png");
+        fs::write(&image, b"restorable image").unwrap();
+        let note = workspace.0.join("restored.md");
+        let content = "![image](assets/restored/nested/pixel.png)";
+        fs::write(&note, content).unwrap();
+        fs::remove_file(&note).unwrap();
+
+        assert!(!cleanup_note_attachments(
+            &workspace.0,
+            &AttachmentSettings::default(),
+            "restored"
+        )
+        .unwrap());
+        fs::write(&note, content).unwrap();
+        assert_eq!(fs::read_to_string(note).unwrap(), content);
+        assert_eq!(fs::read(image).unwrap(), b"restorable image");
+    }
+
+    #[test]
+    fn delete_cleanup_removes_only_an_empty_attachment_directory() {
+        let workspace = Workspace::new();
+        let assets = workspace.attachment_dir("empty");
+
+        assert!(
+            cleanup_note_attachments(&workspace.0, &AttachmentSettings::default(), "empty")
+                .unwrap()
+        );
+        assert!(!assets.exists());
+        assert!(
+            !cleanup_note_attachments(&workspace.0, &AttachmentSettings::default(), "empty")
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn delete_cleanup_does_not_remove_the_workspace_root() {
+        let workspace = Workspace::new();
+        let config = AttachmentSettings {
+            path_template: "./".into(),
+            ..AttachmentSettings::default()
+        };
+
+        assert!(!cleanup_note_attachments(&workspace.0, &config, "deleted").unwrap());
+        assert!(workspace.0.is_dir());
+    }
+
+    #[test]
+    fn delete_cleanup_does_not_remove_a_directory_outside_the_workspace() {
+        let workspace = Workspace::new();
+        let outside = Workspace::new();
+        let config = AttachmentSettings {
+            path_template: outside.0.to_string_lossy().into_owned(),
+            ..AttachmentSettings::default()
+        };
+
+        assert!(!cleanup_note_attachments(&workspace.0, &config, "deleted").unwrap());
+        assert!(outside.0.is_dir());
+    }
+
+    #[test]
+    fn default_filename_format_generates_a_classic_image_name() {
+        let settings = AttachmentSettings::default();
+        let filename = generate_filename(&settings.filename_format, "clipboard.png").unwrap();
+
+        assert!(regex::Regex::new(r"^Pasted image [0-9]{14}\.png$")
+            .unwrap()
+            .is_match(&filename));
+    }
+
+    #[test]
+    fn both_historical_classic_formats_preserve_the_original_extension() {
+        let pattern = regex::Regex::new(r"^Pasted image [0-9]{14}\.jpeg$").unwrap();
+        for format in ["snippets-code", "obsidian"] {
+            let filename = generate_filename(format, "photo.jpeg").unwrap();
+            assert!(pattern.is_match(&filename));
+        }
+    }
+
+    #[test]
+    fn simple_and_uuid_formats_still_generate_the_selected_filename_shape() {
+        let simple = generate_filename("simple", "picture.webp").unwrap();
+        assert!(regex::Regex::new(r"^image-[0-9]{8}-[0-9]{6}\.webp$")
+            .unwrap()
+            .is_match(&simple));
+        let uuid = generate_filename("uuid", "picture.webp").unwrap();
+        assert!(uuid::Uuid::parse_str(uuid.strip_suffix(".webp").unwrap()).is_ok());
+        assert_eq!(
+            generate_filename("unknown", "picture.png").unwrap_err(),
+            "Invalid filename format"
+        );
+    }
+
+    #[test]
+    fn reading_legacy_config_selects_the_canonical_filename_option() {
+        let settings = AttachmentSettings {
+            filename_format: "obsidian".into(),
+            ..AttachmentSettings::default()
+        };
+
+        let config = AttachmentConfig::from(&settings);
+
+        assert_eq!(config.filename_format, "snippets-code");
+        assert_eq!(config.path_template, settings.path_template);
+    }
+
+    #[test]
+    fn saving_legacy_config_persists_the_canonical_filename_format() {
+        let mut config = AttachmentConfig::from(&AttachmentSettings::default());
+        config.filename_format = "obsidian".into();
+
+        let settings = AttachmentSettings::from(config);
+
+        assert_eq!(settings.filename_format, "snippets-code");
+        assert!(generate_filename(&settings.filename_format, "image.png").is_ok());
+    }
+
+    #[test]
+    fn a_new_workspace_saves_an_image_with_default_attachment_settings() {
+        let workspace = Workspace::new();
+        let config_dir = workspace.0.join(".snippets-code");
+        fs::create_dir(&config_dir).unwrap();
+        let manager = WorkspaceManager::new(config_dir).unwrap();
+        fs::create_dir(workspace.0.join("notes")).unwrap();
+        fs::write(workspace.0.join("notes/example.md"), "# Example").unwrap();
+
+        let info = save_image_attachment_in_workspace(
+            &workspace.0,
+            manager.get_attachment_settings(),
+            "notes/example.md",
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGBgAAAABQABpfZFQAAAAABJRU5ErkJggg==",
+            "clipboard.png".into(),
+        )
+        .unwrap();
+
+        assert!(regex::Regex::new(r"^Pasted image [0-9]{14}\.png$")
+            .unwrap()
+            .is_match(&info.generated_name));
+        let image = workspace
+            .0
+            .join("assets/example")
+            .join(&info.generated_name);
+        let bytes = fs::read(&image).unwrap();
+        assert_eq!(&bytes[..8], b"\x89PNG\r\n\x1a\n");
+        let decoded = image::load_from_memory(&bytes).unwrap();
+        assert_eq!((decoded.width(), decoded.height()), (1, 1));
+        assert_eq!(
+            fs::canonicalize(&info.absolute_path).unwrap(),
+            fs::canonicalize(&image).unwrap()
+        );
+        assert_eq!(
+            info.relative_path,
+            format!("../assets/example/{}", info.generated_name)
+        );
+        assert_eq!(info.mime_type, "image/png");
+        assert_eq!(info.size, 70);
+    }
 }

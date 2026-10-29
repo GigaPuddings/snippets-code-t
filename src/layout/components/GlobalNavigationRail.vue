@@ -46,7 +46,7 @@
       >
         <button
           type="button"
-          class="relative flex h-7 w-7 items-center justify-center rounded-full bg-[var(--workspace-nav-avatar)] text-ui-caption font-medium text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+          class="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--workspace-nav-avatar)] text-ui-caption font-medium text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
           :title="t('titlebar.more')"
           :aria-label="t('titlebar.more')"
         >
@@ -58,19 +58,6 @@
             @error="avatarFailed = true"
           />
           <span v-else>{{ initials }}</span>
-          <span
-            v-if="hasUpdate"
-            class="absolute -right-0.5 -top-0.5 flex h-2.5 w-2.5"
-            :title="t('titlebar.updateAvailable')"
-            aria-hidden="true"
-          >
-            <span
-              class="absolute inline-flex h-full w-full animate-ping rounded-full bg-workbench-warning opacity-60 motion-reduce:animate-none"
-            ></span>
-            <span
-              class="relative inline-flex h-2.5 w-2.5 rounded-full border-2 border-[var(--workspace-nav-rail)] bg-workbench-warning"
-            ></span>
-          </span>
         </button>
         <template #dropdown>
           <div
@@ -113,7 +100,6 @@ import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { usePluginStore } from '@/store';
 import { useConfigQuickSearch } from '@/composables/useConfigQuickSearch';
-import { useUpdateAvailability } from '@/composables/useUpdateAvailability';
 import modal from '@/utils/modal';
 import {
   configNavigationTabs,
@@ -131,7 +117,6 @@ watch(
   () => accountDropdown.value?.handleClose()
 );
 const { open: openQuickSearch } = useConfigQuickSearch();
-const { hasUpdate } = useUpdateAvailability();
 const pluginStore = usePluginStore();
 const visibleTabs = computed(() =>
   configNavigationTabs.filter(

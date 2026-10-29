@@ -5,16 +5,42 @@
         <img src="../../assets/128x128.png" alt="Logo" class="app-logo" />
       </div>
       <h1 class="app-title">Snippets Code</h1>
-      <p class="loading-text">
-        {{ $t('loading.title') }}
-        <span class="dots">...</span>
+      <p class="loading-text" :role="failed ? 'alert' : 'status'">
+        {{ $t(failed ? 'loading.failed' : 'loading.title') }}
+        <span v-if="!failed" class="dots">...</span>
       </p>
-      <div class="loading-progress">
+      <div v-if="!failed" class="loading-progress">
         <div class="progress-bar"></div>
       </div>
+      <div v-else class="mt-3 flex justify-center gap-2">
+        <CustomButton size="small" :loading="busy" @click="retry">
+          {{ $t('common.retry') }}
+        </CustomButton>
+        <CustomButton size="small" :disabled="busy" @click="openLogs">
+          {{ $t('loading.openLogs') }}
+        </CustomButton>
+      </div>
+      <p
+        v-if="actionError"
+        role="alert"
+        class="mt-2 text-xs text-panel-text-secondary"
+      >
+        {{ $t('loading.actionFailed') }}
+      </p>
     </div>
   </div>
 </template>
+
+<script setup lang="ts">
+import { onMounted, onUnmounted } from 'vue';
+import CustomButton from '@/components/UI/CustomButton.vue';
+import { useStartupRecovery } from './useStartupRecovery';
+
+const { failed, busy, actionError, start, stop, retry, openLogs } =
+  useStartupRecovery();
+onMounted(start);
+onUnmounted(stop);
+</script>
 
 <style scoped lang="scss">
 .loading-container {
@@ -56,7 +82,7 @@
 .app-title {
   @apply text-xl font-semibold mb-2;
 
-  color: #0f172a;
+  color: var(--panel-text);
   letter-spacing: 0;
 }
 

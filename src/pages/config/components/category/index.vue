@@ -144,33 +144,23 @@
                 >
                   {{ t('nav.recentDocuments') }}
                 </summary>
-                <router-link
+                <ContentItem
                   v-for="item in recentDocuments"
                   :key="String(item.id)"
-                  :to="`/config/category/contentList/content/${encodeURIComponent(String(item.id))}`"
-                  class="ui-menu-item mb-ui-row-gap h-ui-row px-3"
-                  :class="{
-                    active:
-                      selectedContentId === String(item.id).replace(/\\/g, '/')
-                  }"
-                  :title="item.title"
-                >
-                  <component
-                    :is="item.type === 'note' ? Notebook : FileCodeOne"
-                    width="16"
-                    height="16"
-                    class="shrink-0"
-                  />
-                  <span class="min-w-0 flex-1 truncate">{{ item.title }}</span>
-                  <Star
-                    v-if="item.favorite"
-                    width="13"
-                    height="13"
-                    class="app-icon--filled shrink-0 text-[var(--workspace-nav-muted)]"
-                    :title="t('nav.favorited')"
-                    :aria-label="t('nav.favorited')"
-                  />
-                </router-link>
+                  :content="item"
+                  :category-id="item.category_id ?? ''"
+                  @delete="dispatchContentAction('delete', item)"
+                  @toggle-favorite="
+                    dispatchContentAction('toggle-favorite', item)
+                  "
+                  @change-category="
+                    dispatchContentAction('change-category', item)
+                  "
+                  @convert-type="
+                    (_, targetType) =>
+                      dispatchContentAction('convert-type', item, targetType)
+                  "
+                />
               </details>
             </div>
             <div class="shrink-0 px-2 pb-2 pt-1">
@@ -216,6 +206,7 @@ import {
   CATEGORY_PANEL_MAX_WIDTH
 } from '@/store/layout';
 import Splitter from '@/components/Splitter/index.vue';
+import ContentItem from '@/components/ContentItem/index.vue';
 import { useCategoryManagement } from './composables/useCategoryManagement';
 import CategoryHeader from './components/CategoryHeader.vue';
 import CategoryListView from './components/CategoryListView.vue';
@@ -236,7 +227,6 @@ import EditTwo from '~icons/lucide/square-pen';
 import FileCodeOne from '~icons/lucide/file-code';
 import Notebook from '~icons/lucide/notebook';
 import Search from '~icons/lucide/search';
-import Star from '~icons/lucide/star';
 
 const store = useConfigurationStore();
 const layoutStore = useLayoutStore();
@@ -320,6 +310,17 @@ const loadRecentDocuments = async () => {
   } catch {
     recentDocuments.value = [];
   }
+};
+const dispatchContentAction = (
+  action: string,
+  content: ContentType,
+  targetType?: 'code' | 'note'
+): void => {
+  window.dispatchEvent(
+    new CustomEvent('sidebar-content-action', {
+      detail: { action, content, targetType }
+    })
+  );
 };
 const creationFolderName = computed(() => {
   const category = store.categories.find(

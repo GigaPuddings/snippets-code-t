@@ -52,6 +52,8 @@ export default {
     systemStatus: '能力状态',
     manage: '管理',
     quickActionDescriptions: {
+      note: '记录思路与知识',
+      code: '收藏可复用的代码',
       workspace: '打开工作区面板',
       launcher: '快速启动应用',
       todo: '管理我的任务',
@@ -185,6 +187,9 @@ export default {
     autoHideDisabled: '已关闭自动失焦隐藏',
     editorLineHeight: '编辑器行距',
     editorLineHeightDesc: '设置笔记编辑器正文的行间距',
+    editorStickyHeadings: '滚动时显示当前标题',
+    editorStickyHeadingsDesc:
+      '正文标题滚出顶部时，在文件名位置显示当前段落标题',
     exitApp: '退出应用',
     exitAppDesc: '是否退出应用',
     exitAppConfirm: '确定要退出应用吗？',
@@ -651,9 +656,9 @@ export default {
     marketplaceUpdateAvailable: '可更新',
     marketplaceDependencyMissing: '缺少依赖',
     marketplaceIncompatible: '需要更新应用',
-    gitSyncInstallTitle: '建议先安装 Git 同步插件',
+    gitSyncInstallTitle: '需要恢复 Git 数据？',
     gitSyncInstallDesc:
-      '恢复已有数据前，请先安装并配置 Git 同步，再安装其他插件，避免本机新配置与待恢复数据混在一起。',
+      '恢复已有 Git 数据前，请先安装并配置 Git 同步；日常使用可以直接安装下方插件。',
     gitSyncInstallAction: '安装 Git 同步',
     gitSyncConfigureTitle: '完成 Git 同步配置',
     gitSyncConfigureDesc:
@@ -688,6 +693,9 @@ export default {
     sizeUnknown: '未知',
     minAppVersion: '最低应用版本 {version}',
     dependenciesLabel: '依赖 {dependencies}',
+    optionalDependenciesLabel: '可选功能（按需安装）：',
+    optionalCapabilityUnavailable:
+      '请在设置 → 插件中安装并启用 {plugin}，再使用此功能。',
     dependencyMissing: '缺少依赖插件 {id}',
     dependencyIncompatible: '依赖插件 {plugin} 需要更新应用',
     installingPlugin: '插件',
@@ -772,6 +780,8 @@ export default {
     screenshot: {
       name: '截图与 OCR',
       description: '截图标注、取色、贴图、OCR 识别和截图翻译入口。',
+      ocrInstallHint:
+        '请在设置 → 插件中安装 RapidOCR 资源，或安装并启用本地 AI 并配置视觉模型，再进行文字识别。',
       resourceHint:
         'RapidOCR 属于重资源，已从主安装包移出，按需作为插件资源安装。'
     },
@@ -912,6 +922,35 @@ export default {
 
   // 数据管理
   dataManager: {
+    backupTitle: '完整备份与隔离恢复',
+    backupDesc:
+      '包含工作区文件、分类元数据、核心数据库、应用配置和插件用户状态；应用数据目录中的插件包、模型及索引不打包。工作区内的自定义资源目录会随文件保留。不跟随外部附件目录，请另行复制这些资料。',
+    backupHint:
+      '导出前请先保存编辑并暂停同步；检测到源文件变化会报错，可重试。备份未加密，可能包含私人数据。恢复时先选备份，再选备份和当前资料目录之外的上级文件夹；程序自动新建子目录，保留原资料。',
+    exportBackup: '导出完整备份',
+    restoreBackup: '恢复到新目录',
+    backupParent: '选择新备份目录的上级文件夹',
+    backupSource: '1/2 选择包含 manifest.json 的备份目录',
+    recoveryParent: '2/2 选择恢复位置的上级文件夹（须在备份目录之外）',
+    backupDestinationOverlap:
+      '目标目录“{destination}”与受保护目录“{protectedPath}”重叠。请在备份、当前工作区和应用数据目录之外另选上级文件夹。',
+    backupDestinationSeparate:
+      '恢复目标不能放在备份、当前工作区或应用数据目录内部。请重新操作：先选备份，再选择这些目录之外的上级文件夹，程序会自动新建恢复子目录。',
+    backupSuccess: '备份已创建并通过完整性校验',
+    backupFailed: '备份失败，可重试',
+    recoverySuccess: '已恢复到隔离目录，当前资料仍在使用中',
+    recoveryFailed: '恢复失败，可重试',
+    backupDirectory: '备份目录',
+    backupDirectoryDesc: '请完整保留整个目录，包括 manifest.json。',
+    recoveryDirectory: '恢复的资料',
+    recoveryDesc:
+      '工作区和应用数据隔离存放于此；同步、插件和外部路径配置默认禁用。',
+    recoveryFiles: '手动找回资料',
+    recoveryFilesDesc:
+      '保留原配置、已删除笔记和前端原始状态（包括编辑草稿）供手动找回，不会自动应用到其他工作区。',
+    activateRecovery: '使用恢复资料并重启',
+    activateRecoveryConfirm:
+      '将应用启动路径切换到这份恢复的应用数据并立即重启？请先保存当前编辑。原资料仍保留在原位置。插件需重新安装并手动启用，同步和外部路径配置需重新检查。',
     title: '数据与存储',
     locationsTitle: '存储位置',
     locationsDesc: '点击路径可在资源管理器中打开；内容与本机状态分开存放',
@@ -1181,6 +1220,18 @@ export default {
 
   // 分类/片段
   category: {
+    saveConflict:
+      '磁盘文件已变化，自动保存已暂停。草稿已保留，可另存副本或重新读取磁盘。',
+    draftRecovered:
+      '已恢复未保存的本地草稿。请确认后保存；磁盘版本变化时会阻止覆盖。',
+    saveRetryHint: '保存失败，自动保存已暂停。请重试、另存副本或重新读取磁盘。',
+    draftStorageFailed:
+      '本地草稿无法持久化，请立即保存或另存副本，关闭窗口可能丢失尚未保存的内容。',
+    saveDraftCopy: '另存草稿副本',
+    reloadDisk: '重新读取磁盘',
+    reloadDiskConfirm: '放弃当前草稿并读取磁盘版本？此操作会删除本地恢复草稿。',
+    recoveredTitle: '恢复的草稿',
+    copySavedNewerDraft: '副本已保存，保存期间的新编辑仍保留在当前草稿中。',
     backToFolders: '返回文件夹',
     newFolder: '新建文件夹',
     delete: '删除',
@@ -1229,6 +1280,7 @@ export default {
 
   // 内容编辑
   content: {
+    stickyHeadingHint: '当前段落：{heading}；点击编辑文件名',
     handleLinkFailed: '处理链接失败',
     createNoteFailed: '创建笔记失败',
     aiAssistant: 'AI 助手',
@@ -1461,7 +1513,10 @@ export default {
 
   // 加载页面
   loading: {
-    title: '正在打开片段工作台'
+    title: '正在打开片段工作台',
+    failed: '工作台未能完成启动，请重试或查看日志。',
+    openLogs: '查看日志',
+    actionFailed: '操作未完成，请重试。'
   },
 
   // 通知提醒
@@ -2009,7 +2064,11 @@ export default {
     more: '更多',
     about: '关于',
     aboutApp: '关于 Snippets Code',
+    view: '视图',
+    whatsNew: '新功能',
+    currentRelease: '当前版本 {version} 的发布说明',
     checkUpdateMenu: '检查更新…',
+    viewUpdate: '查看更新…',
     exitApp: '退出 Snippets Code',
     updateAvailable: '发现新版本',
     version: '版本 {version}',

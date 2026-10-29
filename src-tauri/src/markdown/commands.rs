@@ -19,6 +19,8 @@ use tauri::{command, AppHandle, Manager, State};
 // Markdown 文件数据结构（与前端 MarkdownFile 接口匹配）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MarkdownFile {
+    #[serde(rename = "contentRevision", skip_serializing_if = "Option::is_none")]
+    pub content_revision: Option<String>,
     #[serde(rename = "documentId", skip_serializing_if = "Option::is_none")]
     pub document_id: Option<String>,
     #[serde(rename = "aiSource", skip_serializing_if = "Option::is_none")]
@@ -66,6 +68,7 @@ impl MarkdownFile {
         let file_type = metadata.fragment_type;
 
         Self {
+            content_revision: None,
             document_id: Some(metadata.id),
             ai_source: metadata.ai_source,
             id: file_path.to_string_lossy().to_string(), // 使用文件路径作为 ID
@@ -375,11 +378,12 @@ pub fn read_markdown_file(
 
     // 读取文件完整内容
     let raw_content = fs_manager.read_markdown_file_content(&path)?;
+    let content_revision = super::safe_write::revision(raw_content.as_bytes());
 
     // 获取相对路径
     let relative_path = get_relative_path(&workspace_root, &path)?;
 
-    // 尝试解析 Front Matter：有则优先使用；无则生成默认 Frontmatter 并写回文件（保证“默认值”持久化）
+    // Reads never mutate the document: the revision must describe this snapshot.
     let (
         content,
         title,
@@ -411,7 +415,7 @@ pub fn read_markdown_file(
                 fm.ai_source,
             )
         } else {
-            // 无 Frontmatter：使用文件名作为标题，其余使用默认值，并写回 Frontmatter
+            // 无 Frontmatter：提供稳定默认值，首次保存时再写入 Frontmatter。
             let title = path
                 .file_stem()
                 .and_then(|s| s.to_str())
@@ -452,25 +456,6 @@ pub fn read_markdown_file(
                 .map(|dt| dt.to_rfc3339())
                 .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
 
-            let fm = FrontMatter {
-                ai_source: None,
-                id: id.clone(),
-                title: title.clone(),
-                tags: Vec::new(),
-                created: created_str.clone(),
-                modified: modified_str.clone(),
-                fragment_type: "note".to_string(),
-                language: None,
-                framework: None,
-                kind: None,
-                favorite: false,
-            };
-
-            // 写回默认 Frontmatter（不改变正文）
-            if let Err(e) = fs_manager.update_file_frontmatter(&path, &fm) {
-                warn!("⚠️ [读取文件] 写入默认 Frontmatter 失败: {}", e);
-            }
-
             (
                 raw_content,
                 title,
@@ -496,6 +481,7 @@ pub fn read_markdown_file(
     let category_id = cache.get_category_id(&category_name).unwrap_or(0);
 
     Ok(MarkdownFile {
+        content_revision: Some(content_revision),
         document_id,
         ai_source,
         id: file_path.clone(),
@@ -516,20 +502,116 @@ pub fn read_markdown_file(
     })
 }
 
+static SAVE_LOCK: Mutex<()> = Mutex::new(());
+
+struct SavedMarkdownUpdate {
+    revision: String,
+    content: String,
+    attachment_renames: Vec<crate::attachment::AttachmentPathRename>,
+}
+
+fn commit_markdown_update(
+    fs_manager: &FileSystemManager,
+    original_path: &Path,
+    target_path: &Path,
+    content: Option<&str>,
+    metadata: Option<&FrontMatter>,
+    baseline_revision: &str,
+    attachment_settings: &crate::markdown::AttachmentSettings,
+) -> Result<SavedMarkdownUpdate, String> {
+    let raw = fs_manager.read_markdown_file_content(original_path)?;
+    super::safe_write::check_revision(raw.as_bytes(), Some(baseline_revision))?;
+    let body = content
+        .map(str::to_string)
+        .unwrap_or_else(|| try_parse_front_matter(&raw).1);
+    let attachment_rename = crate::attachment::AttachmentRename::prepare(
+        fs_manager.workspace_root(),
+        attachment_settings,
+        original_path,
+        target_path,
+    )?;
+    let committed_body = attachment_rename
+        .as_ref()
+        .map(|rename| rename.rewrite(&body))
+        .unwrap_or(body);
+    let renamed = original_path != target_path;
+    if renamed {
+        super::safe_write::rename_no_replace(original_path, target_path)?;
+    }
+    let mut attachments_moved = false;
+    let result = (|| {
+        if let Some(rename) = &attachment_rename {
+            rename.apply()?;
+            attachments_moved = true;
+        }
+        fs_manager.update_markdown_file_checked(
+            target_path,
+            if content.is_some() || attachment_rename.is_some() {
+                Some(&committed_body)
+            } else {
+                None
+            },
+            metadata,
+            Some(baseline_revision),
+        )
+    })();
+    match result {
+        Ok(revision) => Ok(SavedMarkdownUpdate {
+            revision,
+            content: committed_body,
+            attachment_renames: attachment_rename
+                .map(|rename| rename.paths)
+                .unwrap_or_default(),
+        }),
+        Err(error) => {
+            let mut error = error;
+            if let Some(rename) = attachment_rename.as_ref().filter(|_| attachments_moved) {
+                if let Err(rollback) = rename.rollback() {
+                    error = format!("{error}; {rollback}");
+                }
+            }
+            if renamed {
+                if let Err(rollback) =
+                    super::safe_write::rename_no_replace(target_path, original_path)
+                {
+                    return Err(format!(
+                        "{error}; 重命名无法回滚，文件保留于 {}: {rollback}",
+                        target_path.display()
+                    ));
+                }
+            }
+            Err(error)
+        }
+    }
+}
+
 // 更新 Markdown 文件
 #[command]
+// Keep existing named IPC arguments while adding optional revision protection.
+#[allow(clippy::too_many_arguments)]
 pub async fn update_markdown_file(
     app_handle: AppHandle,
     file_path: String,
     content: Option<String>,
     metadata: Option<serde_json::Value>,
+    expected_revision: Option<String>,
+    expected_workspace_root: Option<String>,
     index_manager: State<'_, Arc<RwLock<Option<IndexManager>>>>,
     watcher: State<'_, Arc<Mutex<Option<FileWatcher>>>>,
     cache_manager: State<'_, Arc<RwLock<CacheManager>>>,
-) -> Result<Option<String>, String> {
+) -> Result<serde_json::Value, String> {
+    let _save_guard = SAVE_LOCK.lock().map_err(|e| e.to_string())?;
     let fs_manager = get_fs_manager(&app_handle)?;
     let workspace_root = fs_manager.workspace_root().to_path_buf();
+    check_expected_workspace(&workspace_root, expected_workspace_root.as_deref())?;
     let mut path = PathBuf::from(&file_path);
+    // Compare before any rename, watcher suppression or cache change.
+    let raw_before = fs_manager.read_markdown_file_content(&path)?;
+    super::safe_write::check_revision(raw_before.as_bytes(), expected_revision.as_deref())?;
+    let baseline_revision = super::safe_write::revision(raw_before.as_bytes());
+    let mut committed_revision = baseline_revision.clone();
+    let mut saved_content = None;
+    let mut attachment_renames = Vec::new();
 
     // 忽略下一次文件变化（避免触发文件监听器）
     if let Ok(watcher_lock) = watcher.lock() {
@@ -567,10 +649,6 @@ pub async fn update_markdown_file(
                     target_path = parent_dir.join(&resolved_name);
                 }
 
-                // 重命名文件
-                std::fs::rename(&path, &target_path)
-                    .map_err(|e| format!("重命名文件失败: {}", e))?;
-
                 // 忽略新文件的变化
                 if let Ok(watcher_lock) = watcher.lock() {
                     if let Some(ref w) = *watcher_lock {
@@ -591,11 +669,14 @@ pub async fn update_markdown_file(
 
     if !needs_content_update && !needs_metadata_update && !title_changed {
         debug!("📝 [更新文件] 内容无变化，跳过");
-        return Ok(None);
+        return Ok(if expected_revision.is_some() {
+            serde_json::json!({ "newPath": null, "contentRevision": committed_revision })
+        } else {
+            serde_json::Value::Null
+        });
     }
 
     // 读取当前文件内容，做后端兜底的等价比较（防止前端误触发保存）
-    let raw_before = fs_manager.read_markdown_file_content(&path)?;
     let (current_frontmatter, current_body) = try_parse_front_matter(&raw_before);
     let incoming_content = content.as_deref().unwrap_or(&current_body);
 
@@ -618,7 +699,8 @@ pub async fn update_markdown_file(
         let cache = cache_manager
             .read()
             .map_err(|e| format!("获取 cache 锁失败: {}", e))?;
-        let file_meta = cache.get_file_metadata(&relative_path).cloned();
+        let original_relative = get_relative_path(&workspace_root, &PathBuf::from(&file_path))?;
+        let file_meta = cache.get_file_metadata(&original_relative).cloned();
         let (id, created_ts) = file_meta
             .as_ref()
             .map(|m| (m.id.clone(), m.created))
@@ -692,63 +774,82 @@ pub async fn update_markdown_file(
     // 仅在“文件名变化 / 内容有实质变化 / 元数据变化”时写文件，避免无效写入导致 modified 变化
     let should_write_file = title_changed || !content_equivalent || needs_metadata_update;
     if should_write_file {
-        fs_manager.update_markdown_file(&path, content.as_deref(), frontmatter_opt.as_ref())?;
+        let saved = commit_markdown_update(
+            &fs_manager,
+            Path::new(&file_path),
+            &path,
+            content.as_deref(),
+            frontmatter_opt.as_ref(),
+            &baseline_revision,
+            &crate::attachment::get_attachment_config_internal(&app_handle)?,
+        )?;
+        committed_revision = saved.revision;
+        saved_content = Some(saved.content);
+        attachment_renames = saved.attachment_renames;
     } else {
         debug!("📝 [更新文件] 内容等价，跳过文件写入");
     }
 
     // 更新元数据到 cache.json
-    if needs_metadata_update {
-        let mut cache = cache_manager
-            .write()
-            .map_err(|e| format!("获取 cache 锁失败: {}", e))?;
+    let cache_result = (|| -> Result<(), String> {
+        if needs_metadata_update {
+            let mut cache = cache_manager
+                .write()
+                .map_err(|e| format!("获取 cache 锁失败: {}", e))?;
 
-        // 如果文件被重命名，需要先移除旧的元数据
-        if new_path.is_some() {
-            let old_relative_path = get_relative_path(&workspace_root, &PathBuf::from(&file_path))?;
-            if let Some(old_metadata) = cache.get_file_metadata(&old_relative_path).cloned() {
-                cache.remove_file_metadata(&old_relative_path);
-                cache.set_file_metadata(relative_path.clone(), old_metadata);
+            // 如果文件被重命名，需要先移除旧的元数据
+            if new_path.is_some() {
+                let old_relative_path =
+                    get_relative_path(&workspace_root, &PathBuf::from(&file_path))?;
+                if let Some(old_metadata) = cache.get_file_metadata(&old_relative_path).cloned() {
+                    cache.remove_file_metadata(&old_relative_path);
+                    cache.set_file_metadata(relative_path.clone(), old_metadata);
+                }
             }
+
+            cache.update_file_metadata(&relative_path, |m| {
+                // 只有在实际写入文件（内容变化或重命名）时才更新 modified
+                if should_write_file {
+                    m.modified = chrono::Utc::now().timestamp_millis();
+                }
+
+                if let Some(new_content) = &content {
+                    m.size = Some(new_content.len() as u64);
+                }
+            })?;
+
+            cache.save()?;
         }
 
-        cache.update_file_metadata(&relative_path, |m| {
-            // 只有在实际写入文件（内容变化或重命名）时才更新 modified
-            if should_write_file {
-                m.modified = chrono::Utc::now().timestamp_millis();
-            }
-
-            if let Some(new_content) = &content {
-                m.size = Some(new_content.len() as u64);
-            }
-        })?;
-
-        cache.save()?;
+        Ok(())
+    })();
+    if let Err(error) = cache_result {
+        warn!("正文已保存，缓存更新失败: {}", error);
     }
 
     // 更新索引
     if let Ok(manager_lock) = index_manager.read() {
         if let Some(ref manager) = *manager_lock {
-            let cache = cache_manager
-                .read()
-                .map_err(|e| format!("获取 cache 锁失败: {}", e))?;
+            if let Ok(cache) = cache_manager.read() {
+                // 如果文件被重命名，先移除旧索引
+                if new_path.is_some() {
+                    let _ = manager.remove_entry(&PathBuf::from(&file_path));
+                }
 
-            // 如果文件被重命名，先移除旧索引
-            if new_path.is_some() {
-                let _ = manager.remove_entry(&PathBuf::from(&file_path));
+                let _ = manager.update_entry(&path, &workspace_root, &cache);
             }
-
-            let _ = manager.update_entry(&path, &workspace_root, &cache);
         }
     }
 
-    // 如果文件被重命名，返回新路径
-    if let Some(new_path) = new_path {
-        debug!("✅ [更新文件] 完成（已重命名）: {}", path.display());
-        Ok(Some(new_path.to_string_lossy().to_string()))
+    let new_path = new_path.map(|path| path.to_string_lossy().to_string());
+    if expected_revision.is_some() {
+        Ok(if new_path.is_some() {
+            serde_json::json!({ "newPath": new_path, "contentRevision": committed_revision, "content": saved_content, "attachmentRenames": attachment_renames })
+        } else {
+            serde_json::json!({ "newPath": new_path, "contentRevision": committed_revision })
+        })
     } else {
-        debug!("✅ [更新文件] 完成: {}", path.display());
-        Ok(None)
+        Ok(serde_json::json!(new_path))
     }
 }
 
@@ -1223,8 +1324,8 @@ fn list_files_by_category(
         None
     };
 
-    // 如果 category_name 为 None，列出根目录的文件（未分类的文件）
-    // 如果 category_name 为 Some(name)，列出该分类文件夹下的文件
+    // None 列出所有文件；未分类同时列出根目录和同名文件夹中的条目。
+    // 其他分类只列出对应文件夹中的文件。
     let file_paths = fs_manager.list_markdown_files(category_name.as_deref())?;
 
     let mut files = Vec::new();
@@ -1250,6 +1351,7 @@ fn list_files_by_category(
                         if let Some(fm) = frontmatter_opt {
                             // 所有内容元数据来自 Frontmatter（唯一数据源）
                             files.push(MarkdownFile {
+                                content_revision: None,
                                 document_id: Some(fm.id),
                                 ai_source: if include_content.unwrap_or(true) {
                                     fm.ai_source
@@ -1287,6 +1389,7 @@ fn list_files_by_category(
                                 .to_string();
                             let now = chrono::Utc::now().to_rfc3339();
                             files.push(MarkdownFile {
+                                content_revision: None,
                                 document_id: cache
                                     .get_file_metadata(&relative_path)
                                     .map(|meta| meta.id.clone()),
@@ -1333,6 +1436,13 @@ fn list_files_by_category(
 // ============= 收藏操作命令 =============
 
 // 切换收藏状态
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FavoriteSaveResult {
+    previous_revision: String,
+    content_revision: String,
+}
+
 #[command]
 pub async fn toggle_favorite(
     app_handle: AppHandle,
@@ -1341,7 +1451,7 @@ pub async fn toggle_favorite(
     index_manager: State<'_, Arc<RwLock<Option<IndexManager>>>>,
     _watcher: State<'_, Arc<Mutex<Option<FileWatcher>>>>,
     cache_manager: State<'_, Arc<RwLock<CacheManager>>>,
-) -> Result<(), String> {
+) -> Result<FavoriteSaveResult, String> {
     let fs_manager = get_fs_manager(&app_handle)?;
     set_file_favorite(
         &fs_manager,
@@ -1358,7 +1468,7 @@ fn set_file_favorite(
     favorite: bool,
     index_manager: &RwLock<Option<IndexManager>>,
     cache_manager: &RwLock<CacheManager>,
-) -> Result<(), String> {
+) -> Result<FavoriteSaveResult, String> {
     let workspace_root = fs_manager.workspace_root();
     let path = if file_path.is_absolute() {
         file_path.to_path_buf()
@@ -1367,31 +1477,63 @@ fn set_file_favorite(
     };
 
     // Disk metadata is authoritative. Failed reads/writes must reach the UI.
-    let (mut fm, _) = fs_manager.read_markdown_file(&path)?;
+    let raw = fs_manager.read_markdown_file_content(&path)?;
+    let previous_revision = super::safe_write::revision(raw.as_bytes());
+    let mut fm = match crate::markdown::metadata::parse_front_matter(&raw) {
+        Ok((metadata, _)) => metadata,
+        Err(_) => {
+            // Imported Markdown remains read-only until the first real edit.
+            // Reuse the existing fallback, preserving any cached identity.
+            let (mut metadata, _) = fs_manager.read_markdown_file(&path)?;
+            let relative = get_relative_path(workspace_root, &path)?;
+            let cache = cache_manager.read().map_err(|e| e.to_string())?;
+            if let Some(cached) = cache.get_file_metadata(&relative) {
+                metadata.id = cached.id.clone();
+                if let Some(created) = chrono::DateTime::from_timestamp_millis(cached.created) {
+                    metadata.created = created.to_rfc3339();
+                }
+            }
+            metadata
+        }
+    };
     fm.favorite = favorite;
     fm.modified = chrono::Utc::now().to_rfc3339();
-    fs_manager.update_file_frontmatter(&path, &fm)?;
+    let content_revision = fs_manager.update_markdown_file_checked(
+        &path,
+        None,
+        Some(&fm),
+        Some(&previous_revision),
+    )?;
 
     // Release the cache write lock before updating the search index. The old
     // command acquired a cache read lock while still holding this write lock.
-    let cache_snapshot = {
-        let mut cache = cache_manager
-            .write()
-            .map_err(|e| format!("获取 cache 锁失败: {}", e))?;
-        cache.update_file(&path, workspace_root)?;
-        cache.save()?;
-        cache.clone()
-    };
+    let cache_result = (|| -> Result<(), String> {
+        let cache_snapshot = {
+            let mut cache = cache_manager
+                .write()
+                .map_err(|e| format!("获取 cache 锁失败: {}", e))?;
+            cache.update_file(&path, workspace_root)?;
+            cache.save()?;
+            cache.clone()
+        };
 
-    let manager_lock = index_manager
-        .read()
-        .map_err(|e| format!("获取索引锁失败: {}", e))?;
-    if let Some(manager) = manager_lock.as_ref() {
-        manager.update_entry(&path, workspace_root, &cache_snapshot)?;
+        let manager_lock = index_manager
+            .read()
+            .map_err(|e| format!("获取索引锁失败: {}", e))?;
+        if let Some(manager) = manager_lock.as_ref() {
+            manager.update_entry(&path, workspace_root, &cache_snapshot)?;
+        }
+        Ok(())
+    })();
+    if let Err(error) = cache_result {
+        warn!("收藏已保存，缓存更新失败: {}", error);
     }
 
     info!("✅ 切换收藏状态: {} -> {}", path.display(), favorite);
-    Ok(())
+    Ok(FavoriteSaveResult {
+        previous_revision,
+        content_revision,
+    })
 }
 
 #[cfg(test)]
@@ -1464,6 +1606,183 @@ mod favorite_tests {
     }
 
     #[test]
+    fn renaming_a_note_commits_attachment_directory_and_relative_links_together() {
+        let workspace = Workspace::new();
+        let old = workspace.write("分类/附件原名.md", "note", "\r\n\r\nold");
+        let target = workspace.root.join("分类/附件原名2.md");
+        let old_assets = workspace.root.join("assets/附件原名");
+        std::fs::create_dir_all(&old_assets).unwrap();
+        std::fs::write(old_assets.join("pixel.png"), b"image bytes").unwrap();
+        let body = "../assets/附件原名/pixel.png\r\n![图片](../assets/附件原名/pixel.png)  \r\n![other](../assets/附件原名-other/keep.png)";
+        let mut metadata = workspace.fs.read_markdown_file(&old).unwrap().0;
+        metadata.title = "附件原名2".into();
+        let baseline = super::super::safe_write::revision(&std::fs::read(&old).unwrap());
+        let saved = commit_markdown_update(
+            &workspace.fs,
+            &old,
+            &target,
+            Some(body),
+            Some(&metadata),
+            &baseline,
+            &crate::markdown::AttachmentSettings::default(),
+        )
+        .unwrap();
+        let expected = "../assets/附件原名2/pixel.png\r\n![图片](../assets/附件原名2/pixel.png)  \r\n![other](../assets/附件原名-other/keep.png)";
+        assert_eq!(saved.content, expected);
+        assert_eq!(
+            workspace.fs.read_markdown_file(&target).unwrap().1,
+            expected
+        );
+        assert_eq!(
+            std::fs::read(workspace.root.join("assets/附件原名2/pixel.png")).unwrap(),
+            b"image bytes"
+        );
+        assert!(!old.exists());
+        assert!(!old_assets.exists());
+        assert_eq!(
+            saved.revision,
+            super::super::safe_write::revision(&std::fs::read(&target).unwrap())
+        );
+    }
+
+    #[test]
+    fn attachment_name_collision_rejects_the_entire_note_rename() {
+        let workspace = Workspace::new();
+        let old = workspace.write("原名.md", "note", "\n\n![image](assets/原名/pixel.png)");
+        let target = workspace.root.join("新名.md");
+        for name in ["原名", "新名"] {
+            let assets = workspace.root.join("assets").join(name);
+            std::fs::create_dir_all(&assets).unwrap();
+            std::fs::write(assets.join("pixel.png"), name.as_bytes()).unwrap();
+        }
+        let raw = std::fs::read(&old).unwrap();
+        let result = commit_markdown_update(
+            &workspace.fs,
+            &old,
+            &target,
+            None,
+            None,
+            &super::super::safe_write::revision(&raw),
+            &crate::markdown::AttachmentSettings::default(),
+        );
+        assert!(
+            result.is_err(),
+            "existing attachment directory must not be merged or overwritten"
+        );
+        assert_eq!(std::fs::read(&old).unwrap(), raw);
+        assert!(!target.exists());
+        for name in ["原名", "新名"] {
+            assert_eq!(
+                std::fs::read(workspace.root.join("assets").join(name).join("pixel.png")).unwrap(),
+                name.as_bytes()
+            );
+        }
+    }
+
+    #[test]
+    fn failed_or_conflicting_renames_keep_the_original_note_and_attachments() {
+        let workspace = Workspace::new();
+        let old = workspace.write("原名.md", "note", "\n\n![image](assets/原名/pixel.png)");
+        let target = workspace.root.join("新名.md");
+        let assets = workspace.root.join("assets/原名");
+        std::fs::create_dir_all(&assets).unwrap();
+        std::fs::write(assets.join("pixel.png"), b"keep").unwrap();
+        let raw = std::fs::read(&old).unwrap();
+        let baseline = super::super::safe_write::revision(&raw);
+        let mut permissions = std::fs::metadata(&old).unwrap().permissions();
+        permissions.set_readonly(true);
+        std::fs::set_permissions(&old, permissions.clone()).unwrap();
+        for revision in ["stale revision", &baseline] {
+            let result = commit_markdown_update(
+                &workspace.fs,
+                &old,
+                &target,
+                Some("changed"),
+                None,
+                revision,
+                &crate::markdown::AttachmentSettings::default(),
+            );
+            assert!(result.is_err());
+            assert_eq!(std::fs::read(&old).unwrap(), raw);
+            assert_eq!(std::fs::read(assets.join("pixel.png")).unwrap(), b"keep");
+            assert!(!target.exists());
+            assert!(!workspace.root.join("assets/新名").exists());
+        }
+        #[allow(clippy::permissions_set_readonly_false)]
+        permissions.set_readonly(false);
+        std::fs::set_permissions(old, permissions).unwrap();
+    }
+
+    #[test]
+    fn metadata_only_rename_updates_links_and_shared_templates_stay_in_place() {
+        let workspace = Workspace::new();
+        for template in ["assets/${noteFileName}/", "shared/"] {
+            let old = workspace.write("原名.md", "note", "\n\n![image](assets/原名/pixel.png)");
+            let target = workspace.root.join("新名.md");
+            let assets = workspace
+                .root
+                .join(template.replace("${noteFileName}", "原名"));
+            std::fs::create_dir_all(&assets).unwrap();
+            std::fs::write(assets.join("pixel.png"), b"image").unwrap();
+            let settings = crate::markdown::AttachmentSettings {
+                path_template: template.into(),
+                ..Default::default()
+            };
+            let baseline = super::super::safe_write::revision(&std::fs::read(&old).unwrap());
+            let saved = commit_markdown_update(
+                &workspace.fs,
+                &old,
+                &target,
+                None,
+                None,
+                &baseline,
+                &settings,
+            )
+            .unwrap();
+            if template == "shared/" {
+                assert!(assets.join("pixel.png").exists());
+                assert_eq!(saved.content, "![image](assets/原名/pixel.png)");
+            } else {
+                assert_eq!(saved.content, "![image](assets/新名/pixel.png)");
+                assert!(!assets.exists());
+            }
+            std::fs::remove_file(target).unwrap();
+        }
+    }
+
+    #[test]
+    fn uncategorized_lists_root_notes_and_snippets_without_creating_a_folder() {
+        let workspace = Workspace::new();
+        let note = workspace.write("root-note.md", "note", "\n\nroot note");
+        let code = workspace.write("root-code.md", "code", "\r\n\r\nconst value = 1;  \r\n");
+        let original = std::fs::read(&code).unwrap();
+        assert!(!workspace.root.join("未分类").exists());
+        assert_eq!(
+            workspace.fs.list_markdown_files(Some("未分类")).unwrap(),
+            vec![code.clone(), note]
+        );
+        assert_eq!(std::fs::read(code).unwrap(), original);
+        assert!(!workspace.root.join("未分类").exists());
+    }
+
+    #[test]
+    fn uncategorized_combines_root_and_legacy_folder_without_other_categories() {
+        let workspace = Workspace::new();
+        let root = workspace.write("same-name.md", "note", "\n\nroot");
+        let legacy = workspace.write("未分类/same-name.md", "code", "\n\nlegacy");
+        let other = workspace.write("工作/other.md", "note", "\n\nother category");
+        workspace.write("assets/internal.md", "note", "\n\nattachment");
+        workspace.write(".snippets-code/internal.md", "note", "\n\ninternal");
+        let uncategorized = workspace.fs.list_markdown_files(Some("未分类")).unwrap();
+        assert_eq!(uncategorized, vec![root, legacy]);
+        assert_eq!(
+            workspace.fs.list_markdown_files(Some("工作")).unwrap(),
+            vec![other]
+        );
+        assert_eq!(workspace.fs.list_markdown_files(None).unwrap().len(), 3);
+    }
+
+    #[test]
     fn markdown_saves_keep_whitespace_only_changes_and_metadata_edits() {
         let workspace = Workspace::new();
         let path = workspace.write("Docs/source.md", "note", "\n\noriginal");
@@ -1485,6 +1804,77 @@ mod favorite_tests {
                 .unwrap();
             assert_eq!(workspace.fs.read_markdown_file(&path).unwrap().1, body);
         }
+    }
+
+    #[test]
+    fn checked_saves_track_exact_snapshots_and_reject_external_metadata_changes() {
+        let workspace = Workspace::new();
+        let path = workspace.write("Docs/source.md", "note", "\r\n\r\noriginal  \r\n");
+        let raw = std::fs::read(&path).unwrap();
+        let baseline = super::super::safe_write::revision(&raw);
+        let next = workspace
+            .fs
+            .update_markdown_file_checked(
+                &path,
+                Some("\r\n  edited  \r\n\r\n"),
+                None,
+                Some(&baseline),
+            )
+            .unwrap();
+        assert_eq!(
+            next,
+            super::super::safe_write::revision(&std::fs::read(&path).unwrap())
+        );
+        let (mut metadata, body) = workspace.fs.read_markdown_file(&path).unwrap();
+        assert_eq!(body, "\r\n  edited  \r\n\r\n");
+        metadata.tags.push("external".into());
+        workspace
+            .fs
+            .update_file_frontmatter(&path, &metadata)
+            .unwrap();
+        let external = std::fs::read(&path).unwrap();
+        let error = workspace
+            .fs
+            .update_markdown_file_checked(&path, Some("my draft"), None, Some(&next))
+            .unwrap_err();
+        assert!(error.contains("MARKDOWN_SAVE_CONFLICT"));
+        assert_eq!(std::fs::read(&path).unwrap(), external);
+        // Legacy callers retain their original signature.
+        workspace
+            .fs
+            .update_markdown_file(&path, Some("legacy edit"), None)
+            .unwrap();
+        assert_eq!(
+            workspace.fs.read_markdown_file(&path).unwrap().1,
+            "legacy edit"
+        );
+    }
+
+    #[test]
+    fn favoriting_an_imported_plain_markdown_keeps_its_body_and_revision() {
+        let workspace = Workspace::new();
+        let path = workspace.root.join("imported.md");
+        let body = "\r\n  imported  \r\n";
+        std::fs::write(&path, body).unwrap();
+        let result = set_file_favorite(
+            &workspace.fs,
+            &path,
+            true,
+            &workspace.index,
+            &workspace.cache,
+        )
+        .unwrap();
+        assert_eq!(
+            result.previous_revision,
+            super::super::safe_write::revision(body.as_bytes())
+        );
+        assert_eq!(
+            result.content_revision,
+            super::super::safe_write::revision(&std::fs::read(&path).unwrap())
+        );
+        let (metadata, saved_body) = workspace.fs.read_markdown_file(&path).unwrap();
+        assert!(metadata.favorite);
+        assert_eq!(saved_body, body);
     }
 
     #[test]
@@ -2078,6 +2468,7 @@ pub async fn search_markdown_files_optimized(
             let category_id = cache.get_category_id(&category_name).unwrap_or(0);
 
             MarkdownFile {
+                content_revision: None,
                 document_id: None,
                 ai_source: None,
                 id: entry.id,

@@ -30,7 +30,9 @@ export const useConfigurationStore = defineStore('configuration', {
     autoStart: false, // 开机自启
     autoUpdateCheck: false, // 检查更新
     autoHideOnBlur: true, // 搜索窗口失焦时是否自动隐藏
-    editorLineHeight: 1.6 // 编辑器行距
+    editorLineHeight: 1.6, // 编辑器行距
+    editorStickyHeadings: false, // 文件名位置显示已滚出正文的标题
+    editorSettingsSaving: false
   }),
   getters: {
     /** 当前实际是否为深色模式（委托给 useThemeStore） */
@@ -87,26 +89,57 @@ export const useConfigurationStore = defineStore('configuration', {
       try {
         const editorSettings = await getEditorSettings();
         this.editorLineHeight = editorSettings.lineHeight || 1.6;
+        this.editorStickyHeadings = editorSettings.stickyHeadings ?? false;
       } catch (error) {
         logger.error('获取编辑器显示设置失败:', error);
       }
     },
 
     async updateEditorLineHeight(value: number) {
+      if (this.editorSettingsSaving) {
+        throw new Error('编辑器显示设置正在保存');
+      }
       const previous = this.editorLineHeight;
       const nextValue = Math.min(2, Math.max(1.2, Number(value) || 1.6));
+      this.editorSettingsSaving = true;
       this.editorLineHeight = nextValue;
 
       try {
         await updateEditorSettings({
           // 行号仅属于代码片段编辑器；保留字段以兼容已有配置格式。
           lineNumbers: false,
-          lineHeight: nextValue
+          lineHeight: nextValue,
+          stickyHeadings: this.editorStickyHeadings
         });
       } catch (error) {
         this.editorLineHeight = previous;
         logger.error('更新编辑器行距设置失败:', error);
         throw error;
+      } finally {
+        this.editorSettingsSaving = false;
+      }
+    },
+
+    async updateEditorStickyHeadings(value: boolean) {
+      if (this.editorSettingsSaving) {
+        throw new Error('编辑器显示设置正在保存');
+      }
+      const previous = this.editorStickyHeadings;
+      this.editorSettingsSaving = true;
+      this.editorStickyHeadings = value;
+
+      try {
+        await updateEditorSettings({
+          lineNumbers: false,
+          lineHeight: this.editorLineHeight,
+          stickyHeadings: value
+        });
+      } catch (error) {
+        this.editorStickyHeadings = previous;
+        logger.error('更新编辑器滚动标题设置失败:', error);
+        throw error;
+      } finally {
+        this.editorSettingsSaving = false;
       }
     },
 

@@ -177,6 +177,10 @@ import TableToolbar from './TableToolbar.vue';
 import MarkdownPreview from '@/components/MarkdownPreview/index.vue';
 import { focusTableCell, tableCellAt } from './table';
 import { useEditorBacklinks } from './useEditorBacklinks';
+import {
+  createStickyHeadingTracker,
+  stickyHeadingRanges
+} from './stickyHeadings';
 import { resolveImageFilePath } from './imagePath';
 import { renderNoteMarkdown } from '@/utils/markdown';
 import { markdownClipboardText } from './clipboard';
@@ -234,6 +238,7 @@ interface Props {
   placeholder?: string;
   showViewToggle?: boolean;
   showEditorActions?: boolean;
+  stickyHeadings?: boolean;
   documentProperties?: Array<{ label: string; value: string }>;
 }
 const props = withDefaults(defineProps<Props>(), {
@@ -246,7 +251,8 @@ const props = withDefaults(defineProps<Props>(), {
   autofocus: false,
   placeholder: '',
   showViewToggle: true,
-  showEditorActions: true
+  showEditorActions: true,
+  stickyHeadings: false
 });
 const emit = defineEmits<{
   'update:content': [value: string];
@@ -256,6 +262,7 @@ const emit = defineEmits<{
   'outline-toggle': [visible: boolean];
   'backlink-navigate': [id: string | number, title: string];
   'scroll-position': [top: number];
+  'sticky-heading-change': [heading: string | null];
 }>();
 const { t, locale } = useI18n();
 const host = ref<HTMLElement>();
@@ -278,6 +285,18 @@ let view: EditorView | undefined;
 let documentId = String(props.currentFragmentId ?? '');
 let revision = 0;
 let disposed = false;
+const stickyRanges = computed(() =>
+  props.stickyHeadings && view
+    ? stickyHeadingRanges(view.state, headings.value)
+    : []
+);
+const stickyHeadingTracker = createStickyHeadingTracker({
+  editor: () => view,
+  readingHost: () => readingHost.value,
+  mode: () => viewMode.value,
+  headings: () => stickyRanges.value,
+  onChange: (heading) => emit('sticky-heading-change', heading)
+});
 const modeCompartment = new Compartment();
 const editableCompartment = new Compartment();
 const themeCompartment = new Compartment();
@@ -694,6 +713,12 @@ function extensions(): Extension[] {
       )
         updateDerivedState(update);
       if (
+        update.docChanged ||
+        update.geometryChanged ||
+        syntaxTree(update.startState) !== syntaxTree(update.state)
+      )
+        stickyHeadingTracker.schedule();
+      if (
         update.selectionSet &&
         update.state.selection.main.empty &&
         viewMode.value === 'preview' &&
@@ -776,6 +801,7 @@ function extensions(): Extension[] {
 }
 function loadDocument(content: string, id: string) {
   if (!view) return;
+  stickyHeadingTracker.reset();
   documentId = id;
   revision++;
   source.value = content;
@@ -788,12 +814,16 @@ function loadDocument(content: string, id: string) {
   view.setState(createDocumentState(content, extensions()));
   view.scrollDOM.scrollTop = 0;
   updateDerivedState();
+  nextTick(() => {
+    if (!disposed) stickyHeadingTracker.connect();
+  });
 }
 function setMarkdown(content: string) {
   if (content !== source.value) loadDocument(content, documentId);
 }
 function setViewMode(mode: ViewMode) {
   if (!view || mode === viewMode.value) return;
+  stickyHeadingTracker.reset();
   contextMenu.value?.hide();
   imageDialog.value = false;
   const scrollTop = getScrollPosition();
@@ -809,7 +839,9 @@ function setViewMode(mode: ViewMode) {
   });
   emit('view-mode-change', mode);
   nextTick(() => {
+    if (disposed) return;
     setScrollPosition(scrollTop);
+    stickyHeadingTracker.connect();
     view?.requestMeasure();
     if (view && mode === 'preview' && activeTable.value) {
       const target = activeTable.value;
@@ -862,10 +894,12 @@ function setScrollPosition(top: number) {
   const element =
     viewMode.value === 'reading' ? readingHost.value : view?.scrollDOM;
   if (element) element.scrollTop = top;
+  stickyHeadingTracker.schedule();
 }
 function emitScroll() {
   emit('scroll-position', getScrollPosition());
   updateVisibleHeading();
+  stickyHeadingTracker.schedule();
 }
 function updateVisibleHeading() {
   if (!view || viewMode.value === 'reading') return;
@@ -1404,7 +1438,17 @@ function onAttachmentConfig(event: Event) {
     ...(event as CustomEvent).detail
   };
   reconfigurePreview();
+  nextTick(stickyHeadingTracker.schedule);
 }
+watch(
+  () => props.stickyHeadings,
+  (enabled) => stickyHeadingTracker.setEnabled(enabled)
+);
+watch(
+  [() => props.lineHeight, () => props.codeStyle, () => props.dark],
+  () => nextTick(stickyHeadingTracker.schedule),
+  { deep: true, flush: 'post' }
+);
 watch(
   () => [props.currentFragmentId, props.content] as const,
   ([id, content]) => {
@@ -1443,6 +1487,7 @@ onMounted(() => {
     state: createDocumentState(props.content, extensions())
   });
   updateDerivedState();
+  stickyHeadingTracker.setEnabled(props.stickyHeadings);
   emit('ready');
   if (props.autofocus) view.focus();
   window.addEventListener(ATTACHMENT_CONFIG_UPDATED_EVENT, onAttachmentConfig);
@@ -1454,10 +1499,12 @@ onMounted(() => {
     workspaceRoot.value = root;
     attachmentConfig.value = config;
     reconfigurePreview();
+    nextTick(stickyHeadingTracker.schedule);
   });
 });
 onBeforeUnmount(() => {
   disposed = true;
+  stickyHeadingTracker.dispose();
   pendingUploads.clear();
   window.removeEventListener(
     ATTACHMENT_CONFIG_UPDATED_EVENT,

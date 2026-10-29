@@ -38,6 +38,7 @@ const PREFERENCE_KEYS: &[&str] = &[
     "general.autoHideOnBlur",
     "editor.lineNumbers",
     "editor.lineHeight",
+    "editor.stickyHeadings",
     "translation.engine",
     "ocr.engine",
     "ocr.language",
@@ -326,6 +327,10 @@ fn project_preferences(config: &AppConfig) -> BTreeMap<String, Value> {
         (
             "editor.lineHeight".to_string(),
             serde_json::json!(config.editor.line_height),
+        ),
+        (
+            "editor.stickyHeadings".to_string(),
+            Value::Bool(config.editor.sticky_headings),
         ),
         (
             "translation.engine".to_string(),
@@ -956,6 +961,10 @@ fn apply_preferences(
                 .filter(|height| height.is_finite() && (1.2..=2.0).contains(height))
                 .map(|height| config.editor.line_height = height)
                 .ok_or_else(|| "行高必须在 1.2 到 2.0 之间".to_string()),
+            "editor.stickyHeadings" => value
+                .as_bool()
+                .map(|enabled| config.editor.sticky_headings = enabled)
+                .ok_or_else(|| "必须是布尔值".to_string()),
             "translation.engine" => {
                 bounded_optional_string(value, key).map(|engine| config.translation_engine = engine)
             }
@@ -1999,6 +2008,61 @@ pub fn resolve_sync_protocol_conflicts(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sticky_headings_preferences_export_and_import() {
+        let config: AppConfig = serde_json::from_value(serde_json::json!({
+            "editor": { "lineHeight": 1.8, "stickyHeadings": true }
+        }))
+        .unwrap();
+        let projected = project_preferences(&config);
+        assert_eq!(
+            projected.get("editor.stickyHeadings"),
+            Some(&Value::Bool(true))
+        );
+
+        let mut restored = AppConfig::default();
+        let mut report = SyncImportReport::default();
+        apply_preferences(&mut restored, &projected, &mut report);
+
+        assert_eq!(
+            serde_json::to_value(&restored).unwrap()["editor"]["stickyHeadings"],
+            true
+        );
+        assert_eq!(restored.editor.line_height, 1.8);
+        assert!(report
+            .applied_preferences
+            .contains(&"editor.stickyHeadings".to_string()));
+    }
+
+    #[test]
+    fn sticky_headings_preferences_ignore_missing_and_reject_invalid_values() {
+        let mut config: AppConfig = serde_json::from_value(serde_json::json!({
+            "editor": { "stickyHeadings": true }
+        }))
+        .unwrap();
+        let mut report = SyncImportReport::default();
+        apply_preferences(&mut config, &BTreeMap::new(), &mut report);
+        assert_eq!(
+            serde_json::to_value(&config).unwrap()["editor"]["stickyHeadings"],
+            true
+        );
+
+        let invalid = BTreeMap::from([(
+            "editor.stickyHeadings".to_string(),
+            Value::String("false".to_string()),
+        )]);
+        apply_preferences(&mut config, &invalid, &mut report);
+        assert_eq!(
+            serde_json::to_value(&config).unwrap()["editor"]["stickyHeadings"],
+            true
+        );
+        assert!(report.applied_preferences.is_empty());
+        assert!(report
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("editor.stickyHeadings")));
+    }
 
     #[test]
     fn dynamic_plugin_hotkey_round_trips_through_projection() {

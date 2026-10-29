@@ -25,6 +25,16 @@
         @manage-local="showIndexDialog = true"
         @rebuild-markdown="handleMarkdownIndexRebuild"
       />
+      <BackupRecoverySection
+        :workspace-set="Boolean(workspaceRoot)"
+        :busy="backupBusy"
+        :backup-location="backupLocation"
+        :restored-location="restoredLocation"
+        @export="exportBackup"
+        @restore="restoreBackup"
+        @activate="showActivateDialog = true"
+        @open="openDataDirectory"
+      />
       <HistoryCacheSection
         :history-loading="historyLoading"
         :icon-cache-loading="iconCacheLoading"
@@ -39,6 +49,21 @@
         @open-wallpaper-cache="handleOpenWallpaperCache"
       />
     </main>
+
+    <ConfirmDialog
+      v-model="showActivateDialog"
+      :title="$t('dataManager.activateRecovery')"
+      :confirm-text="$t('dataManager.activateRecovery')"
+      :cancel-text="$t('common.cancel')"
+      :loading="backupBusy"
+      type="warning"
+      @confirm="activateRecovery"
+    >
+      <p>{{ $t('dataManager.activateRecoveryConfirm') }}</p>
+      <p class="mt-2 break-all text-xs text-content">
+        {{ restoredLocation?.root }}
+      </p>
+    </ConfirmDialog>
 
     <SelectConfirmDialog
       v-model="showIndexDialog"
@@ -109,6 +134,7 @@ import { ConfirmDialog, SelectConfirmDialog } from '@/components/UI';
 import HistoryCacheSection from './HistoryCacheSection.vue';
 import IndexMaintenanceSection from './IndexMaintenanceSection.vue';
 import StorageLocationsSection from './StorageLocationsSection.vue';
+import BackupRecoverySection from './BackupRecoverySection.vue';
 import { useDataManager } from './useDataManager';
 
 defineOptions({
@@ -116,6 +142,13 @@ defineOptions({
 });
 
 const {
+  activateRecovery,
+  backupBusy,
+  backupLocation,
+  exportBackup,
+  restoreBackup,
+  restoredLocation,
+  showActivateDialog,
   dataRoot,
   backgroundIndexBusy,
   backgroundIndexTasks,

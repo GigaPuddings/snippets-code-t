@@ -564,6 +564,8 @@ pub fn set_workspace_root(app_handle: &tauri::AppHandle, path: PathBuf) -> Resul
         }
     }
 
+    crate::commands::allow_workspace_assets(app_handle, &path)?;
+
     // 保存到配置
     let mut config = read_app_config(app_handle);
     config.workspace_root = Some(path.to_string_lossy().to_string());

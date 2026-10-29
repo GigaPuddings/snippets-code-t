@@ -5,6 +5,7 @@ import type {
   RegisteredPlugin
 } from '@/plugins/protocol';
 import type { PluginMarketplaceItem } from '@/api/plugins';
+import marketplace from '../../plugin-registry/marketplace/marketplace.json';
 
 const mocks = vi.hoisted(() => ({
   clearRuntimePluginRegistrations: vi.fn(),
@@ -123,6 +124,79 @@ describe('plugin runtime reconciliation', () => {
     mocks.getPluginInstallTasks.mockResolvedValue([]);
     mocks.getPluginStates.mockResolvedValue({});
     mocks.uninstallLocalPluginPackage.mockResolvedValue(undefined);
+  });
+
+  it.each(['screenshot', 'translation'])(
+    'installs fresh %s without Git Sync or optional resources',
+    async (id) => {
+      const store = usePluginStore();
+      store.installedPlugins = [];
+      const items = marketplace.plugins as PluginMarketplaceItem[];
+      const item = items.find((candidate) => candidate.id === id)!;
+      const installed: string[] = [];
+      vi.spyOn(store, 'installFromUrl').mockImplementation(async (...args) => {
+        const packageItem = items.find(
+          (candidate) => candidate.id === args[6]
+        )!;
+        installed.push(packageItem.id);
+        store.installedPlugins.push(
+          createInstalledMarketplacePlugin(packageItem)
+        );
+      });
+
+      await store.installMarketplaceItemWithDependencies(item, items);
+
+      expect(installed).toEqual([id]);
+      expect(store.hasMissingMarketplaceDependencies(item)).toBe(false);
+      expect(store.isInstalled('git-sync')).toBe(false);
+    }
+  );
+
+  it('ignores missing and circular optional dependencies while installing required dependencies', async () => {
+    const store = usePluginStore();
+    store.installedPlugins = [];
+    const parent = {
+      ...createMarketplaceItem('example', '1.0.0', ['required']),
+      optionalDependencies: ['missing', 'example']
+    };
+    const required = createMarketplaceItem('required');
+    const installed: string[] = [];
+    vi.spyOn(store, 'installFromUrl').mockImplementation(async (...args) => {
+      installed.push(args[6]!);
+      store.installedPlugins.push(
+        createInstalledMarketplacePlugin(
+          args[6] === parent.id ? parent : required
+        )
+      );
+    });
+
+    await store.installMarketplaceItemWithDependencies(parent, [
+      parent,
+      required
+    ]);
+
+    expect(installed).toEqual(['required', 'example']);
+    expect(store.hasMissingMarketplaceDependencies(parent)).toBe(false);
+  });
+
+  it.each([
+    ['local-ai', 'local-ai-llama-runtime'],
+    ['screen-recorder', 'screen-recorder-ffmpeg']
+  ])('keeps the required runtime for %s', async (id, runtimeId) => {
+    const store = usePluginStore();
+    store.installedPlugins = [];
+    const items = marketplace.plugins as PluginMarketplaceItem[];
+    const item = items.find((candidate) => candidate.id === id)!;
+    const installed: string[] = [];
+    vi.spyOn(store, 'installFromUrl').mockImplementation(async (...args) => {
+      const packageItem = items.find((candidate) => candidate.id === args[6])!;
+      installed.push(packageItem.id);
+      store.installedPlugins.push(
+        createInstalledMarketplacePlugin(packageItem)
+      );
+    });
+    await store.installMarketplaceItemWithDependencies(item, items);
+    expect(installed).toEqual([runtimeId, id]);
   });
 
   it('waits for an active frontend load before clearing and reloading a plugin', async () => {

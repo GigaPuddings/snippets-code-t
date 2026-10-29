@@ -308,6 +308,11 @@ async function updateMarketplace(selectedPlugins, pluginVersions, options) {
     item.version = version;
     item.minAppVersion = minAppVersion;
     item.compatibleAppVersion = `>=${minAppVersion}`;
+    for (const field of ['dependencies', 'optionalDependencies']) {
+      if (sourceManifest[field] !== undefined)
+        item[field] = sourceManifest[field];
+      else delete item[field];
+    }
     item.repository = `https://github.com/${OWNER}/${plugin.repo}`;
     item.releaseUrl = releaseUrl(plugin.repo, version);
     item.packageUrl = packageUrlFor(plugin, version, options);

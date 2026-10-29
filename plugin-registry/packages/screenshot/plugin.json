@@ -32,7 +32,7 @@
   "permissions": [
     "command:*"
   ],
-  "dependencies": [
+  "optionalDependencies": [
     "screenshot-rapidocr",
     "translation",
     "local-ai"
@@ -41,7 +41,7 @@
   "entry": {
     "frontend": "dist/frontend.js",
     "styles": [
-      "dist/assets/runtime-entry-BBURZMOF.css"
+      "dist/assets/runtime-entry-Crb_V_Ud.css"
     ]
   },
   "minAppVersion": "2.2.14",

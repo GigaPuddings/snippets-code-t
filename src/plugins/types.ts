@@ -39,6 +39,7 @@ export interface BuiltinPlugin {
   aiProviders?: string[];
   aiContextProviders?: string[];
   dependencies?: string[];
+  optionalDependencies?: string[];
   resourceHintKey?: string;
 }
 

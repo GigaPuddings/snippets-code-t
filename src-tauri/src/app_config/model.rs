@@ -132,6 +132,8 @@ pub struct EditorSettings {
     pub line_numbers: bool,
     #[serde(default = "default_editor_line_height")]
     pub line_height: f64,
+    #[serde(default)]
+    pub sticky_headings: bool,
 }
 
 fn default_editor_line_numbers() -> bool {
@@ -202,6 +204,7 @@ impl Default for EditorSettings {
         Self {
             line_numbers: default_editor_line_numbers(),
             line_height: default_editor_line_height(),
+            sticky_headings: false,
         }
     }
 }
@@ -263,5 +266,36 @@ impl Default for GitSettings {
             token: String::new(),
             last_sync_time: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sticky_headings_default_to_disabled_for_legacy_configs() {
+        for legacy in ["{}", r#"{"editor":{"lineNumbers":false,"lineHeight":1.8}}"#] {
+            let config: AppConfig = serde_json::from_str(legacy).unwrap();
+            let serialized = serde_json::to_value(config).unwrap();
+
+            assert_eq!(serialized["editor"]["stickyHeadings"], false);
+        }
+        assert_eq!(
+            serde_json::to_value(EditorSettings::default()).unwrap()["stickyHeadings"],
+            false
+        );
+    }
+
+    #[test]
+    fn sticky_headings_round_trip_with_existing_editor_settings() {
+        let value = serde_json::json!({
+            "lineNumbers": false,
+            "lineHeight": 1.8,
+            "stickyHeadings": true
+        });
+        let settings: EditorSettings = serde_json::from_value(value.clone()).unwrap();
+
+        assert_eq!(serde_json::to_value(settings).unwrap(), value);
     }
 }

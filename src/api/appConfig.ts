@@ -10,6 +10,7 @@ import type { AppConfig, GitSettings } from '@/types/models';
 export interface EditorSettings {
   lineNumbers: boolean;
   lineHeight: number;
+  stickyHeadings: boolean;
 }
 
 /**

@@ -106,6 +106,7 @@ const pluginRuntimeSignature = (plugin: RegisteredPlugin): string =>
     entry: plugin.manifest.entry,
     capabilities: plugin.manifest.capabilities,
     dependencies: plugin.manifest.dependencies,
+    optionalDependencies: plugin.manifest.optionalDependencies,
     resourceFor: plugin.resourceFor
   });
 

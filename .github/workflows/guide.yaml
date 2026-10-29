@@ -26,11 +26,14 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 'lts/*'
+          node-version-file: '.nvmrc'
           cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
+
+      - name: Release versions and local marketplace
+        run: pnpm release:check
 
       - name: Check release state
         id: release_state

@@ -94,7 +94,7 @@ const refreshWorkspace = async (refs: WorkbenchStateRefs): Promise<void> => {
 
   const [nextCategories, nextFiles] = await Promise.all([
     getCategories(),
-    getAllFiles()
+    getAllFiles({ includeContent: false })
   ]);
   refs.categories.value = nextCategories;
   refs.files.value = nextFiles;

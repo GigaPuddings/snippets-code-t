@@ -194,6 +194,23 @@ impl AppConfigManager {
         self.config.editor = settings;
     }
 
+    pub fn save_editor_settings(&mut self, settings: EditorSettings) -> Result<(), String> {
+        let previous = self.config.editor.clone();
+        self.update_editor_settings(settings);
+        if let Err(error) = self.save() {
+            self.config.editor = previous;
+            // 原子替换完成后的备份清理也可能报错，需要同时恢复磁盘配置。
+            return match self.save() {
+                Ok(()) => Err(error),
+                Err(restore_error) => Err(format!(
+                    "{}；恢复原编辑器设置失败: {}",
+                    error, restore_error
+                )),
+            };
+        }
+        Ok(())
+    }
+
     pub fn set_quick_search_preview_visible(&mut self, visible: bool) {
         self.config.quick_search.preview_visible = visible;
     }
@@ -304,6 +321,58 @@ impl AppConfigManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct TestDir(PathBuf);
+
+    impl Drop for TestDir {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn failed_editor_settings_save_preserves_memory_and_disk() {
+        let root = std::env::temp_dir().join(format!(
+            "snippets-code-editor-config-save-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let _cleanup = TestDir(root.clone());
+        let mut manager = AppConfigManager::new(&root).unwrap();
+        let previous = EditorSettings {
+            line_numbers: true,
+            line_height: 1.85,
+            sticky_headings: true,
+        };
+        manager.save_editor_settings(previous.clone()).unwrap();
+        let config_path = root.join(".snippets-code/app.json");
+        let old_config = fs::read(&config_path).unwrap();
+        let blocked_backup = root.join(".snippets-code/.app.json.backup");
+        fs::create_dir(&blocked_backup).unwrap();
+
+        let error = manager
+            .save_editor_settings(EditorSettings {
+                line_numbers: false,
+                line_height: 1.3,
+                sticky_headings: false,
+            })
+            .unwrap_err();
+
+        assert!(error.contains("写入配置文件失败"));
+        assert_eq!(manager.get_editor_settings(), &previous);
+        assert_eq!(fs::read(&config_path).unwrap(), old_config);
+        assert_eq!(
+            AppConfigManager::new(&root).unwrap().get_editor_settings(),
+            &previous
+        );
+        assert!(blocked_backup.is_dir());
+        assert!(fs::read_dir(root.join(".snippets-code"))
+            .unwrap()
+            .all(|entry| !entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .ends_with(".tmp")));
+    }
 
     #[test]
     fn clearing_local_ai_config_removes_saved_chat_histories() {
