@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "screenshot",
-  "version": "2.0.67",
+  "version": "2.0.68",
   "kind": "local",
   "name": {
     "i18nKey": "plugins.screenshot.name",
@@ -37,14 +37,14 @@
     "translation",
     "local-ai"
   ],
-  "compatibleAppVersion": ">=2.2.14",
+  "compatibleAppVersion": ">=2.2.17",
   "entry": {
     "frontend": "dist/frontend.js",
     "styles": [
-      "dist/assets/runtime-entry-Crb_V_Ud.css"
+      "dist/assets/runtime-entry-bdLufYAn.css"
     ]
   },
-  "minAppVersion": "2.2.14",
+  "minAppVersion": "2.2.17",
   "repository": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot",
-  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/releases/tag/2.0.67"
+  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-screenshot/releases/tag/2.0.68"
 }
