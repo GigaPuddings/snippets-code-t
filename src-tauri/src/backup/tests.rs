@@ -114,7 +114,7 @@ fn round_trip_keeps_wal_content_attachments_user_state_and_empty_categories() {
     .unwrap();
     assert_eq!(
         config["workspace_root"],
-        restored.join("workspace").to_string_lossy().as_ref()
+        display_path(&fs::canonicalize(restored.join("workspace")).unwrap())
     );
     assert_eq!(config["plugin_install_dir"], serde_json::Value::Null);
     assert_eq!(config["plugins"]["todo"]["enabled"], false);
@@ -168,8 +168,13 @@ fn overlapping_restore_reports_both_paths_without_creating_the_target() {
             .expect("structured overlap error"),
     )
     .unwrap();
-    assert_eq!(details["destination"], target.to_string_lossy().as_ref());
-    assert_eq!(details["protectedPath"], backup.to_string_lossy().as_ref());
+    // Resolve Windows short-path aliases before appending the nonexistent target.
+    let canonical_backup = fs::canonicalize(&backup).unwrap();
+    assert_eq!(
+        details["destination"],
+        display_path(&canonical_backup.join("new-recovery"))
+    );
+    assert_eq!(details["protectedPath"], display_path(&canonical_backup));
     assert!(!target.exists());
     verify(&backup, "snippets-backup").unwrap();
 }
