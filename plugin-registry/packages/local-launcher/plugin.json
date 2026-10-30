@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "local-launcher",
-  "version": "2.0.43",
+  "version": "2.0.44",
   "kind": "local",
   "name": {
     "i18nKey": "plugins.localLauncher.name",
@@ -28,7 +28,7 @@
   "permissions": [
     "command:*"
   ],
-  "compatibleAppVersion": ">=2.2.11",
+  "compatibleAppVersion": ">=2.2.17",
   "entry": {
     "frontend": "dist/frontend.js",
     "styles": [
@@ -40,7 +40,7 @@
     "indexSchemaVersion": 2,
     "extractorVersion": 4
   },
-  "minAppVersion": "2.2.11",
+  "minAppVersion": "2.2.17",
   "repository": "https://github.com/GigaPuddings/snippets-code-plugin-local-launcher",
-  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-launcher/releases/tag/2.0.43"
+  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-local-launcher/releases/tag/2.0.44"
 }
