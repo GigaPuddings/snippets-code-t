@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "desktop-files",
-  "version": "2.0.8",
+  "version": "2.0.9",
   "kind": "local",
   "name": {
     "i18nKey": "plugins.desktopFiles.name",
@@ -21,7 +21,7 @@
   "permissions": [
     "command:*"
   ],
-  "compatibleAppVersion": ">=2.1.61",
+  "compatibleAppVersion": ">=2.2.17",
   "entry": {
     "frontend": "dist/frontend.js"
   },
@@ -30,7 +30,7 @@
     "indexSchemaVersion": 1,
     "extractorVersion": 1
   },
-  "minAppVersion": "2.1.61",
+  "minAppVersion": "2.2.17",
   "repository": "https://github.com/GigaPuddings/snippets-code-plugin-desktop-files",
-  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-desktop-files/releases/tag/2.0.8"
+  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-desktop-files/releases/tag/2.0.9"
 }
