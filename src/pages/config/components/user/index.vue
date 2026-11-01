@@ -215,6 +215,7 @@ import { getVersion } from '@tauri-apps/api/app';
 import { getGitSettings, updateGitSettings } from '@/api/appConfig';
 import { usePluginStore } from '@/store';
 import modal from '@/utils/modal';
+import { openConfigSettings } from '@/utils/config-navigation';
 type GitSyncApi = typeof import('@/api/gitSync');
 
 let gitSyncApiPromise: Promise<GitSyncApi> | null = null;
@@ -375,41 +376,18 @@ const saveGitConfig = async () => {
   }
 };
 
-// 跳转到 Git 同步设置（需先配置工作区与上述字段，才能建立远程同步）
-const goToGitSync = () => {
+const goToSettingsTab = async (tab: string): Promise<void> => {
   try {
-    router.push({
-      path: '/config/category/settings',
-      query: { tab: 'gitSync' }
-    });
+    await openConfigSettings(router, tab);
   } catch (error) {
     console.error('[UserCenter] 路由跳转失败:', error);
     modal.error(t('errors.navigationFailed', { error: String(error) }));
   }
 };
 
-// 跳转到工作区设置
-const goToWorkspaceSettings = () => {
-  try {
-    router.push({ path: '/config/category/settings', query: { tab: 'data' } });
-  } catch (error) {
-    console.error('[UserCenter] 路由跳转失败:', error);
-    modal.error(t('errors.navigationFailed', { error: String(error) }));
-  }
-};
-
-// 跳转到插件设置
-const goToPluginSettings = () => {
-  try {
-    router.push({
-      path: '/config/category/settings',
-      query: { tab: 'plugins' }
-    });
-  } catch (error) {
-    console.error('[UserCenter] 路由跳转失败:', error);
-    modal.error(t('errors.navigationFailed', { error: String(error) }));
-  }
-};
+const goToGitSync = () => goToSettingsTab('gitSync');
+const goToWorkspaceSettings = () => goToSettingsTab('data');
+const goToPluginSettings = () => goToSettingsTab('plugins');
 
 // 打开数据目录
 const openDataDir = async () => {
@@ -426,18 +404,7 @@ const openDataDir = async () => {
 };
 
 // 跳转到设置（通用设置）
-const goToSettings = () => {
-  try {
-    // 跳转到设置页面，默认打开 general tab
-    router.push({
-      path: '/config/category/settings',
-      query: { tab: 'general' }
-    });
-  } catch (error) {
-    console.error('[UserCenter] 路由跳转失败:', error);
-    modal.error(t('errors.navigationFailed', { error: String(error) }));
-  }
-};
+const goToSettings = () => goToSettingsTab('general');
 
 // 打开 GitHub
 const openGitHub = () => {

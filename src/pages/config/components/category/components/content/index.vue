@@ -435,6 +435,7 @@ import {
 } from '@/utils/error-handler';
 import { useI18n } from 'vue-i18n';
 import modal from '@/utils/modal';
+import { getConfigContentPath } from '@/utils/config-navigation';
 import TagInput from '@/components/TagInput/index.vue';
 import { useRouter, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
 import {
@@ -1208,9 +1209,7 @@ const performSaveNow = async (
     if (updateRoute) {
       // 更新路由到新路径，但添加 skipReload 标记避免重新加载内容
       const cid = route.params.cid as string | undefined;
-      const targetPath = cid
-        ? `/config/category/contentList/${cid}/content/${encodeURIComponent(newPath)}`
-        : `/config/category/contentList/content/${encodeURIComponent(newPath)}`;
+      const targetPath = getConfigContentPath(newPath, cid);
 
       // 使用 replace 更新路由，添加 skipReload 查询参数
       router.replace({
@@ -1339,11 +1338,7 @@ const saveDraftCopy = async () => {
     titleDirty.value = false;
     saveIssue.value = null;
     const cid = route.params.cid;
-    await router.push(
-      cid
-        ? `/config/category/contentList/${cid}/content/${encodeURIComponent(path)}`
-        : `/config/category/contentList/content/${encodeURIComponent(path)}`
-    );
+    await router.push(getConfigContentPath(path, cid));
     window.dispatchEvent(
       new CustomEvent('refresh-data', { detail: { source: 'draft-copy' } })
     );
@@ -1705,9 +1700,7 @@ const handleFragmentTypeConversionRequest = (event: Event): void => {
       if (newPath && newPath !== currentContentId) {
         const cid = route.params.cid as string | undefined;
         await router.replace({
-          path: cid
-            ? `/config/category/contentList/${cid}/content/${encodeURIComponent(newPath)}`
-            : `/config/category/contentList/content/${encodeURIComponent(newPath)}`,
+          path: getConfigContentPath(newPath, cid),
           query: { ...route.query, skipReload: 'true' }
         });
       }
@@ -1788,7 +1781,10 @@ const handleFragmentCategoryMoveRequest = (event: Event): void => {
       }
 
       await router.replace({
-        path: `/config/category/contentList/${moved.category_id ?? detail.categoryId}/content/${encodeURIComponent(String(moved.id))}`,
+        path: getConfigContentPath(
+          moved.id,
+          moved.category_id ?? detail.categoryId
+        ),
         query: { ...route.query, skipReload: 'true' }
       });
 
@@ -1944,13 +1940,11 @@ const handleWikilinkClick = async (noteName: string) => {
         await saveContent();
       }
 
-      // 判断当前是否在"所有片段"视图
-      const isAllSnippetsView = !route.params.cid;
-
       // 构建正确的路由路径，保持当前的 cid 上下文
-      const targetPath = isAllSnippetsView
-        ? `/config/category/contentList/content/${encodeURIComponent(targetFragment.id)}`
-        : `/config/category/contentList/${route.params.cid}/content/${encodeURIComponent(targetFragment.id)}`;
+      const targetPath = getConfigContentPath(
+        targetFragment.id,
+        route.params.cid
+      );
 
       // 跳转到目标片段
       router.push(targetPath);
@@ -1981,14 +1975,8 @@ const handleBacklinkNavigate = async (
     const targetFragment = await getFragmentContent(fragmentId);
 
     if (targetFragment) {
-      // 判断当前是否在"所有片段"视图
-      const isAllSnippetsView = !route.params.cid;
-
       // 构建目标路径（需要对文件路径进行 URL 编码），保持当前的 cid 上下文
-      const encodedFragmentId = encodeURIComponent(String(fragmentId));
-      const targetPath = isAllSnippetsView
-        ? `/config/category/contentList/content/${encodedFragmentId}`
-        : `/config/category/contentList/${route.params.cid}/content/${encodedFragmentId}`;
+      const targetPath = getConfigContentPath(fragmentId, route.params.cid);
 
       // 使用 replace 导航
       await router.replace({
@@ -2093,7 +2081,7 @@ const confirmCreateNote = async () => {
     // 跳转到新笔记（保持当前的 cid 上下文）
     const currentCid = currentCategoryId;
     router.push({
-      path: `/config/category/contentList/${currentCid}/content/${encodeURIComponent(newFragmentId)}`
+      path: getConfigContentPath(newFragmentId, currentCid)
     });
 
     showCreateNoteDialog.value = false;

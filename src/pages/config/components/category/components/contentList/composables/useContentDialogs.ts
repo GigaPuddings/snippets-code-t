@@ -20,6 +20,7 @@ import {
 } from '@/api/fragment';
 import { ErrorHandler, ErrorType } from '@/utils/error-handler';
 import modal from '@/utils/modal';
+import { getConfigContentPath } from '@/utils/config-navigation';
 import { findBacklinks, updateBacklinks } from '@/utils/wikilink-updater';
 import {
   convertFragmentContent,
@@ -208,7 +209,7 @@ export function useContentDialogs(): UseContentDialogsReturn {
         })
       );
       if (route.fullPath !== target.sourcePath) return;
-      const targetPath = `/config/category/contentList${cid ? `/${cid}` : ''}/content/${encodeURIComponent(filePath)}`;
+      const targetPath = getConfigContentPath(filePath, cid);
       const category = store.categories.find(
         (item) => Number(item.id) === categoryId
       );

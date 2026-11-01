@@ -21,6 +21,8 @@ import { getGitSettings } from '@/api/appConfig';
 import { getGitStatus, type GitStatus } from '@/api/gitSync';
 import { usePluginStore } from '@/store';
 import { useRouter } from 'vue-router';
+import { openConfigSettings } from '@/utils/config-navigation';
+import modal from '@/utils/modal';
 import { useI18n } from 'vue-i18n';
 import type { GitSettings } from '@/types/models';
 
@@ -261,7 +263,9 @@ const statusTitle = computed(() => {
 
 function handleStatusClick(): void {
   if (!canOpenGitSettings.value) return;
-  router.push({ path: '/config/category/settings', query: { tab: 'gitSync' } });
+  void openConfigSettings(router, 'gitSync').catch((error) =>
+    modal.error(String(error))
+  );
 }
 
 onMounted(async () => {

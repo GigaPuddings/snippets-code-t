@@ -834,7 +834,8 @@
 <script setup lang="ts">
 import type { ObjectDirective } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
+import { openConfigSettings } from '@/utils/config-navigation';
 import type { ProductSearchNavigationRequest } from '@/search/productActions';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
@@ -981,6 +982,7 @@ const currentStreamRequestId = ref<string | null>(null);
 const currentStreamingMessage = shallowRef<ChatMessage | null>(null);
 let promptTransferReady = false;
 const route = useRoute();
+const router = useRouter();
 let productNavigationRunning = false;
 let queuedProductNavigation: ProductSearchNavigationRequest | null = null;
 let queuedTransferredPrompt: string | null = null;
@@ -2248,7 +2250,9 @@ const handleGlobalKeydown = (event: KeyboardEvent): void => {
   }
 };
 const goSettings = () => {
-  window.location.hash = '#/config/category/settings?tab=localAi';
+  void openConfigSettings(router, 'localAi').catch((error) =>
+    modal.error(String(error))
+  );
 };
 const formatHistoryTime = (iso: string): string => {
   const value = new Date(iso);
@@ -2486,14 +2490,17 @@ onMounted(async () => {
       localStorage.getItem(PENDING_LOCAL_AI_PROMPT_STORAGE_KEY);
     queuedTransferredPrompt = null;
     queuedPromptFromSearch = false;
-    if (pendingPrompt) {
-      applyPendingPrompt(pendingPrompt, fromSearch);
+    // Explicit entry requests take priority over a restored unsent draft.
+    if (pendingPrompt && fromSearch) {
+      applyPendingPrompt(pendingPrompt, true);
     } else if (
       backendNewChat ||
       queuedNewChatRequest ||
       hasPendingLocalAiNewChat(localStorage)
     ) {
       applyNewChatRequest();
+    } else if (pendingPrompt) {
+      applyPendingPrompt(pendingPrompt);
     }
   }
   await handleProductNavigation();

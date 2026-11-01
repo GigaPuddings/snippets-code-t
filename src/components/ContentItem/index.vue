@@ -55,6 +55,10 @@ import { invoke } from '@tauri-apps/api/core';
 import { getWorkspaceRoot } from '@/api/markdown';
 import modal from '@/utils/modal';
 import {
+  getConfigContentPath,
+  navigateConfigRoute
+} from '@/utils/config-navigation';
+import {
   FRAGMENT_DRAG_MIME,
   serializeFragmentDragPayload,
   setActiveFragmentDrag
@@ -179,7 +183,7 @@ const createDragPreview = (source: HTMLElement): HTMLElement => {
 /**
  * 处理点击事件
  */
-const handleClick = (): void => {
+const handleClick = async (): Promise<void> => {
   try {
     // 如果已经在当前内容，不做任何操作
     if (isActive.value) {
@@ -190,18 +194,20 @@ const handleClick = (): void => {
     const currentCid = props.categoryId ?? route.params.cid;
 
     // 构建路由路径，始终保持当前的 cid
-    const targetPath = currentCid
-      ? `/config/category/contentList/${currentCid}/content/${encodeURIComponent(content.value.id as string)}`
-      : `/config/category/contentList/content/${encodeURIComponent(content.value.id as string)}`;
+    const targetPath = getConfigContentPath(content.value.id, currentCid);
 
-    router.replace({
-      path: targetPath,
-      query:
-        props.categoryId === undefined && route.query.view
-          ? { view: route.query.view }
-          : {},
-      replace: true
-    });
+    await navigateConfigRoute(
+      router,
+      {
+        path: targetPath,
+        query:
+          props.categoryId === undefined && route.query.view
+            ? { view: route.query.view }
+            : {},
+        replace: true
+      },
+      true
+    );
   } catch (error) {
     ErrorHandler.handle(error, {
       type: ErrorType.UNKNOWN_ERROR,
@@ -271,11 +277,9 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
       const currentCid = props.categoryId ?? route.params.cid;
 
       // 构建正确的路由路径，始终保持当前的 cid
-      const targetPath = currentCid
-        ? `/config/category/contentList/${currentCid}/content/${encodeURIComponent(content.value.id as string)}`
-        : `/config/category/contentList/content/${encodeURIComponent(content.value.id as string)}`;
+      const targetPath = getConfigContentPath(content.value.id, currentCid);
 
-      router.push({
+      await navigateConfigRoute(router, {
         path: targetPath,
         query: {
           ...(props.categoryId === undefined && route.query.view

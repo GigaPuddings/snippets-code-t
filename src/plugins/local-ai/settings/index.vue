@@ -553,6 +553,7 @@ import modal from '@/utils/modal';
 import { logger } from '@/utils/logger';
 import {
   getLocalAiConfig,
+  openNewLocalAiChat,
   getLocalAiRuntimeStatus,
   getLocalAiStatus,
   restartLocalAiService,
@@ -793,7 +794,7 @@ const stopService = async () => {
   }
 };
 const openChat = () => {
-  window.location.hash = '#/config/local-ai/chat';
+  void openNewLocalAiChat().catch((error) => modal.error(String(error)));
 };
 
 onMounted(async () => {

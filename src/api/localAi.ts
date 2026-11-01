@@ -1,5 +1,31 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import {
+  markPendingLocalAiPromptForNewChat,
+  PENDING_LOCAL_AI_PROMPT_MODE_STORAGE_KEY,
+  PENDING_LOCAL_AI_PROMPT_STORAGE_KEY
+} from '@/plugins/local-ai/promptTransfer';
+
+/** Share the native new-conversation queue used by the tray, even on cold starts. */
+export async function openNewLocalAiChat(prompt = ''): Promise<void> {
+  const context = prompt.trim();
+  if (context) markPendingLocalAiPromptForNewChat(localStorage, context);
+  try {
+    await invoke('show_hide_window_command', {
+      label: 'local_ai_chat',
+      ...(context ? { context } : {})
+    });
+  } catch (error) {
+    if (
+      context &&
+      localStorage.getItem(PENDING_LOCAL_AI_PROMPT_STORAGE_KEY) === context
+    ) {
+      localStorage.removeItem(PENDING_LOCAL_AI_PROMPT_STORAGE_KEY);
+      localStorage.removeItem(PENDING_LOCAL_AI_PROMPT_MODE_STORAGE_KEY);
+    }
+    throw error;
+  }
+}
 
 export interface LocalAiConfig {
   modelDir: string;

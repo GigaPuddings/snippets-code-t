@@ -57,6 +57,41 @@ const createWindow = () => {
 };
 
 describe('useConfigNavigationEvents', () => {
+  it('opens uncategorized content and an empty snippet preview through the same route', () => {
+    const storage = createStorage();
+    const router = createRouter();
+    const events = useConfigNavigationEvents({
+      router: router as any,
+      t,
+      modalMsg: vi.fn(),
+      storage
+    });
+    storage.setItem(
+      'pendingNavigation',
+      JSON.stringify({
+        fragmentId: 'markdown:C:\\Notes\\a.md',
+        timestamp: Date.now()
+      })
+    );
+    events.checkPendingNavigation();
+    expect(router.push).toHaveBeenLastCalledWith({
+      path: '/config/category/contentList/content/C%3A%2FNotes%2Fa.md',
+      query: undefined
+    });
+    storage.setItem(
+      'pendingSnippetOpen',
+      JSON.stringify({
+        fragmentId: 'empty.md',
+        content: '',
+        timestamp: Date.now()
+      })
+    );
+    events.checkPendingSnippetOpen();
+    expect(router.push).toHaveBeenLastCalledWith({
+      path: '/config/category/contentList/content/empty.md',
+      query: { preview: '1' }
+    });
+  });
   it('routes pending navigation requests and clears storage', () => {
     const storage = createStorage();
     const router = createRouter();

@@ -458,7 +458,11 @@ import Check from '~icons/lucide/check';
 import releaseNotes from '../../../RELEASE_NOTES.md?raw';
 import { appName, appVersion, initEnv } from '@/utils/env';
 import { invoke } from '@tauri-apps/api/core';
-import { useRouter } from 'vue-router';
+import { useRouter, type RouteLocationRaw } from 'vue-router';
+import {
+  getConfigSettingsTarget,
+  navigateConfigRoute
+} from '@/utils/config-navigation';
 import { useI18n } from 'vue-i18n';
 import ConfigQuickSearch from '@/components/ConfigQuickSearch/index.vue';
 import { CommonDialog } from '@/components/UI';
@@ -583,8 +587,8 @@ const isContentDetailRoute = computed(
     router.currentRoute.value.name === 'Content' &&
     Boolean(router.currentRoute.value.params.id)
 );
-const navigateTo = (path: string) => {
-  router.push(path).catch((error) => {
+const navigateTo = (path: RouteLocationRaw) => {
+  navigateConfigRoute(router, path).catch((error) => {
     console.warn('[Titlebar] navigation failed:', error);
   });
 };
@@ -667,7 +671,7 @@ const handleMoreMenuCommand = (command: string) => {
       handleTitlebar('isAlwaysOnTop');
       break;
     case 'settings':
-      navigateTo('/config/category/settings');
+      navigateTo(getConfigSettingsTarget());
       break;
   }
 };

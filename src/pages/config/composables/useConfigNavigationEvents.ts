@@ -4,6 +4,11 @@ import type { Composer } from 'vue-i18n';
 import { readMarkdownFile as defaultReadMarkdownFile } from '@/api/markdown';
 import type { MarkdownFile } from '@/types';
 import type { MessagePosition } from '@/utils/modal';
+import {
+  getConfigContentPath,
+  getConfigSettingsTarget,
+  navigateConfigRoute
+} from '@/utils/config-navigation';
 
 type ConfigNavigationEventWindow = {
   listen: <T = unknown>(
@@ -39,9 +44,6 @@ export interface ConfigNavigationEventsDeps {
 
 const DEFAULT_PENDING_NAVIGATION_TTL = 30_000;
 
-const normalizePendingFragmentId = (id: unknown) =>
-  String(id ?? '').replace(/^markdown:/i, '');
-
 export function useConfigNavigationEvents(deps: ConfigNavigationEventsDeps) {
   const storage = deps.storage ?? localStorage;
   const ttlMs = deps.ttlMs ?? DEFAULT_PENDING_NAVIGATION_TTL;
@@ -50,7 +52,7 @@ export function useConfigNavigationEvents(deps: ConfigNavigationEventsDeps) {
   const unlisteners: Array<() => void> = [];
   const navigate = async (target: RouteLocationRaw): Promise<void> => {
     try {
-      await deps.router.push(target);
+      await navigateConfigRoute(deps.router, target);
     } catch (error) {
       deps.modalMsg(
         `${deps.t('common.failed')}: ${String(error)}`,
@@ -65,7 +67,7 @@ export function useConfigNavigationEvents(deps: ConfigNavigationEventsDeps) {
     fragmentId: unknown,
     query?: Record<string, string>
   ) => {
-    const targetPath = `/config/category/contentList/${categoryId}/content/${encodeURIComponent(normalizePendingFragmentId(fragmentId))}`;
+    const targetPath = getConfigContentPath(fragmentId, categoryId);
     return navigate({
       path: targetPath,
       query
@@ -99,16 +101,11 @@ export function useConfigNavigationEvents(deps: ConfigNavigationEventsDeps) {
     if (!pendingSnippet) return;
 
     try {
-      const { fragmentId, content, categoryId, timestamp } =
-        JSON.parse(pendingSnippet);
+      const { fragmentId, categoryId, timestamp } = JSON.parse(pendingSnippet);
 
       if (isPendingFresh(timestamp)) {
         storage.removeItem('pendingSnippetOpen');
-        routeToFragment(
-          categoryId,
-          fragmentId,
-          content ? { preview: '1' } : undefined
-        );
+        routeToFragment(categoryId, fragmentId, { preview: '1' });
       } else {
         storage.removeItem('pendingSnippetOpen');
       }
@@ -128,7 +125,7 @@ export function useConfigNavigationEvents(deps: ConfigNavigationEventsDeps) {
 
     unlisteners.push(
       await currentWindow.listen('navigate-to-settings', () => {
-        return navigate('/config/category/settings');
+        return navigate(getConfigSettingsTarget());
       })
     );
 
@@ -136,10 +133,7 @@ export function useConfigNavigationEvents(deps: ConfigNavigationEventsDeps) {
       await currentWindow.listen<string>(
         'navigate-to-settings-tab',
         (event) => {
-          return navigate({
-            path: '/config/category/settings',
-            query: { tab: event.payload }
-          });
+          return navigate(getConfigSettingsTarget(event.payload));
         }
       )
     );

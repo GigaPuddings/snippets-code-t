@@ -102,6 +102,10 @@ import {
 } from '@/pages/search/composables/useSearchResultDisplay';
 import { useConfigurationStore } from '@/store';
 import modal from '@/utils/modal';
+import {
+  getConfigContentPath,
+  navigateConfigRoute
+} from '@/utils/config-navigation';
 
 defineOptions({
   name: 'ConfigQuickSearch'
@@ -186,6 +190,19 @@ function close(): void {
   emit('update:modelValue', false);
 }
 
+// The overlay owns Escape even when focus has moved to the page behind it.
+function handleWindowEscape(event: KeyboardEvent): void {
+  if (!props.modelValue || event.key !== 'Escape' || event.isComposing) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  close();
+}
+
+onMounted(() => window.addEventListener('keydown', handleWindowEscape, true));
+onBeforeUnmount(() =>
+  window.removeEventListener('keydown', handleWindowEscape, true)
+);
+
 async function loadCategories(): Promise<void> {
   try {
     if (!store.categories.length) {
@@ -223,12 +240,6 @@ function scrollActiveIntoView(): void {
 
 function handleKeydown(event: KeyboardEvent): void {
   event.stopPropagation();
-
-  if (event.key === 'Escape') {
-    event.preventDefault();
-    close();
-    return;
-  }
 
   if (event.key === 'ArrowDown') {
     event.preventDefault();
@@ -272,21 +283,12 @@ function getTypeLabelText(item: ConfigSearchResult): string {
   return getTypeLabel(item);
 }
 
-function getNavigationId(item: ConfigSearchResult): string {
-  const rawId = getRawSearchResultId(item);
-  return rawId.replace(/\\/g, '/');
-}
-
 async function openConfigContent(item: ConfigSearchResult): Promise<void> {
-  const rawId = getNavigationId(item);
-  const categoryId = item.category_id;
-  const encodedId = encodeURIComponent(rawId);
-  const path =
-    categoryId !== undefined && categoryId !== null && categoryId !== ''
-      ? `/config/category/contentList/${categoryId}/content/${encodedId}`
-      : `/config/category/contentList/content/${encodedId}`;
-
-  await router.replace(path);
+  await navigateConfigRoute(
+    router,
+    getConfigContentPath(getRawSearchResultId(item), item.category_id),
+    true
+  );
 }
 
 async function openFolderResult(item: ConfigSearchResult): Promise<void> {

@@ -25,22 +25,16 @@ const { locale } = useI18n();
 const elementLocale = computed(() => (locale.value === 'zh-CN' ? zhCn : en));
 
 function handleGlobalEscape(event: KeyboardEvent): void {
-  if (event.key !== 'Escape') return;
+  if (
+    event.key !== 'Escape' ||
+    event.defaultPrevented ||
+    event.isComposing ||
+    event.repeat
+  )
+    return;
 
   const label = getCurrentWindow().label;
   if (!shouldCloseWindowOnEscape(label)) return;
-
-  const target = event.target as HTMLElement | null;
-  const isTextInput =
-    !!target &&
-    (target.tagName === 'INPUT' ||
-      target.tagName === 'TEXTAREA' ||
-      target.isContentEditable);
-
-  if (isTextInput) {
-    event.preventDefault();
-    event.stopPropagation();
-  }
 
   event.preventDefault();
   event.stopPropagation();

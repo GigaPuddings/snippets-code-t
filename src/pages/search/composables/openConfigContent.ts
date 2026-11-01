@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { activateConfigWindow } from '@/api/windows';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { logger } from '@/utils/logger';
 
@@ -55,7 +55,7 @@ export async function openSearchResultInConfig({
     await closeSearchWindow();
     const configWindow = await WebviewWindow.getByLabel('config');
 
-    await invoke('activate_config_window_command');
+    await activateConfigWindow();
     if (!configWindow) return;
     await configWindow.emit('navigate-to-config-content', {
       fragmentId: item.id,

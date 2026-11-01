@@ -10,6 +10,10 @@ import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { logger } from '@/utils/logger';
 import { useRouter } from 'vue-router';
+import {
+  getConfigContentPath,
+  navigateConfigRoute
+} from '@/utils/config-navigation';
 import type { ConfigContentNavigationPayload } from '@/pages/search/composables/openConfigContent';
 import { useProductSearchNavigation } from '@/pages/config/composables/useProductSearchNavigation';
 import {
@@ -64,9 +68,6 @@ interface ThemeChangedPayload {
   isDark?: boolean;
 }
 
-const normalizeFragmentId = (id: unknown): string =>
-  String(id ?? '').replace(/^markdown:/i, '');
-
 onMounted(async () => {
   if (isConfigWindow) {
     await productSearchNavigation.setup();
@@ -77,14 +78,18 @@ onMounted(async () => {
       await listen<ConfigContentNavigationPayload>(
         'navigate-to-config-content',
         async ({ payload }) => {
-          const fragmentId = normalizeFragmentId(payload?.fragmentId);
-          const categoryId = String(payload?.categoryId ?? '');
-          if (!fragmentId || !categoryId) return;
+          const fragmentId = payload?.fragmentId;
+          if (
+            fragmentId === undefined ||
+            fragmentId === null ||
+            fragmentId === ''
+          )
+            return;
 
           localStorage.removeItem('pendingNavigation');
           localStorage.removeItem('pendingSnippetOpen');
-          await router.push({
-            path: `/config/category/contentList/${categoryId}/content/${encodeURIComponent(fragmentId)}`,
+          await navigateConfigRoute(router, {
+            path: getConfigContentPath(fragmentId, payload.categoryId),
             query: payload.preview ? { preview: '1' } : undefined
           });
         }

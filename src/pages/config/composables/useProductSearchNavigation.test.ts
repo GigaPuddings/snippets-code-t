@@ -71,7 +71,7 @@ describe('config search navigation receiver', () => {
     const controller = useProductSearchNavigation(target);
     await controller.setup();
     expect(target.push).toHaveBeenCalledWith({
-      name: 'Settings',
+      path: '/config/category/settings',
       query: { tab: 'general' }
     });
     expect(mocks.invoke).toHaveBeenCalledWith('finish_search_navigation', {

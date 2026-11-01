@@ -1,5 +1,6 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import { getConfigContentPath } from '@/utils/config-navigation';
 import {
   getDeletedNotes,
   readDeletedNote,
@@ -89,9 +90,7 @@ export function useDeletedNotes() {
       window.dispatchEvent(
         new CustomEvent('refresh-data', { detail: { source: 'restore-note' } })
       );
-      await router.push(
-        `/config/category/contentList/content/${encodeURIComponent(path)}`
-      );
+      await router.push(getConfigContentPath(path));
     } catch (cause) {
       if (!disposed) error.value = String(cause);
     } finally {

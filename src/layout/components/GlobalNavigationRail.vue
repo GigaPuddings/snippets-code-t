@@ -101,6 +101,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { usePluginStore } from '@/store';
 import { useConfigQuickSearch } from '@/composables/useConfigQuickSearch';
 import modal from '@/utils/modal';
+import { openConfigSettings } from '@/utils/config-navigation';
 import {
   configNavigationTabs,
   isConfigNavigationPathActive
@@ -197,8 +198,7 @@ watch(
 const handleAccountCommand = async (command: string): Promise<void> => {
   try {
     if (command === 'search') openQuickSearch();
-    else if (command === 'settings')
-      await router.push('/config/category/settings');
+    else if (command === 'settings') await openConfigSettings(router);
     else if (command === 'userCenter')
       await router.push('/config/category/contentList/user');
   } catch (error) {

@@ -35,6 +35,9 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { openConfigSettings } from '@/utils/config-navigation';
+import modal from '@/utils/modal';
 import Branch from '~icons/lucide/git-branch';
 import Loading from '~icons/lucide/loader-circle';
 import {
@@ -68,8 +71,11 @@ const visible = computed(
 );
 
 const goToGitSettings = () => {
-  window.location.hash = '#/config/category/settings?tab=gitSync';
+  void openConfigSettings(router, 'gitSync').catch((error) =>
+    modal.error(String(error))
+  );
 };
+const router = useRouter();
 
 onMounted(async () => {
   setupGitStatusListener();

@@ -8,7 +8,10 @@ const mocks = vi.hoisted(() => ({
   getAiProviderStatusSnapshots: vi.fn(),
   initialize: vi.fn(),
   loadEnabledPluginEntries: vi.fn(),
-  refreshPluginResourceStatus: vi.fn()
+  refreshPluginResourceStatus: vi.fn(),
+  openNewLocalAiChat: vi.fn(),
+  push: vi.fn(),
+  error: vi.fn()
 }));
 
 vi.mock('vue', async (importOriginal) => ({
@@ -21,7 +24,14 @@ vi.mock('vue-i18n', () => ({
       params ? `${key}:${JSON.stringify(params)}` : key
   })
 }));
-vi.mock('vue-router', () => ({ useRouter: () => ({ push: vi.fn() }) }));
+vi.mock('vue-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('vue-router')>()),
+  useRouter: () => ({ push: mocks.push })
+}));
+vi.mock('@/api/localAi', () => ({
+  openNewLocalAiChat: mocks.openNewLocalAiChat
+}));
+vi.mock('@/utils/modal', () => ({ default: { error: mocks.error } }));
 vi.mock('@/api/markdown', () => mocks);
 vi.mock('@/ai', () => ({
   getAiProviderStatusSnapshots: mocks.getAiProviderStatusSnapshots,
@@ -62,9 +72,48 @@ beforeEach(() => {
   mocks.getCategories.mockResolvedValue([]);
   mocks.getAllFiles.mockResolvedValue([file]);
   mocks.getAiProviderStatusSnapshots.mockResolvedValue([]);
+  mocks.openNewLocalAiChat.mockResolvedValue(undefined);
 });
 
 describe('workbench refresh isolation', () => {
+  it('starts new AI conversations from both the quick card and the capability action', async () => {
+    const controller = useWorkbenchOverview();
+    controller.navigateTo('/config/local-ai/chat');
+    controller.navigateTo({ label: 'Chat', path: '/config/local-ai/chat' });
+    await Promise.resolve();
+    expect(mocks.openNewLocalAiChat).toHaveBeenCalledTimes(2);
+    expect(mocks.push).not.toHaveBeenCalled();
+  });
+
+  it('keeps ordinary navigation and query parameters intact', () => {
+    const controller = useWorkbenchOverview();
+    controller.navigateTo('/config/category/contentList?create=note');
+    controller.navigateTo({
+      label: 'AI settings',
+      path: '/config/category/settings',
+      query: { tab: 'ai' }
+    });
+    expect(mocks.push).toHaveBeenNthCalledWith(
+      1,
+      '/config/category/contentList?create=note'
+    );
+    expect(mocks.push).toHaveBeenNthCalledWith(2, {
+      path: '/config/category/settings',
+      query: { tab: 'ai' }
+    });
+    expect(mocks.openNewLocalAiChat).not.toHaveBeenCalled();
+  });
+
+  it('reports AI navigation failures without switching to a stale conversation', async () => {
+    mocks.openNewLocalAiChat.mockRejectedValueOnce(
+      new Error('Plugin is disabled')
+    );
+    useWorkbenchOverview().navigateTo('/config/local-ai/chat');
+    await Promise.resolve();
+    expect(mocks.error).toHaveBeenCalledWith('Error: Plugin is disabled');
+    expect(mocks.push).not.toHaveBeenCalled();
+  });
+
   it('loads metadata only while preserving counts, favorites, and recent routes', async () => {
     mocks.getAllFiles.mockResolvedValue([
       file,

@@ -6,7 +6,7 @@ import {
   type TransactionSpec
 } from '@codemirror/state';
 import { history, undo, redo } from '@codemirror/commands';
-import { syntaxTree } from '@codemirror/language';
+import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
 import { EditorView } from '@codemirror/view';
 import {
   createDocumentState,
@@ -303,6 +303,9 @@ describe('Markdown source document', () => {
         changes: { from: state.doc.length, insert }
       }).state;
       expect(state.doc.lines).toBe(7);
+      // State-only tests have no editor view to finish a time-sliced parse.
+      expect(ensureSyntaxTree(state, state.doc.length, 1000)).not.toBeNull();
+      state = state.update({}).state;
       expect(extractHeadings(state).map((heading) => heading.text)).toEqual([
         'heading'
       ]);

@@ -117,6 +117,8 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import { openConfigSettings } from '@/utils/config-navigation';
+import modal from '@/utils/modal';
 import { useI18n } from 'vue-i18n';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import Loading from '~icons/lucide/loader-circle';
@@ -278,10 +280,9 @@ function updatePanelPosition(): void {
 
 function goToGitSettings(): void {
   isPanelOpen.value = false;
-  void router.push({
-    path: '/config/category/settings',
-    query: { tab: 'gitSync' }
-  });
+  void openConfigSettings(router, 'gitSync').catch((error) =>
+    modal.error(String(error))
+  );
 }
 
 function parseContributionDate(date: string): Date {

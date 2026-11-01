@@ -9,6 +9,7 @@ import {
 } from '@/api/markdown';
 import type { MarkdownFile } from '@/types/models';
 import modal from '@/utils/modal';
+import { getConfigContentPath } from '@/utils/config-navigation';
 import { getPathToNode } from './messageTree';
 import type { ChatHistoryView, ChatMessage } from './types';
 import { noteReference, resolveNote, savedAnswerContent } from './savedReply';
@@ -36,7 +37,7 @@ export function useChatSavedNotes(options: {
   };
   const navigateToNote = async (file: MarkdownFile) => {
     await router.push({
-      path: `/config/category/contentList/${file.categoryId}/content/${encodeURIComponent(file.filePath)}`
+      path: getConfigContentPath(file.filePath, file.categoryId)
     });
   };
   const syncSavedNotes = async (): Promise<void> => {

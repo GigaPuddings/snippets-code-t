@@ -59,7 +59,6 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
-import { useRouter } from 'vue-router';
 import { usePluginStore } from '@/store';
 import { useWorkbenchOverview } from '@/workbench/useWorkbenchOverview';
 import { buildWorkbenchQuickActions } from '@/workbench/viewModel';
@@ -73,7 +72,6 @@ import WorkbenchMetrics from './components/WorkbenchMetrics.vue';
 defineOptions({ name: 'WorkbenchHome' });
 
 const { t } = useI18n();
-const router = useRouter();
 const pluginStore = usePluginStore();
 const {
   loading,
@@ -107,9 +105,7 @@ const metricDestinations: Record<string, string> = {
   ai: '/config/category/settings?tab=ai'
 };
 
-const navigate = (path: string): void => {
-  void router.push(path);
-};
+const navigate = navigateTo;
 
 const openMetric = (metricId: string): void => {
   const path = metricDestinations[metricId];

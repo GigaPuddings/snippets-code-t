@@ -1,11 +1,11 @@
 import { invoke } from '@tauri-apps/api/core';
+import { openNewLocalAiChat } from '@/api/localAi';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import type { RouteLocationRaw, Router } from 'vue-router';
 import {
-  isNavigationFailure,
-  NavigationFailureType,
-  type RouteLocationRaw,
-  type Router
-} from 'vue-router';
+  getConfigSettingsTarget,
+  navigateConfigRoute
+} from '@/utils/config-navigation';
 import { usePluginStore } from '@/store';
 import { getVisibleSettingsMenuItems } from '@/plugins/settings';
 import { installRuntimePluginRoutes } from '@/plugins/runtime';
@@ -20,14 +20,7 @@ export function useProductSearchNavigation(router: Router) {
   const unlisteners: Array<() => void> = [];
   let processing = false;
   const navigate = async (target: RouteLocationRaw): Promise<void> => {
-    const failure = await router.push(target);
-    // An already-open target is successful; an aborted/cancelled transition is not.
-    if (
-      isNavigationFailure(failure) &&
-      !isNavigationFailure(failure, NavigationFailureType.duplicated)
-    ) {
-      throw failure;
-    }
+    await navigateConfigRoute(router, target);
   };
   const drain = async (): Promise<void> => {
     if (processing) return;
@@ -73,7 +66,7 @@ export function useProductSearchNavigation(router: Router) {
               provider.source === 'local-ai-conversations'
           )
         ) {
-          await invoke('show_hide_window_command', { label: 'local_ai_chat' });
+          await openNewLocalAiChat();
           await invoke('finish_search_navigation', {
             requestId: request.requestId,
             success: true,
@@ -98,7 +91,7 @@ export function useProductSearchNavigation(router: Router) {
         );
         if (!tab || tab.pluginId !== (request.pluginId ?? undefined))
           throw new Error('Settings target is unavailable');
-        await navigate({ name: 'Settings', query: { tab: action.tabId } });
+        await navigate(getConfigSettingsTarget(action.tabId));
       } else {
         if (!router.hasRoute(action.routeName))
           throw new Error('Route is unavailable');

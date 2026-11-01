@@ -2,6 +2,9 @@ import { computed, onMounted, ref, type ComputedRef, type Ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter, type Router } from 'vue-router';
 import { getAllFiles, getCategories, getWorkspaceRoot } from '@/api/markdown';
+import { openNewLocalAiChat } from '@/api/localAi';
+import modal from '@/utils/modal';
+import { navigateConfigRoute } from '@/utils/config-navigation';
 import {
   getAiProviderStatusSnapshots,
   type AiProviderStatusSnapshot
@@ -73,12 +76,19 @@ const createSettingsAction = (
 
 const createActionNavigator =
   (router: Router) =>
-  (action: WorkbenchAction): void => {
-    void router.push(
-      action.query
-        ? { path: action.path, query: action.query }
-        : { path: action.path }
-    );
+  (action: WorkbenchAction | string): void => {
+    const target: Pick<WorkbenchAction, 'path' | 'query'> =
+      typeof action === 'string' ? { path: action } : action;
+    if (target.path === '/config/local-ai/chat' && !target.query) {
+      void openNewLocalAiChat().catch((error) => modal.error(String(error)));
+      return;
+    }
+    void navigateConfigRoute(
+      router,
+      typeof action === 'string'
+        ? action
+        : { path: target.path, query: target.query }
+    ).catch((error) => modal.error(String(error)));
   };
 
 const refreshWorkspace = async (refs: WorkbenchStateRefs): Promise<void> => {

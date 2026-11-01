@@ -115,6 +115,7 @@ import {
 } from '@/api/fragment';
 import { useRouter, useRoute } from 'vue-router';
 import modal from '@/utils/modal';
+import { getConfigContentPath } from '@/utils/config-navigation';
 import { ConfirmDialog } from '@/components/UI';
 import {
   FRAGMENT_DRAG_MIME,
@@ -460,7 +461,7 @@ const handleEditCategory = async () => {
 
           await nextTick();
           await router.replace({
-            path: `/config/category/contentList/${props.category.id}/content/${encodeURIComponent(newId)}`
+            path: getConfigContentPath(newId, props.category.id)
           });
         }
       }

@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { invoke } from '@tauri-apps/api/core';
+import { activateConfigWindow } from '@/api/windows';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useFitWindowToElement } from '@/hooks/useFitWindowToElement';
 import { useSearch } from '@/hooks/useSearch';
@@ -12,11 +12,7 @@ import Result from './components/Result.vue';
 import Sparkles from '~icons/lucide/sparkles';
 import { useI18n } from 'vue-i18n';
 import { usePluginStore } from '@/store';
-import {
-  markPendingLocalAiPromptForNewChat,
-  PENDING_LOCAL_AI_PROMPT_MODE_STORAGE_KEY,
-  PENDING_LOCAL_AI_PROMPT_STORAGE_KEY
-} from '@/plugins/local-ai/promptTransfer';
+import { openNewLocalAiChat } from '@/api/localAi';
 
 const { t } = useI18n();
 const pluginStore = usePluginStore();
@@ -71,7 +67,7 @@ const handleBackToSearch = (): void => {
  */
 const handleGoConfig = async (): Promise<void> => {
   try {
-    await invoke('hotkey_config_command');
+    await activateConfigWindow();
   } catch (error) {
     ErrorHandler.handle(
       error,
@@ -113,16 +109,8 @@ const openAiChat = async (): Promise<void> => {
   if (!prompt) return;
 
   try {
-    markPendingLocalAiPromptForNewChat(localStorage, prompt);
-    await invoke('show_hide_window_command', {
-      label: 'local_ai_chat',
-      context: prompt
-    });
+    await openNewLocalAiChat(prompt);
   } catch (error) {
-    if (localStorage.getItem(PENDING_LOCAL_AI_PROMPT_STORAGE_KEY) === prompt) {
-      localStorage.removeItem(PENDING_LOCAL_AI_PROMPT_STORAGE_KEY);
-      localStorage.removeItem(PENDING_LOCAL_AI_PROMPT_MODE_STORAGE_KEY);
-    }
     ErrorHandler.handle(
       error,
       {

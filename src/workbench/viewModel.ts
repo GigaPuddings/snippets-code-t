@@ -14,6 +14,7 @@ import type { PluginId } from '@/plugins/types';
 import { DEFAULT_SEARCH_PROVIDER_TIMEOUT_MS } from '@/search/sourceCatalog';
 import type { MarkdownFile } from '@/types';
 import { compareTimestamps } from '@/utils/time-format';
+import { getConfigContentPath } from '@/utils/config-navigation';
 import type {
   WorkbenchAiSummary,
   WorkbenchContentSummary,
@@ -123,7 +124,7 @@ export interface WorkbenchOverviewController {
   workspaceRoot: Ref<string>;
   recentItems: ComputedRef<WorkbenchRecentItem[]>;
   refresh: () => Promise<void>;
-  navigateTo: (action: WorkbenchAction) => void;
+  navigateTo: (action: WorkbenchAction | string) => void;
   statusLabel: (status: WorkbenchStatus) => string;
   statusChipClass: (status: WorkbenchStatus) => Record<string, boolean>;
 }
@@ -143,7 +144,7 @@ export const buildWorkbenchRecentItems = (
         type: file.type,
         categoryName: file.categoryName,
         modified: file.modified,
-        path: `/config/category/contentList/${file.categoryId}/content/${encodeURIComponent(id)}`
+        path: getConfigContentPath(id, file.categoryId)
       };
     });
 
