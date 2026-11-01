@@ -9,7 +9,6 @@ import { getQuickSearchWindowHeight } from './composables/searchWindowSizing';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { ErrorHandler, ErrorType } from '@/utils/error-handler';
 import Result from './components/Result.vue';
-import SearchInputIcon from '~icons/lucide/search';
 import Sparkles from '~icons/lucide/sparkles';
 import { useI18n } from 'vue-i18n';
 import { usePluginStore } from '@/store';
@@ -210,11 +209,6 @@ onUnmounted(() => {
       <section class="search-command-surface" data-tauri-drag-region>
         <!-- Tauri matches direct targets; decorative icons forward hits here. -->
         <section class="search" data-tauri-drag-region>
-          <SearchInputIcon
-            class="pointer-events-none ml-2 shrink-0 text-search-secondary"
-            width="20"
-            height="20"
-          />
           <el-input
             ref="searchInputRef"
             class="input transparent-input"

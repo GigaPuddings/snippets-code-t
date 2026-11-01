@@ -91,6 +91,69 @@ const withSearchEnginesPlugin = (
 });
 
 describe('runUniversalSearch', () => {
+  it('limits workspace search to notes and snippets, including tag matches, without calling plugin sources', async () => {
+    const providerSearch = vi.fn();
+    const invoke = createInvoke({
+      search_markdown_files_optimized: [
+        markdownFile({ title: 'Unrelated title', tags: ['vue'] }),
+        markdownFile({ id: 'note', type: 'note', title: 'Vue notes' })
+      ],
+      get_search_history: []
+    });
+    const response = await runUniversalSearch(
+      { text: 'vue', deepSearch: true, scope: 'workspace' },
+      {
+        invoke,
+        navigationItems: [contentItem('settings', 'vue settings', 'settings')],
+        providers: ['preflight', 'results', 'append'].map((phase) => ({
+          pluginId: 'local-launcher',
+          source: phase,
+          phase: phase as 'preflight' | 'results' | 'append',
+          search: providerSearch
+        })),
+        isPluginEnabled: () => true
+      }
+    );
+    expect(response.items.map((item) => item.summarize).sort()).toEqual([
+      'code',
+      'note'
+    ]);
+    expect(providerSearch).not.toHaveBeenCalled();
+    expect(
+      response.items.every((item) => item.metadata?.source === 'markdown')
+    ).toBe(true);
+  });
+
+  it('searches URL-like text within the workspace instead of offering to open a browser', async () => {
+    const invoke = createInvoke({
+      search_markdown_files_optimized: [markdownFile({ title: 'github.com' })],
+      get_search_history: []
+    });
+    const response = await runUniversalSearch(
+      { text: 'github.com', deepSearch: true, scope: 'workspace' },
+      { invoke, isPluginEnabled: () => true }
+    );
+    expect(response.intent).toBe('results');
+    expect(response.items[0]?.metadata?.source).toBe('markdown');
+    expect(invoke).toHaveBeenCalledWith('search_markdown_files_optimized', {
+      query: 'github.com'
+    });
+  });
+
+  it('keeps an empty workspace search clear of recent product actions', async () => {
+    const invoke = createInvoke({});
+    const response = await runUniversalSearch(
+      { text: '', deepSearch: true, scope: 'workspace' },
+      {
+        invoke,
+        navigationItems: [contentItem('settings', 'Settings', 'settings')],
+        isPluginEnabled: () => true
+      }
+    );
+    expect(response.items).toEqual([]);
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
   it('handles URL input before running workspace or plugin providers', async () => {
     const providerSearch = vi.fn();
     const invoke = createInvoke({});

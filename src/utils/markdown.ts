@@ -309,8 +309,8 @@ const UNSUPPORTED_EDITOR_HTML_TAG_RE =
   /<\/?(?:input|select|option|textarea)\b/i;
 
 /**
- * 当剪贴板纯文本明确使用 Markdown 反斜杠保留 HTML 标签示例时，富 HTML
- * 可能已经把这些示例错误序列化成真实 DOM。此时纯文本才是无损来源。
+ * Preserve explicit Markdown structures when a parallel HTML clipboard flavor
+ * would reinterpret tag examples or rebuild an already valid table.
  */
 export function shouldPreferMarkdownClipboardText(
   text: string,
@@ -320,7 +320,8 @@ export function shouldPreferMarkdownClipboardText(
     text.trim() &&
       html.trim() &&
       (ESCAPED_HTML_TAG_RE.test(text) ||
-        UNSUPPORTED_EDITOR_HTML_TAG_RE.test(text))
+        UNSUPPORTED_EDITOR_HTML_TAG_RE.test(text) ||
+        marked.lexer(text).some((token) => token.type === 'table'))
   );
 }
 
@@ -777,51 +778,36 @@ export function createTurndownService(): TurndownService {
       const table = node as HTMLTableElement;
       const rows: string[] = [];
 
-      // 处理表头
-      const thead = table.querySelector('thead');
-      if (thead) {
-        const headerRow = thead.querySelector('tr');
-        if (headerRow) {
-          const headers: string[] = [];
-          const separators: string[] = [];
-
-          Array.from(headerRow.querySelectorAll('th, td')).forEach((cell) => {
-            const cellContent = turndownService
-              .turndown((cell as HTMLElement).innerHTML)
-              .trim();
-            headers.push(escapeMarkdownTableCell(cellContent));
-            separators.push(
-              tableAlignmentSeparator(
-                (cell as HTMLElement).getAttribute('align')
+      // Browser/editor copies often put header cells directly in tbody.
+      // GFM still needs a delimiter after the first row, with or without thead.
+      // Only direct table rows count; nested table rows belong to their cell.
+      const tableRows = Array.from(table.children)
+        .flatMap((section) =>
+          section.nodeName === 'TR'
+            ? [section]
+            : Array.from(section.children).filter(
+                (row) => row.nodeName === 'TR'
               )
-            );
-          });
+        )
+        .map((row) =>
+          Array.from(row.children).filter((cell) =>
+            ['TH', 'TD'].includes(cell.nodeName)
+          )
+        )
+        .filter((cells) => cells.length > 0);
 
-          if (headers.length > 0) {
-            rows.push('| ' + headers.join(' | ') + ' |');
-            rows.push('| ' + separators.join(' | ') + ' |');
-          }
-        }
-      }
-
-      // 处理表体
-      const tbody = table.querySelector('tbody') || table;
-      const bodyRows = tbody.querySelectorAll('tr');
-
-      Array.from(bodyRows).forEach((row) => {
-        // 跳过已经在 thead 中处理的行
-        if (thead && thead.contains(row)) return;
-
-        const cells: string[] = [];
-        Array.from(row.querySelectorAll('th, td')).forEach((cell) => {
-          const cellContent = turndownService
-            .turndown((cell as HTMLElement).innerHTML)
-            .trim();
-          cells.push(escapeMarkdownTableCell(cellContent));
-        });
-
-        if (cells.length > 0) {
-          rows.push('| ' + cells.join(' | ') + ' |');
+      tableRows.forEach((cells, index) => {
+        const values = cells.map((cell) =>
+          escapeMarkdownTableCell(
+            turndownService.turndown(cell.innerHTML).trim()
+          )
+        );
+        rows.push('| ' + values.join(' | ') + ' |');
+        if (index === 0) {
+          const separators = cells.map((cell) =>
+            tableAlignmentSeparator(cell.getAttribute('align'))
+          );
+          rows.push('| ' + separators.join(' | ') + ' |');
         }
       });
 

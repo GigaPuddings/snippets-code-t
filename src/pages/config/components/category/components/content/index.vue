@@ -292,6 +292,7 @@
       :visible="aiSelection.visible"
       :position="aiSelection.position"
       @rewrite="openSelectionRewrite"
+      @dismiss="hideAiSelection"
     />
 
     <!-- 编辑器错误提示 -->
@@ -635,7 +636,7 @@ const aiSelection = reactive({
   from: 0,
   to: 0,
   visible: false,
-  position: { x: 0, y: 0 }
+  position: { x: 0, y: 0, bottom: 0 }
 });
 
 // 工作区根目录
@@ -1847,8 +1848,9 @@ const captureAiSelection = () => {
       aiSelection.from = selection.from;
       aiSelection.to = selection.to;
       aiSelection.position = {
-        x: coords ? (coords.left + coords.right) / 2 : window.innerWidth / 2,
-        y: Math.max(40, (coords?.top ?? 72) - 8)
+        x: coords?.right ?? window.innerWidth / 2,
+        y: coords?.top ?? 72,
+        bottom: coords?.bottom ?? 92
       };
       aiSelection.visible = Boolean(aiSelection.text.trim());
       return;
@@ -1878,8 +1880,9 @@ const captureAiSelection = () => {
     aiSelection.from = selection.from;
     aiSelection.to = selection.to;
     aiSelection.position = {
-      x: (rect.left + rect.right) / 2,
-      y: Math.max(40, rect.top - 8)
+      x: rect.right,
+      y: rect.top,
+      bottom: rect.bottom
     };
     aiSelection.visible = Boolean(aiSelection.text.trim());
   });

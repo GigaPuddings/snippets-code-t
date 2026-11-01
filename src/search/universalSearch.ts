@@ -36,9 +36,12 @@ export type UniversalSearchIntent =
   | 'engine-shortcut'
   | 'results';
 
+export type UniversalSearchScope = 'all' | 'workspace';
+
 export interface UniversalSearchRequest {
   text: string;
   deepSearch: boolean;
+  scope?: UniversalSearchScope;
 }
 
 export interface UniversalSearchProviderError {
@@ -455,8 +458,9 @@ export const runUniversalSearch = async (
   runtime: UniversalSearchRuntime
 ): Promise<UniversalSearchResponse> => {
   const text = request.text.trim();
+  const workspaceOnly = request.scope === 'workspace';
   const navigationItems = removeDisabledPluginResults(
-    runtime.navigationItems ?? [],
+    workspaceOnly ? [] : (runtime.navigationItems ?? []),
     runtime.isPluginEnabled
   ).map((item, index) =>
     withUniversalSearchSource(item, item.summarize ?? 'navigation', index)
@@ -483,7 +487,7 @@ export const runUniversalSearch = async (
     return { intent: 'empty', items: [] };
   }
 
-  if (isURL(text)) {
+  if (!workspaceOnly && isURL(text)) {
     return {
       intent: 'url-open',
       items: [
@@ -496,14 +500,15 @@ export const runUniversalSearch = async (
     };
   }
 
-  const enabledProviders =
-    runtime.providers?.filter((provider) =>
-      runtime.isPluginEnabled(String(provider.pluginId))
-    ) ?? getEnabledSearchSourceProviders(runtime.isPluginEnabled);
+  const enabledProviders = workspaceOnly
+    ? []
+    : (runtime.providers?.filter((provider) =>
+        runtime.isPluginEnabled(String(provider.pluginId))
+      ) ?? getEnabledSearchSourceProviders(runtime.isPluginEnabled));
   const query = text.toLowerCase();
   const rankingOptions = {
     deepSearch: request.deepSearch,
-    preferRelevance: Boolean(runtime.navigationItems)
+    preferRelevance: !workspaceOnly && Boolean(runtime.navigationItems)
   };
   const completedItems: ContentType[] = [...navigationItems];
   let historyMap = new Map<string, SearchHistoryMeta>();

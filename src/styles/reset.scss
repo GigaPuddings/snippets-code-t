@@ -38,8 +38,11 @@ a:hover {
 
 // One scrollbar palette for native, virtualized and editor scroll surfaces.
 * {
-  scrollbar-width: thin;
-  scrollbar-color: var(--app-scrollbar-thumb) transparent;
+  // Chromium's standard properties override the WebKit parts, including buttons.
+  @supports not selector(::-webkit-scrollbar) {
+    scrollbar-width: thin;
+    scrollbar-color: var(--app-scrollbar-thumb) transparent;
+  }
 
   &::-webkit-scrollbar {
     width: 8px;

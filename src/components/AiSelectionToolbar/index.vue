@@ -1,8 +1,9 @@
 <template>
   <div
     v-if="visible"
-    class="ai-selection-toolbar z-40"
-    :style="{ left: `${position.x}px`, top: `${position.y}px` }"
+    ref="toolbar"
+    class="ai-selection-toolbar fixed z-40 rounded-ui border border-solid border-[var(--dialog-border)] bg-[var(--dialog-bg)] p-1 shadow-[var(--toast-shadow)]"
+    :style="{ left: `${offset.left}px`, top: `${offset.top}px` }"
     @mousedown.prevent
   >
     <CustomButton type="primary" size="small" @click="emit('rewrite')">
@@ -14,27 +15,47 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import { CustomButton } from '@/components/UI';
+import { selectionToolbarPosition, type SelectionAnchor } from './position';
 
 const { t } = useI18n();
 
-defineProps<{
+const props = defineProps<{
   visible: boolean;
-  position: { x: number; y: number };
+  position: SelectionAnchor;
 }>();
 
 const emit = defineEmits<{
   rewrite: [];
+  dismiss: [];
 }>();
-</script>
+const toolbar = ref<HTMLElement | null>(null);
+const offset = ref({ left: 0, top: 0 });
 
-<style scoped lang="scss">
-.ai-selection-toolbar {
-  position: fixed;
-  padding: 4px;
-  background: var(--dialog-bg);
-  border: 1px solid var(--dialog-border);
-  border-radius: 8px;
-  box-shadow: 0 8px 22px rgb(16 24 40 / 18%);
-  transform: translate(-50%, -100%);
-}
-</style>
+watchPostEffect(() => {
+  if (!props.visible || !toolbar.value) return;
+  offset.value = selectionToolbarPosition(
+    props.position,
+    toolbar.value.getBoundingClientRect(),
+    { width: window.innerWidth, height: window.innerHeight }
+  );
+});
+
+const dismiss = (): void => {
+  if (props.visible) emit('dismiss');
+};
+const outside = (event: PointerEvent): void => {
+  if (event.target instanceof Node && !toolbar.value?.contains(event.target)) {
+    dismiss();
+  }
+};
+onMounted(() => {
+  document.addEventListener('pointerdown', outside, true);
+  document.addEventListener('scroll', dismiss, true);
+  window.addEventListener('resize', dismiss);
+});
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', outside, true);
+  document.removeEventListener('scroll', dismiss, true);
+  window.removeEventListener('resize', dismiss);
+});
+</script>

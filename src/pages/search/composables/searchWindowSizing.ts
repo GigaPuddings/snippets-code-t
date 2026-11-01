@@ -5,5 +5,6 @@ export function getQuickSearchWindowHeight(
 ): number {
   const collapsedHeight = 58;
   if (!hasQuery) return collapsedHeight;
-  return Math.max(collapsedHeight, Math.min(464, availableHeight - 16));
+  // 300px for six result rows, plus 142px for input, tabs, footer and borders.
+  return Math.max(collapsedHeight, Math.min(442, availableHeight - 16));
 }

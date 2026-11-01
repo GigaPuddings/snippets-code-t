@@ -8,6 +8,7 @@ import {
 import {
   Decoration,
   EditorView,
+  ViewPlugin,
   WidgetType,
   type DecorationSet
 } from '@codemirror/view';
@@ -133,6 +134,7 @@ export function sourceRangeIsActive(
 ) {
   if (state.readOnly || !state.field(previewHasFocus, false)) return false;
   return state.selection.ranges.some((range) => {
+    if (!range.empty) return false;
     const first = state.doc.lineAt(range.from);
     const last = state.doc.lineAt(range.to);
     return first.from <= to && last.to >= from;
@@ -140,6 +142,16 @@ export function sourceRangeIsActive(
 }
 
 export const setPreviewFocus = StateEffect.define<boolean>();
+export const setPreviewDragging = StateEffect.define<boolean>();
+const previewDragging = StateField.define<boolean>({
+  create: () => false,
+  update(value, transaction) {
+    if (transaction.docChanged || transaction.state.readOnly) return false;
+    for (const effect of transaction.effects)
+      if (effect.is(setPreviewDragging)) value = effect.value;
+    return value;
+  }
+});
 const previewHasFocus = StateField.define<boolean>({
   create: () => false,
   update(value, transaction) {
@@ -260,7 +272,7 @@ class ImageWidget extends WidgetType {
     wrapper.addEventListener('contextmenu', (event) => {
       event.preventDefault();
       event.stopPropagation();
-      if (!view.state.readOnly) this.options.onImage(this.target, event);
+      this.options.onImage(this.target, event);
     });
     const image = content.querySelector('img');
     if (image) {
@@ -279,6 +291,43 @@ class ImageWidget extends WidgetType {
     return true;
   }
 }
+
+// Keep the plugin identity stable when attachment/locale options reconfigure
+// live preview, so an in-progress gesture retains its mouseup listener.
+const previewDragGesture = ViewPlugin.fromClass(
+  class {
+    constructor(readonly view: EditorView) {}
+    stop = (): void => {
+      document.removeEventListener('mouseup', this.stop, true);
+      window.removeEventListener('blur', this.stop);
+      if (this.view.state.field(previewDragging))
+        this.view.dispatch({ effects: setPreviewDragging.of(false) });
+    };
+    destroy(): void {
+      document.removeEventListener('mouseup', this.stop, true);
+      window.removeEventListener('blur', this.stop);
+    }
+  },
+  {
+    eventHandlers: {
+      mousedown(event): boolean {
+        if (
+          event.button !== 0 ||
+          this.view.state.readOnly ||
+          !(event.target instanceof Element) ||
+          !this.view.contentDOM.contains(event.target) ||
+          event.target.closest('button,input,textarea,.md-preview-table')
+        )
+          return false;
+        // Keep DOM geometry stable until CodeMirror has finished the drag.
+        this.view.dispatch({ effects: setPreviewDragging.of(true) });
+        document.addEventListener('mouseup', this.stop, true);
+        window.addEventListener('blur', this.stop);
+        return false;
+      }
+    }
+  }
+);
 
 function childMarks(node: SyntaxNode, names: string[]) {
   const children: SyntaxNode[] = [];
@@ -600,6 +649,8 @@ export function livePreview(options: PreviewOptions): Extension {
   };
   return [
     previewHasFocus,
+    previewDragging,
+    previewDragGesture,
     EditorView.focusChangeEffect.of((_state, focused) =>
       setPreviewFocus.of(focused)
     ),
@@ -607,10 +658,18 @@ export function livePreview(options: PreviewOptions): Extension {
       create: build,
       update(value, transaction) {
         if (
+          !transaction.docChanged &&
+          transaction.startState.readOnly === transaction.state.readOnly &&
+          transaction.state.field(previewDragging)
+        )
+          return value;
+        if (
           transaction.docChanged ||
           transaction.startState.readOnly !== transaction.state.readOnly ||
           transaction.startState.field(previewHasFocus, false) !==
             transaction.state.field(previewHasFocus, false) ||
+          transaction.startState.field(previewDragging) !==
+            transaction.state.field(previewDragging) ||
           syntaxTree(transaction.startState) !== syntaxTree(transaction.state)
         )
           return build(transaction.state);

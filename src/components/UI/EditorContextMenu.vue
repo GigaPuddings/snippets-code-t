@@ -13,49 +13,60 @@
         <button
           type="button"
           role="menuitem"
-          class="menu-item has-submenu w-full text-left"
-          aria-haspopup="menu"
-          :aria-expanded="activeSubmenu === 'imageScale'"
-          @click="showSubmenu('imageScale', $event)"
-          @mouseenter="showSubmenu('imageScale', $event)"
-          @mouseleave="handleMenuMouseLeave"
-        >
-          <UiImage class="menu-icon" />
-          <span>{{ $t('settings.attachment.imageScale') }}</span>
-          <span class="menu-shortcut">{{ image.scale }}%</span>
-          <UiChevronRight class="menu-arrow" />
-        </button>
-        <button
-          type="button"
-          role="menuitemcheckbox"
           class="menu-item w-full text-left"
-          :aria-checked="image.allImages"
-          :title="$t('settings.attachment.applyToAllImages')"
-          @click="emit('image-scope-change', !image.allImages)"
+          @click="imageAction('copy')"
         >
-          <UiImages class="menu-icon" />
-          <span>{{ $t('settings.attachment.allImagesShort') }}</span>
-          <UiCheck v-if="image.allImages" class="check-mark" />
+          <UiCopy class="menu-icon" />
+          <span>{{ $t('contextMenu.copyImage') }}</span>
         </button>
-        <div class="menu-divider"></div>
-        <button
-          type="button"
-          role="menuitem"
-          class="menu-item w-full text-left"
-          @click="imageAction('location')"
-        >
-          <UiFolderOpen class="menu-icon" />
-          <span>{{ $t('settings.attachment.openImageLocation') }}</span>
-        </button>
-        <button
-          type="button"
-          role="menuitem"
-          class="menu-item w-full text-left"
-          @click="imageAction('delete')"
-        >
-          <UiTrash class="menu-icon" />
-          <span>{{ $t('settings.attachment.deleteImage') }}</span>
-        </button>
+        <template v-if="!image.readOnly">
+          <button
+            type="button"
+            role="menuitem"
+            class="menu-item has-submenu w-full text-left"
+            aria-haspopup="menu"
+            :aria-expanded="activeSubmenu === 'imageScale'"
+            @click="showSubmenu('imageScale', $event)"
+            @mouseenter="showSubmenu('imageScale', $event)"
+            @mouseleave="handleMenuMouseLeave"
+          >
+            <UiImage class="menu-icon" />
+            <span>{{ $t('settings.attachment.imageScale') }}</span>
+            <span class="menu-shortcut">{{ image.scale }}%</span>
+            <UiChevronRight class="menu-arrow" />
+          </button>
+          <button
+            type="button"
+            role="menuitemcheckbox"
+            class="menu-item w-full text-left"
+            :aria-checked="image.allImages"
+            :title="$t('settings.attachment.applyToAllImages')"
+            @click="emit('image-scope-change', !image.allImages)"
+          >
+            <UiImages class="menu-icon" />
+            <span>{{ $t('settings.attachment.allImagesShort') }}</span>
+            <UiCheck v-if="image.allImages" class="check-mark" />
+          </button>
+          <div class="menu-divider"></div>
+          <button
+            type="button"
+            role="menuitem"
+            class="menu-item w-full text-left"
+            @click="imageAction('location')"
+          >
+            <UiFolderOpen class="menu-icon" />
+            <span>{{ $t('settings.attachment.openImageLocation') }}</span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            class="menu-item w-full text-left"
+            @click="imageAction('delete')"
+          >
+            <UiTrash class="menu-icon" />
+            <span>{{ $t('settings.attachment.deleteImage') }}</span>
+          </button>
+        </template>
       </template>
       <template v-else>
         <div
@@ -431,7 +442,7 @@ interface Props {
   isActive?: (name: string, attrs?: Record<string, unknown>) => boolean;
   dark?: boolean;
   viewMode?: 'reading' | 'preview' | 'source';
-  image?: { scale: number; allImages: boolean };
+  image?: { scale: number; allImages: boolean; readOnly?: boolean };
 }
 
 defineOptions({
@@ -448,7 +459,7 @@ const emit = defineEmits<{
   'request-insert-table': [];
   'image-scale': [scale: number];
   'image-scope-change': [allImages: boolean];
-  'image-action': [action: 'custom' | 'location' | 'delete'];
+  'image-action': [action: 'copy' | 'custom' | 'location' | 'delete'];
 }>();
 
 const { t: $t } = useI18n();
@@ -466,7 +477,7 @@ function selectImageScale(scale: number) {
   hide();
   emit('image-scale', scale);
 }
-function imageAction(action: 'custom' | 'location' | 'delete') {
+function imageAction(action: 'copy' | 'custom' | 'location' | 'delete') {
   hide();
   emit('image-action', action);
 }

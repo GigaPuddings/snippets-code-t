@@ -1,60 +1,107 @@
 <template>
-  <div class="outline-sidebar" :class="{ dark: dark, 'is-visible': show }">
-    <div class="outline-sidebar-header">
-      <div class="outline-sidebar-actions">
-        <!-- 搜索按钮 -->
+  <aside
+    class="outline-sidebar"
+    :class="{ dark, 'is-visible': show }"
+    :aria-label="$t('noteEditor.outline')"
+    :aria-hidden="!show"
+    :inert="!show"
+    @keydown.esc.stop="handleClose"
+  >
+    <header class="flex h-11 shrink-0 items-center justify-between gap-2 px-3">
+      <div class="flex min-w-0 items-center gap-2">
+        <h3 class="m-0 truncate text-ui font-semibold text-ui-heading">
+          {{ $t('noteEditor.outline') }}
+        </h3>
+        <span
+          class="text-ui-caption tabular-nums text-ui-muted"
+          aria-hidden="true"
+        >
+          {{ headings.length }}
+        </span>
+      </div>
+      <div class="flex shrink-0 items-center gap-0.5">
         <button
-          class="outline-action-btn"
+          type="button"
+          class="ui-icon-button ui-icon-button--small ui-action--muted"
           @click="toggleSearch"
           :title="$t('noteEditor.search')"
-          :class="{ 'is-active': showSearch }"
+          :aria-label="$t('noteEditor.search')"
+          :aria-pressed="showSearch"
         >
-          <UiSearch width="14" height="14" />
+          <UiSearch width="16" height="16" />
         </button>
-        <!-- 折叠/展开切换按钮 -->
         <button
-          class="outline-action-btn"
+          type="button"
+          class="ui-icon-button ui-icon-button--small ui-action--muted"
           @click="toggleCollapseAll"
           :title="
             isAllCollapsed
               ? $t('noteEditor.expandAll')
               : $t('noteEditor.collapseAll')
           "
+          :aria-label="
+            isAllCollapsed
+              ? $t('noteEditor.expandAll')
+              : $t('noteEditor.collapseAll')
+          "
+          :disabled="!headings.some((_, index) => hasChildren(index))"
         >
           <UiChevronDown v-if="isAllCollapsed" width="14" height="14" />
           <UiChevronUp v-else width="14" height="14" />
         </button>
-        <!-- 定位当前章节按钮 -->
         <button
-          class="outline-action-btn"
+          type="button"
+          class="ui-icon-button ui-icon-button--small ui-action--muted"
           @click="scrollToActive"
           :title="$t('noteEditor.scrollToActive')"
+          :aria-label="$t('noteEditor.scrollToActive')"
+          :disabled="!headings.length"
         >
           <UiArrowUpToLine width="14" height="14" />
         </button>
-        <button class="outline-sidebar-close" @click="handleClose">
+        <button
+          type="button"
+          class="ui-icon-button ui-icon-button--small ui-action--muted"
+          :title="$t('common.close')"
+          :aria-label="$t('common.close')"
+          @click="handleClose"
+        >
           <UiX width="16" height="16" />
         </button>
       </div>
-    </div>
+    </header>
 
-    <!-- 搜索框 - 固定显示 -->
-    <div v-show="showSearch" class="outline-search-box">
-      <UiSearch width="14" height="14" class="search-icon" />
+    <div
+      v-show="showSearch"
+      class="mx-3 mb-2 flex h-8 shrink-0 items-center gap-2 rounded-ui bg-ui-hover px-2 text-ui-muted focus-within:ring-1 focus-within:ring-[var(--workspace-nav-border)]"
+    >
+      <UiSearch width="14" height="14" class="shrink-0" />
       <input
         ref="searchInputRef"
         v-model="searchQuery"
         type="text"
-        class="search-input"
+        class="min-w-0 flex-1 border-0 bg-transparent text-ui-caption text-ui-main outline-none placeholder:text-ui-muted"
         :placeholder="$t('noteEditor.searchHeadings')"
+        :aria-label="$t('noteEditor.searchHeadings')"
         @input="handleSearch"
+        @keydown.esc.stop="toggleSearch"
       />
-      <button v-if="searchQuery" class="clear-search-btn" @click="clearSearch">
+      <button
+        v-if="searchQuery"
+        type="button"
+        class="ui-icon-button h-ui-control-sm w-ui-control-sm ui-action--muted"
+        :aria-label="$t('common.clear')"
+        @click="clearSearch"
+      >
         <UiX width="14" height="14" />
       </button>
     </div>
 
-    <div class="outline-sidebar-content" ref="contentRef">
+    <nav
+      ref="contentRef"
+      class="outline-sidebar-content min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-1.5 pb-2"
+      :aria-label="$t('noteEditor.outline')"
+    >
       <div
         v-if="filteredHeadings.length === 0 && headings.length === 0"
         class="outline-sidebar-empty"
@@ -73,37 +120,48 @@
         :ref="(el) => setItemRef(el, heading.originalIndex)"
         class="outline-sidebar-item"
         :class="{
-          'is-h1': heading.level === 1,
-          'is-h2': heading.level === 2,
-          'is-h3': heading.level === 3,
-          'is-h4': heading.level === 4,
-          'is-h5': heading.level === 5,
-          'is-h6': heading.level === 6,
+          'font-medium': heading.depth === 0,
           'is-active': activeHeadingIndex === heading.originalIndex,
-          'is-collapsed': collapsedHeadings.has(heading.originalIndex),
           'is-hidden': isHiddenByCollapse(heading.originalIndex)
         }"
-        :style="getItemStyle(heading)"
-        @click="handleHeadingClick(heading.pos, heading.originalIndex)"
+        :style="{ paddingLeft: `${heading.depth * 12 + 6}px` }"
       >
         <!-- 折叠按钮 -->
         <button
           v-if="hasChildren(heading.originalIndex)"
-          class="collapse-btn"
+          type="button"
+          class="ui-icon-button ui-action--muted size-5 rounded shrink-0"
+          :aria-label="heading.text"
+          :aria-expanded="!collapsedHeadings.has(heading.originalIndex)"
           @click.stop="toggleCollapse(heading.originalIndex)"
         >
-          <UiChevronRight width="12" height="12" class="collapse-icon" />
+          <UiChevronRight
+            width="12"
+            height="12"
+            class="transition-transform"
+            :class="{
+              'rotate-90': !collapsedHeadings.has(heading.originalIndex)
+            }"
+          />
         </button>
-        <span v-else class="collapse-placeholder"></span>
+        <span v-else class="size-5 shrink-0" aria-hidden="true"></span>
 
         <!-- 标题文本 -->
-        <span
-          class="outline-sidebar-text"
-          v-html="highlightText(heading.text)"
-        ></span>
+        <button
+          type="button"
+          class="outline-sidebar-text min-w-0 flex-1 truncate rounded border-0 bg-transparent py-1.5 pr-2 text-left text-ui-caption text-inherit focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary"
+          :title="heading.text"
+          :aria-current="
+            activeHeadingIndex === heading.originalIndex
+              ? 'location'
+              : undefined
+          "
+          @click="handleHeadingClick(heading.pos, heading.originalIndex)"
+          v-html="highlightText(heading.text, searchQuery)"
+        ></button>
       </div>
-    </div>
-  </div>
+    </nav>
+  </aside>
 </template>
 
 <script setup lang="ts">
@@ -113,6 +171,8 @@ import UiSearch from '~icons/lucide/search';
 import UiArrowUpToLine from '~icons/lucide/arrow-up-to-line';
 import UiChevronUp from '~icons/lucide/chevron-up';
 import UiChevronDown from '~icons/lucide/chevron-down';
+import type { ComponentPublicInstance } from 'vue';
+import { highlightText } from '@/utils/text';
 interface Heading {
   level: number;
   text: string;
@@ -162,39 +222,44 @@ const clearSearch = () => {
 const handleSearch = () => {
   if (searchQuery.value.trim()) {
     collapsedHeadings.value.clear();
+    isAllCollapsed.value = false;
   }
 };
 
 // 元素引用管理
-const setItemRef = (el: any, index: number) => {
-  if (el) itemRefs.value.set(index, el);
+const setItemRef = (
+  el: Element | ComponentPublicInstance | null,
+  index: number
+) => {
+  if (el instanceof HTMLElement) itemRefs.value.set(index, el);
+  else itemRefs.value.delete(index);
 };
 
 // 过滤和高亮
-const filteredHeadings = computed(() => {
-  const headingsWithIndex = props.headings.map((h, index) => ({
-    ...h,
-    originalIndex: index
-  }));
-
-  if (!searchQuery.value.trim()) {
-    return headingsWithIndex;
-  }
-
-  const query = searchQuery.value.toLowerCase();
-  return headingsWithIndex.filter((h) => h.text.toLowerCase().includes(query));
+const outlineHeadings = computed(() => {
+  const ancestors: number[] = [];
+  return props.headings.map((heading, originalIndex) => {
+    while (
+      ancestors.length &&
+      ancestors[ancestors.length - 1] >= heading.level
+    ) {
+      ancestors.pop();
+    }
+    const depth = ancestors.length;
+    ancestors.push(heading.level);
+    return { ...heading, originalIndex, depth };
+  });
 });
 
-const highlightText = (text: string) => {
-  if (!searchQuery.value.trim()) return text;
+const filteredHeadings = computed(() => {
+  if (!searchQuery.value.trim()) {
+    return outlineHeadings.value;
+  }
 
-  const regex = new RegExp(`(${searchQuery.value})`, 'gi');
-  return text.replace(regex, '<mark class="search-highlight">$1</mark>');
-};
-
-// 样式和层级
-const getItemStyle = (heading: any) => ({
-  paddingLeft: `${(heading.level - 1) * 20 + 8}px`
+  const query = searchQuery.value.trim().toLowerCase();
+  return outlineHeadings.value.filter((h) =>
+    h.text.toLowerCase().includes(query)
+  );
 });
 
 const hasChildren = (index: number) => {
@@ -258,8 +323,11 @@ const scrollToActive = () => {
   emits('update-visible-heading');
 
   nextTick(() => {
-    const targetIndex = props.visibleHeadingIndex ?? activeHeadingIndex.value;
-    if (targetIndex < 0) return;
+    const targetIndex =
+      props.visibleHeadingIndex != null && props.visibleHeadingIndex >= 0
+        ? props.visibleHeadingIndex
+        : activeHeadingIndex.value;
+    if (targetIndex < 0 || targetIndex >= props.headings.length) return;
 
     // 展开所有父级
     for (let i = targetIndex - 1; i >= 0; i--) {
@@ -285,6 +353,14 @@ const scrollToActive = () => {
 };
 
 const updateActiveHeading = () => {
+  if (
+    props.visibleHeadingIndex != null &&
+    props.visibleHeadingIndex >= 0 &&
+    props.visibleHeadingIndex < props.headings.length
+  ) {
+    activeHeadingIndex.value = props.visibleHeadingIndex;
+    return;
+  }
   if (props.currentPos === undefined || props.headings.length === 0) {
     activeHeadingIndex.value = -1;
     return;
@@ -310,7 +386,11 @@ const handleHeadingClick = (pos: number, index: number) => {
 };
 
 // 监听器
-watch(() => props.currentPos, updateActiveHeading, { immediate: true });
+watch(
+  () => [props.currentPos, props.visibleHeadingIndex],
+  updateActiveHeading,
+  { immediate: true }
+);
 
 watch(
   () => props.headings,
@@ -331,345 +411,43 @@ watch(
 
 <style lang="scss" scoped>
 .outline-sidebar {
-  @apply bg-panel;
+  @apply invisible pointer-events-none absolute right-2 top-2 z-30 flex w-[280px] max-w-[calc(100%-16px)] min-h-0 translate-x-2 flex-col overflow-hidden rounded-ui-lg border border-solid border-[var(--workspace-nav-border)] bg-[var(--settings-surface)] font-ui text-ui text-ui-main opacity-0;
 
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 30;
-  display: flex;
-  flex-direction: column;
-  width: 280px;
-  height: auto;
-  overflow: hidden;
-  pointer-events: none;
-  border-left: 0 solid transparent;
-  box-shadow: -12px 0 24px rgb(15 23 42 / 8%);
-  opacity: 0;
+  bottom: calc(
+    var(--app-ui-icon-control-sm-height) + var(--editor-status-gap) + 8px
+  );
+  box-shadow: var(--toast-shadow);
   transition:
-    transform 0.22s ease,
-    opacity 0.18s ease;
-  transform: translateX(100%);
+    transform 0.18s ease,
+    opacity 0.18s ease,
+    visibility 0.18s ease;
 
   &.is-visible {
-    pointer-events: auto;
-    border-left: 1px solid var(--panel-border);
-    opacity: 1;
-    transform: translateX(0);
-  }
-
-  &.dark {
-    background-color: var(--panel-bg);
-    box-shadow: -12px 0 24px rgb(0 0 0 / 24%);
-
-    &.is-visible {
-      border-color: var(--panel-border);
-    }
-  }
-}
-
-.outline-sidebar-header {
-  @apply flex items-center justify-between px-3 py-2;
-
-  flex-shrink: 0;
-  border-bottom: 1px solid var(--panel-border);
-}
-
-.outline-sidebar-actions {
-  @apply flex items-center gap-1 w-full justify-end;
-}
-
-.outline-action-btn {
-  @apply w-7 h-7 flex items-center justify-center rounded cursor-pointer;
-
-  color: var(--panel-text-secondary);
-  transition: all 0.15s ease;
-
-  &:hover {
-    color: var(--panel-text);
-    background-color: var(--panel-hover-bg);
-  }
-
-  &.is-active {
-    color: var(--el-color-primary);
-    background-color: var(--categories-bg-tab-active);
-  }
-
-  svg {
-    @apply text-current;
-  }
-}
-
-.outline-sidebar-close {
-  @apply w-7 h-7 flex items-center justify-center rounded cursor-pointer;
-
-  color: var(--panel-text-secondary);
-  transition: background-color 0.15s ease;
-
-  &:hover {
-    color: var(--panel-text);
-    background-color: var(--panel-hover-bg);
-  }
-
-  svg {
-    @apply text-current;
-  }
-}
-
-.outline-search-box {
-  @apply flex items-center px-3 py-2 gap-2;
-
-  flex-shrink: 0;
-  border-bottom: 1px solid var(--panel-border);
-}
-
-.search-icon {
-  @apply flex-shrink-0;
-
-  color: var(--panel-text-secondary);
-}
-
-.search-input {
-  @apply flex-1 bg-transparent border-none outline-none text-sm;
-
-  color: var(--panel-text);
-
-  &::placeholder {
-    color: var(--panel-text-secondary);
-  }
-}
-
-.clear-search-btn {
-  @apply w-5 h-5 flex items-center justify-center rounded cursor-pointer flex-shrink-0;
-
-  color: var(--panel-text-secondary);
-  transition: background-color 0.15s ease;
-
-  &:hover {
-    color: var(--panel-text);
-    background-color: var(--panel-hover-bg);
-  }
-}
-
-.outline-sidebar-content {
-  @apply overflow-y-auto flex-1 py-2 px-2;
-
-  padding-bottom: 48px; /* 为底部状态栏留出空间 */
-
-  &::-webkit-scrollbar {
-    width: 10px;
-  }
-
-  &::-webkit-scrollbar-track {
-    @apply bg-transparent;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background-color: var(--editor-scrollbar-thumb);
-    background-clip: padding-box;
-    border: 3px solid transparent;
-    border-radius: 5px;
-
-    &:hover {
-      background-color: rgb(0 0 0 / 25%);
-    }
-  }
-
-  .dark & {
-    &::-webkit-scrollbar-thumb {
-      background-color: var(--editor-scrollbar-thumb);
-
-      &:hover {
-        background-color: rgb(255 255 255 / 25%);
-      }
-    }
+    @apply visible pointer-events-auto translate-x-0 opacity-100;
   }
 }
 
 .outline-sidebar-empty {
-  @apply text-sm text-panel-text-secondary text-center py-8 px-4;
+  @apply px-4 py-8 text-center text-ui-caption text-ui-muted;
 }
 
 .outline-sidebar-item {
-  @apply flex items-center text-sm py-1 px-2 cursor-pointer relative;
-
-  min-height: 24px;
-  margin: 1px 0;
-  line-height: 1.4;
-  color: #666;
-  pointer-events: auto;
-  border-radius: 4px;
-  transition:
-    background-color 0.15s ease,
-    color 0.15s ease;
-
-  &:hover {
-    background-color: var(--categories-panel-bg-hover);
-
-    .outline-sidebar-text {
-      color: var(--el-color-primary);
-    }
-  }
+  @apply relative my-0.5 flex min-h-7 items-center gap-0.5 rounded-ui text-ui-main transition-colors hover:bg-ui-hover;
 
   &.is-active {
-    background-color: var(--categories-bg-tab-active);
+    @apply bg-ui-selected text-ui-heading;
 
     .outline-sidebar-text {
-      font-weight: 600;
-      color: var(--el-color-primary);
+      @apply font-semibold;
     }
-  }
-
-  &.is-h1 {
-    margin-top: 8px;
-    font-size: 13px;
-    font-weight: 600;
-    color: #333;
-  }
-
-  &.is-h2 {
-    margin-top: 4px;
-    font-size: 12.5px;
-    font-weight: 500;
-    color: #444;
-  }
-
-  &.is-h3 {
-    font-size: 12px;
-    font-weight: 400;
-    color: #555;
-  }
-
-  &.is-h4 {
-    font-size: 11.5px;
-    font-weight: 400;
-    color: #666;
-  }
-
-  &.is-h5 {
-    font-size: 11px;
-    font-weight: 400;
-    color: #777;
-  }
-
-  &.is-h6 {
-    font-size: 10.5px;
-    font-weight: 400;
-    color: #888;
   }
 
   &.is-hidden {
-    display: none;
-  }
-
-  .dark & {
-    color: #999;
-
-    &.is-h1 {
-      color: #ccc;
-    }
-
-    &.is-h2 {
-      color: #bbb;
-    }
-
-    &.is-h3 {
-      color: #aaa;
-    }
-
-    &.is-h4 {
-      color: #999;
-    }
-
-    &.is-h5 {
-      color: #888;
-    }
-
-    &.is-h6 {
-      color: #777;
-    }
-
-    &:hover {
-      background-color: var(--categories-panel-bg-hover);
-
-      .outline-sidebar-text {
-        color: var(--el-color-primary);
-      }
-    }
-
-    &.is-active {
-      background-color: var(--categories-bg-tab-active);
-
-      .outline-sidebar-text {
-        color: var(--el-color-primary);
-      }
-    }
+    @apply hidden;
   }
 }
 
-.collapse-btn {
-  @apply flex items-center justify-center w-4 h-4 mr-1 flex-shrink-0;
-
-  position: relative;
-  z-index: 1;
-  color: #999;
-  background-color: transparent;
-  transition:
-    background-color 0.15s ease,
-    transform 0.15s ease;
-
-  &:hover {
-    color: #666;
-    background-color: rgb(0 0 0 / 8%);
-    border-radius: 2px;
-  }
-
-  .dark & {
-    color: #8a8a8a;
-
-    &:hover {
-      color: #b3b3b3;
-      background-color: rgb(255 255 255 / 12%);
-    }
-  }
-
-  .collapse-icon {
-    transition: transform 0.15s ease;
-  }
-}
-
-.outline-sidebar-item.is-collapsed .collapse-btn .collapse-icon {
-  transform: rotate(0deg);
-}
-
-.outline-sidebar-item:not(.is-collapsed) .collapse-btn .collapse-icon {
-  transform: rotate(90deg);
-}
-
-.collapse-placeholder {
-  @apply w-4 h-4 mr-1 flex-shrink-0;
-}
-
-.outline-sidebar-text {
-  @apply flex-1 truncate;
-
-  position: relative;
-  z-index: 0;
-  pointer-events: none;
-  transition: color 0.2s ease;
-
-  :deep(.search-highlight) {
-    padding: 1px 3px;
-    font-weight: 500;
-    color: #000;
-    background-color: #ffeb3b;
-    border-radius: 2px;
-
-    .dark & {
-      color: #000;
-      background-color: #ffc107;
-    }
-  }
+.outline-sidebar-text :deep(.highlight) {
+  @apply rounded-sm bg-[var(--search-highlight-bg)] font-semibold text-[var(--search-highlight-text)];
 }
 </style>

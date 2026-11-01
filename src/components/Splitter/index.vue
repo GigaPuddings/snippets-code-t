@@ -6,9 +6,23 @@
   >
     <div
       class="splitter-panel first-panel"
+      :class="
+        animateCollapse && !isResizing
+          ? 'transition-[width,min-width] duration-200 ease-in-out motion-reduce:transition-none'
+          : ''
+      "
       :style="{ width: effectiveFirstWidth, minWidth: effectiveFirstWidth }"
+      :inert="firstCollapsed"
+      :aria-hidden="firstCollapsed || undefined"
     >
-      <slot name="first"></slot>
+      <div
+        v-if="animateCollapse"
+        class="h-full"
+        :style="{ width: `${firstWidthPixels}px` }"
+      >
+        <slot name="first"></slot>
+      </div>
+      <slot v-else name="first"></slot>
     </div>
     <div
       v-if="!firstCollapsed && !secondCollapsed"
@@ -22,7 +36,12 @@
       :aria-valuenow="Math.round(firstWidthPixels)"
       :title="label"
       tabindex="0"
-      :class="{ 'splitter-divider--resizing': isResizing }"
+      :class="[
+        { 'splitter-divider--resizing': isResizing },
+        animateCollapse && !isResizing
+          ? 'transition-[left] duration-200 ease-in-out motion-reduce:transition-none'
+          : ''
+      ]"
       @pointerdown="startResize"
       @lostpointercapture="stopResize"
       @keydown="handleKeydown"
@@ -42,14 +61,17 @@ import { useSplitter, type SplitterOptions } from './useSplitter';
 defineOptions({ name: 'Splitter' });
 
 const props = withDefaults(
-  defineProps<Partial<SplitterOptions> & { label?: string }>(),
+  defineProps<
+    Partial<SplitterOptions> & { label?: string; animateCollapse?: boolean }
+  >(),
   {
     defaultSize: '0%',
     minSize: '0%',
     maxSize: '100%',
     minSecondSize: 0,
     firstCollapsed: false,
-    secondCollapsed: false
+    secondCollapsed: false,
+    animateCollapse: false
   }
 );
 

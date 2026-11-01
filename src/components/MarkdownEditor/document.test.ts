@@ -24,6 +24,7 @@ import {
   livePreview,
   previewTargets,
   setPreviewFocus,
+  setPreviewDragging,
   sourceRangeIsActive
 } from './preview';
 
@@ -98,6 +99,65 @@ function previewMarkers(content: string) {
 }
 
 describe('Markdown source document', () => {
+  it('freezes preview geometry for a mouse gesture, then restores caret editing', () => {
+    let state = createDocumentState('# Title\n\n- `one`\n\n- **two**', [
+      livePreview(options)
+    ]);
+    const decorations = () => state.facet(EditorView.decorations)[0];
+    const rendered = decorations();
+    state = state.update({ effects: setPreviewDragging.of(true) }).state;
+    state = state.update({
+      effects: setPreviewFocus.of(true),
+      selection: { anchor: 2 },
+      userEvent: 'select.pointer'
+    }).state;
+    expect(decorations()).toBe(rendered);
+    state = state.update({
+      selection: { anchor: 2, head: state.doc.length },
+      userEvent: 'select.pointer'
+    }).state;
+    expect(decorations()).toBe(rendered);
+    state = state.update({ effects: setPreviewDragging.of(false) }).state;
+    expect(sourceRangeIsActive(state, 0, state.doc.length)).toBe(false);
+    state = state.update({
+      selection: { anchor: 2 },
+      userEvent: 'select'
+    }).state;
+    expect(sourceRangeIsActive(state, 0, 7)).toBe(true);
+  });
+
+  it('rebuilds preview ranges if the document changes during a drag', () => {
+    let state = createDocumentState('# Title\n\n- `one`', [
+      livePreview(options)
+    ]);
+    state = state.update({ effects: setPreviewDragging.of(true) }).state;
+    state = state.update({
+      changes: { from: 0, to: state.doc.length, insert: 'plain' },
+      selection: { anchor: 2 },
+      userEvent: 'input'
+    }).state;
+    expect(sourceRangeIsActive(state, 0, 5)).toBe(true);
+    expect(state.sliceDoc()).toBe('plain');
+  });
+
+  it('keeps markup rendered while selecting prose across formatted list items', () => {
+    const source =
+      '**Summary**\n\n- `super.field`: parent field\n\n- `super.method()`: parent method';
+    let state = createDocumentState(source, [livePreview(options)]);
+    state = state.update({
+      effects: setPreviewFocus.of(true),
+      selection: { anchor: 2, head: source.length - 2 },
+      userEvent: 'select.pointer'
+    }).state;
+    expect(sourceRangeIsActive(state, 0, source.length)).toBe(false);
+    expect(state.sliceDoc()).toBe(source);
+    state = state.update({
+      selection: { anchor: 3 },
+      userEvent: 'select'
+    }).state;
+    expect(sourceRangeIsActive(state, 0, 11)).toBe(true);
+  });
+
   it('renders the first line until the editor is actively used and hides source on blur', () => {
     const source = '# Heading\n\nText';
     let state = createDocumentState(source, [livePreview(options)]);

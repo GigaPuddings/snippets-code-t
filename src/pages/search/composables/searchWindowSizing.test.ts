@@ -7,9 +7,9 @@ describe('quick search result window height', () => {
     expect(getQuickSearchWindowHeight(false, 350)).toBe(58);
   });
 
-  it('uses a fixed expanded size on normal and larger screens', () => {
-    expect(getQuickSearchWindowHeight(true, 720)).toBe(464);
-    expect(getQuickSearchWindowHeight(true, 1080)).toBe(464);
+  it('fits six rows and the footer on normal and larger screens', () => {
+    expect(getQuickSearchWindowHeight(true, 720)).toBe(442);
+    expect(getQuickSearchWindowHeight(true, 1080)).toBe(442);
   });
 
   it('reserves the screen edge and collapses again after clearing', () => {

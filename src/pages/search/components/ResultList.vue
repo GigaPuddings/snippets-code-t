@@ -115,7 +115,6 @@ const emit = defineEmits<{
 }>();
 
 const listViewportRef = ref<HTMLElement | null>(null);
-let viewportResizeObserver: ResizeObserver | null = null;
 const hasNavigatedResults = ref(false);
 const {
   tabs,
@@ -163,6 +162,16 @@ const { page, pageItems, ensureItemVisible } = pagination;
 
 watch(activeTab, (tab) => emit('tabChange', tab), { immediate: true });
 watch(page, (value) => emit('pageChange', value), { immediate: true });
+watch(
+  [pageItems, activeItemId],
+  async () => {
+    await nextTick();
+    listViewportRef.value
+      ?.querySelector('.item.active')
+      ?.scrollIntoView({ block: 'nearest' });
+  },
+  { flush: 'post' }
+);
 watch(filteredResults, () => syncSelectionWithResults(store.id), {
   immediate: true
 });
@@ -179,26 +188,14 @@ watch(
   { immediate: true }
 );
 
-watch(
-  listViewportRef,
-  (element) => {
-    viewportResizeObserver?.disconnect();
-    if (!element) return;
-    viewportResizeObserver = new ResizeObserver(() =>
-      pagination.fitViewport(element.clientHeight)
-    );
-    viewportResizeObserver.observe(element);
-    pagination.fitViewport(element.clientHeight);
-  },
-  { flush: 'post' }
-);
-onUnmounted(() => viewportResizeObserver?.disconnect());
-
 function changePage(direction: 1 | -1): void {
   if (pagination.changePage(direction)) hasNavigatedResults.value = true;
 }
 
 function handleWheel(event: WheelEvent): void {
+  const viewport = listViewportRef.value;
+  // Short windows scroll within the six-item page; the footer still turns pages.
+  if (viewport && viewport.scrollHeight > viewport.clientHeight) return;
   const previousPage = page.value.index;
   pagination.handleWheel(event);
   if (page.value.index !== previousPage) hasNavigatedResults.value = true;
@@ -292,11 +289,11 @@ defineExpose({
 }
 
 .result {
-  @apply flex min-h-0 flex-1 flex-col overflow-hidden;
+  @apply flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain;
 }
 
 .item {
-  @apply relative mx-0.5 my-0.5 grid h-12 min-w-0 shrink-0 cursor-pointer grid-cols-[32px_minmax(0,1fr)_64px] items-center gap-3 rounded-ui border border-transparent px-2.5 text-search transition-colors;
+  @apply relative mx-0.5 my-px grid h-12 min-w-0 shrink-0 cursor-pointer grid-cols-[32px_minmax(0,1fr)_64px] items-center gap-3 rounded-ui border border-transparent px-2.5 text-search transition-colors;
 
   width: calc(100% - 4px);
 

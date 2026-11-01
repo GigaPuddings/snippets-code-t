@@ -1984,9 +1984,10 @@ export default {
   },
 
   configSearch: {
+    placeholder: '搜索片段、笔记、标签和文件夹...',
     emptyTitle: '搜索当前工作区',
     emptyText:
-      '输入关键词检索片段、笔记、文件、标签和命令，结果会在当前配置窗口内打开。',
+      '输入关键词检索片段、笔记、标签和文件夹，结果会在当前工作区内打开。',
     folderResultContent: '定位到文件夹',
     navigate: '选择',
     open: '打开'
@@ -2242,6 +2243,7 @@ export default {
 
   // 编辑器右键菜单
   contextMenu: {
+    copyImage: '复制图片',
     addLink: '新增链接',
     addExternalLink: '新增外部链接',
     textFormat: '文本格式',

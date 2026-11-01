@@ -24,6 +24,7 @@
         :line-height="lineHeight"
         @wikilink-click="emit('wikilink-click', $event)"
         @scroll.passive="emitScroll"
+        @contextmenu="openReadingImageMenu"
       />
       <TableToolbar
         :info="viewMode === 'preview' && !disabled ? tableToolbarInfo : null"
@@ -87,7 +88,15 @@
       :is-active="isActive"
       :dark="dark"
       :view-mode="viewMode"
-      :image="imageMenu ? { scale: imageScale, allImages } : undefined"
+      :image="
+        imageMenu
+          ? {
+              scale: imageScale,
+              allImages,
+              readOnly: disabled || viewMode === 'reading'
+            }
+          : undefined
+      "
       @request-insert-table="openTableInsert"
       @image-scale="applyImageScale"
       @image-scope-change="allImages = $event"
@@ -182,6 +191,7 @@ import {
   stickyHeadingRanges
 } from './stickyHeadings';
 import { resolveImageFilePath } from './imagePath';
+import { copyImageToClipboard } from '@/utils/imageClipboard';
 import { renderNoteMarkdown } from '@/utils/markdown';
 import { markdownClipboardText } from './clipboard';
 import { getWorkspaceRoot } from '@/api/markdown';
@@ -344,6 +354,7 @@ const tableToolbarInfo = computed(() => {
 });
 const imageDialog = ref(false);
 const imageMenu = ref(false);
+let imageCopySource = '';
 const imageScale = ref(100);
 const allImages = ref(false);
 const codeLanguageDialog = ref(false);
@@ -393,7 +404,9 @@ let dialogTarget:
   | null = null;
 
 function openImage(target: PreviewTarget, event: MouseEvent) {
-  if (!view || view.state.readOnly) return;
+  if (!view) return;
+  const image = (event.currentTarget as Element).querySelector('img');
+  imageCopySource = image?.currentSrc || image?.src || '';
   dialogTarget = { ...target, documentId, revision };
   imageScale.value =
     Number(/data-image-scale=["'](\d+)/.exec(target.source)?.[1]) ||
@@ -402,7 +415,18 @@ function openImage(target: PreviewTarget, event: MouseEvent) {
   imageMenu.value = true;
   contextMenu.value?.show(event);
 }
+function openReadingImageMenu(event: MouseEvent) {
+  const image = (event.target as Element).closest('img');
+  if (!image) return;
+  imageCopySource = image.currentSrc || image.src;
+  imageMenu.value = true;
+  dialogTarget = null;
+  contextMenu.value?.show(event);
+}
 function previewExtension(): Extension {
+  // Native selection follows rendered text and leaves paragraph spacing clear.
+  // Keep CodeMirror's full-line selection rectangles for Markdown source only.
+  if (viewMode.value === 'source') return drawSelection();
   return viewMode.value === 'preview'
     ? livePreview({
         workspaceRoot: workspaceRoot.value,
@@ -495,7 +519,6 @@ function updateDerivedState(update?: ViewUpdate) {
 function extensions(): Extension[] {
   return [
     history(),
-    drawSelection(),
     dropCursor(),
     bracketMatching(),
     EditorView.lineWrapping,
@@ -1233,8 +1256,10 @@ function replaceTarget(target: PreviewTarget, content: string) {
   view.dispatch({
     changes: { from: target.from, to: target.to, insert: content },
     selection: { anchor: Math.min(target.from, view.state.doc.length) },
+    annotations: isolateHistory.of('full'),
     userEvent: 'input'
   });
+  view.focus();
 }
 function tableCommand(command: string) {
   const target = activeTable.value;
@@ -1330,7 +1355,13 @@ function validateImageScale(value: string) {
     ? { valid: true }
     : { valid: false, message: t('settings.attachment.imageScaleRange') };
 }
-function handleImageAction(action: 'custom' | 'location' | 'delete') {
+function handleImageAction(action: 'copy' | 'custom' | 'location' | 'delete') {
+  if (action === 'copy') {
+    void copyImageToClipboard(imageCopySource)
+      .then(() => modal.success(t('content.copySuccess')))
+      .catch(() => modal.error(t('content.copyFailed')));
+    return;
+  }
   if (!targetIsCurrent()) return;
   if (action === 'custom') imageDialog.value = true;
   else if (action === 'location') void openImageLocation();
@@ -1582,6 +1613,12 @@ defineExpose({
     background: var(--el-color-primary-light-7) !important;
   }
 
+  .md-editing:not(.md-source) .cm-content::selection,
+  .md-editing:not(.md-source) .cm-content ::selection {
+    color: inherit;
+    background: var(--el-color-primary-light-7);
+  }
+
   .cm-searchMatch {
     background: var(--el-color-warning-light-7);
   }
@@ -1808,7 +1845,10 @@ defineExpose({
 
   .md-preview-table {
     display: block;
-    margin: 0.85em 0 1.15em;
+    // Block widgets are measured without margins; include the gap in their box
+    // so every following line keeps the same DOM and CodeMirror coordinates.
+    padding-block: 0.85em 1.15em;
+    margin: 0;
     overflow-x: auto;
     white-space: normal;
 

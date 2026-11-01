@@ -1,56 +1,64 @@
 <template>
   <div class="settings-container">
     <!-- 左侧导航 -->
-    <aside
-      v-show="!layoutStore.categoryPanelCollapsed"
-      class="settings-sidebar"
+    <div
+      class="h-full shrink-0 overflow-hidden transition-[width] duration-200 ease-in-out motion-reduce:transition-none"
+      :style="{
+        width: layoutStore.categoryPanelCollapsed
+          ? '0px'
+          : 'var(--settings-sidebar-width)'
+      }"
+      :inert="layoutStore.categoryPanelCollapsed"
+      :aria-hidden="layoutStore.categoryPanelCollapsed || undefined"
     >
-      <h1
-        class="mb-4 truncate px-2 text-ui-title font-semibold text-[var(--workspace-nav-heading)]"
-      >
-        {{ t('titlebar.settings') }}
-      </h1>
-      <nav
-        class="min-h-0 flex-1 overflow-y-auto"
-        :aria-label="t('titlebar.settings')"
-      >
-        <section v-for="group in menuGroups" :key="group.id" class="mb-7">
-          <h2 class="mb-2 px-2 text-ui text-[var(--workspace-nav-muted)]">
-            {{ group.label }}
-          </h2>
-          <button
-            v-for="item in group.items"
-            :key="item.id"
-            type="button"
-            :class="[
-              'ui-menu-item mb-ui-row-gap w-full px-2 text-left',
-              {
-                active: activeTab === item.id,
-                'font-medium': activeTab === item.id
-              }
-            ]"
-            :aria-current="activeTab === item.id ? 'page' : undefined"
-            @click="switchTab(item.id)"
-          >
-            <component
-              :is="item.icon"
-              class="shrink-0"
-              width="18"
-              height="18"
-            />
-            <span class="settings-menu-label" :title="item.label">
-              {{ item.label }}
-            </span>
-          </button>
-        </section>
-        <p
-          v-if="!menuGroups.length"
-          class="px-2 text-ui-caption text-[var(--workspace-nav-muted)]"
+      <aside class="settings-sidebar">
+        <h1
+          class="mb-4 truncate px-2 text-ui-title font-semibold text-[var(--workspace-nav-heading)]"
         >
-          {{ t('common.empty') }}
-        </p>
-      </nav>
-    </aside>
+          {{ t('titlebar.settings') }}
+        </h1>
+        <nav
+          class="min-h-0 flex-1 overflow-y-auto"
+          :aria-label="t('titlebar.settings')"
+        >
+          <section v-for="group in menuGroups" :key="group.id" class="mb-7">
+            <h2 class="mb-2 px-2 text-ui text-[var(--workspace-nav-muted)]">
+              {{ group.label }}
+            </h2>
+            <button
+              v-for="item in group.items"
+              :key="item.id"
+              type="button"
+              :class="[
+                'ui-menu-item mb-ui-row-gap w-full px-2 text-left',
+                {
+                  active: activeTab === item.id,
+                  'font-medium': activeTab === item.id
+                }
+              ]"
+              :aria-current="activeTab === item.id ? 'page' : undefined"
+              @click="switchTab(item.id)"
+            >
+              <component
+                :is="item.icon"
+                class="shrink-0"
+                width="18"
+                height="18"
+              />
+              <span class="settings-menu-label" :title="item.label">
+                {{ item.label }}
+              </span>
+            </button>
+          </section>
+          <p
+            v-if="!menuGroups.length"
+            class="px-2 text-ui-caption text-[var(--workspace-nav-muted)]"
+          >
+            {{ t('common.empty') }}
+          </p>
+        </nav>
+      </aside>
+    </div>
 
     <!-- 右侧内容区 -->
     <div ref="settingsContentRef" class="settings-content">
@@ -262,12 +270,13 @@ onMounted(async () => {
 <style scoped lang="scss">
 .settings-container {
   @apply flex h-full w-full overflow-hidden font-ui text-ui;
+
+  --settings-sidebar-width: var(--workspace-sidebar-width);
 }
 
 .settings-sidebar {
-  @apply flex w-[var(--workspace-sidebar-width)] min-h-0 flex-col border-r py-4 bg-[var(--workspace-nav-bg)] px-2;
+  @apply flex h-full w-[var(--settings-sidebar-width)] min-h-0 flex-col border-r py-4 bg-[var(--workspace-nav-bg)] px-2;
 
-  flex: 0 0 var(--workspace-sidebar-width);
   border-color: var(--settings-divider);
 }
 
@@ -303,10 +312,8 @@ onMounted(async () => {
 }
 
 @media (width <= 960px) {
-  .settings-sidebar {
-    @apply w-[220px];
-
-    flex-basis: 220px;
+  .settings-container {
+    --settings-sidebar-width: 220px;
   }
 
   .settings-content {

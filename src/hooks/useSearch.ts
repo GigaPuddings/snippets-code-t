@@ -20,6 +20,7 @@ import {
   removeDisabledPluginResults,
   runUniversalSearch,
   UNIVERSAL_SEARCH_SOURCES,
+  type UniversalSearchScope,
   type UniversalSearchDegradedSource
 } from '@/search/universalSearch';
 import {
@@ -44,6 +45,8 @@ export interface UseSearchOptions {
   initialDeepSearch?: boolean;
   /** 空输入时是否检索近期与常用入口 */
   showRecentActionsOnEmpty?: boolean;
+  /** 工作区范围只检索笔记和片段，不运行插件来源或网页操作。 */
+  scope?: UniversalSearchScope;
 }
 
 /**
@@ -91,7 +94,8 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
     debounceMs = 150,
     initialQuery = '',
     initialDeepSearch = false,
-    showRecentActionsOnEmpty = true
+    showRecentActionsOnEmpty = true,
+    scope = 'all'
   } = options;
 
   const searchText = ref(initialQuery);
@@ -126,7 +130,7 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
     isSearchActive && requestVersion === searchRequestVersion;
 
   const openEngineShortcut = async (text: string): Promise<boolean> => {
-    if (!pluginStore.isEnabled('search-engines')) {
+    if (scope === 'workspace' || !pluginStore.isEnabled('search-engines')) {
       return false;
     }
 
@@ -171,7 +175,7 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
   const syncSearchEngineRuntime = async (): Promise<void> => {
     cleanupSearchEngineUpdates();
 
-    if (!pluginStore.isEnabled('search-engines')) {
+    if (scope === 'workspace' || !pluginStore.isEnabled('search-engines')) {
       if (isSearchActive) {
         searchEngines.value = [];
       }
@@ -202,15 +206,19 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
       const response = await runUniversalSearch(
         {
           text,
-          deepSearch: deepSearchEnabled.value
+          deepSearch: deepSearchEnabled.value,
+          scope
         },
         {
           invoke,
-          navigationItems: buildProductSearchCatalog(
-            (key) => String(i18n.global.t(key)),
-            pluginStore.plugins,
-            (id) => pluginStore.isEnabled(id)
-          ),
+          navigationItems:
+            scope === 'workspace'
+              ? undefined
+              : buildProductSearchCatalog(
+                  (key) => String(i18n.global.t(key)),
+                  pluginStore.plugins,
+                  (id) => pluginStore.isEnabled(id)
+                ),
           onPartialResponse: (response) => {
             // During an index refresh keep existing results until the complete
             // response arrives, so a temporary menu-only response cannot reset a page.
@@ -314,6 +322,7 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
    * 处理回车键搜索
    */
   const handleEnterSearch = async (): Promise<void> => {
+    if (scope === 'workspace') return;
     try {
       const text = searchText.value.trim();
       if (!text) return;
@@ -372,19 +381,23 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
   // 合并初始化和事件监听
   onMounted(async () => {
     try {
-      await pluginStore.initialize();
-      await syncSearchEngineRuntime();
+      if (scope !== 'workspace') {
+        await pluginStore.initialize();
+        await syncSearchEngineRuntime();
+      }
       refreshCurrentSearch();
-      unlistenPluginContentUpdates = await listen<{ pluginId: string }>(
-        'plugin-search-content-changed',
-        ({ payload }) => {
-          if (pluginStore.isEnabled(payload.pluginId)) refreshCurrentSearch();
-        }
-      );
-      unlistenLocalLauncherUpdates = await listen(
-        'local-launcher-index-updated',
-        refreshCurrentSearch
-      );
+      if (scope !== 'workspace') {
+        unlistenPluginContentUpdates = await listen<{ pluginId: string }>(
+          'plugin-search-content-changed',
+          ({ payload }) => {
+            if (pluginStore.isEnabled(payload.pluginId)) refreshCurrentSearch();
+          }
+        );
+        unlistenLocalLauncherUpdates = await listen(
+          'local-launcher-index-updated',
+          refreshCurrentSearch
+        );
+      }
       unlistenSearchHistoryCleared = await listen(
         'search-history-cleared',
         refreshCurrentSearch
@@ -399,11 +412,16 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchReturn {
   });
 
   watch(
-    () => [
-      pluginStore.runtimeRevision,
-      i18n.global.locale.value,
-      ...searchPluginIds.map((pluginId) => pluginStore.isEnabled(pluginId))
-    ],
+    () =>
+      scope === 'workspace'
+        ? [i18n.global.locale.value]
+        : [
+            pluginStore.runtimeRevision,
+            i18n.global.locale.value,
+            ...searchPluginIds.map((pluginId) =>
+              pluginStore.isEnabled(pluginId)
+            )
+          ],
     async () => {
       try {
         debouncedSearch.cancel();

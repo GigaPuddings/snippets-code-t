@@ -109,20 +109,20 @@ describe('six-row quick search pagination', () => {
     expect(state.page.value).toMatchObject({ count: 0, start: 0, end: 0 });
   });
 
-  it('adapts to small viewports without losing the selected result', async () => {
-    const state = harness(20);
-    state.selectedId.value = 8;
-    await nextTick();
-    state.fitViewport(200);
-    await nextTick();
-    expect(state.page.value.size).toBe(3);
-    expect(state.pageItems.value.map((item) => item.id)).toEqual([6, 7, 8]);
-    state.fitViewport(334);
-    await nextTick();
-    expect(state.page.value.size).toBe(6);
-    expect(state.pageItems.value.some((item) => item.id === 8)).toBe(true);
-    state.fitViewport(0);
-    expect(state.page.value.size).toBe(6);
+  it('shows fifteen results in two full six-item pages and a short final page', () => {
+    const state = harness(15);
+    expect(state.page.value).toMatchObject({
+      start: 1,
+      end: 6,
+      count: 3,
+      size: 6
+    });
+    state.changePage(1);
+    expect(state.page.value).toMatchObject({ start: 7, end: 12, size: 6 });
+    expect(state.pageItems.value).toHaveLength(6);
+    state.changePage(1);
+    expect(state.page.value).toMatchObject({ start: 13, end: 15, size: 6 });
+    expect(state.pageItems.value).toHaveLength(3);
   });
 
   it('turns one page for a wheel burst and lets a reverse gesture return immediately', () => {

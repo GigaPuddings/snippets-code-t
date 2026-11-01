@@ -2,7 +2,6 @@ import { computed, ref, watch, toValue, type MaybeRefOrGetter } from 'vue';
 import type { ContentType } from '@/types';
 
 export const QUICK_SEARCH_PAGE_SIZE = 6;
-const RESULT_ROW_HEIGHT = 52;
 
 export interface SearchResultPage {
   index: number;
@@ -24,29 +23,33 @@ export function useSearchResultPagination(
   onSelect: (item: ContentType | null) => void
 ) {
   const pageIndex = ref(0);
-  const pageSize = ref(QUICK_SEARCH_PAGE_SIZE);
   const items = computed(() => toValue(results));
   const pageCount = computed(() =>
-    Math.ceil(items.value.length / pageSize.value)
+    Math.ceil(items.value.length / QUICK_SEARCH_PAGE_SIZE)
   );
   const pageItems = computed(() =>
     items.value.slice(
-      pageIndex.value * pageSize.value,
-      (pageIndex.value + 1) * pageSize.value
+      pageIndex.value * QUICK_SEARCH_PAGE_SIZE,
+      (pageIndex.value + 1) * QUICK_SEARCH_PAGE_SIZE
     )
   );
   const page = computed<SearchResultPage>(() => ({
     index: pageIndex.value,
     count: pageCount.value,
-    size: pageSize.value,
-    start: items.value.length ? pageIndex.value * pageSize.value + 1 : 0,
-    end: Math.min((pageIndex.value + 1) * pageSize.value, items.value.length),
+    size: QUICK_SEARCH_PAGE_SIZE,
+    start: items.value.length
+      ? pageIndex.value * QUICK_SEARCH_PAGE_SIZE + 1
+      : 0,
+    end: Math.min(
+      (pageIndex.value + 1) * QUICK_SEARCH_PAGE_SIZE,
+      items.value.length
+    ),
     total: items.value.length
   }));
 
   function ensureItemVisible(index: number): void {
     if (index >= 0 && index < items.value.length)
-      pageIndex.value = Math.floor(index / pageSize.value);
+      pageIndex.value = Math.floor(index / QUICK_SEARCH_PAGE_SIZE);
   }
 
   function resetPage(): void {
@@ -62,16 +65,8 @@ export function useSearchResultPagination(
     return true;
   }
 
-  function fitViewport(height: number): void {
-    if (height <= 0 || !Number.isFinite(height)) return;
-    pageSize.value = Math.max(
-      1,
-      Math.min(QUICK_SEARCH_PAGE_SIZE, Math.floor(height / RESULT_ROW_HEIGHT))
-    );
-  }
-
   watch(
-    [items, () => toValue(selectedId), pageSize],
+    [items, () => toValue(selectedId)],
     () => {
       const index = items.value.findIndex(
         (item) => item.id === toValue(selectedId)
@@ -127,7 +122,6 @@ export function useSearchResultPagination(
     ensureItemVisible,
     resetPage,
     changePage,
-    fitViewport,
     handleWheel
   };
 }

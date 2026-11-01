@@ -268,7 +268,7 @@ function updatePanelPosition(): void {
   if (!anchor) return;
 
   const rect = anchor.getBoundingClientRect();
-  const width = Math.min(320, window.innerWidth - 24);
+  const width = Math.min(260, window.innerWidth - 24);
   panelStyle.value = {
     left: `${Math.max(12, Math.min(rect.right - width, window.innerWidth - width - 12))}px`,
     top: `${rect.bottom + 8}px`,

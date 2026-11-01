@@ -3,7 +3,7 @@
     <div
       v-if="info"
       ref="host"
-      class="md-table-toolbar fixed z-40 flex items-start justify-between"
+      class="md-table-toolbar fixed z-[70] flex items-start justify-between"
       :class="{ 'dark-theme': dark }"
       :style="position"
       @mousedown="preserveFocus"
@@ -227,11 +227,12 @@ function outside(event: MouseEvent) {
     grid.value = more.value = false;
 }
 watch(
-  () => props.info,
+  [() => props.info, () => props.view],
   () => {
     grid.value = more.value = false;
     nextTick(updatePosition);
-  }
+  },
+  { immediate: true, flush: 'post' }
 );
 onMounted(() => {
   window.addEventListener('resize', updatePosition);

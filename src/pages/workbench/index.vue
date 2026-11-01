@@ -4,10 +4,10 @@
     :aria-busy="loading"
   >
     <div
-      class="flex min-w-0 flex-1 flex-col overflow-y-auto bg-[var(--settings-surface)]"
+      class="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden bg-[var(--settings-surface)]"
     >
       <div
-        class="mx-auto flex w-full max-w-6xl shrink-0 flex-col gap-4 px-8 py-4 max-[640px]:px-5"
+        class="mx-auto flex w-full max-w-6xl shrink-0 flex-col gap-4 px-8 pt-4 pb-3 max-[640px]:px-5"
       >
         <p
           v-if="loadError"

@@ -4,6 +4,7 @@
     top="0"
     width="auto"
     class="ai-assist-dialog"
+    append-to-body
     :close-on-click-modal="!isGenerating"
     :close-on-press-escape="!isGenerating"
     @update:model-value="handleDialogVisibility"
@@ -713,7 +714,8 @@ const applyResult = async () => {
 
 .action-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  flex-shrink: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
 }
 
@@ -729,7 +731,7 @@ const applyResult = async () => {
   min-height: 64px;
   padding: 8px 9px;
   line-height: normal !important;
-  color: inherit;
+  color: var(--dialog-text) !important;
   text-align: left;
   cursor: pointer;
   background: linear-gradient(
@@ -768,7 +770,7 @@ const applyResult = async () => {
   font-size: 12px;
   font-weight: 700;
   color: var(--card-accent);
-  background: color-mix(in srgb, var(--card-accent) 12%, white);
+  background: color-mix(in srgb, var(--card-accent) 12%, var(--el-bg-color));
   border-radius: 6px;
 }
 
@@ -786,6 +788,7 @@ const applyResult = async () => {
 
 .action-card strong {
   font-size: 13px;
+  white-space: normal;
 }
 
 .action-card small {
@@ -810,7 +813,7 @@ const applyResult = async () => {
   display: flex;
   flex: 1;
   flex-direction: column;
-  min-height: 0;
+  min-height: 160px;
   margin-top: 10px;
 }
 
@@ -991,23 +994,23 @@ const applyResult = async () => {
 }
 
 :global(.ai-assist-dialog) {
-  --dialog-top: 2vh;
-  --dialog-bottom: 2vh;
+  // Leave the 40px app titlebar and a small gap clear at every window height.
+  --dialog-top: max(48px, 3vh);
+  --dialog-bottom: 16px;
   --dialog-width: 720px;
-}
-
-:global(.ai-assist-dialog .el-overlay-dialog) {
-  display: flex;
-  flex-direction: column;
 }
 
 :global(.ai-assist-dialog.el-dialog) {
   display: flex !important;
   flex-direction: column !important;
   width: min(var(--dialog-width), calc(100vw - 32px)) !important;
-  height: calc(100vh - var(--dialog-top) - var(--dialog-bottom)) !important;
+  height: calc(100dvh - var(--dialog-top) - var(--dialog-bottom)) !important;
   margin-top: var(--dialog-top) !important;
   margin-bottom: var(--dialog-bottom) !important;
+}
+
+:global(.ai-assist-dialog .el-dialog__header) {
+  flex-shrink: 0;
 }
 
 :global(.ai-assist-dialog .el-dialog__body) {
@@ -1016,6 +1019,12 @@ const applyResult = async () => {
   flex-direction: column;
   min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.dialog-description,
+.rag-input-area {
+  flex-shrink: 0;
 }
 
 :global(.ai-assist-dialog .el-dialog__footer) {
@@ -1027,6 +1036,12 @@ const applyResult = async () => {
 @media (width <= 640px) {
   .action-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (width <= 380px) {
+  .action-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 </style>

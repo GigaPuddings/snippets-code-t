@@ -16,6 +16,70 @@ function renderClipboardHtml(html: string): string {
 }
 
 describe('rich clipboard conversion', () => {
+  const tableSource = [
+    '| 修饰对象 | 作用 | 是否允许修改/扩展 |',
+    '| ---- | ---------- | ----------- |',
+    '| 成员变量 | 只能赋值一次 | 不能重新赋值 |',
+    '| 引用变量 | 不能重新指向其他对象 | 对象内部状态仍可能修改 |'
+  ].join('\n');
+
+  it('keeps valid Markdown tables when the clipboard also supplies an HTML flavor', () => {
+    const source = `### final 使用规则总结\n\n${tableSource}`;
+    const actual = markdownClipboardText({
+      getData: (type) =>
+        type === 'text/plain'
+          ? source
+          : type === 'text/html'
+            ? '<p>' + source.replace(/\n/g, '<br>') + '</p>'
+            : ''
+    });
+    expect(actual).toBe(source);
+    expect(markdownToHtml(actual)).toContain('<table>');
+  });
+
+  it.each(['th', 'td'])(
+    'creates a delimiter for HTML tables with %s cells but no thead',
+    (cell) => {
+      const markdown = markdownClipboardText({
+        getData: (type) =>
+          type === 'text/html'
+            ? `<table><tbody><tr><${cell}>修饰对象</${cell}><${cell}>作用</${cell}></tr><tr><td>成员变量</td><td>只能赋值一次</td></tr></tbody></table>`
+            : ''
+      });
+      expect(markdown).toBe(
+        '| 修饰对象 | 作用 |\n| --- | --- |\n| 成员变量 | 只能赋值一次 |'
+      );
+      expect(markdownToHtml(markdown)).toContain('<table>');
+    }
+  );
+
+  it('preserves every row across multiple tbody sections and the footer', () => {
+    const html = renderClipboardHtml(
+      '<table><thead><tr><th>名称</th><th>值</th></tr></thead><tbody><tr><td>甲</td><td>1</td></tr></tbody><tbody><tr><td>乙</td><td>2</td></tr></tbody><tfoot><tr><td>合计</td><td>3</td></tr></tfoot></table>'
+    );
+    expect(html.match(/<tr>/g)).toHaveLength(4);
+    expect(html).toContain('合计');
+  });
+
+  it('keeps table-looking code verbatim and leaves incomplete plain-text tables unchanged', () => {
+    const code = `\`\`\`md\n${tableSource}\n\`\`\``;
+    expect(shouldPreferMarkdownClipboardText(code, '<pre>code</pre>')).toBe(
+      false
+    );
+    expect(
+      markdownClipboardText(
+        { getData: (type) => (type === 'text/plain' ? tableSource : '') },
+        true
+      )
+    ).toBe(tableSource);
+    const incomplete = '| A | B |\n| C | D |';
+    expect(
+      markdownClipboardText({
+        getData: (type) => (type === 'text/plain' ? incomplete : '')
+      })
+    ).toBe(incomplete);
+  });
+
   it('prefers escaped Markdown tag examples over a simultaneous rich HTML flavor', () => {
     const text = [
       '**2.表单元素的内容操作**',

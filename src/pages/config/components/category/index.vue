@@ -1,6 +1,7 @@
 <template>
   <main class="category-container">
     <Splitter
+      animate-collapse
       :model-value="layoutStore.effectiveCategoryPanelWidth"
       :default-size="CATEGORY_PANEL_DEFAULT_WIDTH"
       :min-size="CATEGORY_PANEL_MIN_WIDTH"
@@ -14,10 +15,7 @@
     >
       <template #first>
         <section class="category-page">
-          <div
-            v-if="!layoutStore.effectiveCategoryCollapsed && !isSettingsRoute"
-            class="category-page__content"
-          >
+          <div v-if="!isSettingsRoute" class="category-page__content">
             <div
               class="flex h-12 shrink-0 items-center justify-between gap-1 pl-4 pr-3"
             >

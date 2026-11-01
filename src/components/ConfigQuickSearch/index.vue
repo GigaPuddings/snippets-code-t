@@ -17,7 +17,7 @@
               ref="inputRef"
               v-model="searchText"
               class="config-search-input"
-              :placeholder="$t('titlebar.quickSearchPlaceholder')"
+              :placeholder="$t('configSearch.placeholder')"
             />
             <button
               v-if="searchText"
@@ -91,7 +91,6 @@
 <script setup lang="ts">
 import CloseSmall from '~icons/lucide/x';
 import Search from '~icons/lucide/search';
-import { invoke } from '@tauri-apps/api/core';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { getCategories } from '@/api/fragment';
@@ -130,7 +129,9 @@ const categories = ref<CategoryType[]>([]);
 
 const { searchText, searchResults, clearSearch, addSearchHistory } = useSearch({
   debounceMs: 180,
-  initialDeepSearch: true
+  initialDeepSearch: true,
+  showRecentActionsOnEmpty: false,
+  scope: 'workspace'
 });
 
 const { getDisplayTitle, getDisplayContentHighlighted, getTypeLabel } =
@@ -262,10 +263,6 @@ function isFolderResult(item: ConfigSearchResult): boolean {
 
 function getResultGlyph(item: ConfigSearchResult): string {
   if (isFolderResult(item)) return 'DIR';
-  if (item.summarize === 'app') return 'A';
-  if (item.summarize === 'bookmark' || item.summarize === 'search') return '↗';
-  if (item.summarize === 'file') return 'F';
-  if (item.summarize === 'tool') return '#';
   if (item.type === 'note' || item.summarize === 'note') return 'N';
   return '</>';
 }
@@ -304,42 +301,14 @@ async function openResult(item: ConfigSearchResult): Promise<void> {
       return;
     }
 
-    await addSearchHistory(getPrimarySearchHistoryKey(item));
-
     if (
       item.summarize === 'code' ||
       item.summarize === 'note' ||
       item.type === 'code' ||
       item.type === 'note'
     ) {
+      await addSearchHistory(getPrimarySearchHistoryKey(item));
       await openConfigContent(item);
-      close();
-      return;
-    }
-
-    if (item.summarize === 'app') {
-      await invoke('open_app_command', { appPath: item.content });
-      close();
-      return;
-    }
-
-    if (item.summarize === 'bookmark' || item.summarize === 'search') {
-      await invoke('open_url', { url: item.content });
-      close();
-      return;
-    }
-
-    if (item.summarize === 'file') {
-      await invoke('open_file_with_default_app', {
-        filePath: item.metadata?.file_path || item.content
-      });
-      close();
-      return;
-    }
-
-    if (item.summarize === 'tool') {
-      await navigator.clipboard.writeText(item.content);
-      modal.success(t('searchResult.copySuccess'));
       close();
     }
   } catch (error) {

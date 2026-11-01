@@ -2091,9 +2091,10 @@ export default {
   },
 
   configSearch: {
+    placeholder: 'Search snippets, notes, tags, and folders...',
     emptyTitle: 'Search Current Workspace',
     emptyText:
-      'Type to search snippets, notes, files, tags, and commands. Results open inside this config window.',
+      'Type to search snippets, notes, tags, and folders. Results open in the current workspace.',
     folderResultContent: 'Go to folder',
     navigate: 'Navigate',
     open: 'Open'
@@ -2355,6 +2356,7 @@ export default {
 
   // Editor Context Menu
   contextMenu: {
+    copyImage: 'Copy Image',
     addLink: 'Add Link',
     addExternalLink: 'Add External Link',
     textFormat: 'Text Format',

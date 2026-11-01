@@ -5,7 +5,9 @@ import type { ContentType } from '@/types';
 const mocks = vi.hoisted(() => ({
   mounted: [] as Array<() => Promise<void>>,
   unmounted: [] as Array<() => void>,
-  runUniversalSearch: vi.fn()
+  runUniversalSearch: vi.fn(),
+  isEnabled: vi.fn(() => false),
+  initialize: vi.fn(async () => undefined)
 }));
 
 vi.mock('vue', async (importOriginal) => ({
@@ -21,8 +23,8 @@ vi.mock('@/store', () => ({
   usePluginStore: () => ({
     plugins: [],
     runtimeRevision: 0,
-    isEnabled: () => false,
-    initialize: async () => undefined
+    isEnabled: mocks.isEnabled,
+    initialize: mocks.initialize
   })
 }));
 vi.mock('@/i18n', () => ({
@@ -53,6 +55,8 @@ vi.mock('@/utils/error-handler', () => ({
 }));
 
 import { useSearch } from './useSearch';
+import { invoke } from '@tauri-apps/api/core';
+import { loadSearchEngines } from '@/plugins/search-engines/searchRuntime';
 
 const result: ContentType = {
   id: 'general-settings',
@@ -63,6 +67,8 @@ const result: ContentType = {
 let scope: EffectScope;
 
 beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.isEnabled.mockReturnValue(false);
   mocks.mounted.length = 0;
   mocks.unmounted.length = 0;
   mocks.runUniversalSearch.mockReset().mockResolvedValue({ items: [result] });
@@ -81,6 +87,28 @@ async function mountSearch(showRecentActionsOnEmpty: boolean) {
 }
 
 describe('quick search with a collapsed empty query', () => {
+  it('keeps workspace-only callers out of product catalogs, plugin setup, and browser actions', async () => {
+    mocks.isEnabled.mockReturnValue(true);
+    const search = scope.run(() =>
+      useSearch({ scope: 'workspace', showRecentActionsOnEmpty: false })
+    )!;
+    await Promise.all(mocks.mounted.map((mount) => mount()));
+    expect(mocks.initialize).not.toHaveBeenCalled();
+    expect(loadSearchEngines).not.toHaveBeenCalled();
+    mocks.runUniversalSearch.mockResolvedValue({ items: [] });
+    search.searchText.value = 'github.com';
+    await nextTick();
+    await nextTick();
+    expect(mocks.runUniversalSearch.mock.lastCall?.[0]).toEqual(
+      expect.objectContaining({ text: 'github.com', scope: 'workspace' })
+    );
+    expect(
+      mocks.runUniversalSearch.mock.lastCall?.[1].navigationItems
+    ).toBeUndefined();
+    await search.handleEnterSearch();
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
   it('does not load results on mount or for whitespace-only input', async () => {
     const search = await mountSearch(false);
     search.searchText.value = '   ';
