@@ -182,7 +182,7 @@ impl AutoSyncManager {
                         let current_pull_result = application::pull_workspace_with_preflight(
                             &app_handle,
                             &workspace_root,
-                            &require_current_worker,
+                            require_current_worker,
                         );
                         if !is_current_worker() {
                             break 'sync_loop;
@@ -600,7 +600,7 @@ impl AutoSyncManager {
                             let current_pull_result = application::pull_workspace_with_preflight(
                                 &app_handle,
                                 &workspace_root,
-                                &require_current_worker,
+                                require_current_worker,
                             );
                             pull_schedule.record(&current_pull_result);
                             if !is_current_worker() {

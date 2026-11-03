@@ -524,9 +524,9 @@ fn validate_resolution_index(
                 .iter()
                 .any(|(selected, _)| selected.replace('\\', "/") == **path)
                 && !remote_changes.contains(path)
-                && !automatic
+                && automatic
                     .get(*path)
-                    .is_some_and(|entry| current.get(*path) == Some(entry))
+                    .is_none_or(|entry| current.get(*path) != Some(entry))
         })
         .collect::<Vec<_>>();
     if !unrelated.is_empty() {
