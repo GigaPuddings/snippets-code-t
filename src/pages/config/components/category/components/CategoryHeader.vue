@@ -18,32 +18,47 @@
         <button
           type="button"
           class="ui-icon-button ui-icon-button--small"
-          :title="$t('category.newFolder')"
-          :aria-label="$t('category.newFolder')"
-          @click="handleAdd"
+          :title="toggleLabel"
+          :aria-label="toggleLabel"
+          :disabled="!hasFolders"
+          @click="$emit('toggle-folders')"
         >
-          <Add width="16" height="16" />
+          <component
+            :is="hasExpanded ? FoldVertical : UnfoldVertical"
+            width="16"
+            height="16"
+          />
         </button>
         <button
           type="button"
           class="ui-icon-button ui-icon-button--small"
           :title="
             sortOrder === 'asc'
-              ? $t('category.ascending')
-              : $t('category.descending')
+              ? $t('category.descending')
+              : $t('category.ascending')
           "
           :aria-label="
             sortOrder === 'asc'
-              ? $t('category.ascending')
-              : $t('category.descending')
+              ? $t('category.descending')
+              : $t('category.ascending')
           "
           @click="handleSort"
+          :disabled="!hasFolders || savingOrder"
         >
           <component
-            :is="sortOrder === 'asc' ? SortAmountUp : SortAmountDown"
+            :is="sortOrder === 'asc' ? SortAmountDown : SortAmountUp"
             width="16"
             height="16"
           />
+        </button>
+        <button
+          type="button"
+          class="ui-icon-button ui-icon-button--small"
+          :title="$t('category.newFolder')"
+          :aria-label="$t('category.newFolder')"
+          @click="handleAdd"
+        >
+          <Add width="16" height="16" />
         </button>
       </template>
     </div>
@@ -55,6 +70,9 @@ import SortAmountUp from '~icons/lucide/arrow-up-narrow-wide';
 import SortAmountDown from '~icons/lucide/arrow-down-wide-narrow';
 import Add from '~icons/lucide/plus';
 import ArrowLeft from '~icons/lucide/arrow-left';
+import FoldVertical from '~icons/lucide/fold-vertical';
+import UnfoldVertical from '~icons/lucide/unfold-vertical';
+import { useI18n } from 'vue-i18n';
 
 /**
  * CategoryHeader 组件 Props
@@ -63,6 +81,9 @@ interface CategoryHeaderProps {
   /** 排序方式：'asc' 升序 | 'desc' 降序 */
   sortOrder: 'asc' | 'desc';
   viewLabel?: string;
+  hasExpanded: boolean;
+  hasFolders: boolean;
+  savingOrder: boolean;
 }
 
 /**
@@ -74,13 +95,18 @@ interface CategoryHeaderEmits {
   /** 点击添加分类按钮时触发 */
   (e: 'add'): void;
   (e: 'back'): void;
+  (e: 'toggle-folders'): void;
 }
 
 defineOptions({
   name: 'CategoryHeader'
 });
 
-defineProps<CategoryHeaderProps>();
+const props = defineProps<CategoryHeaderProps>();
+const { t } = useI18n();
+const toggleLabel = computed(() =>
+  t(props.hasExpanded ? 'category.collapseFolders' : 'category.expandFolders')
+);
 const emit = defineEmits<CategoryHeaderEmits>();
 
 const handleSort = () => {

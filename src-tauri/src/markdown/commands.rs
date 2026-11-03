@@ -55,6 +55,10 @@ pub struct MarkdownFile {
 pub struct Category {
     pub id: i64,
     pub name: String,
+    #[serde(rename = "workspaceRoot")]
+    pub workspace_root: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub order: Option<i32>,
     #[serde(rename = "createdAt")]
     pub created_at: String,
     #[serde(rename = "isSystem")]
@@ -143,6 +147,8 @@ pub fn get_markdown_categories(
         categories.push(Category {
             id: metadata.id,
             name: "未分类".to_string(),
+            workspace_root: fs_manager.workspace_root().to_string_lossy().into_owned(),
+            order: metadata.order,
             created_at: chrono::DateTime::from_timestamp_millis(metadata.created)
                 .map(|dt| dt.to_rfc3339())
                 .unwrap_or_default(),
@@ -165,6 +171,8 @@ pub fn get_markdown_categories(
             categories.push(Category {
                 id: metadata.id,
                 name: folder_name.clone(),
+                workspace_root: fs_manager.workspace_root().to_string_lossy().into_owned(),
+                order: metadata.order,
                 created_at: chrono::DateTime::from_timestamp_millis(metadata.created)
                     .map(|dt| dt.to_rfc3339())
                     .unwrap_or_default(),
@@ -177,6 +185,18 @@ pub fn get_markdown_categories(
     cache.save()?;
 
     Ok(categories)
+}
+
+#[command]
+pub fn set_category_order(
+    expected_workspace_root: String,
+    names: Vec<String>,
+    cache_manager: State<'_, Arc<RwLock<CacheManager>>>,
+) -> Result<(), String> {
+    cache_manager
+        .write()
+        .map_err(|e| e.to_string())?
+        .save_category_order(Path::new(&expected_workspace_root), &names)
 }
 
 // 创建新的 Markdown 文件

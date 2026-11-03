@@ -101,6 +101,10 @@
             />
             <CategoryHeader
               :sort-order="categorySort"
+              :has-folders="categories.length > 0"
+              :has-expanded="hasExpandedFolders"
+              :saving-order="savingOrder"
+              @toggle-folders="toggleFolders"
               :view-label="
                 sidebarMode === 'folders' ? undefined : sidebarViewLabel
               "
@@ -110,14 +114,19 @@
             />
             <div
               class="category-page__browse"
+              ref="browseRef"
               :class="{
                 'category-page__browse--results': sidebarMode !== 'folders'
               }"
             >
               <div v-if="sidebarMode === 'folders'" class="category-page__list">
                 <CategoryListView
+                  :key="categories[0]?.workspaceRoot"
                   :categories="categories"
-                  :edit-category-id="store.editCategoryId"
+                  :expanded-ids="expandedIds"
+                  :saving-order="savingOrder"
+                  @set-expanded="setFolderExpanded"
+                  @swap-folders="swapFolders"
                   :active-category-id="selectedContentCategoryId"
                   @move-content="handleMoveContent"
                   @select-category="selectFolder"
@@ -365,10 +374,40 @@ defineOptions({
 });
 
 // 使用分类管理 Composable
-const { categories, categorySort, loadCategories, handleSort } =
-  useCategoryManagement();
+const {
+  categories,
+  categorySort,
+  loadCategories,
+  handleSort,
+  savingOrder,
+  swapFolders
+} = useCategoryManagement();
+
+const expandedIds = ref(new Set<string>());
+const hasExpandedFolders = computed(() =>
+  categories.value.some((folder) => expandedIds.value.has(String(folder.id)))
+);
+function setFolderExpanded(id: string, expanded: boolean): void {
+  if (expanded) expandedIds.value.add(id);
+  else expandedIds.value.delete(id);
+}
+function toggleFolders(): void {
+  expandedIds.value = hasExpandedFolders.value
+    ? new Set()
+    : new Set(categories.value.map((folder) => String(folder.id)));
+}
+watch(
+  () => categories.value[0]?.workspaceRoot,
+  () => expandedIds.value.clear()
+);
+watch(categories, (folders) => {
+  const visible = new Set(folders.map((folder) => String(folder.id)));
+  for (const id of expandedIds.value)
+    if (!visible.has(id)) expandedIds.value.delete(id);
+});
 
 const showAddCategoryDialog = ref(false);
+const browseRef = ref<HTMLElement | null>(null);
 const newCategoryName = ref('');
 
 const openAddCategoryDialog = () => {
@@ -402,6 +441,8 @@ const handleConfirmAddCategory = async (value: string) => {
     await addCategory(name);
     store.categories = await getCategories(store.categorySort);
     showAddCategoryDialog.value = false;
+    await nextTick();
+    browseRef.value?.scrollTo({ top: 0 });
     modal.success(t('category.createSuccess'));
   } catch (error) {
     console.error('[Category] 创建分类失败:', error);
@@ -457,7 +498,7 @@ const handleDirsChanged = (event: Event) => {
     deleted: string[];
     renamed: Array<{ from: string; to: string }>;
   }>;
-  const { created, deleted, renamed } = customEvent.detail;
+  const { created = [], deleted = [], renamed } = customEvent.detail;
   console.log(
     `[Category] dirs-changed-batch: +${created.length} -${deleted.length} r${renamed?.length ?? 0}，重新加载分类列表`
   );

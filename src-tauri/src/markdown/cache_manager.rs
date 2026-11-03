@@ -57,6 +57,33 @@ pub struct CacheManager {
     cache: CacheConfig,
 }
 
+#[test]
+fn folder_order_survives_reopening_and_new_folders_precede_saved_positions() {
+    let root = std::env::temp_dir().join(format!("folder-order-{}", uuid::Uuid::new_v4()));
+    let dir = root.join(".snippets-code");
+    let mut cache = CacheManager::new_silent(dir.clone()).unwrap();
+    cache.get_or_create_category_id("Alpha");
+    cache.get_or_create_category_id("Zulu");
+    cache
+        .save_category_order(&root, &["Zulu".into(), "Alpha".into()])
+        .unwrap();
+
+    let mut reopened = CacheManager::new_silent(dir.clone()).unwrap();
+    reopened.get_or_create_category_id("New");
+    assert!(reopened
+        .save_category_order(&root.join("other"), &["Alpha".into()])
+        .is_err());
+    for (name, rank) in [("New", -1), ("Zulu", 0), ("Alpha", 1)] {
+        assert_eq!(
+            reopened.get_category_metadata(name).unwrap().order,
+            Some(rank)
+        );
+    }
+    std::fs::remove_file(dir.join("cache.json")).unwrap();
+    std::fs::remove_dir(dir).unwrap();
+    std::fs::remove_dir(root).unwrap();
+}
+
 impl CacheManager {
     // 创建新的 Cache 管理器
     //
@@ -192,6 +219,27 @@ impl CacheManager {
     // 获取所有分类元数据
     pub fn get_all_categories(&self) -> &std::collections::HashMap<String, CategoryMetadata> {
         &self.cache.categories
+    }
+
+    pub fn save_category_order(&mut self, root: &Path, names: &[String]) -> Result<(), String> {
+        if self.config_dir.parent() != Some(root) {
+            return Err("工作区已切换，请刷新文件夹列表".into());
+        }
+        let mut categories = self.cache.categories.clone();
+        let mut seen = std::collections::HashSet::new();
+        for (index, name) in names.iter().enumerate() {
+            let metadata = categories
+                .get_mut(name)
+                .filter(|entry| !entry.is_system && seen.insert(name))
+                .ok_or("文件夹列表已更改，请刷新后重试")?;
+            metadata.order = Some(i32::try_from(index).map_err(|_| "文件夹数量过多")?);
+        }
+        let previous = std::mem::replace(&mut self.cache.categories, categories);
+        if let Err(error) = self.save() {
+            self.cache.categories = previous;
+            return Err(error);
+        }
+        Ok(())
     }
 
     // 按标签筛选文件
@@ -549,7 +597,8 @@ impl CacheManager {
         let metadata = CategoryMetadata {
             id: new_id,
             created: chrono::Utc::now().timestamp_millis(),
-            order: None,
+            // Newly discovered folders precede saved positions (0 and above).
+            order: (!is_system).then_some(-1),
             color: None,
             icon: None,
             is_system,

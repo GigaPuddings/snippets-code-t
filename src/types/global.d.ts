@@ -4,6 +4,8 @@ declare global {
     id: string | number;
     name: string;
     created_at?: string;
+    workspaceRoot?: string;
+    order?: number;
     isSystem: boolean; // 必填字段，与后端保持一致
   };
 

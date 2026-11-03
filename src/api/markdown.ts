@@ -293,6 +293,13 @@ export async function getCategories(): Promise<Category[]> {
   }
 }
 
+export function setCategoryOrder(
+  expectedWorkspaceRoot: string,
+  names: string[]
+): Promise<void> {
+  return invoke('set_category_order', { expectedWorkspaceRoot, names });
+}
+
 /**
  * 创建分类文件夹
  * @param name 分类名称

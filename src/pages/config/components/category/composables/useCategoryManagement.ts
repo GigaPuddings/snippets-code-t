@@ -2,6 +2,9 @@ import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useConfigurationStore } from '@/store';
 import { getCategories } from '@/api/fragment';
+import { setCategoryOrder } from '@/api/markdown';
+import { useI18n } from 'vue-i18n';
+import modal from '@/utils/modal';
 
 /**
  * 分类管理 Composable
@@ -29,6 +32,21 @@ export function useCategoryManagement() {
   const store = useConfigurationStore();
   const router = useRouter();
   const isLoading = ref(false);
+  const { t } = useI18n();
+  const savingOrder = ref(false);
+  const categories = computed(() =>
+    store.categories
+      .filter((item) => !item.isSystem)
+      .sort((a, b) => {
+        // Fresh folders share rank -1. Stable IDs put the newest of these first.
+        if (a.order === -1 && b.order === -1)
+          return Math.abs(Number(b.id)) - Math.abs(Number(a.id));
+        return (
+          (a.order ?? Number.MAX_SAFE_INTEGER) -
+          (b.order ?? Number.MAX_SAFE_INTEGER)
+        );
+      })
+  );
 
   /**
    * 获取分类列表
@@ -58,9 +76,48 @@ export function useCategoryManagement() {
   /**
    * 切换排序方式
    */
+  const saveOrder = async (ordered: CategoryType[]): Promise<boolean> => {
+    const root = ordered[0]?.workspaceRoot;
+    if (
+      savingOrder.value ||
+      !root ||
+      ordered.some((item) => item.workspaceRoot !== root)
+    )
+      return false;
+    savingOrder.value = true;
+    try {
+      await setCategoryOrder(
+        root,
+        ordered.map((item) => item.name)
+      );
+      await loadCategories(true);
+      return true;
+    } catch (error) {
+      console.error('Failed to save folder order', error);
+      modal.error(t('category.orderFailed'));
+      return false;
+    } finally {
+      savingOrder.value = false;
+    }
+  };
+
   const handleSort = async (): Promise<void> => {
-    store.categorySort = store.categorySort === 'asc' ? 'desc' : 'asc';
-    store.categories = await getCategories(store.categorySort);
+    const direction = store.categorySort === 'asc' ? 'desc' : 'asc';
+    const ordered = [...categories.value].sort((a, b) =>
+      direction === 'asc'
+        ? a.name.localeCompare(b.name)
+        : b.name.localeCompare(a.name)
+    );
+    if (await saveOrder(ordered)) store.categorySort = direction;
+  };
+
+  const swapFolders = (sourceId: string, targetId: string): void => {
+    const ordered = [...categories.value];
+    const from = ordered.findIndex((item) => String(item.id) === sourceId);
+    const to = ordered.findIndex((item) => String(item.id) === targetId);
+    if (from < 0 || to < 0 || from === to) return;
+    [ordered[from], ordered[to]] = [ordered[to], ordered[from]];
+    void saveOrder(ordered);
   };
 
   /**
@@ -81,11 +138,12 @@ export function useCategoryManagement() {
       id: tempId,
       name: 'New Category',
       created_at: new Date().toISOString(),
-      isSystem: false
+      isSystem: false,
+      order: -1
     };
 
     // 添加到分类列表
-    store.categories.push(tempCategory);
+    store.categories.unshift(tempCategory);
 
     // 设置为编辑状态
     store.editCategoryId = tempId.toString();
@@ -98,7 +156,9 @@ export function useCategoryManagement() {
   return {
     // 状态
     // 过滤掉系统分类（如"未分类"），只显示用户创建的分类
-    categories: computed(() => store.categories.filter((c) => !c.isSystem)),
+    categories,
+    savingOrder,
+    swapFolders,
     isLoading,
     categorySort: computed(() => store.categorySort),
 

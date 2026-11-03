@@ -18,9 +18,11 @@
           role="button"
           tabindex="0"
           :aria-expanded="expanded"
+          :data-folder-id="String(category.id)"
+          :draggable="Number(category.id) > 0"
           :class="{
             active: isActive,
-            'is-drop-target': isDropTarget,
+            'is-drop-target': isDropTarget || folderDropTarget,
             'is-invalid-drop-target': isInvalidDropTarget
           }"
           @click="handleClick"
@@ -128,6 +130,7 @@ const { t } = useI18n();
 const props = defineProps<{
   category: CategoryType;
   revealActiveContent?: boolean;
+  folderDropTarget?: boolean;
 }>();
 const store = useConfigurationStore();
 const inputRef = ref<any>(null);
@@ -139,7 +142,7 @@ const originalName = ref(''); // 原始名称
 const dragDepth = ref(0);
 const isDropTarget = ref(false);
 const isInvalidDropTarget = ref(false);
-const expanded = ref(false);
+const expanded = defineModel<boolean>('expanded', { required: true });
 const loadingContents = ref(false);
 const folderContents = ref<ContentType[]>([]);
 
@@ -166,6 +169,7 @@ const dispatchContentAction = (
 const refreshFolderContents = () => {
   if (expanded.value) void loadFolderContents();
 };
+watch(expanded, refreshFolderContents, { immediate: true });
 onMounted(() => window.addEventListener('refresh-data', refreshFolderContents));
 onUnmounted(() =>
   window.removeEventListener('refresh-data', refreshFolderContents)
@@ -243,7 +247,6 @@ const isActive = computed(() => {
 const handleClick = () => {
   expanded.value = isActive.value ? !expanded.value : true;
   emit('select-category', props.category);
-  if (expanded.value) void loadFolderContents();
 };
 
 watch(
@@ -251,7 +254,6 @@ watch(
   ([active, reveal]) => {
     if ((active || reveal) && !expanded.value) {
       expanded.value = true;
-      void loadFolderContents();
     }
   },
   { immediate: true }

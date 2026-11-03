@@ -1,11 +1,22 @@
 <template>
-  <div v-if="categories.length > 0" ref="listRef" class="category-list">
+  <div
+    v-if="categories.length > 0"
+    ref="listRef"
+    class="category-list"
+    @dragstart="startFolderDrag"
+    @dragover="overFolder"
+    @dragleave="leaveFolder"
+    @drop="dropFolder"
+    @dragend="clearDrag"
+  >
     <CategoryItem
       v-for="item in categories"
       :key="item.id"
       :category="item"
+      :expanded="expandedIds.has(String(item.id))"
+      :folder-drop-target="targetId === String(item.id)"
+      @update:expanded="$emit('set-expanded', String(item.id), $event)"
       :reveal-active-content="String(item.id) === String(activeCategoryId)"
-      v-memo="[item.id, item.name, editCategoryId, activeCategoryId]"
       @move-content="$emit('move-content', $event, item.id)"
       @select-category="$emit('select-category', $event)"
       @create-content="
@@ -28,9 +39,9 @@ import { useRoute } from 'vue-router';
 interface CategoryListViewProps {
   /** 分类列表 */
   categories: CategoryType[];
-  /** 当前编辑的分类 ID */
-  editCategoryId?: string | number;
   activeCategoryId?: string | number;
+  expandedIds: Set<string>;
+  savingOrder: boolean;
 }
 
 defineOptions({
@@ -38,7 +49,9 @@ defineOptions({
 });
 
 const props = defineProps<CategoryListViewProps>();
-defineEmits<{
+const emit = defineEmits<{
+  (e: 'set-expanded', id: string, expanded: boolean): void;
+  (e: 'swap-folders', from: string, to: string): void;
   (e: 'move-content', content: ContentType, categoryId: string | number): void;
   (e: 'select-category', category: CategoryType): void;
   (
@@ -48,6 +61,52 @@ defineEmits<{
 }>();
 const route = useRoute();
 const listRef = ref<HTMLDivElement | null>(null);
+const folderMime = 'application/x-snippets-code-sidebar-folder';
+const sourceId = ref('');
+const targetId = ref('');
+const folderRow = (target: EventTarget | null): HTMLElement | null =>
+  target instanceof Element
+    ? target.closest<HTMLElement>('[data-folder-id]')
+    : null;
+
+function clearDrag(): void {
+  sourceId.value = '';
+  targetId.value = '';
+}
+function startFolderDrag(event: DragEvent): void {
+  const row = folderRow(event.target);
+  const id = row?.dataset.folderId;
+  if (!id || !event.dataTransfer) return;
+  if (props.savingOrder) {
+    event.preventDefault();
+    return;
+  }
+  sourceId.value = id;
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData(folderMime, id);
+  event.dataTransfer.setData('text/plain', row.textContent?.trim() || id);
+}
+function overFolder(event: DragEvent): void {
+  if (!sourceId.value || !event.dataTransfer) return;
+  const id = folderRow(event.target)?.dataset.folderId;
+  targetId.value = id && id !== sourceId.value ? id : '';
+  if (targetId.value) event.preventDefault();
+  event.dataTransfer.dropEffect = targetId.value ? 'move' : 'none';
+}
+function leaveFolder(event: DragEvent): void {
+  if (folderRow(event.relatedTarget)?.dataset.folderId !== targetId.value)
+    targetId.value = '';
+}
+function dropFolder(event: DragEvent): void {
+  if (!sourceId.value) return;
+  const from = sourceId.value;
+  const to = folderRow(event.target)?.dataset.folderId;
+  clearDrag();
+  if (!to || from === to || event.dataTransfer?.getData(folderMime) !== from)
+    return;
+  event.preventDefault();
+  emit('swap-folders', from, to);
+}
 
 const activeCategoryIndex = computed(() => {
   const cid =

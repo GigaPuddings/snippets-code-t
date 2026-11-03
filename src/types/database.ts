@@ -46,6 +46,7 @@ export interface FragmentMetadata {
  * 分类接口
  */
 export interface Category {
+  workspaceRoot?: string;
   /** 分类 ID */
   id: number;
   /** 分类名称 */
