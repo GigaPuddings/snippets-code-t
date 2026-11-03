@@ -76,11 +76,20 @@ describe('useGitSyncRuntimeFacade', () => {
       conflictFiles: ['a.md'],
       untrackedFiles: ['b.md']
     });
+    setupArg.onRepoNotFound({
+      remoteUrl: 'git@example.com/repo.git',
+      operation: 'pull'
+    });
 
     expect(facade.ready.value).toBe(true);
     expect(facade.state.dialogs.conflictFiles.value).toEqual(['a.md']);
     expect(facade.state.dialogs.untrackedFiles.value).toEqual(['b.md']);
     expect(facade.state.dialogs.showConflictDialog.value).toBe(true);
+    expect(facade.state.repoNotFound.visible.value).toBe(true);
+    expect(facade.state.repoNotFound.info.value).toEqual({
+      remoteUrl: 'git@example.com/repo.git',
+      operation: 'pull'
+    });
   });
 
   it('skips setup when git sync plugin is disabled', async () => {
@@ -99,36 +108,6 @@ describe('useGitSyncRuntimeFacade', () => {
     expect(logger.info).toHaveBeenCalledWith(
       '[Config] Git 同步插件未启用，跳过 Git 事件监听和自动同步初始化'
     );
-  });
-
-  it('restores persisted conflict dialog state', () => {
-    const storage = createStorage();
-    storage.setItem(
-      'git-conflict-state',
-      JSON.stringify({
-        conflictFiles: ['persisted.md'],
-        timestamp: Date.now()
-      })
-    );
-    const facade = useGitSyncRuntimeFacade({
-      t,
-      modalMsg: vi.fn(),
-      routeToGitSettings: vi.fn(),
-      isPluginEnabled: vi.fn(() => true),
-      stateDeps: {
-        storage,
-        logger: { info: vi.fn() }
-      },
-      hostControllerDeps: {
-        setupHost: vi.fn(async (_deps: SetupGitRuntimeHostControllerDeps) =>
-          createHost()
-        )
-      }
-    });
-
-    expect(facade.restoreConflictDialogState()).toBe(true);
-    expect(facade.state.dialogs.conflictFiles.value).toEqual(['persisted.md']);
-    expect(facade.state.dialogs.showConflictDialog.value).toBe(true);
   });
 
   it('sets up runtime and restores persisted conflict state through one entry', async () => {

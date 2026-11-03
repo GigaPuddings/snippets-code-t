@@ -93,7 +93,10 @@ impl<'a> GitRepository<'a> {
     }
 
     pub(crate) fn status_porcelain(&self) -> Result<Output, String> {
-        self.output(&["status", "--porcelain"], "获取状态失败")
+        self.output(
+            &["status", "--porcelain", "--untracked-files=all"],
+            "获取状态失败",
+        )
     }
 
     pub(crate) fn status_porcelain_for_path(&self, relative_path: &str) -> Result<Output, String> {
@@ -115,30 +118,62 @@ impl<'a> GitRepository<'a> {
     }
 
     pub(crate) fn fetch_origin(&self, branch: &str) -> Result<Output, String> {
-        self.output(&["fetch", "origin", branch], "执行 git fetch 失败")
+        let refspec = format!("+refs/heads/{branch}:refs/remotes/origin/{branch}");
+        self.output(&["fetch", "origin", &refspec], "执行 git fetch 失败")
     }
 
     pub(crate) fn fetch_origin_all(&self) -> Result<Output, String> {
         self.output(&["fetch", "origin"], "执行 git fetch 失败")
     }
 
-    pub(crate) fn pull_origin(&self, branch: &str) -> Result<Output, String> {
-        self.output(&["pull", "origin", branch], "执行 git pull 失败")
+    pub(crate) fn merge_commit(&self, commit: &str) -> Result<Output, String> {
+        self.output(
+            &["merge", "--no-edit", "--no-overwrite-ignore", commit],
+            "合并远端提交失败",
+        )
     }
 
-    pub(crate) fn push(&self) -> Result<Output, String> {
-        self.output(&["push"], "执行 git push 失败")
+    pub(crate) fn has_unpushed_commits(&self) -> Result<bool, String> {
+        if !self.has_head() {
+            return Ok(false);
+        }
+        let branch = self.current_branch()?;
+        let remote_ref = format!("refs/remotes/origin/{}", branch);
+        let remote = self.output(
+            &["show-ref", "--verify", "--quiet", &remote_ref],
+            "检查远端引用失败",
+        )?;
+        if remote.status.code() == Some(1) {
+            return Ok(true);
+        }
+        if !remote.status.success() {
+            return Err(format!("检查远端引用失败: {}", get_git_stderr(&remote)));
+        }
+        let range = format!("{}..HEAD", remote_ref);
+        let pending =
+            self.successful_stdout(&["rev-list", "--count", &range], "检查待推送提交失败")?;
+        Ok(pending != "0")
     }
 
     pub(crate) fn push_origin_branch(&self, branch: &str) -> Result<Output, String> {
-        self.output(&["push", "origin", branch], "重试 Push 失败")
-    }
-
-    pub(crate) fn push_set_upstream(&self, branch: &str) -> Result<Output, String> {
-        self.output(
-            &["push", "--set-upstream", "origin", branch],
-            "执行 git push 失败",
-        )
+        // 显式指定源和目标，避免 pushRemote、remote.origin.push 改写同步目标。
+        let refspec = format!("refs/heads/{branch}:refs/heads/{branch}");
+        let tracking = self.output(
+            &["config", "--get", &format!("branch.{branch}.merge")],
+            "检查分支跟踪配置失败",
+        )?;
+        if !tracking.status.success() && tracking.status.code() != Some(1) {
+            return Err(format!(
+                "检查分支跟踪配置失败: {}",
+                get_git_stderr(&tracking)
+            ));
+        }
+        let mut args = vec!["push"];
+        if tracking.status.code() == Some(1) {
+            args.push("--set-upstream");
+        }
+        args.extend(["origin", &refspec]);
+        self.output(&args, "执行 git push 失败")
     }
 
     pub(crate) fn commit(&self, message: &str) -> Result<Output, String> {

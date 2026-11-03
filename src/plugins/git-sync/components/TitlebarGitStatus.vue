@@ -13,7 +13,10 @@
       height="16"
     />
     <branch v-else class="icon" width="16" height="16" />
-    <span v-if="syncState === 'has_changes'" class="git-badge">
+    <span
+      v-if="syncState === 'has_changes' && pendingFilesCount > 0"
+      class="git-badge"
+    >
       {{ pendingFilesCount }}
     </span>
     <span
@@ -27,7 +30,10 @@
   <el-dropdown-item v-else-if="visible" @click="goToGitSettings">
     <branch width="16" height="16" class="align-middle" />
     <span class="ml-2">{{ $t('titlebar.gitSync') }}</span>
-    <span v-if="syncState === 'has_changes'" class="git-badge ml-1">
+    <span
+      v-if="syncState === 'has_changes' && pendingFilesCount > 0"
+      class="git-badge ml-1"
+    >
       {{ pendingFilesCount }}
     </span>
   </el-dropdown-item>

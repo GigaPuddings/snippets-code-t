@@ -34,11 +34,11 @@ pub use history::{get_git_contribution_activity, get_git_records, restore_git_re
 use repository::GitRepository;
 use service::{
     empty_git_status, get_changed_files_with_status, get_current_branch, get_remote_default_branch,
-    prepare_auto_generated_untracked_files_for_pull, push_current_branch, switch_git_branch,
     ChangedFilesByStatus, GitSyncService,
 };
 pub use state::clear_git_status_cache;
-use state::{get_cached_git_status, update_git_status_cache, GIT_OPERATION_LOCK};
+pub(crate) use state::GIT_OPERATION_LOCK;
+use state::{get_cached_git_status, update_git_status_cache};
 pub use types::{
     ConflictPayload, ConflictStrategy, GitConfig, GitContributionActivity, GitRecord, GitStatus,
     PullResult, PushResult, RepoNotFoundPayload,

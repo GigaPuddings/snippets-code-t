@@ -42,6 +42,23 @@ const createDeps = (
 });
 
 describe('git conflict resolution actions', () => {
+  it('preserves an intentionally empty local edit', async () => {
+    let saved = 'old content';
+    const deps = createDeps({
+      writeConflictFile: async (_path, content) => {
+        saved = content;
+      }
+    });
+    await completeManualMerge(
+      {
+        files: ['a.md'],
+        selections: { 0: 'local' },
+        editedContents: { 0: '' }
+      },
+      deps
+    );
+    expect(saved).toBe('');
+  });
   it('force pushes and resumes auto sync', async () => {
     const deps = createDeps();
 
@@ -51,29 +68,42 @@ describe('git conflict resolution actions', () => {
     expect(deps.resumeAutoSync).toHaveBeenCalled();
   });
 
-  it('force pulls after removing untracked files', async () => {
-    const deps = createDeps();
-
-    await resolveConflictWithForcePull(['a.md', 'b.md'], deps);
-
-    expect(deps.removeUntrackedFile).toHaveBeenCalledWith('a.md');
-    expect(deps.removeUntrackedFile).toHaveBeenCalledWith('b.md');
-    expect(deps.forcePull).toHaveBeenCalled();
-    expect(deps.resumeAutoSync).toHaveBeenCalled();
-  });
-
-  it('continues force pull when removing an untracked file fails', async () => {
+  it('keeps untracked drafts until the backend validates and resets the remote', async () => {
+    const drafts = new Set(['a.md', 'b.md']);
     const deps = createDeps({
-      removeUntrackedFile: vi
-        .fn()
-        .mockRejectedValueOnce(new Error('locked'))
-        .mockResolvedValueOnce(undefined)
+      removeUntrackedFile: async (path) => {
+        drafts.delete(path);
+      }
     });
 
     await resolveConflictWithForcePull(['a.md', 'b.md'], deps);
 
+    expect([...drafts]).toEqual(['a.md', 'b.md']);
     expect(deps.forcePull).toHaveBeenCalled();
-    expect(deps.logger.warn).toHaveBeenCalled();
+    expect(deps.resumeAutoSync).toHaveBeenCalled();
+  });
+
+  it('preserves drafts and leaves auto sync paused when force pull fails', async () => {
+    const drafts = new Map([['a.md', 'unsaved draft']]);
+    let resumed = false;
+    const deps = createDeps({
+      removeUntrackedFile: async (path) => {
+        drafts.delete(path);
+      },
+      forcePull: async () => {
+        throw new Error('fetch failed');
+      },
+      resumeAutoSync: async () => {
+        resumed = true;
+      }
+    });
+
+    await expect(resolveConflictWithForcePull(['a.md'], deps)).rejects.toThrow(
+      'fetch failed'
+    );
+
+    expect(drafts.get('a.md')).toBe('unsaved draft');
+    expect(resumed).toBe(false);
   });
 
   it('returns false when auto sync resume fails', async () => {

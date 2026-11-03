@@ -77,20 +77,12 @@ export async function resolveConflictWithForcePush(
 }
 
 export async function resolveConflictWithForcePull(
-  untrackedFiles: string[],
+  _untrackedFiles: string[],
   deps: GitConflictResolutionDeps = {}
 ): Promise<void> {
-  const { forcePull, removeUntrackedFile, logger } = resolveDeps(deps);
+  const { forcePull } = resolveDeps(deps);
 
-  for (const file of untrackedFiles) {
-    try {
-      await removeUntrackedFile(file);
-      logger.info('[GitSync] 已删除未跟踪文件:', file);
-    } catch (error) {
-      logger.warn(`[GitSync] 删除未跟踪文件失败: ${file} ${error}`);
-    }
-  }
-
+  // 后端先确认远端提交，再由 reset 替换阻挡受管文件的未跟踪路径。
   await forcePull();
   await resumeAutoSyncAfterConflict(deps);
 }
@@ -105,7 +97,7 @@ export async function completeManualMerge(
 
   for (const [indexStr, content] of Object.entries(editedContents)) {
     const index = Number.parseInt(indexStr, 10);
-    if (selections[index] === 'local' && content) {
+    if (selections[index] === 'local') {
       const filePath = files[index];
       if (!filePath) continue;
 

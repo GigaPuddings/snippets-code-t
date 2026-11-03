@@ -49,6 +49,8 @@ export interface UseGitStatusReturn {
 
 // 全局单例状态
 const syncState = ref<GitSyncState>('disabled');
+let lastSyncFailed = false;
+let workspaceGeneration = 0;
 const gitStatus = ref<GitStatus | null>(null);
 const lastSyncTime = ref<string | null>(null);
 const gitSettings = ref<GitSettings | null>(null);
@@ -75,6 +77,7 @@ let unlistenPull: UnlistenFn | null = null;
 let unlistenPush: UnlistenFn | null = null;
 let unlistenSyncComplete: UnlistenFn | null = null;
 let unlistenWorkspaceChanged: UnlistenFn | null = null;
+let unlistenWorkspaceRootChanged: UnlistenFn | null = null;
 
 const isWorkspaceNotSetError = (error: unknown): boolean => {
   const message = error instanceof Error ? error.message : String(error);
@@ -169,11 +172,7 @@ export function useGitStatus(): UseGitStatusReturn {
           formattedLastSyncTime.value || t('settings.gitSync.status.synced')
         );
       case 'has_changes':
-        return t(
-          'syncStatus.pendingFiles',
-          { count: pendingFilesCount.value },
-          pendingFilesCount.value
-        );
+        return t('settings.gitSync.status.waitingSync');
       case 'error':
         return t('syncStatus.error');
       default:
@@ -185,6 +184,7 @@ export function useGitStatus(): UseGitStatusReturn {
 
   // 刷新 Git 状态
   const refreshStatus = async (): Promise<void> => {
+    const generation = workspaceGeneration;
     if (gitSettings.value && !gitSettings.value.enabled) {
       gitStatus.value = null;
       syncState.value = 'disabled';
@@ -201,17 +201,21 @@ export function useGitStatus(): UseGitStatusReturn {
     isLoading.value = true;
     try {
       const status = await getGitStatus();
+      if (generation !== workspaceGeneration) return;
       gitStatus.value = status;
 
       // 根据状态更新同步状态
       if (!status.is_repo || !gitSettings.value?.enabled) {
         syncState.value = 'disabled';
+      } else if (lastSyncFailed) {
+        syncState.value = 'error';
       } else if (status.has_changes) {
         syncState.value = 'has_changes';
       } else {
         syncState.value = 'synced';
       }
     } catch (error) {
+      if (generation !== workspaceGeneration) return;
       if (isWorkspaceNotSetError(error) || isGitPluginDisabledError(error)) {
         gitStatus.value = null;
         syncState.value = 'disabled';
@@ -221,22 +225,28 @@ export function useGitStatus(): UseGitStatusReturn {
       logger.error('[GitStatus] 获取 Git 状态失败', error);
       syncState.value = 'error';
     } finally {
-      isLoading.value = false;
+      if (generation === workspaceGeneration) {
+        isLoading.value = false;
 
-      // 处理待刷新请求（如果在等待期间有新的变化）
-      if (pendingRefresh.value) {
-        pendingRefresh.value = false;
-        logger.debug('[GitStatus] 执行待刷新请求');
-        // 使用 setTimeout 避免立即递归，确保状态已更新
-        setTimeout(() => refreshStatus(), 100);
+        // 处理待刷新请求（如果在等待期间有新的变化）
+        if (pendingRefresh.value) {
+          pendingRefresh.value = false;
+          logger.debug('[GitStatus] 执行待刷新请求');
+          // 使用 setTimeout 避免立即递归，确保状态已更新
+          setTimeout(() => {
+            if (generation === workspaceGeneration) void refreshStatus();
+          }, 100);
+        }
       }
     }
   };
 
   // 刷新 Git 设置
   const refreshSettings = async (): Promise<void> => {
+    const generation = workspaceGeneration;
     try {
       const settings = await getGitSettings();
+      if (generation !== workspaceGeneration) return;
       gitSettings.value = settings;
 
       if (settings.enabled) {
@@ -249,15 +259,18 @@ export function useGitStatus(): UseGitStatusReturn {
           lastSyncTime.value = settings.last_sync_time;
         }
       } else {
+        lastSyncFailed = false;
         syncState.value = 'disabled';
       }
     } catch (error) {
+      if (generation !== workspaceGeneration) return;
       logger.error('[GitStatus] 获取 Git 设置失败', error);
     }
   };
 
   // 设置同步状态
   const setSyncState = (state: GitSyncState): void => {
+    if (state === 'disabled' || state === 'synced') lastSyncFailed = false;
     syncState.value = state;
   };
 
@@ -294,6 +307,27 @@ export function useGitStatus(): UseGitStatusReturn {
  * ```
  */
 export function setupGitStatusListener(): void {
+  listen('workspace-root-changed', () => {
+    workspaceGeneration++;
+    lastSyncFailed = false;
+    if (debounceTimer !== null) clearTimeout(debounceTimer);
+    if (syncCompleteDebounceTimer !== null)
+      clearTimeout(syncCompleteDebounceTimer);
+    debounceTimer = null;
+    syncCompleteDebounceTimer = null;
+    pendingRefresh.value = false;
+    isLoading.value = false;
+    gitStatus.value = null;
+    lastSyncTime.value = null;
+    syncState.value = gitSettings.value?.enabled ? 'idle' : 'disabled';
+    const generation = workspaceGeneration;
+    const status = useGitStatus();
+    void status.refreshSettings().then(() => {
+      if (generation === workspaceGeneration) void status.refreshStatus();
+    });
+  }).then((unlisten) => {
+    unlistenWorkspaceRootChanged = unlisten;
+  });
   // 每分钟更新 formatTick，使 formattedLastSyncTime（如「刚刚」→「1分钟前」）能随时间正确更新
   if (!formatTickTimer) {
     formatTickTimer = setInterval(() => {
@@ -320,6 +354,8 @@ export function setupGitStatusListener(): void {
   listen<{ success: boolean; last_sync_time?: string }>(
     'git-sync-complete',
     (event) => {
+      const generation = workspaceGeneration;
+      lastSyncFailed = !event.payload.success;
       if (event.payload.success) {
         syncState.value = 'syncing';
         if (event.payload.last_sync_time) {
@@ -336,18 +372,23 @@ export function setupGitStatusListener(): void {
 
       // 防抖 1 秒后刷新状态（避免与 workspace-changed 事件同时触发）
       syncCompleteDebounceTimer = setTimeout(() => {
+        if (generation !== workspaceGeneration) return;
         syncCompleteDebounceTimer = null;
         logger.debug('[GitStatus] git-sync-complete 防抖时间到，刷新状态');
         getGitStatus()
           .then((status) => {
+            if (generation !== workspaceGeneration) return;
             gitStatus.value = status;
-            if (status.has_changes) {
+            if (lastSyncFailed) {
+              syncState.value = 'error';
+            } else if (status.has_changes) {
               syncState.value = 'has_changes';
             } else {
               syncState.value = 'synced';
             }
           })
           .catch((error) => {
+            if (generation !== workspaceGeneration) return;
             if (
               isWorkspaceNotSetError(error) ||
               isGitPluginDisabledError(error)
@@ -420,6 +461,14 @@ export function initWorkspaceChangeListener(
  * ```
  */
 export function cleanupGitStatusListener(): void {
+  workspaceGeneration++;
+  pendingRefresh.value = false;
+  isLoading.value = false;
+  lastSyncFailed = false;
+  if (unlistenWorkspaceRootChanged) {
+    unlistenWorkspaceRootChanged();
+    unlistenWorkspaceRootChanged = null;
+  }
   if (formatTickTimer) {
     clearInterval(formatTickTimer);
     formatTickTimer = null;

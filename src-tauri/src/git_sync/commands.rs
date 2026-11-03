@@ -143,6 +143,9 @@ pub fn init_git_repository_command(
         "🚀 [Git] 开始初始化 Git 仓库，workspace_root: {}",
         workspace_root.display()
     );
+    let guard = GIT_OPERATION_LOCK
+        .lock()
+        .map_err(|e| format!("获取 Git 操作锁失败: {}", e))?;
 
     // 1. 检查是否已是 Git 仓库
     if !check_git_repo(&workspace_root)? {
@@ -200,7 +203,8 @@ pub fn init_git_repository_command(
 
     // 已存在的工作区可能早已位于远端最新提交，后续 pull 会得到 0 变更。
     // 因此配置 Git 成功后也要执行一次幂等导入，不能依赖 Git diff 触发。
-    import_portable_sync_config(&app_handle, &workspace_root);
+    import_portable_sync_config(&app_handle, &workspace_root)?;
+    drop(guard);
 
     info!("✅ [Git] Git 仓库初始化完成");
 
@@ -252,11 +256,30 @@ pub fn init_git_repository_command(
 }
 
 #[command]
-pub fn switch_git_branch_command(app_handle: AppHandle, branch: String) -> Result<(), String> {
+pub fn switch_git_branch_command(
+    app_handle: AppHandle,
+    branch: String,
+    overwrite_files: Option<Vec<String>>,
+) -> Result<(), String> {
     require_git_sync_plugin(&app_handle)?;
     let workspace_root =
         crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
-    switch_git_branch(&workspace_root, &branch)
+    service::switch_git_branch_with_preflight(
+        &workspace_root,
+        &branch,
+        &overwrite_files.unwrap_or_default(),
+        || application::require_current_workspace(&app_handle, &workspace_root),
+        || {
+            // checkout 尚未验证远端；只导入目标分支已有配置，不在此生成本机投影。
+            import_portable_sync_config(&app_handle, &workspace_root)?;
+            if let Some(state) = app_handle.try_state::<Arc<Mutex<Option<AutoSyncManager>>>>() {
+                if let Some(manager) = state.lock().map_err(|e| e.to_string())?.as_ref() {
+                    manager.invalidate_pull_baseline();
+                }
+            }
+            Ok(())
+        },
+    )
 }
 
 /// 测试 Git 连接（验证 Token 和远程仓库是否可用）
@@ -324,6 +347,7 @@ pub fn resolve_conflict_command(
     require_git_sync_plugin(&app_handle)?;
     let workspace_root =
         crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
+    let _guard = application::lock_current_workspace(&app_handle, &workspace_root)?;
     resolve_conflict(&workspace_root, &file_path, strategy)
 }
 
@@ -361,46 +385,47 @@ pub fn ensure_gitignore_command(app_handle: AppHandle) -> Result<bool, String> {
 #[command]
 pub fn start_auto_sync_command(app_handle: AppHandle) -> Result<(), String> {
     require_git_sync_plugin(&app_handle)?;
-    // 获取工作区根目录
-    let workspace_root =
-        crate::json_config::get_workspace_root(&app_handle)?.ok_or("工作区未设置".to_string())?;
+    let _guard = GIT_OPERATION_LOCK.lock().map_err(|e| e.to_string())?;
+    start_auto_sync_for_current_workspace(&app_handle)
+}
 
-    // 获取 Git 设置
-    use crate::app_config::AppConfigManager;
-
-    let config_state = app_handle
-        .try_state::<Arc<StdRwLock<AppConfigManager>>>()
-        .ok_or("AppConfigManager 未初始化".to_string())?;
-
-    let manager = config_state
-        .read()
-        .map_err(|e| format!("获取配置锁失败: {}", e))?;
-
-    let git_settings = manager.get_git_settings();
-
-    if !git_settings.enabled || !git_settings.auto_sync {
-        return Err("自动同步未启用".to_string());
+/// Called while holding GIT_OPERATION_LOCK, after installing the workspace cache.
+pub(crate) fn start_auto_sync_for_current_workspace(app_handle: &AppHandle) -> Result<(), String> {
+    if require_git_sync_plugin(app_handle).is_err() {
+        return Ok(());
     }
-
+    let Some(workspace_root) = crate::json_config::get_workspace_root(app_handle)? else {
+        return Ok(());
+    };
+    let config_state = app_handle
+        .try_state::<Arc<StdRwLock<crate::app_config::AppConfigManager>>>()
+        .ok_or("AppConfigManager 未初始化")?;
+    let git_settings = config_state
+        .read()
+        .map_err(|e| e.to_string())?
+        .get_git_settings()
+        .clone();
+    if !git_settings.enabled
+        || !git_settings.auto_sync
+        || git_settings.user_name.trim().is_empty()
+        || git_settings.user_email.trim().is_empty()
+        || git_settings.remote_url.trim().is_empty()
+        || !check_git_repo(&workspace_root)?
+    {
+        stop_auto_sync_for_workspace_change(app_handle)?;
+        return Ok(());
+    }
     let delay_minutes = git_settings.auto_sync_delay;
-
-    // 创建或获取 AutoSyncManager
     if let Some(sync_state) = app_handle.try_state::<Arc<Mutex<Option<AutoSyncManager>>>>() {
-        let mut sync_manager: std::sync::MutexGuard<Option<AutoSyncManager>> = sync_state
-            .lock()
-            .map_err(|e| format!("获取同步管理器锁失败: {}", e))?;
-
-        let should_replace = sync_manager
+        let mut sync_manager = sync_state.lock().map_err(|e| e.to_string())?;
+        if sync_manager
             .as_ref()
-            .is_some_and(|manager| !manager.matches_config(&workspace_root, delay_minutes));
-
-        if should_replace {
-            if let Some(manager) = sync_manager.as_ref() {
+            .is_some_and(|manager| !manager.matches_config(&workspace_root, delay_minutes))
+        {
+            if let Some(manager) = sync_manager.take() {
                 manager.stop()?;
             }
-            *sync_manager = None;
         }
-
         if sync_manager.is_none() {
             *sync_manager = Some(AutoSyncManager::new(
                 workspace_root,
@@ -408,17 +433,26 @@ pub fn start_auto_sync_command(app_handle: AppHandle) -> Result<(), String> {
                 app_handle.clone(),
             ));
         }
-
-        if let Some(ref manager) = *sync_manager {
+        if let Some(manager) = sync_manager.as_ref() {
             manager.start()?;
         }
     } else {
-        // 首次创建
         let manager = AutoSyncManager::new(workspace_root, delay_minutes, app_handle.clone());
         manager.start()?;
         app_handle.manage(Arc::new(Mutex::new(Some(manager))));
     }
+    Ok(())
+}
 
+/// Invalidate the worker before root/config/cache state changes. No joining while
+/// holding the Git lock: the generation check rejects a worker waiting for it.
+pub(crate) fn stop_auto_sync_for_workspace_change(app_handle: &AppHandle) -> Result<(), String> {
+    if let Some(sync_state) = app_handle.try_state::<Arc<Mutex<Option<AutoSyncManager>>>>() {
+        if let Some(manager) = sync_state.lock().map_err(|e| e.to_string())?.take() {
+            manager.stop()?;
+        }
+    }
+    clear_git_status_cache();
     Ok(())
 }
 
@@ -426,17 +460,8 @@ pub fn start_auto_sync_command(app_handle: AppHandle) -> Result<(), String> {
 #[command]
 pub fn stop_auto_sync_command(app_handle: AppHandle) -> Result<(), String> {
     require_git_sync_plugin(&app_handle)?;
-    if let Some(sync_state) = app_handle.try_state::<Arc<Mutex<Option<AutoSyncManager>>>>() {
-        let sync_manager: std::sync::MutexGuard<Option<AutoSyncManager>> = sync_state
-            .lock()
-            .map_err(|e| format!("获取同步管理器锁失败: {}", e))?;
-
-        if let Some(ref manager) = *sync_manager {
-            manager.stop()?;
-        }
-    }
-
-    Ok(())
+    let _guard = GIT_OPERATION_LOCK.lock().map_err(|e| e.to_string())?;
+    stop_auto_sync_for_workspace_change(&app_handle)
 }
 
 /// 通知文件编辑

@@ -29,12 +29,54 @@ impl<'a> GitSyncService<'a> {
         get_git_status_with_repository(&self.repository)
     }
 
-    pub(crate) async fn pull(&self) -> Result<PullResult, String> {
-        git_pull_impl(&self.repository).await
+    pub(crate) fn pull_with_preflight(
+        &self,
+        preflight: impl FnOnce() -> Result<(), String>,
+        import_config: impl FnOnce() -> Result<(), String>,
+    ) -> Result<PullResult, String> {
+        let _guard = GIT_OPERATION_LOCK
+            .lock()
+            .map_err(|e| format!("获取 Git 操作锁失败: {}", e))?;
+        preflight()?;
+        let result = git_pull_impl(&self.repository)?;
+        super::state::record_pull_conflicts(self.repository.workspace_root(), &result)?;
+        if result.success && !result.has_conflicts {
+            // 状态查询也会写 sync.json；先应用刚取回的设置，再允许其他窗口投影。
+            import_config()?;
+        }
+        Ok(result)
     }
 
-    pub(crate) async fn push(&self, message: &str) -> Result<PushResult, String> {
-        git_push_impl(&self.repository, message).await
+    pub(crate) fn push_with_preflight(
+        &self,
+        message: &str,
+        preflight: impl FnOnce() -> Result<(), String>,
+        export_config: impl FnOnce() -> Result<(), String>,
+    ) -> Result<PushResult, String> {
+        let _guard = GIT_OPERATION_LOCK
+            .lock()
+            .map_err(|e| format!("获取 Git 操作锁失败: {}", e))?;
+        preflight()?;
+        if !detect_conflicts(self.repository.workspace_root())?.is_empty() {
+            return Err("存在未解决的冲突，已停止推送".to_string());
+        }
+        if !self.repository.has_head() {
+            let heads = self.repository.output(
+                &["ls-remote", "--heads", "origin"],
+                "检查首次推送的远端分支失败",
+            )?;
+            if !heads.status.success() {
+                return Err(format!(
+                    "检查首次推送的远端分支失败: {}",
+                    get_git_stderr(&heads)
+                ));
+            }
+            if !heads.stdout.is_empty() {
+                return Err("远端已有提交，请先拉取远端内容，再推送本地修改".to_string());
+            }
+        }
+        export_config()?;
+        git_push_impl(&self.repository, message)
     }
 
     pub(crate) fn changes_since(
@@ -159,7 +201,7 @@ fn get_git_status_with_repository(repository: &GitRepository<'_>) -> Result<GitS
         vec![]
     };
 
-    let has_changes = !changed_files.is_empty();
+    let has_changes = !changed_files.is_empty() || repository.has_unpushed_commits()?;
 
     let available_branches = collect_available_branches(workspace_root);
     let has_other_branches = available_branches
@@ -233,18 +275,24 @@ fn remove_untracked_workspace_path(
     workspace_root: &Path,
     remote_ref: &str,
     relative_path: &str,
-) -> Result<bool, String> {
+) -> Result<Option<Vec<u8>>, String> {
     if !remote_path_exists(workspace_root, remote_ref, relative_path)? {
-        return Ok(false);
+        return Ok(None);
     }
 
     if !is_untracked_git_path(workspace_root, relative_path)? {
-        return Ok(false);
+        return Ok(None);
     }
 
     let repository = GitRepository::new(workspace_root);
     if !repository.workspace_path_exists(relative_path) {
-        return Ok(false);
+        return Ok(None);
+    }
+
+    let content = std::fs::read(workspace_root.join(relative_path))
+        .map_err(|error| format!("读取默认忽略文件失败: {}", error))?;
+    if relative_path != ".gitignore" || !super::gitignore::is_generated_gitignore(&content) {
+        return Ok(None);
     }
 
     repository.remove_workspace_path(relative_path)?;
@@ -253,29 +301,44 @@ fn remove_untracked_workspace_path(
         "🧹 [Git] 已移除可由远端覆盖的本地未跟踪文件: {}",
         relative_path
     );
-    Ok(true)
+    Ok(Some(content))
 }
 
 pub(crate) fn prepare_auto_generated_untracked_files_for_pull(
     workspace_root: &Path,
     remote_ref: &str,
-) -> Result<Vec<String>, String> {
+) -> Result<Vec<(String, Vec<u8>)>, String> {
     let mut removed = Vec::new();
 
     for relative_path in AUTO_GENERATED_UNTRACKED_PULL_PATHS {
-        if remove_untracked_workspace_path(workspace_root, remote_ref, relative_path)? {
-            removed.push((*relative_path).to_string());
+        if let Some(content) =
+            remove_untracked_workspace_path(workspace_root, remote_ref, relative_path)?
+        {
+            removed.push(((*relative_path).to_string(), content));
         }
     }
 
     if !removed.is_empty() {
         info!(
             "🧹 [Git] Pull 前已清理本地默认元文件，等待远端版本写入: {:?}",
-            removed
+            removed.iter().map(|(path, _)| path).collect::<Vec<_>>()
         );
     }
 
     Ok(removed)
+}
+
+fn restore_generated_pull_files(
+    root: &Path,
+    removed: Vec<(String, Vec<u8>)>,
+) -> Result<(), String> {
+    for (path, content) in removed {
+        let full_path = root.join(path);
+        if !full_path.exists() {
+            crate::markdown::safe_write::create(&full_path, &content)?;
+        }
+    }
+    Ok(())
 }
 
 fn normalize_branch_name(branch: &str) -> String {
@@ -378,7 +441,7 @@ impl ChangedFilesByStatus {
             + self.sync_protocol_files.len()
     }
 
-    fn record_path(&mut self, workspace_root: &Path, status: &str, path: String) {
+    pub(super) fn record_path(&mut self, workspace_root: &Path, status: &str, path: String) {
         if path.to_ascii_lowercase().ends_with(".md") {
             match status {
                 "A" => self.created.push(path),
@@ -402,7 +465,7 @@ fn parse_nul_paths(output: &[u8]) -> Vec<String> {
         .collect()
 }
 
-fn parse_name_status(output: &[u8]) -> Vec<(char, String)> {
+pub(super) fn parse_name_status(output: &[u8]) -> Vec<(char, String)> {
     let mut fields = output
         .split(|byte| *byte == 0)
         .filter(|field| !field.is_empty());
@@ -426,6 +489,7 @@ fn parse_name_status(output: &[u8]) -> Vec<(char, String)> {
                 }
             }
             Some(kind @ ('A' | 'M' | 'D')) => changes.push((kind, path)),
+            Some('T') => changes.push(('M', path)),
             _ => {}
         }
     }
@@ -521,23 +585,24 @@ pub(crate) fn get_changed_files_with_status(
 }
 
 /// Checks whether the remote would delete local Markdown before pull.
-fn get_remote_deleted_local_markdown_files(
+pub(super) fn get_remote_deleted_local_markdown_files(
     repository: &GitRepository<'_>,
-    branch: &str,
+    remote_commit: &str,
 ) -> Result<Vec<String>, String> {
-    if branch.is_empty() || !repository.has_head() {
+    if !repository.has_head() {
         return Ok(vec![]);
     }
 
-    let remote_ref = format!("origin/{}", branch);
-    let output = repository.changed_paths("HEAD", &remote_ref)?;
+    let base = repository.output(&["merge-base", "HEAD", remote_commit], "获取共同祖先失败")?;
+    if base.status.code() == Some(1) {
+        return Ok(vec![]); // 无共同历史时由 merge 报错，不将本地新增误判为删除。
+    }
+    if !base.status.success() {
+        return Err(format!("获取共同祖先失败: {}", get_git_stderr(&base)));
+    }
+    let output = repository.changed_paths(&get_git_stdout(&base), remote_commit)?;
     if !output.status.success() {
-        warn!(
-            "⚠️ [Git] 检查远端删除文件失败 ({}): {}",
-            remote_ref,
-            get_git_stderr(&output)
-        );
-        return Ok(vec![]);
+        return Err(format!("检查远端删除文件失败: {}", get_git_stderr(&output)));
     }
 
     Ok(parse_deleted_paths(&output.stdout)
@@ -548,11 +613,8 @@ fn get_remote_deleted_local_markdown_files(
         .collect())
 }
 
-async fn git_pull_impl(repository: &GitRepository<'_>) -> Result<PullResult, String> {
+fn git_pull_impl(repository: &GitRepository<'_>) -> Result<PullResult, String> {
     let workspace_root = repository.workspace_root();
-    let _git_operation_guard = GIT_OPERATION_LOCK
-        .lock()
-        .map_err(|e| format!("获取 Git 操作锁失败: {}", e))?;
     info!("🔄 [Git] 开始 pull 操作");
 
     // 记录 pull 前的 HEAD commit hash
@@ -581,12 +643,14 @@ async fn git_pull_impl(repository: &GitRepository<'_>) -> Result<PullResult, Str
         });
     }
 
-    let branch = repository.current_branch_or_main()?;
-    if branch != MAIN_BRANCH {
+    // 当前已选中的本地分支就是同步目标；非 main 分支不应反复要求重选。
+    // detached HEAD 没有明确目标，不能悄悄回退 main 后合并到游离提交。
+    let branch = repository.successful_stdout(&["branch", "--show-current"], "获取当前分支失败")?;
+    if branch.is_empty() {
         let branch_selection = build_branch_selection(
             workspace_root,
             &branch,
-            "当前工作区不在 main 分支，请选择要同步的分支",
+            "当前工作区没有选中的分支，请选择要同步的分支",
         );
         return Ok(PullResult {
             success: false,
@@ -603,44 +667,65 @@ async fn git_pull_impl(repository: &GitRepository<'_>) -> Result<PullResult, Str
 
     // 先 fetch 远端状态并预检删除风险。远端删除本地 Markdown 不一定会形成 Git 冲突，
     // 但会导致本地笔记与 cache 被静默删除，因此必须交给用户确认。
-    let fetch_output = repository.fetch_origin(&branch);
-    if let Ok(output) = &fetch_output {
-        if output.status.success() {
-            let remote_ref = format!("origin/{}", branch);
-            let removed_default_untracked =
-                prepare_auto_generated_untracked_files_for_pull(workspace_root, &remote_ref)?;
-            if !removed_default_untracked.is_empty() {
-                info!(
-                    "🧹 [Git] 已为 pull 清理 {} 个本地默认元文件",
-                    removed_default_untracked.len()
-                );
-            }
-
-            let remote_deleted_files =
-                get_remote_deleted_local_markdown_files(repository, &branch)?;
-            if !remote_deleted_files.is_empty() {
-                warn!(
-                    "⚠️ [Git] 远端将删除本地 Markdown 文件，等待用户确认: {:?}",
-                    remote_deleted_files
-                );
-                return Ok(PullResult {
-                    success: false,
-                    files_updated: 0,
-                    has_conflicts: true,
-                    conflict_files: remote_deleted_files,
-                    message: "远端缺少部分本地文件，请确认保留本地还是使用远端删除结果".to_string(),
-                    pre_pull_head: None,
-                    untracked_files: vec![],
-                    last_sync_time: None,
-                    branch_selection: None,
-                });
-            }
+    let fetch_output = repository.fetch_origin(&branch)?;
+    let output = if fetch_output.status.success() {
+        // 后续预检、合并只消费这次 fetch 的不可变提交，避免再次 fetch 绕过预检。
+        let remote_ref = repository.successful_stdout(
+            &["rev-parse", "--verify", "FETCH_HEAD^{commit}"],
+            "获取拉取提交失败",
+        )?;
+        let remote_deleted_files =
+            get_remote_deleted_local_markdown_files(repository, &remote_ref)?;
+        if !remote_deleted_files.is_empty() {
+            warn!(
+                "⚠️ [Git] 远端将删除本地 Markdown 文件，等待用户确认: {:?}",
+                remote_deleted_files
+            );
+            return Ok(PullResult {
+                success: false,
+                files_updated: 0,
+                has_conflicts: true,
+                conflict_files: remote_deleted_files,
+                message: "远端缺少部分本地文件，请确认保留本地还是使用远端删除结果".to_string(),
+                pre_pull_head: None,
+                untracked_files: vec![],
+                last_sync_time: None,
+                branch_selection: None,
+            });
         }
-    }
-
-    // 执行 git pull，先 fetch 再 merge/rebase
-    // 使用 --no-rebase 避免 rebase 问题
-    let output = repository.pull_origin(&branch)?;
+        let removed_default_untracked =
+            prepare_auto_generated_untracked_files_for_pull(workspace_root, &remote_ref)?;
+        let obstructions =
+            super::conflict::get_merge_worktree_obstructions(repository, &remote_ref);
+        if !obstructions
+            .as_ref()
+            .is_ok_and(|(tracked, untracked)| tracked.is_empty() && untracked.is_empty())
+        {
+            restore_generated_pull_files(workspace_root, removed_default_untracked)?;
+            let (conflict_files, untracked_files) = obstructions?;
+            return Ok(PullResult {
+                success: false,
+                files_updated: 0,
+                has_conflicts: true,
+                conflict_files,
+                untracked_files,
+                message: "远端变更会覆盖本地未提交内容，请处理这些文件后重试".to_string(),
+                pre_pull_head,
+                last_sync_time: None,
+                branch_selection: None,
+            });
+        }
+        let merge = repository.merge_commit(&remote_ref);
+        // Git 拒绝合并或命令启动失败时，恢复尚未被远端写入的默认文件。
+        restore_generated_pull_files(workspace_root, removed_default_untracked)?;
+        if workspace_root.join(".git/MERGE_HEAD").exists() {
+            super::conflict::remember_merge_index(workspace_root)?;
+        }
+        merge?
+    } else {
+        // 复用下方空远端、认证和网络错误处理，不在 fetch 失败后继续操作工作区。
+        fetch_output
+    };
 
     let stdout = get_git_stdout(&output);
     let stderr = get_git_stderr(&output);
@@ -673,6 +758,7 @@ async fn git_pull_impl(repository: &GitRepository<'_>) -> Result<PullResult, Str
         // 如：The following untracked working tree files would be overwritten by merge
         if stderr.contains("untracked working tree files would be overwritten")
             || stderr.contains("The following untracked working tree files")
+            || stderr.contains("Untracked working tree file '")
         {
             let untracked_files = extract_untracked_files_from_error(&stderr);
 
@@ -750,37 +836,43 @@ async fn git_pull_impl(repository: &GitRepository<'_>) -> Result<PullResult, Str
             });
         }
 
-        // 检查是否是远程分支不存在
-        if stderr.contains("couldn't find remote ref") || stderr.contains("does not exist") {
-            if let Ok(remote_branch) = get_remote_default_branch(workspace_root) {
-                if remote_branch != branch {
-                    warn!(
-                        "⚠️ [Git] 当前分支 {} 在远程不存在，main 主分支为 {}，停止自动覆盖本地",
-                        branch, remote_branch
-                    );
-                    return Ok(PullResult {
-                        success: false,
-                        files_updated: 0,
-                        has_conflicts: true,
-                        conflict_files: vec![],
-                        message: format!(
-                            "当前分支 {} 在远程不存在，main 主分支为 {}。请确认保留本地或切换/拉取远程分支。",
-                            branch, remote_branch
-                        ),
-                        pre_pull_head: None,
-                        untracked_files: vec![],
-                        last_sync_time: None,
-                        branch_selection: None,
-                    });
-                }
+        // 只有成功枚举到零个远端分支，才把远端当作空仓库。
+        // HEAD 悬空或仓库不可访问都不能放行首次自动推送。
+        if stderr.contains("couldn't find remote ref") {
+            let heads =
+                repository.output(&["ls-remote", "--heads", "origin"], "检查远端分支失败")?;
+            if !heads.status.success() {
+                return Err(format!("检查远端分支失败: {}", get_git_stderr(&heads)));
             }
-            info!("ℹ️ [Git] 远程分支不存在，可能是首次推送前");
+            let available_branches: Vec<String> = String::from_utf8_lossy(&heads.stdout)
+                .lines()
+                .filter_map(|line| line.split_once('\t')?.1.strip_prefix("refs/heads/"))
+                .map(str::to_string)
+                .collect();
+            if !available_branches.is_empty() {
+                return Ok(PullResult {
+                    success: false,
+                    files_updated: 0,
+                    has_conflicts: false,
+                    conflict_files: vec![],
+                    message: "branch_selection_required".into(),
+                    pre_pull_head: None,
+                    untracked_files: vec![],
+                    last_sync_time: None,
+                    branch_selection: Some(BranchSelection {
+                        current_branch: branch.clone(),
+                        recommended_branch: available_branches[0].clone(),
+                        available_branches,
+                        reason: format!("远端没有 {} 分支，请选择已有分支", branch),
+                    }),
+                });
+            }
             return Ok(PullResult {
                 success: true,
                 files_updated: 0,
                 has_conflicts: false,
                 conflict_files: vec![],
-                message: "远程分支尚不存在，请先推送".to_string(),
+                message: "远端为空，可以首次推送".into(),
                 pre_pull_head: None,
                 untracked_files: vec![],
                 last_sync_time: None,
@@ -859,14 +951,8 @@ async fn git_pull_impl(repository: &GitRepository<'_>) -> Result<PullResult, Str
     })
 }
 
-async fn git_push_impl(
-    repository: &GitRepository<'_>,
-    message: &str,
-) -> Result<PushResult, String> {
+fn git_push_impl(repository: &GitRepository<'_>, message: &str) -> Result<PushResult, String> {
     let workspace_root = repository.workspace_root();
-    let _git_operation_guard = GIT_OPERATION_LOCK
-        .lock()
-        .map_err(|e| format!("获取 Git 操作锁失败: {}", e))?;
     info!("🔄 [Git] 开始 push 操作");
 
     // 1. 只暂存可跨设备同步的数据。禁止应用通过 `git add .` 将本机索引、
@@ -906,24 +992,12 @@ async fn git_push_impl(
 
     // 3. git push
     // 获取当前分支名
-    let branch = repository.current_branch_or_main()?;
-
-    // 尝试普通 push
-    let push_output = repository.push()?;
+    let branch = repository.current_branch()?;
+    let push_output = repository.push_origin_branch(&branch)?;
 
     let push_stderr = get_git_stderr(&push_output);
 
-    // 如果失败且提示需要设置上游分支，则使用 --set-upstream
-    if !is_git_success(&push_output) && push_stderr.contains("--set-upstream") {
-        info!("ℹ️ [Git] 首次推送，设置上游分支");
-        let push_upstream_output = repository.push_set_upstream(&branch)?;
-
-        if !is_git_success(&push_upstream_output) {
-            let error = get_git_stderr(&push_upstream_output);
-            error!("❌ [Git] Push 失败: {}", error);
-            return Err(format!("git push 失败: {}", error));
-        }
-    } else if !is_git_success(&push_output) {
+    if !is_git_success(&push_output) {
         // 检查是否是仓库不存在
         let push_stderr_lower = push_stderr.to_lowercase();
         if push_stderr_lower.contains("repository not found")
@@ -939,6 +1013,7 @@ async fn git_push_impl(
         return Err(format!("git push 失败: {}", push_stderr));
     }
 
+    clear_git_status_cache();
     info!("✅ [Git] Push 成功，推送了 {} 个文件", files_pushed);
 
     Ok(PushResult {
@@ -951,21 +1026,6 @@ async fn git_push_impl(
             "已推送现有本地提交，工作区没有新的可同步数据".to_string()
         },
     })
-}
-
-pub(crate) fn push_current_branch(workspace_root: &Path) -> Result<(), String> {
-    let _git_operation_guard = GIT_OPERATION_LOCK
-        .lock()
-        .map_err(|e| format!("获取 Git 操作锁失败: {}", e))?;
-    let repository = GitRepository::new(workspace_root);
-    let branch = repository.current_branch()?;
-    let push_output = repository.push_origin_branch(&branch)?;
-
-    if !push_output.status.success() {
-        return Err(format!("重试 Push 失败: {}", get_git_stderr(&push_output)));
-    }
-
-    Ok(())
 }
 
 /// 从 Git 错误信息中提取文件名
@@ -1020,6 +1080,15 @@ fn extract_untracked_files_from_error(error_msg: &str) -> Vec<String> {
 
     for line in error_msg.lines() {
         let trimmed = line.trim();
+
+        // 无 HEAD 的首次 merge 使用单文件错误格式，不输出缩进文件列表。
+        if let Some((path, _)) = trimmed
+            .strip_prefix("error: Untracked working tree file '")
+            .and_then(|tail| tail.split_once("' would be"))
+        {
+            files.push(decode_git_quoted_path(path));
+            continue;
+        }
 
         // 检测文件列表开始
         if trimmed.contains("untracked working tree files would be overwritten") {
@@ -1116,18 +1185,41 @@ pub(crate) fn get_current_branch(workspace_root: &Path) -> Result<String, String
     GitRepository::new(workspace_root).current_branch_or_main()
 }
 
-pub(crate) fn switch_git_branch(workspace_root: &Path, branch: &str) -> Result<(), String> {
+pub(crate) fn switch_git_branch_with_preflight(
+    workspace_root: &Path,
+    branch: &str,
+    overwrite_files: &[String],
+    preflight: impl FnOnce() -> Result<(), String>,
+    import_config: impl FnOnce() -> Result<(), String>,
+) -> Result<(), String> {
+    // 读取本地分支、checkout 和应用该分支的配置必须与 pull/push 串行。
+    let _guard = GIT_OPERATION_LOCK
+        .lock()
+        .map_err(|e| format!("获取 Git 操作锁失败: {}", e))?;
+    preflight()?;
     let branch = normalize_branch_name(branch);
     if branch.is_empty() {
         return Err("分支名称不能为空".to_string());
     }
-
+    let repository = GitRepository::new(workspace_root);
+    repository.successful_stdout(&["check-ref-format", "--branch", &branch], "分支名称无效")?;
     let local_branches = list_local_branches(workspace_root)?;
     let args: Vec<String> = if local_branches.iter().any(|item| item == &branch) {
-        vec!["switch".to_string(), branch.clone()]
-    } else {
         vec![
             "switch".to_string(),
+            "--no-overwrite-ignore".to_string(),
+            branch.clone(),
+        ]
+    } else {
+        let remote_ref = format!("refs/remotes/origin/{}", branch);
+        if !repository.cat_file_exists(&remote_ref)? {
+            // 分支选择列表可能刚由 ls-remote 得到，本机尚无该跟踪引用。
+            let refspec = format!("refs/heads/{}:{}", branch, remote_ref);
+            repository.successful_stdout(&["fetch", "origin", &refspec], "获取目标分支失败")?;
+        }
+        vec![
+            "switch".to_string(),
+            "--no-overwrite-ignore".to_string(),
             "-c".to_string(),
             branch.clone(),
             "--track".to_string(),
@@ -1135,17 +1227,133 @@ pub(crate) fn switch_git_branch(workspace_root: &Path, branch: &str) -> Result<(
         ]
     };
 
-    let repository = GitRepository::new(workspace_root);
-    let arg_refs = args.iter().map(String::as_str).collect::<Vec<_>>();
-    let output = repository.switch_branch(&arg_refs)?;
-
-    if output.status.success() {
-        clear_git_status_cache();
-        info!("✅ [Git] 已切换到分支 {}", branch);
-        Ok(())
-    } else {
-        Err(format!("切换分支失败: {}", get_git_stderr(&output)))
+    let mut drafts = Vec::new();
+    if !overwrite_files.is_empty() {
+        // Validate every tracked blocker before touching any draft. Checkout is
+        // never forced, including when a confirmation came from an older result.
+        for diff_args in [vec!["diff", "--quiet"], vec!["diff", "--cached", "--quiet"]] {
+            if !repository
+                .output(&diff_args, "检查分支切换变更失败")?
+                .status
+                .success()
+            {
+                return Err("存在已跟踪文件的本地修改，请先提交或保存后再切换分支".into());
+            }
+        }
+        if !detect_conflicts(workspace_root)?.is_empty() {
+            return Err("存在未解决的冲突，不能切换分支".into());
+        }
+        let target = if local_branches.iter().any(|item| item == &branch) {
+            format!("refs/heads/{}", branch)
+        } else {
+            format!("refs/remotes/origin/{}", branch)
+        };
+        let mut seen = BTreeSet::new();
+        for file in overwrite_files {
+            let normalized = file.replace('\\', "/");
+            if !seen.insert(normalized.clone()) {
+                continue;
+            }
+            if !super::state::has_reported_conflict(&repository, &normalized)? {
+                return Err("只能替换本次分支切换报告的未跟踪文件".into());
+            }
+            let path = super::conflict::validate_conflict_path(workspace_root, &normalized)?;
+            let metadata = std::fs::symlink_metadata(&path).map_err(|e| e.to_string())?;
+            if !metadata.is_file() || metadata.file_type().is_symlink() {
+                return Err("只能替换未跟踪普通文件".into());
+            }
+            if !repository
+                .successful_stdout(
+                    &["ls-files", "--", &format!(":(literal){}", normalized)],
+                    "检查未跟踪文件失败",
+                )?
+                .is_empty()
+                || !repository.cat_file_exists(&format!("{}:{}", target, normalized))?
+            {
+                return Err("文件已跟踪或目标分支不包含此文件，请重新确认".into());
+            }
+            // Read all bytes first so a later validation failure deletes nothing.
+            let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+            drafts.push((path, bytes));
+        }
     }
+
+    // Keep a persistent copy until checkout AND import succeed. Restore failures
+    // report this location so even a disk/permission failure cannot lose a draft.
+    let backup_dir = if drafts.is_empty() {
+        None
+    } else {
+        let git_dir = repository
+            .successful_stdout(&["rev-parse", "--absolute-git-dir"], "获取备份目录失败")?;
+        let dir = std::path::PathBuf::from(git_dir)
+            .join(format!("snippets-checkout-backup-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir(&dir).map_err(|e| format!("创建草稿备份失败: {}", e))?;
+        for (index, (path, bytes)) in drafts.iter().enumerate() {
+            std::fs::write(dir.join(index.to_string()), bytes)
+                .map_err(|e| format!("备份草稿失败: {}（{}）", e, dir.display()))?;
+            std::fs::write(
+                dir.join(format!("{}.path", index)),
+                path.to_string_lossy().as_bytes(),
+            )
+            .map_err(|e| format!("备份草稿路径失败: {}（{}）", e, dir.display()))?;
+        }
+        Some(dir)
+    };
+    let arg_refs = args.iter().map(String::as_str).collect::<Vec<_>>();
+    let operation = (|| {
+        for (path, _) in &drafts {
+            std::fs::remove_file(path).map_err(|e| format!("替换未跟踪文件失败: {}", e))?;
+        }
+        let output = repository.switch_branch(&arg_refs)?;
+        if !output.status.success() {
+            let stderr = get_git_stderr(&output);
+            super::state::record_checkout_conflicts(
+                workspace_root,
+                &extract_untracked_files_from_error(&stderr),
+            )?;
+            return Err(format!("切换分支失败: {}", stderr));
+        }
+        import_config()?;
+        super::state::clear_pull_conflicts(workspace_root)?;
+        clear_git_status_cache();
+        Ok(())
+    })();
+    if let Err(error) = operation {
+        let mut restore_errors = Vec::new();
+        for (path, bytes) in &drafts {
+            if let Err(restore_error) = std::fs::write(path, bytes) {
+                restore_errors.push(format!("{}: {}", path.display(), restore_error));
+            }
+        }
+        clear_git_status_cache();
+        if let Some(dir) = &backup_dir {
+            if !restore_errors.is_empty() {
+                return Err(format!(
+                    "{}；草稿恢复失败: {}；备份保留于 {}",
+                    error,
+                    restore_errors.join("; "),
+                    dir.display()
+                ));
+            }
+            return Err(format!(
+                "{}；草稿已恢复，备份保留于 {}",
+                error,
+                dir.display()
+            ));
+        }
+        return Err(error);
+    }
+    if let Some(dir) = backup_dir {
+        if let Err(error) = std::fs::remove_dir_all(&dir) {
+            warn!(
+                "分支已切换，草稿备份清理失败（{}）: {}",
+                dir.display(),
+                error
+            );
+        }
+    }
+    info!("✅ [Git] 已切换到分支 {}", branch);
+    Ok(())
 }
 
 /// 解析 pull 输出，统计更新的文件数量

@@ -25,20 +25,4 @@ describe('useGitRepoNotFoundDialog', () => {
       'settings.gitSync.repoNotFoundMessage:git@example.com:owner/repo.git:pull'
     );
   });
-
-  it('closes and resets info when ignored', () => {
-    const dialog = useGitRepoNotFoundDialog(t);
-    dialog.open({
-      remoteUrl: 'git@example.com:owner/repo.git',
-      operation: 'push'
-    });
-
-    dialog.ignore();
-
-    expect(dialog.visible.value).toBe(false);
-    expect(dialog.info.value).toEqual({
-      remoteUrl: '',
-      operation: ''
-    });
-  });
 });

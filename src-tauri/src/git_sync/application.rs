@@ -8,7 +8,10 @@ use super::service::{ChangedFilesByStatus, GitSyncService};
 use super::types::{ConflictPayload, PullResult, PushResult, RepoNotFoundPayload};
 use super::{clear_git_status_cache, ensure_gitignore, get_system_git_config};
 
-pub(crate) fn import_portable_sync_config(app_handle: &tauri::AppHandle, workspace_root: &Path) {
+pub(crate) fn import_portable_sync_config(
+    app_handle: &tauri::AppHandle,
+    workspace_root: &Path,
+) -> Result<bool, String> {
     match crate::sync_data::import_sync_bundle(app_handle, workspace_root) {
         Ok(report) if report.found_sync_bundle => {
             let applied_count = report.applied_preferences.len()
@@ -31,9 +34,11 @@ pub(crate) fn import_portable_sync_config(app_handle: &tauri::AppHandle, workspa
                     report.warnings.join("; ")
                 );
             }
+            Ok(true)
         }
         Ok(_) => {
             debug!("ℹ️ [Git] 工作区没有 sync.json，跳过可移植配置导入");
+            Ok(false)
         }
         Err(error) => {
             warn!("⚠️ [Git] 同步配置导入失败: {}", error);
@@ -41,8 +46,144 @@ pub(crate) fn import_portable_sync_config(app_handle: &tauri::AppHandle, workspa
                 "portable-config-import-failed",
                 serde_json::json!({ "error": error }),
             );
+            Err(error)
         }
     }
+}
+
+pub(super) fn apply_pulled_config(
+    app_handle: &AppHandle,
+    workspace_root: &Path,
+) -> Result<(), String> {
+    if !import_portable_sync_config(app_handle, workspace_root)? {
+        // 已经与远端核对过，即使是旧仓库或空远端也可以建立本机配置投影。
+        crate::sync_data::export_sync_bundle(app_handle, workspace_root)?;
+    }
+    Ok(())
+}
+
+/// Acquire the Git lock, then reject an expired workspace before any mutation.
+pub(super) fn lock_current_workspace(
+    app_handle: &AppHandle,
+    workspace_root: &Path,
+) -> Result<std::sync::MutexGuard<'static, ()>, String> {
+    super::state::lock_git_operation(|| require_current_workspace(app_handle, workspace_root))
+}
+
+/// Must run inside GIT_OPERATION_LOCK, before touching Git or global settings.
+pub(super) fn require_current_workspace(
+    app_handle: &AppHandle,
+    workspace_root: &Path,
+) -> Result<(), String> {
+    super::commands::require_git_sync_plugin(app_handle)?;
+    if crate::json_config::get_workspace_root(app_handle)?.as_deref() != Some(workspace_root) {
+        return Err("工作区已更改，已取消过期的 Git 操作".into());
+    }
+    let config = app_handle
+        .try_state::<Arc<StdRwLock<crate::app_config::AppConfigManager>>>()
+        .ok_or("AppConfigManager 未初始化")?;
+    if !config
+        .read()
+        .map_err(|e| e.to_string())?
+        .get_git_settings()
+        .enabled
+    {
+        return Err("Git 同步未启用".into());
+    }
+    Ok(())
+}
+
+pub(super) fn pull_workspace(
+    app_handle: &AppHandle,
+    workspace_root: &Path,
+) -> Result<PullResult, String> {
+    pull_workspace_with_preflight(app_handle, workspace_root, || Ok(()))
+}
+
+pub(super) fn pull_workspace_with_preflight(
+    app_handle: &AppHandle,
+    workspace_root: &Path,
+    preflight: impl FnOnce() -> Result<(), String>,
+) -> Result<PullResult, String> {
+    GitSyncService::new(workspace_root).pull_with_preflight(
+        || {
+            require_current_workspace(app_handle, workspace_root)?;
+            preflight()
+        },
+        || {
+            apply_pulled_config(app_handle, workspace_root)?;
+            // A real successful pull (including zero updates) is the recovery
+            // signal. Failed network pulls and branch choices never resume pushes.
+            if let Some(state) =
+                app_handle.try_state::<Arc<Mutex<Option<super::AutoSyncManager>>>>()
+            {
+                if let Some(manager) = state.lock().map_err(|e| e.to_string())?.as_ref() {
+                    if manager.matches_workspace(workspace_root) {
+                        manager.resume()?;
+                    }
+                }
+            }
+            Ok(())
+        },
+    )
+}
+
+pub(super) fn push_workspace(
+    app_handle: &AppHandle,
+    workspace_root: &Path,
+    message: &str,
+) -> Result<PushResult, String> {
+    push_workspace_with_preflight(app_handle, workspace_root, message, || Ok(()))
+}
+
+pub(super) fn push_workspace_with_preflight(
+    app_handle: &AppHandle,
+    workspace_root: &Path,
+    message: &str,
+    preflight: impl FnOnce() -> Result<(), String>,
+) -> Result<PushResult, String> {
+    GitSyncService::new(workspace_root).push_with_preflight(
+        message,
+        || {
+            require_current_workspace(app_handle, workspace_root)?;
+            preflight()
+        },
+        || {
+            ensure_gitignore(workspace_root)?;
+            if !crate::sync_data::has_sync_baseline(
+                workspace_root,
+                &crate::json_config::get_data_dir(app_handle),
+            )? {
+                import_portable_sync_config(app_handle, workspace_root)?;
+            }
+            crate::sync_data::export_sync_bundle(app_handle, workspace_root)?;
+            Ok(())
+        },
+    )
+}
+
+pub(super) fn schedule_workspace_index_rebuild(
+    app: AppHandle,
+    root: PathBuf,
+    cache: crate::markdown::CacheManager,
+) {
+    tauri::async_runtime::spawn(async move {
+        match crate::markdown::IndexManager::build_index(&root, &cache).await {
+            Ok(index) => {
+                let Ok(_guard) = lock_current_workspace(&app, &root) else {
+                    return;
+                };
+                if let Some(state) =
+                    app.try_state::<Arc<StdRwLock<Option<crate::markdown::IndexManager>>>>()
+                {
+                    if let Ok(mut current) = state.write() {
+                        *current = Some(index);
+                    }
+                }
+            }
+            Err(error) => warn!("[Git] Pull 后重建搜索索引失败: {}", error),
+        }
+    });
 }
 
 pub(crate) fn apply_non_content_sync_changes(
@@ -73,14 +214,40 @@ pub(crate) async fn pull(
         warn!("⚠️ [Git] 发送 git-pull-start 到 main 失败: {}", e);
     }
 
-    let result = GitSyncService::new(&workspace_root).pull().await?;
-    if result.success {
-        // 即使仓库 already up-to-date，也需要恢复新安装设备的可移植配置。
-        import_portable_sync_config(&app_handle, &workspace_root);
-    }
+    let result = pull_workspace(&app_handle, &workspace_root).inspect_err(|_| {
+        let Ok(_guard) = super::GIT_OPERATION_LOCK.lock() else {
+            return;
+        };
+        if require_current_workspace(&app_handle, &workspace_root).is_err() {
+            return;
+        }
+        for window in ["main", "config"] {
+            let _ = app_handle.emit_to(
+                window,
+                "git-sync-complete",
+                serde_json::json!({
+                    "success": false, "last_sync_time": null
+                }),
+            );
+        }
+    })?;
+
+    let _guard = super::GIT_OPERATION_LOCK
+        .lock()
+        .map_err(|e| e.to_string())?;
+    require_current_workspace(&app_handle, &workspace_root)?;
 
     // 如果检测到冲突（包括 untracked files），存入待处理队列
     if result.has_conflicts {
+        if let Some(sync_state) =
+            app_handle.try_state::<Arc<Mutex<Option<super::AutoSyncManager>>>>()
+        {
+            if let Ok(manager) = sync_state.lock() {
+                if let Some(manager) = manager.as_ref() {
+                    manager.pause()?;
+                }
+            }
+        }
         let payload = ConflictPayload {
             conflict_files: result.conflict_files.clone(),
             untracked_files: result.untracked_files.clone(),
@@ -261,58 +428,13 @@ pub(crate) async fn pull(
                 warn!("⚠️ [Git] 发送 git-sync-complete 到 main 失败: {}", e);
             }
 
-            // Pull 完成后，重建搜索索引，确保快捷搜索能命中新同步的 Markdown 文件
-            // 步骤：
-            // 1. 从应用状态中读取最新的 CacheManager 并克隆一份（避免跨 await 持有锁）
-            // 2. 基于当前工作区和缓存重建索引
-            // 3. 将新的 IndexManager 写回全局状态
-            let mut new_index_opt = None;
-            if let Some(cache_state) =
-                app_handle.try_state::<Arc<StdRwLock<crate::markdown::CacheManager>>>()
-            {
-                let cache_clone_opt = match cache_state.read() {
-                    Ok(cache) => Some(cache.clone()),
-                    Err(e) => {
-                        error!(
-                            "❌ [Git] 获取 CacheManager 读锁失败，无法在 Pull 后重建索引: {}",
-                            e
-                        );
-                        None
-                    }
-                };
-
-                if let Some(cache_clone) = cache_clone_opt {
-                    match crate::markdown::IndexManager::build_index(&workspace_root, &cache_clone)
-                        .await
-                    {
-                        Ok(new_index) => {
-                            info!("✅ [Git] Pull 后搜索索引重建完成");
-                            new_index_opt = Some(new_index);
-                        }
-                        Err(e) => {
-                            error!("❌ [Git] Pull 后重建搜索索引失败: {}", e);
-                        }
-                    }
-                }
-            }
-
-            if let Some(new_index) = new_index_opt {
-                if let Some(index_state) = app_handle
-                    .try_state::<Arc<std::sync::RwLock<Option<crate::markdown::IndexManager>>>>()
-                {
-                    match index_state.write() {
-                        Ok(mut index_lock) => {
-                            *index_lock = Some(new_index);
-                            info!("✅ [Git] 全局搜索索引已更新（包含远程同步的文件）");
-                        }
-                        Err(e) => {
-                            error!(
-                                "❌ [Git] 获取 IndexManager 写锁失败，无法更新搜索索引: {}",
-                                e
-                            );
-                        }
-                    }
-                }
+            // Snapshot the cache under the workspace/Git lock; verify the root
+            // again when publishing an asynchronously built index.
+            let cache_snapshot = app_handle
+                .try_state::<Arc<StdRwLock<crate::markdown::CacheManager>>>()
+                .and_then(|state| state.read().ok().map(|cache| cache.clone()));
+            if let Some(cache) = cache_snapshot {
+                schedule_workspace_index_rebuild(app_handle.clone(), workspace_root.clone(), cache);
             }
         }
     }
@@ -328,9 +450,6 @@ pub(crate) async fn push(
     workspace_root: PathBuf,
     message: Option<String>,
 ) -> Result<PushResult, String> {
-    ensure_gitignore(&workspace_root)?;
-    crate::sync_data::export_sync_bundle(&app_handle, &workspace_root)?;
-
     // 发送 push 开始事件到前端
     if let Err(e) = app_handle.emit_to("config", "git-push-start", ()) {
         warn!("⚠️ [Git] 发送 git-push-start 事件失败: {}", e);
@@ -341,9 +460,11 @@ pub(crate) async fn push(
         format!("Auto sync: {}", now.format("%Y-%m-%d %H:%M:%S"))
     });
 
-    let push_result = GitSyncService::new(&workspace_root)
-        .push(&commit_message)
-        .await;
+    let push_result = push_workspace(&app_handle, &workspace_root, &commit_message);
+    let _guard = super::GIT_OPERATION_LOCK
+        .lock()
+        .map_err(|e| e.to_string())?;
+    require_current_workspace(&app_handle, &workspace_root)?;
 
     // 发送同步完成事件
     let last_sync_time = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();

@@ -50,8 +50,13 @@
                 {{ $t('settings.gitSync.status.syncing') }}
               </template>
               <template v-else-if="syncState === 'has_changes'">
-                {{ pendingFilesCount }}
-                {{ $t('settings.gitSync.status.pendingFiles') }}
+                <template v-if="pendingFilesCount > 0">
+                  {{ pendingFilesCount }}
+                  {{ $t('settings.gitSync.status.pendingFiles') }}
+                </template>
+                <template v-else>
+                  {{ $t('settings.gitSync.status.waitingSync') }}
+                </template>
               </template>
               <template
                 v-else-if="syncState === 'synced' || syncState === 'idle'"
@@ -523,7 +528,6 @@ import {
   gitPush,
   getGitContributionActivity,
   getGitRecords,
-  removeUntrackedFile,
   restoreGitRecordFile,
   startAutoSync,
   stopAutoSync,
@@ -538,6 +542,11 @@ import type {
   PullResult
 } from '@/plugins/git-sync/api';
 import type { GitSettings } from '@/types/models';
+import {
+  getPendingGitBranchSelection,
+  clearPendingGitBranchSelection
+} from '../lifecycle';
+import { decodeGitConflictFilePath } from '@/plugins/git-sync/conflictState';
 import modal from '@/utils/modal';
 import { analyzeGitError, getErrorTypeIcon } from '@/utils/git-error';
 import { logger } from '@/utils/logger';
@@ -621,6 +630,7 @@ const branchSelection = ref<BranchSelection | null>(null);
 const selectedBranch = ref('main');
 const branchOverwriteVisible = ref(false);
 const pendingBranchSwitch = ref('');
+const pendingBranchPull = ref(false);
 const pendingUntrackedFiles = ref<string[]>([]);
 const gitRecords = ref<GitRecord[]>([]);
 const isLoadingRecords = ref(false);
@@ -816,7 +826,8 @@ const requestBranchSelection = (selection: BranchSelection) => {
 
 const extractUntrackedFilesFromError = (error: unknown): string[] => {
   const message = String(error);
-  const marker = 'would be overwritten by checkout:';
+  const marker =
+    'untracked working tree files would be overwritten by checkout:';
   const markerIndex = message.indexOf(marker);
   if (markerIndex < 0) return [];
 
@@ -830,10 +841,14 @@ const extractUntrackedFilesFromError = (error: unknown): string[] => {
     .filter(
       (line) =>
         line && !line.startsWith('Please ') && !line.startsWith('Aborting')
-    );
+    )
+    .map(decodeGitConflictFilePath);
 };
 
-const switchBranchWithPrompt = async (branch: string) => {
+const switchBranchWithPrompt = async (
+  branch: string,
+  pullAfterSwitch = false
+) => {
   try {
     await switchGitBranch(branch);
     await refreshStatus();
@@ -847,6 +862,7 @@ const switchBranchWithPrompt = async (branch: string) => {
     const untrackedFiles = extractUntrackedFilesFromError(error);
     if (untrackedFiles.length > 0) {
       pendingBranchSwitch.value = branch;
+      pendingBranchPull.value = pullAfterSwitch;
       pendingUntrackedFiles.value = untrackedFiles;
       branchSelectVisible.value = false;
       branchOverwriteVisible.value = true;
@@ -879,24 +895,32 @@ const handleBranchOverwriteConfirm = async () => {
 
   isSaving.value = true;
   try {
-    for (const file of files) {
-      await removeUntrackedFile(file);
-    }
+    // The backend validates the complete confirmation and preserves draft bytes
+    // until checkout and config import have both succeeded.
+    await switchGitBranch(branch, files);
+    const shouldPull = pendingBranchPull.value;
+    pendingBranchPull.value = false;
     branchOverwriteVisible.value = false;
     pendingUntrackedFiles.value = [];
     pendingBranchSwitch.value = '';
-    await switchGitBranch(branch);
+    clearPendingGitBranchSelection();
     await refreshStatus();
     modal.msg(
       t('settings.gitSync.branch.switched', { branch }),
       'success',
       'bottom-right'
     );
+    if (shouldPull) {
+      isPulling.value = true;
+      processPullResult(await gitPull());
+      await refreshContributionIfEnabled();
+    }
   } catch (error) {
     logger.error('[GitSync] 处理未跟踪文件后切换分支失败', error);
     showFriendlyError(error);
   } finally {
     isSaving.value = false;
+    isPulling.value = false;
   }
 };
 
@@ -907,6 +931,7 @@ const processPullResult = (result: PullResult) => {
   }
 
   if (result.success) {
+    clearPendingGitBranchSelection();
     if (result.has_conflicts) {
       logger.info('[GitSync] Pull 检测到冲突，由全局对话框处理');
     } else if (result.files_updated === 0) {
@@ -1083,6 +1108,11 @@ const handleEnabledChange = async (value: boolean) => {
     }
 
     await saveSettings();
+    if (value && gitSettings.value.auto_sync) {
+      await startAutoSync();
+    } else if (!value) {
+      await stopAutoSync();
+    }
     modal.msg(
       value
         ? t('settings.gitSync.enabledSuccess')
@@ -1185,7 +1215,7 @@ const handleBranchSelectConfirm = async (value: string | number) => {
   const branch = String(value || 'main');
   isPulling.value = true;
   try {
-    const switched = await switchBranchWithPrompt(branch);
+    const switched = await switchBranchWithPrompt(branch, true);
     if (!switched) return;
     branchSelectVisible.value = false;
     const result = await gitPull();
@@ -1222,12 +1252,29 @@ const handlePush = async () => {
   }
 };
 
+const handleBranchSelectionRequired = (event: Event) => {
+  event.preventDefault();
+  requestBranchSelection((event as CustomEvent<BranchSelection>).detail);
+};
+
 onMounted(async () => {
+  window.addEventListener(
+    'git-branch-selection-required',
+    handleBranchSelectionRequired
+  );
+  const pendingSelection = getPendingGitBranchSelection();
+  if (pendingSelection) requestBranchSelection(pendingSelection);
   await loadGitSettings();
   // 与标题栏共用同一状态：进入页面时刷新，保证「最后同步」时间与指示器一致
   await refreshSettings();
   await refreshStatus();
   await refreshContributionIfEnabled();
+});
+onUnmounted(() => {
+  window.removeEventListener(
+    'git-branch-selection-required',
+    handleBranchSelectionRequired
+  );
 });
 </script>
 

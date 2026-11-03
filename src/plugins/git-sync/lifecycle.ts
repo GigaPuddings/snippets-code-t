@@ -14,8 +14,43 @@ import {
   startAutoSync
 } from './api';
 import { useGitStatus } from './useGitStatus';
+import type { BranchSelection } from './api';
+
+let pendingBranchSelection: BranchSelection | null = null;
+export const getPendingGitBranchSelection = () => pendingBranchSelection;
+export const clearPendingGitBranchSelection = () => {
+  pendingBranchSelection = null;
+};
+
+export function requestGitBranchSelection(
+  selection: BranchSelection,
+  t: Composer['t']
+): void {
+  const unchanged =
+    JSON.stringify(pendingBranchSelection) === JSON.stringify(selection);
+  pendingBranchSelection = selection;
+  const unhandled = window.dispatchEvent(
+    new CustomEvent('git-branch-selection-required', {
+      detail: selection,
+      cancelable: true
+    })
+  );
+  if (unhandled && !unchanged) {
+    modal.msg(
+      t('settings.gitSync.branch.selectMessage', {
+        current: selection.current_branch,
+        recommended: selection.recommended_branch
+      }),
+      'warning',
+      'top-right',
+      6000
+    );
+  }
+}
 
 export interface GitEventListeners {
+  workspaceRootChanged?: UnlistenFn | null;
+  gitBranchSelectionRequired?: UnlistenFn | null;
   gitSyncSuccess: UnlistenFn | null;
   gitSyncError: UnlistenFn | null;
   gitPullCompleted: UnlistenFn | null;
@@ -38,6 +73,8 @@ export async function setupGitEventListeners(
   logger.info(`[GitSync] [${windowLabel}] 设置 Git 事件监听器...`);
 
   const listeners: GitEventListeners = {
+    workspaceRootChanged: null,
+    gitBranchSelectionRequired: null,
     gitSyncSuccess: null,
     gitSyncError: null,
     gitPullCompleted: null,
@@ -53,6 +90,14 @@ export async function setupGitEventListeners(
   let isProcessingFileEvent = false;
 
   try {
+    listeners.workspaceRootChanged = await listen(
+      'workspace-root-changed',
+      clearPendingGitBranchSelection
+    );
+    listeners.gitBranchSelectionRequired = await listen<BranchSelection>(
+      'git-branch-selection-required',
+      (event) => requestGitBranchSelection(event.payload, t)
+    );
     listeners.gitSyncSuccess = await listen<string>(
       'git-sync-success',
       (event) => {
@@ -296,7 +341,7 @@ export async function initGitSync(
     }
 
     let shouldRefresh = false;
-    let pullFailed = false;
+    let hasConflicts = false;
     let shouldPull = gitSettings.pull_on_start;
 
     // token 不会持久化到 app.json，而是由 Git credential helper 保存。
@@ -329,18 +374,20 @@ export async function initGitSync(
             'bottom-right'
           );
           shouldRefresh = true;
-        } else if (!result.success) {
-          pullFailed = true;
         }
+        hasConflicts = result.has_conflicts;
+        if (result.branch_selection)
+          requestGitBranchSelection(result.branch_selection, t);
       } catch (error) {
-        pullFailed = true;
-        logger.error('[GitSync] 启动时拉取失败', error);
+        deps.logger.error('[GitSync] 启动时拉取失败', error);
       }
     }
 
     if (gitSettings.auto_sync) {
       await deps.startAutoSync();
-      if (pullFailed) {
+      // Network errors and branch selection remain retryable. Push is gated in
+      // the backend until its first successful pull. Only real conflicts pause.
+      if (hasConflicts) {
         try {
           await deps.pauseAutoSync();
         } catch (error) {
@@ -357,6 +404,9 @@ export async function initGitSync(
 }
 
 export function cleanupGitEventListeners(listeners: GitEventListeners): void {
+  if (listeners.workspaceRootChanged) listeners.workspaceRootChanged();
+  if (listeners.gitBranchSelectionRequired)
+    listeners.gitBranchSelectionRequired();
   if (listeners.gitSyncSuccess) listeners.gitSyncSuccess();
   if (listeners.gitSyncError) listeners.gitSyncError();
   if (listeners.gitPullCompleted) listeners.gitPullCompleted();

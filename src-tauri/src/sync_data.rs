@@ -135,7 +135,7 @@ struct SyncField {
     clock: SyncClock,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 struct SyncMapFile {
     schema_version: u32,
@@ -208,6 +208,13 @@ fn validate_sync_bundle(bundle: &SyncBundle) -> Result<(), String> {
         return Err("同步数据版本高于当前应用支持范围".to_string());
     }
     Uuid::parse_str(&bundle.vault_id).map_err(|_| "同步数据的 vaultId 无效".to_string())?;
+    if parse_version(env!("CARGO_PKG_VERSION")) < parse_version(&bundle.minimum_app_version) {
+        return Err(format!(
+            "远端数据要求应用版本不低于 {}，当前版本为 {}",
+            bundle.minimum_app_version,
+            env!("CARGO_PKG_VERSION")
+        ));
+    }
     Ok(())
 }
 
@@ -601,8 +608,8 @@ fn app_config_snapshot(app_handle: &AppHandle) -> Result<AppConfig, String> {
     Ok(manager.get_config().clone())
 }
 
-fn base_dir(app_handle: &AppHandle, vault_id: &str) -> PathBuf {
-    crate::json_config::get_data_dir(app_handle)
+fn base_dir(data_dir: &Path, vault_id: &str) -> PathBuf {
+    data_dir
         .join("state")
         .join("sync")
         .join(vault_id)
@@ -615,7 +622,8 @@ fn save_base_map(
     file_name: &str,
     file: &SyncMapFile,
 ) -> Result<(), String> {
-    write_json_atomic(&base_dir(app_handle, vault_id).join(file_name), file)
+    let data_dir = crate::json_config::get_data_dir(app_handle);
+    write_json_atomic(&base_dir(&data_dir, vault_id).join(file_name), file)
 }
 
 fn read_base_map(
@@ -623,7 +631,16 @@ fn read_base_map(
     vault_id: &str,
     file_name: &str,
 ) -> Result<Option<SyncMapFile>, String> {
-    read_json_if_exists(&base_dir(app_handle, vault_id).join(file_name))
+    let data_dir = crate::json_config::get_data_dir(app_handle);
+    read_json_if_exists(&base_dir(&data_dir, vault_id).join(file_name))
+}
+
+fn minimum_app_version_for_export(existing: Option<&str>) -> String {
+    // 已兼容的远端可能要求更高版本，导出不能降低其约束。
+    existing
+        .filter(|version| parse_version(version) > parse_version(MINIMUM_SYNC_APP_VERSION))
+        .unwrap_or(MINIMUM_SYNC_APP_VERSION)
+        .to_string()
 }
 
 pub fn export_sync_bundle(
@@ -633,10 +650,11 @@ pub fn export_sync_bundle(
     let _sync_guard = SYNC_BUNDLE_IO_LOCK
         .lock()
         .map_err(|e| format!("获取同步配置写锁失败: {}", e))?;
+    // 先校验磁盘协议，遇到不兼容版本时不生成设备 ID 或读取/创建工作区配置。
+    let existing = read_sync_bundle(workspace_root)?;
     let device_id = ensure_device_id(app_handle)?;
     let config = app_config_snapshot(app_handle)?;
     let attachment = attachment_settings(app_handle, workspace_root)?;
-    let existing = read_sync_bundle(workspace_root)?;
     let vault_id = existing
         .as_ref()
         .map(|bundle| bundle.vault_id.clone())
@@ -692,7 +710,11 @@ pub fn export_sync_bundle(
         content_schema_version: CONTENT_SCHEMA_VERSION,
         preference_schema_version: PREFERENCE_SCHEMA_VERSION,
         vault_id: vault_id.clone(),
-        minimum_app_version: MINIMUM_SYNC_APP_VERSION.to_string(),
+        minimum_app_version: minimum_app_version_for_export(
+            existing
+                .as_ref()
+                .map(|bundle| bundle.minimum_app_version.as_str()),
+        ),
         managed_roots: managed_roots.clone(),
         features: vec![
             "content".to_string(),
@@ -729,11 +751,36 @@ pub fn export_sync_bundle(
     })
 }
 
+pub(crate) fn has_sync_baseline(workspace_root: &Path, data_dir: &Path) -> Result<bool, String> {
+    let Some(bundle) = read_sync_bundle(workspace_root)? else {
+        return Ok(false);
+    };
+    // Git 已经检出配置并不代表这台设备已完成导入。只在本机三份基线与
+    // 当前协议文件一致时投影，避免状态查询在首次恢复或中断的导入后覆盖远端字段。
+    let base = base_dir(data_dir, &bundle.vault_id);
+    for (name, projected) in [
+        ("preferences.json", &bundle.preferences),
+        ("hotkeys.json", &bundle.hotkeys),
+        ("vault-settings.json", &bundle.vault_settings),
+    ] {
+        if read_json_if_exists(&base.join(name))?.as_ref() != Some(projected) {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
 /// 在本地可同步配置发生变化后，立即刷新工作区中的可移植配置投影。
 ///
 /// 这里只生成 `sync.json` 并通知 Git 状态刷新，不执行 commit 或 push。
 /// Git 同步未启用或工作区未配置时，本地配置仍可正常保存。
 pub fn materialize_local_config_change(app_handle: &AppHandle) -> Result<bool, String> {
+    // Git 正在建立/更新基线时延后状态投影，避免生成同名未跟踪配置阻塞 merge。
+    let _git_guard = match crate::git_sync::GIT_OPERATION_LOCK.try_lock() {
+        Ok(guard) => guard,
+        Err(std::sync::TryLockError::WouldBlock) => return Ok(false),
+        Err(error) => return Err(format!("获取 Git 操作锁失败: {}", error)),
+    };
     if !crate::app_config::is_plugin_enabled(app_handle, "git-sync") {
         return Ok(false);
     }
@@ -746,6 +793,13 @@ pub fn materialize_local_config_change(app_handle: &AppHandle) -> Result<bool, S
     let Some(workspace_root) = crate::json_config::get_workspace_root(app_handle)? else {
         return Ok(false);
     };
+
+    if !has_sync_baseline(
+        &workspace_root,
+        &crate::json_config::get_data_dir(app_handle),
+    )? {
+        return Ok(false);
+    }
 
     let sync_path = path_for(&workspace_root, SYNC_FILE);
     let previous = fs::read(&sync_path).ok();
@@ -1152,13 +1206,11 @@ fn save_workspace_attachment_settings(
         let mut manager = state
             .write()
             .map_err(|e| format!("获取工作区配置锁失败: {}", e))?;
-        manager.update_attachment_settings(settings);
-        return manager.save();
+        return manager.save_attachment_settings(settings);
     }
 
     let mut manager = WorkspaceManager::new(workspace_root.join(".snippets-code"))?;
-    manager.update_attachment_settings(settings);
-    manager.save()
+    manager.save_attachment_settings(settings)
 }
 
 pub fn import_sync_bundle(
@@ -1171,13 +1223,6 @@ pub fn import_sync_bundle(
     let Some(mut bundle) = read_sync_bundle(workspace_root)? else {
         return Ok(SyncImportReport::default());
     };
-    if parse_version(env!("CARGO_PKG_VERSION")) < parse_version(&bundle.minimum_app_version) {
-        return Err(format!(
-            "远端数据要求应用版本不低于 {}，当前版本为 {}",
-            bundle.minimum_app_version,
-            env!("CARGO_PKG_VERSION")
-        ));
-    }
 
     let device_id = ensure_device_id(app_handle)?;
     let local_modified_at = local_config_modified_at(app_handle);
@@ -1259,8 +1304,7 @@ pub fn import_sync_bundle(
         let mut manager = config_state
             .write()
             .map_err(|e| format!("获取应用配置写锁失败: {}", e))?;
-        manager.update_config(config.clone());
-        manager.save()?;
+        manager.save_config(config.clone())?;
     }
     if vault_settings_changed {
         save_workspace_attachment_settings(app_handle, workspace_root, local_vault_settings)?;
@@ -1362,6 +1406,13 @@ pub fn is_allowed_sync_path(path: &str, attachment_roots: &[String]) -> bool {
     let normalized = path.trim().trim_matches('"').replace('\\', "/");
     if normalized.is_empty()
         || normalized.starts_with('/')
+        || normalized.contains(':')
+        || Path::new(&normalized).components().any(|component| {
+            matches!(
+                component,
+                Component::ParentDir | Component::RootDir | Component::Prefix(_)
+            )
+        })
         || normalized.contains("../")
         || normalized.contains('\0')
     {
@@ -1632,8 +1683,17 @@ fn validate_protocol_file_content(workspace_root: &Path, path: &str) -> Result<(
     if !full_path.is_file() {
         return Ok(());
     }
+    let content = fs::read(&full_path).map_err(|e| format!("读取同步协议文件失败: {}", e))?;
+    validate_protocol_content(path, &content)
+}
+
+/// 同时用于工作区文件和冲突候选/暂存内容的凭证及本机路径检查。
+pub(crate) fn validate_protocol_content(path: &str, content: &[u8]) -> Result<(), String> {
+    if !is_sync_protocol_path(path) {
+        return Ok(());
+    }
     let content =
-        fs::read_to_string(&full_path).map_err(|e| format!("读取同步协议文件失败: {}", e))?;
+        std::str::from_utf8(content).map_err(|e| format!("读取同步协议文件失败: {}", e))?;
     let lower = content.to_ascii_lowercase();
     let forbidden = [
         "github_pat_",
@@ -1649,7 +1709,7 @@ fn validate_protocol_file_content(workspace_root: &Path, path: &str) -> Result<(
         "\\users\\",
     ];
     if forbidden.iter().any(|needle| lower.contains(needle))
-        || contains_windows_absolute_path(&content)
+        || contains_windows_absolute_path(content)
     {
         return Err(format!(
             "同步协议文件包含疑似凭证或本机绝对路径，已阻止提交: {}",
@@ -2008,6 +2068,109 @@ pub fn resolve_sync_protocol_conflicts(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct TempSyncDirectory(PathBuf);
+
+    impl TempSyncDirectory {
+        fn new() -> Self {
+            let path = std::env::temp_dir().join(format!(
+                "snippets-code-sync-version-test-{}",
+                Uuid::new_v4()
+            ));
+            fs::create_dir_all(&path).unwrap();
+            Self(path)
+        }
+    }
+
+    impl Drop for TempSyncDirectory {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn sync_bundle_fixture(minimum_app_version: &str) -> SyncBundle {
+        serde_json::from_value(serde_json::json!({
+            "syncFormatVersion": 2,
+            "contentSchemaVersion": 1,
+            "preferenceSchemaVersion": 1,
+            "vaultId": "3eb5320c-932b-4c81-8c78-ad92f88d1ca3",
+            "minimumAppVersion": minimum_app_version,
+            "preferences": {
+                "schemaVersion": 1,
+                "values": {
+                    "appearance.theme": {
+                        "value": "dark",
+                        "updatedAt": "2026-01-01T00:00:00.000Z",
+                        "modifiedBy": "remote-device"
+                    }
+                }
+            }
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn matching_baseline_does_not_bypass_remote_minimum_app_version() {
+        let directory = TempSyncDirectory::new();
+        let workspace = directory.0.join("workspace");
+        let data_dir = directory.0.join("data");
+        let mut bundle = sync_bundle_fixture("2.1.61");
+        let sync_path = path_for(&workspace, SYNC_FILE);
+        write_json_atomic(&sync_path, &bundle).unwrap();
+        let base = base_dir(&data_dir, &bundle.vault_id);
+        for (name, map) in [
+            ("preferences.json", &bundle.preferences),
+            ("hotkeys.json", &bundle.hotkeys),
+            ("vault-settings.json", &bundle.vault_settings),
+        ] {
+            write_json_atomic(&base.join(name), map).unwrap();
+        }
+        assert!(has_sync_baseline(&workspace, &data_dir).unwrap());
+
+        // 远端可以只修改元数据，而三份已导入字段基线仍然一致。
+        bundle.minimum_app_version = "9999.0.0".to_string();
+        write_json_atomic(&sync_path, &bundle).unwrap();
+        let original = fs::read(&sync_path).unwrap();
+        let error = has_sync_baseline(&workspace, &data_dir).unwrap_err();
+        assert!(error.contains("9999.0.0"));
+        assert!(read_sync_bundle(&workspace).is_err());
+        assert_eq!(fs::read(&sync_path).unwrap(), original);
+    }
+
+    #[test]
+    fn conflict_parser_rejects_remote_minimum_app_version() {
+        let bytes = serde_json::to_vec(&sync_bundle_fixture("9999.0.0")).unwrap();
+        let error = parse_sync_bundle_bytes(&bytes, "远端").unwrap_err();
+        assert!(error.contains("9999.0.0"));
+    }
+
+    #[test]
+    fn export_preserves_a_compatible_higher_remote_minimum_app_version() {
+        let directory = TempSyncDirectory::new();
+        let sync_path = path_for(&directory.0, SYNC_FILE);
+        write_json_atomic(&sync_path, &sync_bundle_fixture("2.2.0")).unwrap();
+        let existing = read_sync_bundle(&directory.0).unwrap().unwrap();
+
+        let exported = SyncBundle {
+            minimum_app_version: minimum_app_version_for_export(Some(
+                &existing.minimum_app_version,
+            )),
+            ..existing
+        };
+        write_json_atomic(&sync_path, &exported).unwrap();
+        let restored = read_sync_bundle(&directory.0).unwrap().unwrap();
+        assert_eq!(restored.minimum_app_version, "2.2.0");
+    }
+
+    #[test]
+    fn export_raises_an_older_remote_minimum_to_support_portable_settings() {
+        let existing = sync_bundle_fixture("2.0.0");
+        assert_eq!(
+            minimum_app_version_for_export(Some(&existing.minimum_app_version)),
+            "2.1.61"
+        );
+        assert_eq!(minimum_app_version_for_export(None), "2.1.61");
+    }
 
     #[test]
     fn sticky_headings_preferences_export_and_import() {

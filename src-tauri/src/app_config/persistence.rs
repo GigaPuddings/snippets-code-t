@@ -163,10 +163,40 @@ impl AppConfigManager {
 
     /// 更新完整配置
     pub fn update_config(&mut self, config: AppConfig) {
+        self.config = Self::normalize_config(config);
+    }
+
+    fn normalize_config(config: AppConfig) -> AppConfig {
         let mut config = config;
         Self::sanitize_git_settings(&mut config.git);
         Self::normalize_runtime_metadata(&mut config);
-        self.config = config;
+        config
+    }
+
+    /// 先持久化候选配置，再发布到内存，避免失败后重试把未保存的值视为已导入。
+    pub fn save_config(&mut self, config: AppConfig) -> Result<(), String> {
+        self.save_config_with(config, Self::save)
+    }
+
+    fn save_config_with(
+        &mut self,
+        config: AppConfig,
+        save: impl FnOnce(&Self) -> Result<(), String>,
+    ) -> Result<(), String> {
+        let candidate = Self {
+            config_path: self.config_path.clone(),
+            config: Self::normalize_config(config),
+        };
+        let result = save(&candidate);
+        // 原子替换后的备份清理也可能报错。若目标已完整落盘，内存仍须与
+        // 磁盘一致，同时保留原始错误；替换前失败则不发布候选配置。
+        if result.is_ok()
+            || fs::read_to_string(&candidate.config_path)
+                .is_ok_and(|content| !Self::needs_save(Some(&content), &candidate.config))
+        {
+            self.config = candidate.config;
+        }
+        result
     }
 
     /// 获取 Git 设置
@@ -328,6 +358,97 @@ mod tests {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.0);
         }
+    }
+
+    #[test]
+    fn failed_config_save_can_retry_and_survives_reload() {
+        let root = std::env::temp_dir().join(format!(
+            "snippets-code-config-save-retry-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let _cleanup = TestDir(root.clone());
+        let mut manager = AppConfigManager::new(&root).unwrap();
+        let config_path = root.join(".snippets-code/app.json");
+        let previous = fs::read(&config_path).unwrap();
+        let previous_theme = manager.get_config().theme.clone();
+        let blocked_backup = root.join(".snippets-code/.app.json.backup");
+        fs::create_dir(&blocked_backup).unwrap();
+        let mut imported = manager.get_config().clone();
+        imported.theme = "dark".to_string();
+
+        assert!(manager.save_config(imported).is_err());
+        assert_eq!(manager.get_config().theme, previous_theme);
+        assert_eq!(fs::read(&config_path).unwrap(), previous);
+
+        fs::remove_dir(&blocked_backup).unwrap();
+        // Import only retries persistence when memory still differs from remote.
+        let mut retried = manager.get_config().clone();
+        if retried.theme != "dark" {
+            retried.theme = "dark".to_string();
+            manager.save_config(retried).unwrap();
+        }
+        assert_eq!(
+            AppConfigManager::new(&root).unwrap().get_config().theme,
+            "dark"
+        );
+    }
+
+    #[test]
+    fn saved_config_normalizes_runtime_metadata_and_removes_credentials() {
+        let root = std::env::temp_dir().join(format!(
+            "snippets-code-config-save-normalization-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let _cleanup = TestDir(root.clone());
+        let mut manager = AppConfigManager::new(&root).unwrap();
+        let mut imported = manager.get_config().clone();
+        imported.version = "0.0.1".to_string();
+        imported.update_available = Some(true);
+        imported.update_info = Some(serde_json::json!({ "version": "0.0.1" }));
+        imported.git.remote_url = "https://user:secret@example.com/notes.git".to_string();
+        imported.git.token = "secret".to_string();
+
+        manager.save_config(imported).unwrap();
+
+        let reloaded = AppConfigManager::new(&root).unwrap();
+        for config in [manager.get_config(), reloaded.get_config()] {
+            assert_eq!(config.version, current_app_version());
+            assert_eq!(config.update_available, Some(false));
+            assert!(config.update_info.is_none());
+            assert_eq!(config.git.remote_url, "https://example.com/notes.git");
+            assert!(config.git.token.is_empty());
+        }
+    }
+
+    #[test]
+    fn committed_config_is_published_when_backup_cleanup_fails() {
+        let root = std::env::temp_dir().join(format!(
+            "snippets-code-config-save-cleanup-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let _cleanup = TestDir(root.clone());
+        let mut manager = AppConfigManager::new(&root).unwrap();
+        let config_path = root.join(".snippets-code/app.json");
+        let mut imported = manager.get_config().clone();
+        imported.theme = "dark".to_string();
+
+        // Persist through the real atomic writer before injecting its possible
+        // post-commit cleanup error. Read-only files cannot reliably cause this
+        // error on all Windows filesystems / Rust versions.
+        let cleanup_error = "写入配置文件失败: 清理文件备份失败".to_string();
+        let result = manager.save_config_with(imported.clone(), |candidate| {
+            candidate.save()?;
+            Err(cleanup_error.clone())
+        });
+        assert_eq!(result, Err(cleanup_error));
+        assert_eq!(manager.get_config().theme, "dark");
+        let saved: AppConfig = serde_json::from_slice(&fs::read(&config_path).unwrap()).unwrap();
+        assert_eq!(saved.theme, "dark");
+        manager.save_config(imported).unwrap();
+        assert_eq!(
+            AppConfigManager::new(&root).unwrap().get_config().theme,
+            "dark"
+        );
     }
 
     #[test]

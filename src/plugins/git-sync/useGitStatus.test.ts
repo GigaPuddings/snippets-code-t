@@ -1,22 +1,132 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import i18n from '@/i18n';
-import { useGitStatus } from './useGitStatus';
+import {
+  cleanupGitStatusListener,
+  setupGitStatusListener,
+  useGitStatus
+} from './useGitStatus';
+import { listen } from '@tauri-apps/api/event';
+import { getGitStatus } from './api';
+import { getGitSettings } from '@/api/appConfig';
 import type { GitSettings } from '@/types/models';
 
 vi.mock('@/plugins/git-sync/api', () => ({ getGitStatus: vi.fn() }));
 vi.mock('@/api/appConfig', () => ({ getGitSettings: vi.fn() }));
+vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }));
 
 const status = useGitStatus();
 const originalLocale = i18n.global.locale.value;
 afterEach(() => {
+  cleanupGitStatusListener();
+  vi.useRealTimers();
   i18n.global.locale.value = originalLocale;
   status.gitSettings.value = null;
   status.gitStatus.value = null;
   status.lastSyncTime.value = null;
-  status.syncState.value = 'disabled';
+  status._setSyncState('disabled');
+});
+
+describe('Git synchronization failures', () => {
+  it('clears the previous workspace failure and ignores its pending status response', async () => {
+    vi.useFakeTimers();
+    const handlers = new Map<
+      string,
+      (event: { payload: { success: boolean } }) => void
+    >();
+    vi.mocked(listen).mockImplementation(async (name, handler) => {
+      handlers.set(
+        name,
+        handler as (event: { payload: { success: boolean } }) => void
+      );
+      return () => {};
+    });
+    const clean = {
+      is_repo: true,
+      has_remote: true,
+      has_changes: false,
+      changed_files: [],
+      branch: 'main',
+      main_branch: 'main',
+      available_branches: ['main'],
+      has_other_branches: false
+    };
+    let resolveOld!: (value: typeof clean) => void;
+    vi.mocked(getGitStatus)
+      .mockReset()
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveOld = resolve;
+          })
+      )
+      .mockResolvedValue(clean);
+    vi.mocked(getGitSettings).mockResolvedValue({
+      enabled: true
+    } as GitSettings);
+    status.gitSettings.value = { enabled: true } as GitSettings;
+    status._setSyncState('idle');
+    setupGitStatusListener();
+    await Promise.resolve();
+    const pending = status.refreshStatus();
+    handlers.get('git-sync-complete')?.({ payload: { success: false } });
+    handlers.get('workspace-root-changed')?.({ payload: { success: false } });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(status.syncState.value).toBe('synced');
+    resolveOld({ ...clean, has_changes: true, branch: 'old-workspace' });
+    await pending;
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(status.gitStatus.value?.branch).toBe('main');
+    expect(status.syncState.value).toBe('synced');
+    expect(getGitStatus).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps the failed operation visible through local refresh and clears it on successful sync', async () => {
+    vi.useFakeTimers();
+    const handlers = new Map<
+      string,
+      (event: { payload: { success: boolean } }) => void
+    >();
+    vi.mocked(listen).mockImplementation(async (name, handler) => {
+      handlers.set(
+        name,
+        handler as (event: { payload: { success: boolean } }) => void
+      );
+      return () => {};
+    });
+    vi.mocked(getGitStatus).mockResolvedValue({
+      is_repo: true,
+      has_remote: true,
+      has_changes: false,
+      changed_files: [],
+      branch: 'main',
+      main_branch: 'main',
+      available_branches: ['main'],
+      has_other_branches: false
+    });
+    status.gitSettings.value = { enabled: true } as GitSettings;
+    setupGitStatusListener();
+    await Promise.resolve();
+    const complete = handlers.get('git-sync-complete');
+    expect(complete).toBeDefined();
+    complete?.({ payload: { success: false } });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(status.syncState.value).toBe('error');
+    await status.refreshStatus();
+    expect(status.syncState.value).toBe('error');
+    complete?.({ payload: { success: true } });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(status.syncState.value).toBe('synced');
+  });
 });
 
 describe('Git status locale', () => {
+  it('describes committed changes as waiting to sync', () => {
+    status.gitSettings.value = { enabled: true } as GitSettings;
+    status._setSyncState('has_changes');
+    expect(status.stateDescription.value).toBe(
+      i18n.global.t('settings.gitSync.status.waitingSync')
+    );
+  });
   it('updates computed states when the locale changes', () => {
     i18n.global.locale.value = 'zh-CN';
     expect(status.stateDescription.value).toBe('Git 同步已禁用');

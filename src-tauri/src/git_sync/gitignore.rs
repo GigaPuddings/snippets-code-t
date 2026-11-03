@@ -115,6 +115,10 @@ const SYNC_GITIGNORE_RULES: &str = r#"
 !.snippets-code/sync.json
 "#;
 
+pub(super) fn is_generated_gitignore(content: &[u8]) -> bool {
+    std::str::from_utf8(content).is_ok_and(|text| text.replace("\r\n", "\n") == DEFAULT_GITIGNORE)
+}
+
 /// 确保工作区存在正确的同步忽略规则。
 ///
 /// 旧工作区已经存在 `.gitignore` 时只追加幂等规则，不覆盖用户自定义内容。

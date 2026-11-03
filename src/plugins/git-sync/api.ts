@@ -263,9 +263,12 @@ export async function gitPull(): Promise<PullResult> {
 /**
  * 切换 Git 分支
  */
-export async function switchGitBranch(branch: string): Promise<void> {
+export async function switchGitBranch(
+  branch: string,
+  overwriteFiles?: string[]
+): Promise<void> {
   try {
-    await invoke('switch_git_branch_command', { branch });
+    await invoke('switch_git_branch_command', { branch, overwriteFiles });
   } catch (error) {
     throw new Error(`切换 Git 分支失败: ${error}`);
   }

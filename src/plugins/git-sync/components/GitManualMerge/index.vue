@@ -269,9 +269,8 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import { getConflictFileContent } from '@/plugins/git-sync/api';
-import type { ConflictFileContent } from '@/plugins/git-sync/api';
 import { EditorView, keymap, lineNumbers } from '@codemirror/view';
-import { EditorState } from '@codemirror/state';
+import { Compartment, EditorState } from '@codemirror/state';
 import {
   defaultKeymap,
   history,
@@ -311,11 +310,15 @@ const visible = computed({
 const currentIndex = ref(0);
 const selections = ref<Record<number, 'remote' | 'local'>>({});
 const editedContents = ref<Record<number, string>>({});
-const originalLocalContents = ref<Record<number, string>>({});
-const loading = ref(false);
+const originalLocalContent = ref('');
+const fileLoading = ref(false);
+const merging = ref(false);
+const loading = computed(() => fileLoading.value || merging.value);
 
 // 进度相关状态
-const currentOperation = ref<'loading' | 'merging' | 'complete' | ''>('');
+const currentOperation = ref<'loading' | 'merging' | 'complete' | 'error' | ''>(
+  ''
+);
 const operationProgress = ref(0);
 const operationMessage = ref('');
 
@@ -331,6 +334,7 @@ const remoteEditorRef = ref<HTMLElement | null>(null);
 const localEditorRef = ref<HTMLElement | null>(null);
 let remoteEditorView: EditorView | null = null;
 let localEditorView: EditorView | null = null;
+const editorTheme = new Compartment();
 
 // 内容与差异数据
 const remoteContent = ref('');
@@ -382,13 +386,9 @@ const resolvedCount = computed(() => {
     .length;
 });
 
-const isLocalEdited = computed(() => {
-  const original = originalLocalContents.value[currentIndex.value];
-  const current = localEditorView
-    ? localEditorView.state.doc.toString()
-    : localContent.value;
-  return original && current !== original;
-});
+const isLocalEdited = computed(
+  () => localContent.value !== originalLocalContent.value
+);
 
 const readCurrentDarkMode = () =>
   document.documentElement.classList.contains('dark') ||
@@ -432,8 +432,8 @@ function computeDiffLines(oldContent: string, newContent: string) {
 function createEditor(
   container: HTMLElement | null,
   content: string,
-  readOnly: boolean,
-  isRemote: boolean
+  isRemote: boolean,
+  onChange?: (value: string) => void
 ) {
   if (!container) return null;
 
@@ -441,22 +441,11 @@ function createEditor(
     lineNumbers(),
     history(),
     keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
-    getTheme(isDarkMode.value),
+    editorTheme.of(getTheme(isDarkMode.value)),
     EditorView.lineWrapping,
-    EditorState.readOnly.of(readOnly),
+    EditorState.readOnly.of(isRemote),
     EditorView.updateListener.of((update) => {
-      if (!readOnly && update.docChanged) {
-        const newContent = update.state.doc.toString();
-        if (isRemote) {
-          remoteContent.value = newContent;
-        } else {
-          localContent.value = newContent;
-          // 标记为已编辑
-          editedContents.value[currentIndex.value] = newContent;
-        }
-        // 重新计算差异
-        updateDiff();
-      }
+      if (update.docChanged) onChange?.(update.state.doc.toString());
     })
   ];
 
@@ -533,70 +522,10 @@ function toggleSyncScroll() {
 // 更新差异显示
 function updateDiff() {
   const remote = remoteContent.value;
-  const local = localEditorView
-    ? localEditorView.state.doc.toString()
-    : localContent.value;
+  const local = localContent.value;
   const { oldSet, newSet } = computeDiffLines(remote, local);
   remoteDiffLines.value = oldSet;
   localDiffLines.value = newSet;
-}
-
-// 初始化编辑器
-function initEditors(remote: string, local: string) {
-  // 清理旧编辑器
-  if (remoteEditorView) {
-    remoteEditorView.destroy();
-    remoteEditorView = null;
-  }
-  if (localEditorView) {
-    localEditorView.destroy();
-    localEditorView = null;
-  }
-
-  // 创建新编辑器
-  nextTick(() => {
-    remoteEditorView = createEditor(remoteEditorRef.value, remote, true, true);
-    localEditorView = createEditor(localEditorRef.value, local, false, false);
-    updateDiff();
-  });
-}
-
-async function loadFileContents() {
-  try {
-    loading.value = true;
-    currentOperation.value = 'loading';
-    operationProgress.value = 30;
-    operationMessage.value = t('settings.gitSync.loadingFile');
-
-    const content: ConflictFileContent = await getConflictFileContent(
-      currentFile.value
-    );
-
-    remoteContent.value = content.remote_content;
-
-    if (!originalLocalContents.value[currentIndex.value]) {
-      originalLocalContents.value[currentIndex.value] = content.local_content;
-    }
-
-    const localValue =
-      editedContents.value[currentIndex.value] || content.local_content;
-    localContent.value = localValue;
-
-    operationProgress.value = 80;
-    operationMessage.value = t('settings.gitSync.initEditor');
-
-    // 初始化编辑器
-    initEditors(content.remote_content, localValue);
-
-    operationProgress.value = 100;
-    currentOperation.value = 'complete';
-  } catch (error) {
-    console.error('加载文件内容失败:', error);
-    remoteContent.value = t('settings.gitSync.loadFileFailed');
-    localContent.value = t('settings.gitSync.loadFileFailed');
-  } finally {
-    loading.value = false;
-  }
 }
 
 // 键盘快捷键
@@ -668,21 +597,11 @@ function nextFile() {
 }
 
 function completeMerge() {
-  // 确保本地编辑器内容已保存
-  if (localEditorView && selections.value[currentIndex.value] === 'local') {
-    editedContents.value[currentIndex.value] =
-      localEditorView.state.doc.toString();
-  }
-
+  // 编辑器的 docChanged 监听已记录实际编辑，未编辑文件由后端恢复。
   const finalContents = { ...editedContents.value };
-  for (let i = 0; i < props.conflictFiles.length; i++) {
-    if (selections.value[i] === 'local' && !finalContents[i]) {
-      finalContents[i] = originalLocalContents.value[i] || '';
-    }
-  }
 
   // 设置进度状态
-  loading.value = true;
+  merging.value = true;
   currentOperation.value = 'merging';
   operationProgress.value = 0;
   operationMessage.value = t('settings.gitSync.mergingProgress', {
@@ -700,7 +619,7 @@ function completeMerge() {
     }
   }, 100);
 
-  emit('complete', selections.value, finalContents);
+  emit('complete', { ...selections.value }, finalContents);
 }
 
 function handleBack() {
@@ -718,36 +637,85 @@ function handleClose() {
   emit('escape');
 }
 
-// 监听对话框打开
-watch(visible, (val) => {
-  if (val && props.conflictFiles.length > 0) {
-    currentIndex.value = 0;
-    selections.value = {};
-    editedContents.value = {};
-    originalLocalContents.value = {};
-    loadFileContents();
-  }
+// 新一轮冲突处理使用独立的选择和草稿。
+watch([visible, () => props.conflictFiles], () => {
+  currentIndex.value = 0;
+  selections.value = {};
+  editedContents.value = {};
+  merging.value = false;
 });
 
-// 监听文件切换
-watch(currentIndex, () => {
-  loadFileContents();
-});
+watch(
+  [visible, () => props.conflictFiles, currentIndex],
+  async ([open, files, index], _, onCleanup) => {
+    const file = files[index];
+    let active = true;
+    const isCurrent = () =>
+      active &&
+      visible.value &&
+      props.conflictFiles === files &&
+      currentIndex.value === index &&
+      currentFile.value === file;
+    onCleanup(() => {
+      active = false;
+      remoteEditorView?.destroy();
+      localEditorView?.destroy();
+      remoteEditorView = null;
+      localEditorView = null;
+    });
+
+    localContent.value = originalLocalContent.value = remoteContent.value = '';
+    updateDiff();
+    fileLoading.value = false;
+    currentOperation.value = '';
+    if (!open || !file) return;
+
+    fileLoading.value = true;
+    currentOperation.value = 'loading';
+    operationProgress.value = 30;
+    operationMessage.value = t('settings.gitSync.loadingFile');
+    try {
+      const content = await getConflictFileContent(file);
+      if (!isCurrent()) return;
+      remoteContent.value = content.remote_content;
+      originalLocalContent.value = content.local_content;
+      localContent.value = editedContents.value[index] ?? content.local_content;
+      remoteEditorView = createEditor(
+        remoteEditorRef.value,
+        remoteContent.value,
+        true
+      );
+      localEditorView = createEditor(
+        localEditorRef.value,
+        localContent.value,
+        false,
+        (value) => {
+          if (!isCurrent()) return;
+          editedContents.value[index] = localContent.value = value;
+          updateDiff();
+        }
+      );
+      updateDiff();
+      operationProgress.value = 100;
+      operationMessage.value = t('settings.gitSync.initEditor');
+      currentOperation.value = 'complete';
+    } catch (error) {
+      if (!isCurrent()) return;
+      console.error('加载文件内容失败:', error);
+      currentOperation.value = 'error';
+      operationMessage.value = t('settings.gitSync.loadFileFailed');
+    } finally {
+      if (isCurrent()) fileLoading.value = false;
+    }
+  },
+  { immediate: true, flush: 'post' }
+);
 
 // 监听主题变化
 watch(isDarkMode, () => {
-  if (remoteEditorView && localEditorView) {
-    initEditors(remoteContent.value, localContent.value);
-  }
-});
-
-// 组件卸载时清理
-onUnmounted(() => {
-  if (remoteEditorView) {
-    remoteEditorView.destroy();
-  }
-  if (localEditorView) {
-    localEditorView.destroy();
+  const theme = getTheme(isDarkMode.value);
+  for (const view of [remoteEditorView, localEditorView]) {
+    view?.dispatch({ effects: editorTheme.reconfigure(theme) });
   }
 });
 
@@ -775,7 +743,7 @@ onUnmounted(() => {
 
 defineExpose({
   setLoading: (val: boolean) => {
-    loading.value = val;
+    merging.value = val;
   }
 });
 </script>

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-01",
+  "updatedAt": "2026-11-03",
   "source": "snippets-code official GitHub marketplace",
   "plugins": [
     {
@@ -432,7 +432,7 @@
     },
     {
       "id": "git-sync",
-      "version": "2.0.30",
+      "version": "2.0.31",
       "name": {
         "i18nKey": "plugins.gitSync.name",
         "fallback": "Git Sync"
@@ -442,11 +442,11 @@
         "fallback": "Workspace Git initialization, pull, push, auto sync, and conflict handling."
       },
       "category": "sync",
-      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-git-sync/archive/refs/tags/2.0.30.zip",
+      "packageUrl": "https://github.com/GigaPuddings/snippets-code-plugin-git-sync/archive/refs/tags/2.0.31.zip",
       "builtinPluginId": "git-sync",
       "status": "included",
-      "sizeBytes": 448426,
-      "sha256": "aa903af36d0523183e3ef41f2c9ef0958ab7e727929d1ddc91ee5802fda84559",
+      "sizeBytes": 448502,
+      "sha256": "35b0f4b884531621411e21783bdd8566775f465fbdbf3fe9954d1310505de6dc",
       "tags": [
         "git",
         "sync"
@@ -454,7 +454,7 @@
       "minAppVersion": "2.2.18",
       "compatibleAppVersion": ">=2.2.18",
       "repository": "https://github.com/GigaPuddings/snippets-code-plugin-git-sync",
-      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-git-sync/releases/tag/2.0.30"
+      "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-git-sync/releases/tag/2.0.31"
     },
     {
       "id": "hello-local-plugin",

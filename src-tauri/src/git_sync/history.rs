@@ -226,6 +226,9 @@ pub fn restore_git_record_file(
     commit_hash: &str,
     file_path: &str,
 ) -> Result<(), String> {
+    let _guard = super::state::GIT_OPERATION_LOCK
+        .lock()
+        .map_err(|error| format!("获取 Git 操作锁失败: {}", error))?;
     if commit_hash.trim().is_empty() || file_path.trim().is_empty() {
         return Err("恢复参数不能为空".to_string());
     }
@@ -244,8 +247,9 @@ pub fn restore_git_record_file(
     }
 
     let rev = format!("{}^", commit_hash);
+    let pathspec = format!(":(literal){}", normalized_path);
     let output = GitRepository::new(workspace_root)
-        .output(&["checkout", &rev, "--", &normalized_path], "恢复文件失败")?;
+        .output(&["checkout", &rev, "--", &pathspec], "恢复文件失败")?;
     if !is_git_success(&output) {
         return Err(format!("恢复文件失败: {}", get_git_stderr(&output)));
     }

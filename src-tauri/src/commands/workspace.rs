@@ -230,6 +230,19 @@ fn initialize_workspace_runtime(
     Ok(())
 }
 
+/// Serialize the entire workspace swap with Git/config import and invalidate the
+/// previous worker before replacing global workspace managers.
+fn replace_workspace(app_handle: &tauri::AppHandle, path: PathBuf) -> Result<(), String> {
+    let _guard = crate::git_sync::GIT_OPERATION_LOCK
+        .lock()
+        .map_err(|e| e.to_string())?;
+    crate::git_sync::stop_auto_sync_for_workspace_change(app_handle)?;
+    set_workspace_root(app_handle, path.clone())?;
+    sync_workspace_root_to_app_config(app_handle, &path)?;
+    initialize_workspace_runtime(app_handle, path)?;
+    crate::git_sync::start_auto_sync_for_current_workspace(app_handle)
+}
+
 fn sync_workspace_root_to_app_config(
     app_handle: &tauri::AppHandle,
     workspace_root: &Path,
@@ -319,9 +332,7 @@ pub fn set_workspace_root_from_setup(
 
     validate_workspace(&path_buf)?;
     ensure_workspace_not_app_data(&app_handle, &path_buf)?;
-    set_workspace_root(&app_handle, path_buf.clone())?;
-    sync_workspace_root_to_app_config(&app_handle, &path_buf)?;
-    initialize_workspace_runtime(&app_handle, path_buf)
+    replace_workspace(&app_handle, path_buf)
 }
 
 // 检查目录权限
@@ -350,9 +361,7 @@ pub fn set_workspace_root_path(app_handle: tauri::AppHandle, path: String) -> Re
     // 不能只相信前端的文件选择器；该命令同样可能被插件或恢复配置流程调用。
     validate_workspace(&path_buf)?;
     ensure_workspace_not_app_data(&app_handle, &path_buf)?;
-    set_workspace_root(&app_handle, path_buf.clone())?;
-    sync_workspace_root_to_app_config(&app_handle, &path_buf)?;
-    initialize_workspace_runtime(&app_handle, path_buf)
+    replace_workspace(&app_handle, path_buf)
 }
 
 // 提供更改工作区的功能
@@ -381,9 +390,7 @@ pub fn change_workspace(
         ))
     } else {
         // 直接设置新路径
-        set_workspace_root(&app_handle, new_path_buf.clone())?;
-        sync_workspace_root_to_app_config(&app_handle, &new_path_buf)?;
-        initialize_workspace_runtime(&app_handle, new_path_buf)?;
+        replace_workspace(&app_handle, new_path_buf)?;
         Ok("工作区已更改".to_string())
     }
 }
