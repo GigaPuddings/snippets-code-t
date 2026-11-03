@@ -40,63 +40,67 @@
       </section>
       <template v-else-if="isQuickToolResult">
         <div class="quick-tool-preview">
-          <div class="quick-tool-header">
-            <div class="quick-tool-title-wrap">
-              <div class="quick-tool-icon">
-                <component
-                  v-if="heroIconState.component"
-                  :is="heroIconState.component"
-                  width="20"
-                  height="20"
-                />
-                <img
-                  v-else-if="heroIconSrc"
-                  :src="heroIconSrc"
-                  :alt="quickToolTitle"
-                />
-                <span v-else>{{ heroFallbackText }}</span>
-              </div>
-              <div class="quick-tool-heading">
-                <div class="quick-tool-title">{{ quickToolTitle }}</div>
-                <div class="quick-tool-subtitle">
-                  {{ t('searchPreview.quickTools.subtitle') }}
+          <div class="quick-tool-scroll">
+            <div class="quick-tool-header">
+              <div class="quick-tool-title-wrap">
+                <div class="quick-tool-icon">
+                  <component
+                    v-if="heroIconState.component"
+                    :is="heroIconState.component"
+                    width="20"
+                    height="20"
+                  />
+                  <img
+                    v-else-if="heroIconSrc"
+                    :src="heroIconSrc"
+                    :alt="quickToolTitle"
+                  />
+                  <span v-else>{{ heroFallbackText }}</span>
+                </div>
+                <div class="quick-tool-heading">
+                  <div class="quick-tool-title">{{ quickToolTitle }}</div>
+                  <div class="quick-tool-subtitle">
+                    {{ t('searchPreview.quickTools.subtitle') }}
+                  </div>
                 </div>
               </div>
+              <div class="quick-tool-actions">
+                <button
+                  class="quick-tool-icon-button"
+                  type="button"
+                  :title="t('searchPreview.quickTools.copyResult')"
+                  :aria-label="t('searchPreview.quickTools.copyResult')"
+                  @click="copyQuickToolResult"
+                >
+                  <Copy width="15" height="15" />
+                </button>
+              </div>
             </div>
-            <div class="quick-tool-actions">
-              <button
-                class="quick-tool-icon-button"
-                type="button"
-                :title="t('searchPreview.quickTools.copyResult')"
-                :aria-label="t('searchPreview.quickTools.copyResult')"
-                @click="copyQuickToolResult"
+
+            <div class="quick-tool-answer">
+              <div class="quick-tool-answer-label">
+                {{ t('searchPreview.quickTools.result') }}
+              </div>
+              <div class="quick-tool-answer-value">
+                <span class="quick-tool-number">
+                  {{ quickToolOutputValue }}
+                </span>
+                <span v-if="quickToolOutputUnit" class="quick-tool-unit">
+                  {{ quickToolOutputUnit }}
+                </span>
+              </div>
+              <div class="quick-tool-source">{{ quickToolSourceText }}</div>
+            </div>
+
+            <div class="quick-tool-rows">
+              <div
+                v-for="row in quickToolRows"
+                :key="`${row.label}-${row.value}`"
+                class="quick-tool-row"
               >
-                <Copy width="15" height="15" />
-              </button>
-            </div>
-          </div>
-
-          <div class="quick-tool-answer">
-            <div class="quick-tool-answer-label">
-              {{ t('searchPreview.quickTools.result') }}
-            </div>
-            <div class="quick-tool-answer-value">
-              <span class="quick-tool-number">{{ quickToolOutputValue }}</span>
-              <span v-if="quickToolOutputUnit" class="quick-tool-unit">
-                {{ quickToolOutputUnit }}
-              </span>
-            </div>
-            <div class="quick-tool-source">{{ quickToolSourceText }}</div>
-          </div>
-
-          <div class="quick-tool-rows">
-            <div
-              v-for="row in quickToolRows"
-              :key="`${row.label}-${row.value}`"
-              class="quick-tool-row"
-            >
-              <span class="quick-tool-row-label">{{ row.label }}</span>
-              <span class="quick-tool-row-value">{{ row.value }}</span>
+                <span class="quick-tool-row-label">{{ row.label }}</span>
+                <span class="quick-tool-row-value">{{ row.value }}</span>
+              </div>
             </div>
           </div>
 
@@ -1145,7 +1149,11 @@ function formatDateText(value: unknown): string {
   }
 
   .quick-tool-preview {
-    @apply flex flex-col h-full min-h-0 overflow-hidden;
+    @apply flex h-full min-h-0 flex-col pb-1;
+  }
+
+  .quick-tool-scroll {
+    @apply min-h-0 flex-1 overflow-y-auto overflow-x-hidden;
   }
 
   .quick-tool-header {
@@ -1185,9 +1193,7 @@ function formatDateText(value: unknown): string {
   }
 
   .quick-tool-answer {
-    @apply mt-3 rounded-lg border border-search bg-search-hover;
-
-    padding: 12px;
+    @apply mt-2 rounded-lg border border-search bg-search-hover p-2;
   }
 
   .quick-tool-answer-label {
@@ -1195,7 +1201,7 @@ function formatDateText(value: unknown): string {
   }
 
   .quick-tool-answer-value {
-    @apply mt-2 flex items-baseline gap-3 min-w-0;
+    @apply mt-1 flex items-baseline gap-3 min-w-0;
   }
 
   .quick-tool-number {
@@ -1210,17 +1216,17 @@ function formatDateText(value: unknown): string {
   }
 
   .quick-tool-source {
-    @apply mt-2 text-xs text-search-secondary truncate;
+    @apply mt-1 text-xs text-search-secondary truncate;
   }
 
   .quick-tool-rows {
-    @apply mt-3 overflow-hidden rounded-xl border border-search flex-shrink-0;
+    @apply mt-2 overflow-hidden rounded-xl border border-search;
   }
 
   .quick-tool-row {
     @apply grid grid-cols-[72px_minmax(0,1fr)] items-center bg-search border-b border-search text-xs;
 
-    min-height: 30px;
+    min-height: 26px;
     padding: 0 10px;
 
     &:last-child {
@@ -1237,7 +1243,7 @@ function formatDateText(value: unknown): string {
   }
 
   .quick-tool-command-strip {
-    @apply mt-2 flex flex-wrap gap-2 flex-shrink-0;
+    @apply my-1 flex flex-shrink-0 flex-wrap gap-2;
   }
 
   .quick-tool-command {
@@ -1249,9 +1255,7 @@ function formatDateText(value: unknown): string {
   }
 
   .quick-tool-status {
-    @apply mt-auto flex items-center justify-between border-t border-search text-xs text-search-secondary flex-shrink-0;
-
-    padding-top: 8px;
+    @apply flex flex-shrink-0 items-center justify-between border-t border-search pt-1 text-xs text-search-secondary;
   }
 
   .preview-header-actions {
