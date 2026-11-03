@@ -87,7 +87,7 @@
             step="2"
             :value="currentSelectionCornerRadius"
             :style="{
-              '--opacity-color': '#2e90fa',
+              '--opacity-color': 'var(--el-color-primary)',
               '--opacity-progress': `${(currentSelectionCornerRadius / 80) * 100}%`
             }"
             :title="`${currentSelectionCornerRadius}px`"
@@ -513,14 +513,14 @@ defineExpose({
   @apply flex flex-col gap-2 items-start;
 
   font-family: Inter, 'Segoe UI', Arial, sans-serif;
-  color: #101828;
+  color: var(--search-heading-color);
 
   .toolbar-panel {
     @apply flex items-center;
 
-    background: rgb(255 255 255 / 98%);
+    background: color-mix(in srgb, var(--search-card-bg) 98%, transparent);
     backdrop-filter: blur(18px);
-    border: 1px solid rgb(16 24 40 / 8%);
+    border: 1px solid var(--search-border-color);
     box-shadow:
       0 8px 22px rgb(16 24 40 / 16%),
       0 2px 6px rgb(16 24 40 / 8%);
@@ -538,9 +538,9 @@ defineExpose({
       width: fit-content;
       min-width: auto;
       max-width: calc(100vw - 20px);
-      background: rgb(255 255 255 / 92%);
+      background: color-mix(in srgb, var(--search-card-bg) 92%, transparent);
       backdrop-filter: blur(22px);
-      border-color: rgb(255 255 255 / 46%);
+      border-color: var(--search-border-color);
       box-shadow:
         0 10px 24px rgb(16 24 40 / 14%),
         0 2px 6px rgb(16 24 40 / 6%);
@@ -553,20 +553,21 @@ defineExpose({
     .tool-btn {
       @apply flex items-center justify-center w-[34px] h-[34px] cursor-pointer bg-transparent border-0 rounded-[7px];
 
-      color: #101828;
+      color: var(--search-heading-color);
       transition:
         background-color 140ms ease,
         box-shadow 140ms ease,
         transform 140ms ease;
 
       &.active {
-        color: #101828;
-        background: #dcecff;
-        box-shadow: inset 0 0 0 1px rgb(46 144 250 / 9%);
+        color: var(--search-heading-color);
+        background: var(--search-result-active);
+        box-shadow: inset 0 0 0 1px
+          color-mix(in srgb, var(--el-color-primary) 9%, transparent);
       }
 
       &:hover:not(.active) {
-        background: #f2f4f7;
+        background: var(--search-result-hover);
       }
 
       &:active {
@@ -574,7 +575,7 @@ defineExpose({
       }
 
       &:focus-visible {
-        outline: 2px solid #84caff;
+        outline: 2px solid var(--el-color-primary-light-3);
         outline-offset: 1px;
       }
     }
@@ -583,7 +584,7 @@ defineExpose({
   .toolbar-divider {
     @apply w-px h-5 mx-0.5;
 
-    background: rgb(16 24 40 / 12%);
+    background: var(--search-border-color);
   }
 
   .style-section {
@@ -604,23 +605,24 @@ defineExpose({
       .engine-btn {
         @apply flex items-center justify-center w-7 h-7 cursor-pointer bg-transparent border-0 rounded-md;
 
-        color: #475467;
+        color: var(--search-text-color);
         transition:
           background-color 140ms ease,
           box-shadow 140ms ease;
 
         &.active {
-          color: #175cd3;
-          background: #eaf4ff;
-          box-shadow: inset 0 0 0 1px rgb(46 144 250 / 12%);
+          color: var(--search-result-accent);
+          background: var(--search-result-active);
+          box-shadow: inset 0 0 0 1px
+            color-mix(in srgb, var(--el-color-primary) 12%, transparent);
         }
 
         &:hover:not(.active) {
-          background: #f2f4f7;
+          background: var(--search-result-hover);
         }
 
         &:focus-visible {
-          outline: 2px solid #84caff;
+          outline: 2px solid var(--el-color-primary-light-3);
           outline-offset: 1px;
         }
 
@@ -637,7 +639,11 @@ defineExpose({
         .mosaic-preview {
           @apply inline-block rounded-full;
 
-          background: rgb(71 84 103 / 58%);
+          background: color-mix(
+            in srgb,
+            var(--search-info-text-color) 58%,
+            transparent
+          );
         }
       }
 
@@ -648,14 +654,14 @@ defineExpose({
       .color-btn {
         @apply w-[18px] h-[18px] p-0 cursor-pointer rounded-full;
 
-        border: 1px solid rgb(16 24 40 / 10%);
+        border: 1px solid var(--search-border-color);
         transition:
           box-shadow 140ms ease,
           transform 140ms ease;
 
         &.active {
-          border-color: #fff;
-          box-shadow: 0 0 0 2px #84caff;
+          border-color: var(--search-card-bg);
+          box-shadow: 0 0 0 2px var(--el-color-primary-light-3);
 
           @apply scale-[1.08];
         }
@@ -665,7 +671,7 @@ defineExpose({
         }
 
         &:focus-visible {
-          outline: 2px solid #84caff;
+          outline: 2px solid var(--el-color-primary-light-3);
           outline-offset: 2px;
         }
       }
@@ -684,20 +690,20 @@ defineExpose({
     .action-btn {
       @apply flex items-center justify-center w-[34px] h-[34px] cursor-pointer bg-transparent border-0 rounded-[7px];
 
-      color: #101828;
+      color: var(--search-heading-color);
       transition:
         background-color 140ms ease,
         color 140ms ease,
         transform 140ms ease;
 
       &:disabled {
-        color: #d0d5dd;
+        color: var(--search-info-text-color);
 
-        @apply cursor-not-allowed;
+        @apply cursor-not-allowed opacity-40;
       }
 
       &:hover:not(:disabled) {
-        background: #f2f4f7;
+        background: var(--search-result-hover);
       }
 
       &:active:not(:disabled) {
@@ -705,7 +711,7 @@ defineExpose({
       }
 
       &:focus-visible {
-        outline: 2px solid #84caff;
+        outline: 2px solid var(--el-color-primary-light-3);
         outline-offset: 1px;
       }
     }
@@ -714,19 +720,19 @@ defineExpose({
   .style-label {
     @apply text-[11px] whitespace-nowrap;
 
-    color: #98a2b3;
+    color: var(--search-info-text-color);
   }
 
   .style-value {
     @apply min-w-[32px] text-xs text-right whitespace-nowrap;
 
-    color: #475467;
+    color: var(--search-text-color);
   }
 
   .style-divider {
     @apply w-px h-[22px];
 
-    background: rgb(16 24 40 / 10%);
+    background: var(--search-border-color);
   }
 
   .opacity-slider {
@@ -737,8 +743,8 @@ defineExpose({
       to right,
       var(--opacity-color) 0,
       var(--opacity-color) var(--opacity-progress),
-      rgb(208 213 221 / 76%) var(--opacity-progress),
-      rgb(208 213 221 / 76%) 100%
+      var(--search-border-color) var(--opacity-progress),
+      var(--search-border-color) 100%
     );
 
     &::-webkit-slider-thumb {
@@ -746,7 +752,7 @@ defineExpose({
 
       appearance: none;
       background: var(--opacity-color);
-      border: 2px solid #fff;
+      border: 2px solid var(--search-card-bg);
       box-shadow: 0 1px 4px rgb(16 24 40 / 24%);
     }
 
@@ -764,7 +770,7 @@ defineExpose({
       @apply w-[11px] h-[11px] cursor-pointer rounded-full;
 
       background: var(--opacity-color);
-      border: 2px solid #fff;
+      border: 2px solid var(--search-card-bg);
       box-shadow: 0 1px 4px rgb(16 24 40 / 24%);
     }
 
@@ -785,7 +791,7 @@ defineExpose({
   .custom-color-btn {
     @apply relative flex items-center justify-center pointer-events-none;
 
-    color: #344054;
+    color: var(--search-text-color);
     background: conic-gradient(
       #f04438,
       #fdb022,
@@ -799,7 +805,7 @@ defineExpose({
       @apply absolute inset-[3px];
 
       content: '';
-      background: #fff;
+      background: var(--search-card-bg);
 
       @apply rounded-full;
     }

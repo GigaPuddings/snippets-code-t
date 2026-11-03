@@ -9,6 +9,7 @@
   --wallpaper-text: var(--search-text-color, #111827);
   --wallpaper-muted: var(--search-info-text-color, #7b8494);
   --wallpaper-primary: var(--search-result-accent, #5f74f3);
+  --wallpaper-primary-fill: var(--el-color-primary, #5f74f3);
   --wallpaper-input: var(--search-input-bg, #fbfcff);
   --wallpaper-card-actions-bg: var(--search-card-bg, #fff);
   --wallpaper-card-actions-border: var(--wallpaper-border);
@@ -295,11 +296,11 @@
 
   .primary-btn {
     color: #fff;
-    background: var(--wallpaper-primary);
-    border-color: var(--wallpaper-primary);
+    background: var(--wallpaper-primary-fill);
+    border-color: var(--wallpaper-primary-fill);
 
     &:hover:not(:disabled) {
-      background: var(--wallpaper-primary);
+      background: var(--wallpaper-primary-fill);
       filter: brightness(0.96);
     }
   }
@@ -371,7 +372,7 @@
     }
 
     &:focus {
-      border-color: var(--wallpaper-primary);
+      border-color: var(--wallpaper-primary-fill);
     }
   }
 
@@ -437,7 +438,7 @@
 
   .switch-label input,
   .checkbox-label input {
-    accent-color: var(--wallpaper-primary);
+    accent-color: var(--wallpaper-primary-fill);
   }
 
   .switch-label input {
@@ -460,7 +461,7 @@
   }
 
   .switch-label input:checked + .switch-control {
-    background: var(--wallpaper-primary);
+    background: var(--wallpaper-primary-fill);
 
     &::after {
       transform: translateX(22px);
@@ -565,7 +566,7 @@
     @apply absolute right-4 bottom-[5px] left-4 h-0.5 rounded-full;
 
     content: '';
-    background: var(--wallpaper-primary);
+    background: var(--wallpaper-primary-fill);
   }
 
   .wallhaven-refresh {
@@ -1164,7 +1165,7 @@
 
   .stage-btn-primary {
     color: #fff;
-    background: var(--wallpaper-primary);
+    background: var(--wallpaper-primary-fill);
     border: 1px solid rgb(255 255 255 / 22%);
     box-shadow: 0 8px 22px rgb(31 41 55 / 26%);
   }
@@ -1303,7 +1304,7 @@
 
       &.active {
         color: #fff;
-        background: var(--wallpaper-primary);
+        background: var(--wallpaper-primary-fill);
       }
 
       &:hover:not(.active) {
@@ -1324,8 +1325,8 @@
 
       &.active {
         color: #fff;
-        background: var(--wallpaper-primary);
-        border-color: var(--wallpaper-primary);
+        background: var(--wallpaper-primary-fill);
+        border-color: var(--wallpaper-primary-fill);
       }
 
       &:hover:not(.active) {
@@ -1503,7 +1504,7 @@
   }
 
   .schedule-toggle input:checked + .switch-control {
-    background: var(--wallpaper-primary);
+    background: var(--wallpaper-primary-fill);
 
     &::after {
       transform: translateX(16px);
@@ -1578,8 +1579,8 @@
       }
 
       &:checked {
-        background: var(--wallpaper-primary);
-        border-color: var(--wallpaper-primary);
+        background: var(--wallpaper-primary-fill);
+        border-color: var(--wallpaper-primary-fill);
 
         &::after {
           @apply opacity-100;
@@ -1674,8 +1675,8 @@
     @apply gap-1.5 min-w-[112px] py-0 px-3 text-[10px] font-bold;
 
     color: #fff;
-    background: var(--wallpaper-primary);
-    border: 1px solid var(--wallpaper-primary);
+    background: var(--wallpaper-primary-fill);
+    border: 1px solid var(--wallpaper-primary-fill);
 
     &:hover:not(:disabled) {
       filter: brightness(0.96);
