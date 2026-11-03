@@ -37,6 +37,8 @@ pub struct CacheConfig {
     pub version: String,
     pub files: HashMap<String, FileMetadata>,
     pub categories: HashMap<String, CategoryMetadata>,
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub file_order: HashMap<String, usize>,
 }
 
 impl Default for CacheConfig {
@@ -45,6 +47,7 @@ impl Default for CacheConfig {
             version: "1.0.0".to_string(),
             files: HashMap::new(),
             categories: HashMap::new(),
+            file_order: HashMap::new(),
         }
     }
 }

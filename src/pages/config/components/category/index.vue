@@ -125,6 +125,7 @@
                   :categories="categories"
                   :expanded-ids="expandedIds"
                   :saving-order="savingOrder"
+                  :content-busy="contentBusy"
                   @set-expanded="setFolderExpanded"
                   @swap-folders="swapFolders"
                   :active-category-id="selectedContentCategoryId"
@@ -228,6 +229,11 @@ import {
 } from '@/api/fragment';
 import modal from '@/utils/modal';
 import { requestOpenFragmentCategoryMove } from '@/utils/fragmentCategoryMove';
+import { setMarkdownFileOrder, getWorkspaceRoot } from '@/api/markdown';
+import {
+  orderDroppedFragment,
+  type FragmentDropPosition
+} from '@/utils/fragmentDragDrop';
 import { useConfigQuickSearch } from '@/composables/useConfigQuickSearch';
 import Down from '~icons/lucide/chevron-down';
 import EditTwo from '~icons/lucide/square-pen';
@@ -450,14 +456,37 @@ const handleConfirmAddCategory = async (value: string) => {
   }
 };
 
+const contentBusy = ref(false);
 const handleMoveContent = async (
   content: ContentType,
-  categoryId: string | number
+  categoryId: string | number,
+  position?: FragmentDropPosition
 ): Promise<void> => {
+  if (contentBusy.value) return;
+  contentBusy.value = true;
+  let movedToFolder = false;
   try {
+    if (position && (await getWorkspaceRoot()) !== position.workspaceRoot)
+      throw new Error('Workspace changed');
+    const sameFolder = String(content.category_id) === String(categoryId);
+    if (sameFolder && position) {
+      await setMarkdownFileOrder(
+        position.workspaceRoot,
+        categoryId,
+        orderDroppedFragment(
+          position.paths,
+          String(content.id),
+          position.targetId,
+          true
+        )
+      );
+      modal.success(t('contentItem.orderSuccess'));
+      return;
+    }
     const moved =
       (await requestOpenFragmentCategoryMove(content.id, categoryId)) ??
       (await moveFragmentToCategory(content.id, categoryId));
+    movedToFolder = true;
     const sourceId = String(content.id).replace(/\\/g, '/');
     const index = store.contents.findIndex(
       (item) => String(item.id).replace(/\\/g, '/') === sourceId
@@ -470,15 +499,38 @@ const handleMoveContent = async (
       };
     }
 
+    if (position) {
+      await setMarkdownFileOrder(
+        position.workspaceRoot,
+        categoryId,
+        orderDroppedFragment(
+          position.paths,
+          String(moved.id),
+          position.targetId,
+          false,
+          position.after
+        )
+      );
+    }
+    modal.success(t('contentItem.changeCategorySuccess'));
+  } catch (error) {
+    console.error('[Category] 拖拽修改分类失败:', error);
+    modal.error(
+      t(
+        movedToFolder
+          ? 'contentItem.moveOrderFailed'
+          : position
+            ? 'contentItem.orderFailed'
+            : 'contentItem.changeCategoryFailed'
+      )
+    );
+  } finally {
+    contentBusy.value = false;
     window.dispatchEvent(
       new CustomEvent('refresh-data', {
         detail: { source: 'fragment-category-move' }
       })
     );
-    modal.success(t('contentItem.changeCategorySuccess'));
-  } catch (error) {
-    console.error('[Category] 拖拽修改分类失败:', error);
-    modal.error(t('contentItem.changeCategoryFailed'));
   }
 };
 

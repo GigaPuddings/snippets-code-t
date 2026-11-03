@@ -62,26 +62,58 @@
 
     <div
       v-if="expanded"
-      class="ml-5 pl-1"
+      class="ml-5 min-h-6 rounded-ui pl-1"
+      :class="{
+        'ring-1 ring-[var(--search-result-accent)]':
+          contentDrop.targetId.value === 'end'
+      }"
       role="group"
       :aria-label="category.name"
+      @dragover="contentDrop.dragOver($event)"
+      @dragleave="contentDrop.dragLeave"
+      @drop="contentDrop.drop($event)"
     >
       <div v-if="loadingContents" class="px-2 py-1 text-xs text-content">
         {{ t('common.loading') }}
       </div>
-      <ContentItem
+      <div
+        v-else-if="!folderContents.length"
+        class="px-2 py-1 text-xs text-content"
+      >
+        {{ t('category.noContent') }}
+      </div>
+      <div
         v-for="content in folderContents"
         :key="String(content.id)"
-        :content="content"
-        :category-id="category.id"
-        @delete="dispatchContentAction('delete', content)"
-        @toggle-favorite="dispatchContentAction('toggle-favorite', content)"
-        @change-category="dispatchContentAction('change-category', content)"
-        @convert-type="
-          (_, targetType) =>
-            dispatchContentAction('convert-type', content, targetType)
-        "
-      />
+        :data-content-id="String(content.id)"
+        class="relative rounded-ui"
+        :class="{
+          'ring-1 ring-[var(--search-result-accent)]':
+            contentDrop.targetId.value === String(content.id) &&
+            contentDrop.placement.value === 'swap',
+          'before:absolute before:inset-x-0 before:top-0 before:border-t-2 before:border-[var(--search-result-accent)]':
+            contentDrop.targetId.value === String(content.id) &&
+            contentDrop.placement.value === 'before',
+          'after:absolute after:inset-x-0 after:bottom-0 after:border-b-2 after:border-[var(--search-result-accent)]':
+            contentDrop.targetId.value === String(content.id) &&
+            contentDrop.placement.value === 'after'
+        }"
+        @dragover="contentDrop.dragOver($event, content)"
+        @dragleave="contentDrop.dragLeave"
+        @drop="contentDrop.drop($event, content)"
+      >
+        <ContentItem
+          :content="content"
+          :category-id="category.id"
+          @delete="dispatchContentAction('delete', content)"
+          @toggle-favorite="dispatchContentAction('toggle-favorite', content)"
+          @change-category="dispatchContentAction('change-category', content)"
+          @convert-type="
+            (_, targetType) =>
+              dispatchContentAction('convert-type', content, targetType)
+          "
+        />
+      </div>
     </div>
 
     <!-- 删除确认对话框 -->
@@ -107,6 +139,8 @@ import FileCodeOne from '~icons/lucide/file-code';
 import EditTwo from '~icons/lucide/square-pen';
 import DeleteFour from '~icons/lucide/trash-2';
 import ContentItem from '@/components/ContentItem/index.vue';
+import { useContentOrderDrop } from './useContentOrderDrop';
+import type { FragmentDropPosition } from '@/utils/fragmentDragDrop';
 import { useConfigurationStore } from '@/store';
 import { useI18n } from 'vue-i18n';
 import {
@@ -131,6 +165,7 @@ const props = defineProps<{
   category: CategoryType;
   revealActiveContent?: boolean;
   folderDropTarget?: boolean;
+  contentBusy?: boolean;
 }>();
 const store = useConfigurationStore();
 const inputRef = ref<any>(null);
@@ -145,13 +180,18 @@ const isInvalidDropTarget = ref(false);
 const expanded = defineModel<boolean>('expanded', { required: true });
 const loadingContents = ref(false);
 const folderContents = ref<ContentType[]>([]);
+let loadVersion = 0;
 
 const loadFolderContents = async () => {
+  const version = ++loadVersion;
   loadingContents.value = true;
   try {
-    folderContents.value = await getFragmentList(props.category.id);
+    const contents = await getFragmentList(props.category.id);
+    if (version === loadVersion) folderContents.value = contents;
+  } catch (error) {
+    console.error('Failed to load folder contents', error);
   } finally {
-    loadingContents.value = false;
+    if (version === loadVersion) loadingContents.value = false;
   }
 };
 
@@ -176,7 +216,12 @@ onUnmounted(() =>
 );
 
 const emit = defineEmits<{
-  (e: 'move-content', content: ContentType, categoryId: string | number): void;
+  (
+    e: 'move-content',
+    content: ContentType,
+    categoryId: string | number,
+    position?: FragmentDropPosition
+  ): void;
   (e: 'select-category', category: CategoryType): void;
   (
     e: 'create-content',
@@ -184,6 +229,14 @@ const emit = defineEmits<{
     categoryId: string | number
   ): void;
 }>();
+
+const contentDrop = useContentOrderDrop(
+  () => props.category,
+  folderContents,
+  () => Boolean(props.contentBusy) || loadingContents.value,
+  (content, categoryId, position) =>
+    emit('move-content', content, categoryId, position)
+);
 
 defineOptions({
   name: 'CategoryItem'

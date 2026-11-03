@@ -199,6 +199,45 @@ pub fn set_category_order(
         .save_category_order(Path::new(&expected_workspace_root), &names)
 }
 
+#[command]
+pub fn set_markdown_file_order(
+    app_handle: AppHandle,
+    expected_workspace_root: String,
+    category_id: i64,
+    file_paths: Vec<String>,
+    cache_manager: State<'_, Arc<RwLock<CacheManager>>>,
+) -> Result<(), String> {
+    let manager = get_fs_manager(&app_handle)?;
+    let root = manager.workspace_root();
+    check_expected_workspace(root, Some(&expected_workspace_root))?;
+    let mut cache = cache_manager.write().map_err(|e| e.to_string())?;
+    let category = cache
+        .get_all_categories()
+        .iter()
+        .find(|(_, entry)| entry.id == category_id)
+        .map(|(name, _)| name.clone())
+        .ok_or("文件夹已不存在")?;
+    let available = manager
+        .list_markdown_files(Some(&category))?
+        .into_iter()
+        .map(|path| get_relative_path(root, &path))
+        .collect::<Result<std::collections::HashSet<_>, _>>()?;
+    let mut seen = std::collections::HashSet::new();
+    let mut relative = Vec::new();
+    for path in file_paths {
+        let path = get_relative_path(root, Path::new(&path))?;
+        if !available.contains(&path) || !seen.insert(path.clone()) {
+            return Err("笔记列表已更改，请刷新后重试".into());
+        }
+        relative.push(path);
+    }
+    // Preserve positions through the existing file/folder rename metadata flow.
+    for path in &relative {
+        cache.add_file(&root.join(path), root)?;
+    }
+    cache.save_file_order(root, &relative)
+}
+
 // 创建新的 Markdown 文件
 // Serialize AI saves across windows so retries never overwrite or duplicate a note.
 static AI_NOTE_SAVE_LOCK: Mutex<()> = Mutex::new(());
@@ -822,6 +861,7 @@ pub async fn update_markdown_file(
                 let old_relative_path =
                     get_relative_path(&workspace_root, &PathBuf::from(&file_path))?;
                 if let Some(old_metadata) = cache.get_file_metadata(&old_relative_path).cloned() {
+                    cache.rename_file_order(&old_relative_path, &relative_path);
                     cache.remove_file_metadata(&old_relative_path);
                     cache.set_file_metadata(relative_path.clone(), old_metadata);
                 }
@@ -1275,6 +1315,7 @@ pub fn rename_category_folder(
             let new_file_path = old_file_path.replace(&old_prefix, &new_prefix);
 
             // 删除旧路径的元数据
+            cache.rename_file_order(&old_file_path, &new_file_path);
             cache.remove_file_metadata(&old_file_path);
 
             // 添加新路径的元数据
@@ -1450,6 +1491,11 @@ fn list_files_by_category(
             }
         }
     }
+    files.sort_by_key(|file| {
+        get_relative_path(&workspace_root, Path::new(&file.file_path))
+            .map(|path| cache.file_order(&path))
+            .unwrap_or(usize::MAX)
+    });
     Ok(files)
 }
 
@@ -2360,28 +2406,30 @@ pub async fn move_markdown_file(
         old_relative_path, target_category
     );
 
-    // 移动文件
-    let new_relative_path = fs_manager.move_markdown_file(&old_path, &new_category)?;
-
-    // 更新 cache.json
     let mut cache = cache_manager
         .write()
         .map_err(|e| format!("获取 cache 锁失败: {}", e))?;
+    // External/plain Markdown files may not have been indexed yet.
+    fs_manager.validate_path(&old_path)?;
+    cache.add_file(&old_path, &workspace_root)?;
+    let metadata = cache
+        .get_file_metadata(&old_relative_path)
+        .cloned()
+        .ok_or("未找到文件元数据")?;
+
+    let new_relative_path = fs_manager.move_markdown_file(&old_path, &new_category)?;
 
     // 移动元数据
     // 标准化新路径（统一使用 / 作为分隔符）
     let new_relative_path_str = new_relative_path.to_string_lossy().replace('\\', "/");
 
-    if let Some(metadata) = cache.get_file_metadata(&old_relative_path).cloned() {
-        cache.remove_file_metadata(&old_relative_path);
-        cache.set_file_metadata(new_relative_path_str.clone(), metadata);
-    } else {
-        warn!("⚠️ [移动文件] 未找到旧文件的元数据: {}", old_relative_path);
-        return Err(format!("未找到文件元数据: {}", old_relative_path));
-    }
+    cache.remove_file_metadata(&old_relative_path);
+    cache.set_file_metadata(new_relative_path_str.clone(), metadata);
 
     // 保存 cache
-    cache.save()?;
+    if let Err(error) = cache.save() {
+        warn!("文件已移动，但保存索引缓存失败: {}", error);
+    }
 
     // 更新索引
     if let Ok(manager_lock) = index_manager.read() {

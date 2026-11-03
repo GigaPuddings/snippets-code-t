@@ -58,6 +58,30 @@ pub struct CacheManager {
 }
 
 #[test]
+fn note_positions_survive_restart_and_renaming() {
+    let root = std::env::temp_dir().join(format!("note-order-{}", uuid::Uuid::new_v4()));
+    let dir = root.join(".snippets-code");
+    let mut cache = CacheManager::new_silent(dir.clone()).unwrap();
+    cache
+        .save_file_order(&root, &["Docs/b.md".into(), "Docs/a.md".into()])
+        .unwrap();
+    let mut reopened = CacheManager::new_silent(dir.clone()).unwrap();
+    assert_eq!(reopened.file_order("Docs/b.md"), 0);
+    assert_eq!(reopened.file_order("Docs/a.md"), 1);
+    reopened.rename_file_order("Docs/b.md", "Renamed/b.md");
+    reopened.remove_file_metadata("Docs/b.md");
+    assert_eq!(reopened.file_order("Renamed/b.md"), 0);
+    assert_eq!(reopened.file_order("Docs/b.md"), usize::MAX);
+    assert!(reopened
+        .save_file_order(&root.join("other"), &["Docs/a.md".into()])
+        .is_err());
+    assert_eq!(reopened.file_order("Docs/a.md"), 1);
+    std::fs::remove_file(dir.join("cache.json")).unwrap();
+    std::fs::remove_dir(dir).unwrap();
+    std::fs::remove_dir(root).unwrap();
+}
+
+#[test]
 fn folder_order_survives_reopening_and_new_folders_precede_saved_positions() {
     let root = std::env::temp_dir().join(format!("folder-order-{}", uuid::Uuid::new_v4()));
     let dir = root.join(".snippets-code");
@@ -179,7 +203,49 @@ impl CacheManager {
     // # Arguments
     // * `file_path` - 文件相对路径
     pub fn remove_file_metadata(&mut self, file_path: &str) -> Option<FileMetadata> {
+        self.cache.file_order.remove(file_path);
         self.cache.files.remove(file_path)
+    }
+
+    pub fn file_order(&self, path: &str) -> usize {
+        self.cache
+            .file_order
+            .get(path)
+            .copied()
+            .unwrap_or(usize::MAX)
+    }
+
+    pub fn rename_file_order(&mut self, old: &str, new: &str) {
+        if let Some(order) = self.cache.file_order.remove(old) {
+            self.cache.file_order.insert(new.to_string(), order);
+        }
+    }
+
+    pub fn save_file_order(&mut self, root: &Path, paths: &[String]) -> Result<(), String> {
+        if self.config_dir.parent() != Some(root) {
+            return Err("工作区已切换，请刷新笔记列表".into());
+        }
+        let previous = self.cache.file_order.clone();
+        for (index, path) in paths.iter().enumerate() {
+            self.cache.file_order.insert(path.clone(), index);
+        }
+        let result = serde_json::to_string_pretty(&self.cache)
+            .map_err(|e| e.to_string())
+            .and_then(|json| {
+                crate::json_config::write_text_atomic(&self.config_dir.join("cache.json"), &json)
+            });
+        if let Err(error) = result {
+            // Backup cleanup can fail after the new cache has been committed.
+            if read_cache_silent(&self.config_dir)
+                .is_ok_and(|saved| saved.file_order == self.cache.file_order)
+            {
+                warn!("笔记顺序已保存，清理缓存备份失败: {}", error);
+                return Ok(());
+            }
+            self.cache.file_order = previous;
+            return Err(error);
+        }
+        Ok(())
     }
 
     // 获取分类元数据

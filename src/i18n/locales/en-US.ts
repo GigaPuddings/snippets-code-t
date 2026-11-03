@@ -2042,6 +2042,10 @@ export default {
 
   // Content Item Context Menu
   contentItem: {
+    orderSuccess: 'Note order saved',
+    orderFailed: 'Could not change the note position. Refresh and try again.',
+    moveOrderFailed:
+      'The note was moved, but its position could not be saved. Please reorder it again.',
     dropToMove: 'Move here',
     currentCategory: 'Current',
     changeCategory: 'Change Category',

@@ -83,7 +83,7 @@ impl FileSystemManager {
     // # Returns
     // * `Ok(())` - 路径安全
     // * `Err(String)` - 路径不安全，包含错误描述
-    fn validate_path(&self, path: &Path) -> Result<(), String> {
+    pub(super) fn validate_path(&self, path: &Path) -> Result<(), String> {
         // 规范化路径
         let canonical_workspace = self
             .workspace_root
@@ -489,7 +489,7 @@ impl FileSystemManager {
         }
 
         // 移动文件
-        fs::rename(&old_full_path, &new_full_path).map_err(|e| format!("移动文件失败: {}", e))?;
+        super::safe_write::rename_no_replace(&old_full_path, &new_full_path)?;
 
         // 返回新的相对路径
         let relative_path = new_full_path

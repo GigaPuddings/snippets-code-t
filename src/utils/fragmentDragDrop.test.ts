@@ -5,10 +5,33 @@ import {
   hasFragmentDragType,
   parseFragmentDragPayload,
   serializeFragmentDragPayload,
-  setActiveFragmentDrag
+  setActiveFragmentDrag,
+  orderDroppedFragment
 } from './fragmentDragDrop';
 
 describe('fragment drag payload', () => {
+  it('swaps non-adjacent notes without changing the middle note or the input array', () => {
+    const paths = ['Docs/a.md', 'Docs/b.md', 'Docs/c.md'];
+    expect(orderDroppedFragment(paths, 'Docs/a.md', 'Docs/c.md', true)).toEqual(
+      ['Docs/c.md', 'Docs/b.md', 'Docs/a.md']
+    );
+    expect(paths).toEqual(['Docs/a.md', 'Docs/b.md', 'Docs/c.md']);
+  });
+  it('inserts a transferred note before, after or into an empty folder', () => {
+    const paths = ['Docs/a.md', 'Docs/b.md'];
+    expect(
+      orderDroppedFragment(paths, 'Docs/c.md', 'Docs/b.md', false)
+    ).toEqual(['Docs/a.md', 'Docs/c.md', 'Docs/b.md']);
+    expect(
+      orderDroppedFragment(paths, 'Docs/c.md', 'Docs/a.md', false, true)
+    ).toEqual(['Docs/a.md', 'Docs/c.md', 'Docs/b.md']);
+    expect(orderDroppedFragment([], 'Docs/c.md', undefined, false)).toEqual([
+      'Docs/c.md'
+    ]);
+    expect(() =>
+      orderDroppedFragment(paths, 'Docs/c.md', 'Docs/missing.md', false)
+    ).toThrow();
+  });
   it('round-trips a fragment without losing its category identity', () => {
     const serialized = serializeFragmentDragPayload({
       id: 'C:\\Workspace\\未分类\\note.md',

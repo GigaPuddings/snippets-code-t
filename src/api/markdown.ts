@@ -300,6 +300,18 @@ export function setCategoryOrder(
   return invoke('set_category_order', { expectedWorkspaceRoot, names });
 }
 
+export function setMarkdownFileOrder(
+  expectedWorkspaceRoot: string,
+  categoryId: string | number,
+  filePaths: string[]
+): Promise<void> {
+  return invoke('set_markdown_file_order', {
+    expectedWorkspaceRoot,
+    categoryId: Number(categoryId),
+    filePaths
+  });
+}
+
 /**
  * 创建分类文件夹
  * @param name 分类名称

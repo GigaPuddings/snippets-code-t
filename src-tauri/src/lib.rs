@@ -763,6 +763,7 @@ pub fn run() {
             // Markdown 文件操作命令
             markdown::get_markdown_categories,          // 获取所有分类
             markdown::set_category_order,
+            markdown::set_markdown_file_order,
             markdown::create_markdown_file,             // 创建 Markdown 文件
             markdown::read_markdown_file,               // 读取 Markdown 文件
             markdown::update_markdown_file,             // 更新 Markdown 文件

@@ -13,11 +13,15 @@
       v-for="item in categories"
       :key="item.id"
       :category="item"
+      :content-busy="contentBusy"
       :expanded="expandedIds.has(String(item.id))"
       :folder-drop-target="targetId === String(item.id)"
       @update:expanded="$emit('set-expanded', String(item.id), $event)"
       :reveal-active-content="String(item.id) === String(activeCategoryId)"
-      @move-content="$emit('move-content', $event, item.id)"
+      @move-content="
+        (content, categoryId, position) =>
+          $emit('move-content', content, categoryId, position)
+      "
       @select-category="$emit('select-category', $event)"
       @create-content="
         $emit('create-content', { type: $event, categoryId: item.id })
@@ -31,6 +35,7 @@
 
 <script setup lang="ts">
 import CategoryItem from '@/components/CategoryItem/index.vue';
+import type { FragmentDropPosition } from '@/utils/fragmentDragDrop';
 import { useRoute } from 'vue-router';
 
 /**
@@ -42,6 +47,7 @@ interface CategoryListViewProps {
   activeCategoryId?: string | number;
   expandedIds: Set<string>;
   savingOrder: boolean;
+  contentBusy?: boolean;
 }
 
 defineOptions({
@@ -52,7 +58,12 @@ const props = defineProps<CategoryListViewProps>();
 const emit = defineEmits<{
   (e: 'set-expanded', id: string, expanded: boolean): void;
   (e: 'swap-folders', from: string, to: string): void;
-  (e: 'move-content', content: ContentType, categoryId: string | number): void;
+  (
+    e: 'move-content',
+    content: ContentType,
+    categoryId: string | number,
+    position?: FragmentDropPosition
+  ): void;
   (e: 'select-category', category: CategoryType): void;
   (
     e: 'create-content',

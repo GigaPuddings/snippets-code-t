@@ -1935,6 +1935,9 @@ export default {
 
   // 内容项目右键菜单
   contentItem: {
+    orderSuccess: '笔记顺序已保存',
+    orderFailed: '调整笔记位置失败，请刷新后重试',
+    moveOrderFailed: '笔记已移入目标文件夹，但位置保存失败，请重新排序',
     dropToMove: '移至此处',
     currentCategory: '当前分类',
     changeCategory: '修改分类',
