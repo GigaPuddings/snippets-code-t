@@ -99,6 +99,63 @@ function previewMarkers(content: string) {
 }
 
 describe('Markdown source document', () => {
+  it('reuses distant preview decorations while keeping caret and range rendering identical to a full rebuild', () => {
+    const text = [
+      '# First',
+      '**bold**',
+      '- one\n  - nested',
+      '> quote\n>\n> text',
+      '```js\nconst x = 1;\n\n```',
+      'Setext\n---',
+      '3. ordered\n4. next',
+      '- [ ] pending\n\n- [x] done',
+      '| A | B |\n| --- | --- |\n| a | b |',
+      '![image](relative.png)',
+      '<img src="relative.png">',
+      '**multi\nline** and [link](https://example.com)',
+      '# Last'
+    ].join('\n\n');
+    let state = createDocumentState(text, [livePreview(options)]);
+    state = state.update({ effects: setPreviewFocus.of(true) }).state;
+    const collect = (document: EditorState) => {
+      const result: Array<{ from: number; to: number; decoration: unknown }> =
+        [];
+      for (const set of document.facet(EditorView.decorations)) {
+        if (typeof set === 'function') continue;
+        set.between(0, document.doc.length, (from, to, decoration) => {
+          result.push({ from, to, decoration });
+        });
+      }
+      return result;
+    };
+    const distant = collect(state).find(
+      (item) => item.from === text.indexOf('# Last')
+    );
+    for (const selection of [
+      { anchor: text.indexOf('bold') },
+      { anchor: text.indexOf('bold'), head: text.indexOf('bold') + 2 },
+      { anchor: text.indexOf('nested') },
+      { anchor: text.indexOf('quote'), head: text.indexOf('const') },
+      { anchor: text.indexOf('const') },
+      { anchor: 1 },
+      ...Array.from({ length: state.doc.lines - 2 }, (_, index) => ({
+        anchor: state.doc.line(index + 1).from
+      }))
+    ]) {
+      state = state.update({ selection, userEvent: 'select' }).state;
+      let rebuilt = createDocumentState(text, [livePreview(options)]);
+      rebuilt = rebuilt.update({
+        effects: setPreviewFocus.of(true),
+        selection
+      }).state;
+      const actual = collect(state);
+      expect(JSON.stringify(actual)).toBe(JSON.stringify(collect(rebuilt)));
+      expect(
+        actual.find((item) => item.from === text.indexOf('# Last'))?.decoration
+      ).toBe(distant?.decoration);
+    }
+  });
+
   it('freezes preview geometry for a mouse gesture, then restores caret editing', () => {
     let state = createDocumentState('# Title\n\n- `one`\n\n- **two**', [
       livePreview(options)

@@ -338,7 +338,18 @@ function childMarks(node: SyntaxNode, names: string[]) {
 }
 
 export function livePreview(options: PreviewOptions): Extension {
-  const build = (state: EditorState): DecorationSet => {
+  const sourceKinds = new Set([
+    'HTMLBlock',
+    'HTMLTag',
+    'FencedCode',
+    'WikiLink',
+    'TaskMarker'
+  ]);
+  const build = (
+    state: EditorState,
+    start = 0,
+    end = state.doc.length
+  ): DecorationSet => {
     const ranges: Range<Decoration>[] = [];
     const codeLines = new Set<number>();
     const headingLines = new Set<number>();
@@ -357,10 +368,14 @@ export function livePreview(options: PreviewOptions): Extension {
       hide(line.from + quote, to);
     };
     syntaxTree(state).iterate({
+      from: start,
+      to: end,
       enter(ref) {
         const { node, from, to, name } = ref;
         const active = sourceRangeIsActive(state, from, to);
-        const source = state.doc.sliceString(from, to);
+        const source = sourceKinds.has(name)
+          ? state.doc.sliceString(from, to)
+          : '';
         if (name === 'OrderedList') {
           const mark = node.getChild('ListItem')?.getChild('ListMark');
           orderedNumbers.set(
@@ -635,7 +650,11 @@ export function livePreview(options: PreviewOptions): Extension {
             (state.doc.sliceString(quote.to, quote.to + 1) === ' ' ? 1 : 0)
         );
     }
-    for (let number = 1; number <= state.doc.lines; number++) {
+    for (
+      let number = state.doc.lineAt(start).number;
+      number <= state.doc.lineAt(end).number;
+      number++
+    ) {
       const line = state.doc.line(number);
       // CodeMirror samples short, unmarked text lines for its default metrics.
       // These lines have different fonts, heights or vertical padding. Wrap
@@ -665,6 +684,55 @@ export function livePreview(options: PreviewOptions): Extension {
     }
     return Decoration.set(ranges, true);
   };
+  // A caret move changes source visibility only in the old/new active blocks.
+  // Keep complete top-level blocks so nested lists retain numbering/indentation
+  // and multiline code, quotes and tables retain all of their decorations.
+  const rebuildSelection = (
+    value: DecorationSet,
+    before: EditorState,
+    state: EditorState
+  ): DecorationSet => {
+    const lines = [before, state].flatMap((document) =>
+      document.readOnly || !document.field(previewHasFocus)
+        ? []
+        : document.selection.ranges
+            .filter((range) => range.empty)
+            .map((range) => document.doc.lineAt(range.head))
+    );
+    const blocks: Array<{ from: number; to: number }> = [];
+    for (
+      let node = syntaxTree(state).topNode.firstChild;
+      node;
+      node = node.nextSibling
+    ) {
+      if (!lines.some((line) => line.from <= node!.to && line.to >= node!.from))
+        continue;
+      const from = state.doc.lineAt(node.from).from;
+      const to = state.doc.lineAt(node.to).to;
+      const previous = blocks.at(-1);
+      if (previous && from <= previous.to)
+        previous.to = Math.max(previous.to, to);
+      else blocks.push({ from, to });
+    }
+    if (!blocks.length) return value;
+    const add: Range<Decoration>[] = [];
+    for (const block of blocks)
+      build(state, block.from, block.to).between(
+        block.from,
+        block.to,
+        (from, to, decoration) => {
+          add.push(decoration.range(from, to));
+        }
+      );
+    return value.update({
+      filterFrom: blocks[0].from,
+      filterTo: blocks[blocks.length - 1].to,
+      filter: (from, to) =>
+        !blocks.some((block) => from <= block.to && to >= block.from),
+      add,
+      sort: true
+    });
+  };
   return [
     previewHasFocus,
     previewDragging,
@@ -673,7 +741,7 @@ export function livePreview(options: PreviewOptions): Extension {
       setPreviewFocus.of(focused)
     ),
     StateField.define<DecorationSet>({
-      create: build,
+      create: (state) => build(state),
       update(value, transaction) {
         if (
           !transaction.docChanged &&
@@ -698,12 +766,15 @@ export function livePreview(options: PreviewOptions): Extension {
           previous.length === next.length &&
           previous.every(
             (range, index) =>
+              range.empty === next[index].empty &&
               transaction.state.doc.lineAt(range.from).number ===
                 transaction.state.doc.lineAt(next[index].from).number &&
               transaction.state.doc.lineAt(range.to).number ===
                 transaction.state.doc.lineAt(next[index].to).number
           );
-        return sameLines ? value : build(transaction.state);
+        return sameLines
+          ? value
+          : rebuildSelection(value, transaction.startState, transaction.state);
       },
       provide: (field) => EditorView.decorations.from(field)
     }),
