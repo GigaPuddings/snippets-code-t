@@ -25,7 +25,11 @@ import {
   renderNoteMarkdown
 } from '@/utils/markdown';
 import modal from '@/utils/modal';
-import { configurePreviewImage, highlightCodeElement } from './rendering';
+import {
+  configurePreviewImage,
+  highlightCodeElement,
+  observePreviewCodeBlocks
+} from './rendering';
 
 const props = withDefaults(
   defineProps<{
@@ -66,13 +70,16 @@ watch(
     });
     await nextTick();
     if (cancelled || !host.value) return;
+    cleanups.push(
+      observePreviewCodeBlocks(host.value, (code) => {
+        highlightCodeElement(
+          code,
+          props.dark ? oneDarkHighlightStyle : defaultHighlightStyle
+        );
+      })
+    );
     host.value.querySelectorAll('pre').forEach((pre) => {
-      const code = pre.querySelector('code');
-      if (!code) return;
-      highlightCodeElement(
-        code,
-        props.dark ? oneDarkHighlightStyle : defaultHighlightStyle
-      );
+      if (!pre.querySelector('code')) return;
       let copy = pre.querySelector<HTMLButtonElement>('.md-reading-code-copy');
       if (!copy) {
         copy = document.createElement('button');
@@ -83,14 +90,15 @@ watch(
       copy.textContent = t('common.copy');
       copy.setAttribute('aria-label', t('common.copy'));
     });
-    host.value.querySelectorAll('img').forEach((image) =>
+    host.value.querySelectorAll('img').forEach((image) => {
+      if (!image.getAttribute('loading')) image.loading = 'lazy';
       cleanups.push(
         configurePreviewImage(image, {
           imageScale: effectiveConfig.value.defaultImageScalePercent,
           responsiveImages: effectiveConfig.value.responsiveImages
         })
-      )
-    );
+      );
+    });
   },
   { immediate: true, flush: 'post' }
 );

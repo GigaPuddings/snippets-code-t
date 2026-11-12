@@ -9,6 +9,69 @@ import { StyleModule } from 'style-mod';
 import { markdownLanguageSupport } from '@/utils/markdown-language';
 import { restoreDeletedAttachment } from '@/plugins/attachments/api';
 
+/** Enhance visible code gradually without replacing nodes in a user's selection. */
+export function observePreviewCodeBlocks(
+  host: HTMLElement,
+  highlight: (code: HTMLElement, pre: HTMLElement) => void
+): () => void {
+  const pending = new Set<HTMLElement>();
+  let frame: number | undefined;
+  let disposed = false;
+  let observer: IntersectionObserver | undefined;
+  const schedule = (): void => {
+    if (!disposed && pending.size && frame === undefined)
+      frame = requestAnimationFrame(flush);
+  };
+  const flush = (): void => {
+    frame = undefined;
+    if (disposed) return;
+    const started = performance.now();
+    const selection = host.ownerDocument.getSelection();
+    let progressed = false;
+    for (const pre of pending) {
+      if (
+        selection &&
+        !selection.isCollapsed &&
+        selection.containsNode(pre, true)
+      )
+        continue;
+      pending.delete(pre);
+      observer?.unobserve(pre);
+      const code = pre.querySelector<HTMLElement>('code');
+      if (pre.isConnected && code) highlight(code, pre);
+      progressed = true;
+      if (performance.now() - started >= 8) break;
+    }
+    if (progressed) schedule();
+  };
+  if (typeof IntersectionObserver !== 'undefined')
+    observer = new IntersectionObserver(
+      (entries) => {
+        if (disposed) return;
+        for (const entry of entries) {
+          const pre = entry.target as HTMLElement;
+          if (entry.isIntersecting) pending.add(pre);
+          else pending.delete(pre);
+        }
+        schedule();
+      },
+      { rootMargin: '400px 0px' }
+    );
+  for (const pre of host.querySelectorAll<HTMLElement>('pre')) {
+    if (observer) observer.observe(pre);
+    else pending.add(pre);
+  }
+  host.ownerDocument.addEventListener('selectionchange', schedule);
+  schedule();
+  return () => {
+    disposed = true;
+    observer?.disconnect();
+    if (frame !== undefined) cancelAnimationFrame(frame);
+    pending.clear();
+    host.ownerDocument.removeEventListener('selectionchange', schedule);
+  };
+}
+
 /** Reuse the editing parser and palette without mounting another editor. */
 export function highlightCodeElement(
   element: HTMLElement,
