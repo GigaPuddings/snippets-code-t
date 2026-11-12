@@ -926,16 +926,30 @@ function emitScroll() {
 }
 function updateVisibleHeading() {
   if (!view || viewMode.value === 'reading') return;
-  const rect = view.scrollDOM.getBoundingClientRect();
-  const pos =
-    view.posAtCoords({ x: rect.left + 30, y: rect.top + 20 }) ?? cursor.value;
-  visibleHeadingIndex.value = -1;
-  for (let index = headings.value.length - 1; index >= 0; index--) {
-    if (headings.value[index].pos <= pos) {
-      visibleHeadingIndex.value = index;
-      break;
+  const editor = view;
+  // Scroll handlers run before CodeMirror refreshes its virtual viewport.
+  // Measure afterwards and use the height map, which also covers unrendered
+  // lines; DOM hit-testing here can interrupt CodeMirror's scroll update.
+  editor.requestMeasure({
+    key: visibleHeadingIndex,
+    read: () => {
+      if (view !== editor || viewMode.value === 'reading') return -1;
+      const top =
+        editor.scrollDOM.getBoundingClientRect().top +
+        editor.scrollDOM.clientTop +
+        20;
+      const pos = editor.lineBlockAtHeight(
+        Math.max(0, top - editor.documentTop)
+      ).from;
+      for (let index = headings.value.length - 1; index >= 0; index--)
+        if (headings.value[index].pos <= pos) return index;
+      return -1;
+    },
+    write: (index) => {
+      if (view === editor && viewMode.value !== 'reading')
+        visibleHeadingIndex.value = index;
     }
-  }
+  });
 }
 function scrollToWikilink(title: string) {
   if (!view) return;

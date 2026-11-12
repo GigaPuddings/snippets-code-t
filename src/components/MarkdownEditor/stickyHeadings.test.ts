@@ -88,6 +88,67 @@ function editorFixture() {
 
 afterEach(() => vi.unstubAllGlobals());
 
+it('updates the outline from measured blocks when scrolled text has no DOM yet', () => {
+  const { descriptor } = parse(
+    readFileSync(new URL('./index.vue', import.meta.url), 'utf8')
+  );
+  const ast = ts.createSourceFile(
+    'editor.ts',
+    descriptor.scriptSetup!.content,
+    ts.ScriptTarget.Latest,
+    true
+  );
+  const update = ast.statements.find(
+    (node) =>
+      ts.isFunctionDeclaration(node) &&
+      node.name?.text === 'updateVisibleHeading'
+  );
+  if (!update) throw new Error('Missing outline scroll updater');
+  const measures: Array<{
+    read: () => number;
+    write: (value: number) => void;
+  }> = [];
+  const editor = {
+    scrollDOM: {
+      clientTop: 2,
+      getBoundingClientRect: () => ({ top: 100, left: 0 })
+    },
+    documentTop: -4900,
+    lineBlockAtHeight: vi.fn(() => ({ from: 50000 })),
+    posAtCoords: vi.fn(() => {
+      throw new TypeError("Cannot read properties of null (reading 'length')");
+    }),
+    requestMeasure: (measure: (typeof measures)[number]) =>
+      measures.push(measure)
+  };
+  const context = {
+    view: editor as typeof editor | undefined,
+    viewMode: ref('preview'),
+    cursor: ref(0),
+    headings: ref([{ pos: 0 }, { pos: 45000 }, { pos: 60000 }]),
+    visibleHeadingIndex: ref(-1)
+  };
+  const updateHeading = runInNewContext(
+    ts.transpileModule(`${update.getText(ast)}; updateVisibleHeading;`, {
+      compilerOptions: { target: ts.ScriptTarget.ES2022 }
+    }).outputText,
+    context
+  );
+  expect(() => updateHeading()).not.toThrow();
+  expect(editor.lineBlockAtHeight).not.toHaveBeenCalled();
+  expect(measures).toHaveLength(1);
+  const request = measures.shift()!;
+  const index = request.read();
+  expect(editor.lineBlockAtHeight).toHaveBeenCalledWith(5022);
+  expect(context.visibleHeadingIndex.value).toBe(-1);
+  request.write(index);
+  expect(context.visibleHeadingIndex.value).toBe(1);
+  expect(editor.posAtCoords).not.toHaveBeenCalled();
+  context.view = undefined;
+  request.write(2);
+  expect(context.visibleHeadingIndex.value).toBe(1);
+});
+
 describe('sticky heading layout', () => {
   it('uses real Markdown headings, retaining duplicates and the entire Setext range', () => {
     const content =

@@ -342,6 +342,7 @@ export function livePreview(options: PreviewOptions): Extension {
     const ranges: Range<Decoration>[] = [];
     const codeLines = new Set<number>();
     const headingLines = new Set<number>();
+    const quoteLines = new Set<number>();
     const listLines = new Set<number>();
     const orderedNumbers = new Map<number, number>();
     const activeQuotes: Array<{ from: number; to: number; line: number }> = [];
@@ -516,6 +517,7 @@ export function livePreview(options: PreviewOptions): Extension {
         if (name === 'QuoteMark') {
           const line = state.doc.lineAt(from);
           const quote = node.parent;
+          quoteLines.add(line.number);
           ranges.push(
             Decoration.line({
               class: 'md-quote-line',
@@ -635,6 +637,22 @@ export function livePreview(options: PreviewOptions): Extension {
     }
     for (let number = 1; number <= state.doc.lines; number++) {
       const line = state.doc.line(number);
+      // CodeMirror samples short, unmarked text lines for its default metrics.
+      // These lines have different fonts, heights or vertical padding. Wrap
+      // their text so scrolling cannot use them to re-estimate the entire
+      // document and discard the heights already measured for normal prose.
+      if (
+        line.text &&
+        (codeLines.has(number) ||
+          headingLines.has(number) ||
+          quoteLines.has(number))
+      )
+        ranges.push(
+          Decoration.mark({ class: 'md-formatted-text' }).range(
+            line.from,
+            line.to
+          )
+        );
       if (line.text || codeLines.has(number)) continue;
       ranges.push(
         Decoration.line({
