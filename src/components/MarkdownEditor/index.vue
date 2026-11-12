@@ -14,6 +14,7 @@
       ></div>
       <MarkdownPreview
         v-if="viewMode === 'reading'"
+        :key="currentFragmentId"
         ref="readingPreview"
         class="md-reading min-h-0 flex-1 overflow-auto"
         :content="source"
@@ -164,6 +165,7 @@ import {
   syntaxHighlighting,
   defaultHighlightStyle,
   bracketMatching,
+  ensureSyntaxTree,
   syntaxTree
 } from '@codemirror/language';
 import {
@@ -190,6 +192,11 @@ import {
   createStickyHeadingTracker,
   stickyHeadingRanges
 } from './stickyHeadings';
+import {
+  captureScrollAnchor,
+  restoreScrollAnchor,
+  type ScrollLayout
+} from './scrollAnchors';
 import { resolveImageFilePath } from './imagePath';
 import { copyImageToClipboard } from '@/utils/imageClipboard';
 import { renderNoteMarkdown } from '@/utils/markdown';
@@ -295,6 +302,8 @@ let view: EditorView | undefined;
 let documentId = String(props.currentFragmentId ?? '');
 let revision = 0;
 let disposed = false;
+let scrollRequest = 0;
+const modeScrollMeasure = {};
 const stickyRanges = computed(() =>
   props.stickyHeadings && view
     ? stickyHeadingRanges(view.state, headings.value)
@@ -824,6 +833,7 @@ function extensions(): Extension[] {
 }
 function loadDocument(content: string, id: string) {
   if (!view) return;
+  scrollRequest++;
   stickyHeadingTracker.reset();
   documentId = id;
   revision++;
@@ -844,14 +854,94 @@ function loadDocument(content: string, id: string) {
 function setMarkdown(content: string) {
   if (content !== source.value) loadDocument(content, documentId);
 }
+function scrollLayout(
+  mode: ViewMode,
+  editor: EditorView,
+  outline: typeof headings.value,
+  partialOutline: boolean
+): ScrollLayout | undefined {
+  const host = mode === 'reading' ? readingHost.value : editor.scrollDOM;
+  if (!host) return;
+  const maxScroll = Math.max(0, host.scrollHeight - host.clientHeight);
+  const viewportTop = host.getBoundingClientRect().top + host.clientTop;
+  if (mode === 'reading') {
+    const elements = host.querySelectorAll<HTMLElement>('h1,h2,h3,h4,h5,h6');
+    // The parsed prefix is usable even when the editor hasn't reached the end.
+    const matchingOutline =
+      (partialOutline
+        ? elements.length >= outline.length
+        : elements.length === outline.length) &&
+      outline.every(
+        (heading, index) => elements[index].tagName === `H${heading.level}`
+      );
+    const matchesHeading = (index: number): boolean => {
+      // Validate the section boundaries when using a partial outline. Raw
+      // HTML can insert extra headings of the same level in the rendered DOM.
+      if (!partialOutline) return true;
+      const text = elements[index].textContent?.trim();
+      const heading = outline[index].text;
+      if (heading.trim() === text) return true;
+      const rendered = host.ownerDocument.createElement('template');
+      rendered.innerHTML = renderNoteMarkdown(heading, '', '');
+      return rendered.content.textContent?.trim() === text;
+    };
+    return {
+      maxScroll,
+      headingCount: matchingOutline ? outline.length : 0,
+      partialOutline,
+      matchesHeading,
+      headingTop: (index) =>
+        host.scrollTop +
+        elements[index].getBoundingClientRect().top -
+        viewportTop
+    };
+  }
+  const documentStart = host.scrollTop + editor.documentTop - viewportTop;
+  return {
+    maxScroll,
+    headingCount: outline.length,
+    partialOutline,
+    headingTop: (index) =>
+      documentStart + editor.lineBlockAt(outline[index].pos).top
+  };
+}
 function setViewMode(mode: ViewMode) {
   if (!view || mode === viewMode.value) return;
+  const editor = view;
+  const doc = editor.state.doc;
+  const request = ++scrollRequest;
+  const previousMode = viewMode.value;
+  const crossingReading = previousMode === 'reading' || mode === 'reading';
+  let outline = headings.value;
+  let partialOutline = syntaxTree(editor.state).length < doc.length;
+  const capture = () => {
+    const layout = scrollLayout(previousMode, editor, outline, partialOutline);
+    return layout && captureScrollAnchor(getScrollPosition(), layout);
+  };
+  let anchor = crossingReading ? capture() : undefined;
+  if (
+    partialOutline &&
+    anchor &&
+    anchor.sectionProgress === undefined &&
+    anchor.documentProgress > 0 &&
+    anchor.documentProgress < 1
+  ) {
+    // The reader can scroll past the editor's parsed prefix. Try to fill in
+    // the missing headings within a short budget before using page progress.
+    const tree = ensureSyntaxTree(editor.state, doc.length, 20);
+    if (tree) {
+      outline = extractHeadings(editor.state, tree);
+      partialOutline = false;
+      anchor = capture();
+    }
+  }
+  const snapshot = crossingReading ? undefined : editor.scrollSnapshot();
+
   stickyHeadingTracker.reset();
   contextMenu.value?.hide();
   imageDialog.value = false;
-  const scrollTop = getScrollPosition();
   viewMode.value = mode;
-  view.dispatch({
+  editor.dispatch({
     effects: [
       modeCompartment.reconfigure(previewExtension()),
       editableCompartment.reconfigure([
@@ -861,25 +951,32 @@ function setViewMode(mode: ViewMode) {
     ]
   });
   emit('view-mode-change', mode);
+  const canRestore = () =>
+    view === editor &&
+    viewMode.value === mode &&
+    editor.state.doc === doc &&
+    scrollRequest === request;
   nextTick(() => {
-    if (disposed) return;
-    setScrollPosition(scrollTop);
+    if (disposed || viewMode.value !== mode) return;
     stickyHeadingTracker.connect();
-    view?.requestMeasure();
-    if (view && mode === 'preview' && activeTable.value) {
-      const target = activeTable.value;
-      const cell = tableCellAt(target, view.state.selection.main.head);
-      const range = tableCellRanges(target.source, target.prefix)[cell.row]?.[
-        cell.column
-      ];
-      if (range)
-        focusTableCell(
-          view,
-          target,
-          cell.row,
-          cell.column,
-          Math.max(0, view.state.selection.main.head - target.from - range.from)
-        );
+    if (!canRestore()) return;
+    if (snapshot) {
+      editor.dispatch({ effects: snapshot });
+    } else if (anchor && mode === 'reading') {
+      const layout = scrollLayout(mode, editor, outline, partialOutline);
+      if (layout) setScrollPosition(restoreScrollAnchor(anchor, layout));
+    } else if (anchor) {
+      editor.requestMeasure({
+        key: modeScrollMeasure,
+        read: () => {
+          if (!canRestore()) return undefined;
+          const layout = scrollLayout(mode, editor, outline, partialOutline);
+          return layout ? restoreScrollAnchor(anchor, layout) : undefined;
+        },
+        write: (top) => {
+          if (top !== undefined && canRestore()) setScrollPosition(top);
+        }
+      });
     }
   });
 }
@@ -889,6 +986,7 @@ function toggleOutline() {
 }
 function scrollToPosition(position: number) {
   if (!view) return;
+  scrollRequest++;
   if (viewMode.value === 'reading') {
     const index = headings.value.findIndex(
       (heading) => heading.pos === position
@@ -914,6 +1012,7 @@ function getScrollPosition() {
   );
 }
 function setScrollPosition(top: number) {
+  scrollRequest++;
   const element =
     viewMode.value === 'reading' ? readingHost.value : view?.scrollDOM;
   if (element) element.scrollTop = top;
@@ -1500,6 +1599,32 @@ watch(
     if (view && (String(id ?? '') !== documentId || content !== source.value))
       loadDocument(content, String(id ?? ''));
   }
+);
+watch(
+  [viewMode, source, () => props.currentFragmentId],
+  ([mode], _, onCleanup) => {
+    const editor = view;
+    if (!editor || mode !== 'reading') return;
+    const doc = editor.state.doc;
+    if (syntaxTree(editor.state).length >= doc.length) return;
+
+    // The editor's background parser follows its viewport, which is hidden
+    // in reading mode. Finish the outline in short slices while reading.
+    let timer: ReturnType<typeof setTimeout>;
+    const parseOutline = (): void => {
+      if (
+        view !== editor ||
+        viewMode.value !== 'reading' ||
+        editor.state.doc !== doc
+      )
+        return;
+      if (ensureSyntaxTree(editor.state, doc.length, 8)) editor.dispatch({});
+      else timer = setTimeout(parseOutline, 16);
+    };
+    timer = setTimeout(parseOutline, 16);
+    onCleanup(() => clearTimeout(timer));
+  },
+  { flush: 'post' }
 );
 watch(
   () => props.dark,

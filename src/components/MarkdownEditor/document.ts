@@ -77,9 +77,9 @@ export function ancestorAt(
   return null;
 }
 
-export function extractHeadings(state: EditorState) {
+export function extractHeadings(state: EditorState, tree = syntaxTree(state)) {
   const headings: Array<{ level: number; text: string; pos: number }> = [];
-  syntaxTree(state).iterate({
+  tree.iterate({
     enter(node) {
       if (!/^(ATX|Setext)Heading[1-6]$/.test(node.name)) return;
       const raw = state.doc.sliceString(node.from, node.to);
