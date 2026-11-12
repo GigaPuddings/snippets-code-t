@@ -55,7 +55,8 @@ import { java } from '@codemirror/lang-java';
 import { EditorView, ViewUpdate, keymap, lineNumbers } from '@codemirror/view';
 import { tags as t } from '@lezer/highlight';
 import { createTheme } from '@uiw/codemirror-themes';
-import { Compartment, EditorState } from '@codemirror/state';
+import { Annotation, Compartment, EditorState, Text } from '@codemirror/state';
+import { SearchQuery } from '@codemirror/search';
 import { documentLineSeparator } from './lineEndings';
 import {
   history,
@@ -218,7 +219,10 @@ const lines = ref(1);
 const length = ref(0);
 const showSearch = ref(false);
 const searchPanelRef = ref<InstanceType<typeof SearchPanel> | null>(null);
-const searchMatches = ref<Array<{ from: number; to: number }>>([]);
+let searchQuery = new SearchQuery({ search: '' });
+let searchMatches: Array<{ from: number; to: number }> = [];
+const externalCodeUpdate = Annotation.define<boolean>();
+let documentRevision = 0;
 const hasCodeSelection = ref(false);
 const languageCompartment = new Compartment();
 const tabSizeCompartment = new Compartment();
@@ -327,10 +331,20 @@ const getExtensions = (): Extension[] => {
     }),
     EditorView.updateListener.of((update: ViewUpdate) => {
       if (update.docChanged) {
-        const value = update.state.sliceDoc();
+        documentRevision++;
         updateStatusInfo(update.state);
-        emits('change', value, update);
-        emits('update:code', value);
+        updateSearchMatches(update.state);
+        if (
+          update.transactions.some(
+            (transaction) =>
+              transaction.docChanged &&
+              !transaction.annotation(externalCodeUpdate)
+          )
+        ) {
+          const value = update.state.sliceDoc();
+          emits('change', value, update);
+          emits('update:code', value);
+        }
       }
       if (update.focusChanged) {
         if (update.view.hasFocus) {
@@ -348,13 +362,14 @@ const getExtensions = (): Extension[] => {
   return extensions;
 };
 
-const editorViewRef = ref<EditorView>();
+const editorViewRef = shallowRef<EditorView>();
 const editorContainerRef = ref<HTMLElement>();
 const contextMenuRef = ref<InstanceType<typeof CodeContextMenu> | null>(null);
 
 onMounted(() => {
   if (editorContainerRef.value) {
     nextTick(() => {
+      if (!editorContainerRef.value) return;
       const state = EditorState.create({
         doc: props.code,
         extensions: getExtensions()
@@ -407,115 +422,69 @@ const openSearch = () => {
 
 const closeSearch = () => {
   showSearch.value = false;
-  clearSearchHighlights();
+  searchQuery = new SearchQuery({ search: '' });
+  const view = editorViewRef.value;
+  if (!view) return;
+  updateSearchMatches(view.state);
+  view.dispatch({ selection: { anchor: view.state.selection.main.head } });
 };
 
 const handleSearch = (query: string, matchCase: boolean) => {
-  if (!editorViewRef.value || !query) {
-    clearSearchHighlights();
-    return;
-  }
-
   const view = editorViewRef.value;
-  const text = view.state.doc.toString();
-  const matches: Array<{ from: number; to: number }> = [];
-
-  const flags = matchCase ? 'g' : 'gi';
-  const searchRegex = new RegExp(
-    query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
-    flags
-  );
-
-  let match;
-  while ((match = searchRegex.exec(text)) !== null) {
-    matches.push({
-      from: match.index,
-      to: match.index + match[0].length
-    });
-  }
-
-  searchMatches.value = matches;
-  searchPanelRef.value?.updateMatchInfo(
-    matches.length > 0 ? 0 : -1,
-    matches.length
-  );
-
-  if (matches.length > 0) {
-    scrollToMatch(0);
-  }
+  if (!view) return;
+  searchQuery = new SearchQuery({
+    search: query,
+    caseSensitive: matchCase,
+    literal: true
+  });
+  updateSearchMatches(view.state);
+  scrollToMatch(0);
 };
 
-const findNext = () => {
-  if (searchMatches.value.length === 0) return;
+function updateSearchMatches(state: EditorState): void {
+  searchMatches = [];
+  if (searchQuery.valid) {
+    const cursor = searchQuery.getCursor(state);
+    for (let match = cursor.next(); !match.done; match = cursor.next()) {
+      searchMatches.push(match.value);
+    }
+  }
+  searchPanelRef.value?.updateMatchInfo(
+    getCurrentMatchIndex(state),
+    searchMatches.length
+  );
+}
 
-  const currentIndex = getCurrentMatchIndex();
-  const nextIndex = (currentIndex + 1) % searchMatches.value.length;
-  searchPanelRef.value?.updateMatchInfo(nextIndex, searchMatches.value.length);
-  scrollToMatch(nextIndex);
+const findNext = () => {
+  const view = editorViewRef.value;
+  if (!view || !searchMatches.length) return;
+  scrollToMatch((getCurrentMatchIndex(view.state) + 1) % searchMatches.length);
 };
 
 const findPrevious = () => {
-  if (searchMatches.value.length === 0) return;
-
-  const currentIndex = getCurrentMatchIndex();
-  const prevIndex =
-    currentIndex <= 0 ? searchMatches.value.length - 1 : currentIndex - 1;
-  searchPanelRef.value?.updateMatchInfo(prevIndex, searchMatches.value.length);
-  scrollToMatch(prevIndex);
+  const view = editorViewRef.value;
+  if (!view || !searchMatches.length) return;
+  const index = getCurrentMatchIndex(view.state);
+  scrollToMatch(index <= 0 ? searchMatches.length - 1 : index - 1);
 };
 
-const getCurrentMatchIndex = (): number => {
-  if (!editorViewRef.value || searchMatches.value.length === 0) return -1;
-
-  const selection = editorViewRef.value.state.selection.main;
-  const index = searchMatches.value.findIndex(
+function getCurrentMatchIndex(state: EditorState): number {
+  const selection = state.selection.main;
+  return searchMatches.findIndex(
     (match) => match.from === selection.from && match.to === selection.to
   );
-  return index >= 0 ? index : 0;
-};
+}
 
 const scrollToMatch = (index: number) => {
-  if (!editorViewRef.value || index < 0 || index >= searchMatches.value.length)
-    return;
-
   const view = editorViewRef.value;
-  const match = searchMatches.value[index];
-
+  const match = searchMatches[index];
+  if (!view || !match) return;
   view.dispatch({
     selection: { anchor: match.from, head: match.to },
-    scrollIntoView: true
+    effects: EditorView.scrollIntoView(match.from, { y: 'center' })
   });
+  searchPanelRef.value?.updateMatchInfo(index, searchMatches.length);
   view.focus();
-
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      const scrollContainer = view.dom as HTMLElement;
-      const coords = view.coordsAtPos(match.from);
-
-      if (coords) {
-        const containerRect = scrollContainer.getBoundingClientRect();
-        const relativeTop =
-          coords.top - containerRect.top + scrollContainer.scrollTop;
-        const targetScroll = relativeTop - 100;
-
-        scrollContainer.scrollTo({
-          top: Math.max(0, targetScroll),
-          behavior: 'smooth'
-        });
-      }
-    });
-  });
-};
-
-const clearSearchHighlights = () => {
-  searchMatches.value = [];
-  searchPanelRef.value?.updateMatchInfo(0, 0);
-
-  if (editorViewRef.value) {
-    editorViewRef.value.dispatch({
-      selection: { anchor: editorViewRef.value.state.selection.main.head }
-    });
-  }
 };
 
 function handleContextMenu(event: MouseEvent): void {
@@ -523,25 +492,24 @@ function handleContextMenu(event: MouseEvent): void {
   contextMenuRef.value?.show(event);
 }
 
-function replaceSelection(text: string): void {
-  const view = editorViewRef.value;
-  if (!view || props.disabled) return;
-
-  const selection = view.state.selection.main;
-  view.dispatch({
-    changes: { from: selection.from, to: selection.to, insert: text },
-    selection: { anchor: selection.from + text.length }
-  });
-  view.focus();
+function captureDocumentCheck(view: EditorView): () => boolean {
+  const fragmentId = props.currentFragmentId;
+  const revision = documentRevision;
+  return () =>
+    editorViewRef.value === view &&
+    props.currentFragmentId === fragmentId &&
+    documentRevision === revision &&
+    !props.disabled;
 }
 
 function replaceDocument(view: EditorView, content: string): void {
   const selection = view.state.selection.main;
+  const insert = Text.of(content.split(/\r\n?|\n/));
   view.dispatch({
-    changes: { from: 0, to: view.state.doc.length, insert: content },
+    changes: { from: 0, to: view.state.doc.length, insert },
     selection: {
-      anchor: Math.min(selection.anchor, content.length),
-      head: Math.min(selection.head, content.length)
+      anchor: Math.min(selection.anchor, insert.length),
+      head: Math.min(selection.head, insert.length)
     }
   });
   view.focus();
@@ -577,6 +545,7 @@ async function formatCode(): Promise<void> {
   if (!view || props.disabled) return;
 
   const code = view.state.doc.toString();
+  const isCurrent = captureDocumentCheck(view);
   const language = detectCodeLanguage(code);
   if (!getPrettierParser(language)) {
     modal.msg(translate('codeEditor.formatUnsupported'), 'warning');
@@ -588,14 +557,39 @@ async function formatCode(): Promise<void> {
       language,
       tabSize: props.tabSize
     });
-    if (result.formatted === code) return;
+    await nextTick();
+    if (!isCurrent() || result.formatted === code) return;
     replaceDocument(view, result.formatted);
   } catch (error) {
+    if (!isCurrent()) return;
     modal.msg(
       `${translate('codeEditor.formatFailed')}: ${error instanceof Error ? error.message : String(error)}`,
       'error'
     );
   }
+}
+
+async function editFromClipboard(
+  view: EditorView,
+  action: 'cut' | 'paste'
+): Promise<void> {
+  if (props.disabled) return;
+  const isCurrent = captureDocumentCheck(view);
+  const selection = view.state.selection;
+  let text: string | null = '';
+  if (action === 'cut') {
+    const selected = getSelection();
+    if (!selected || !(await writeToClipboard(selected))) return;
+  } else {
+    text = await readFromClipboard();
+  }
+
+  await nextTick();
+  if (text === null || !isCurrent() || !view.state.selection.eq(selection))
+    return;
+  const insert = Text.of(text.split(/\r\n?|\n/));
+  view.dispatch(view.state.replaceSelection(insert));
+  view.focus();
 }
 
 async function handleContextMenuAction(
@@ -628,61 +622,54 @@ async function handleContextMenuAction(
     case 'copyAll':
       await writeToClipboard(view.state.doc.toString());
       return;
-    case 'cut': {
-      const selectedCode = getSelection();
-      if (selectedCode && (await writeToClipboard(selectedCode))) {
-        replaceSelection('');
-      }
+    case 'cut':
+    case 'paste':
+      await editFromClipboard(view, action);
       return;
-    }
-    case 'paste': {
-      const text = await readFromClipboard();
-      if (text !== null) replaceSelection(text);
-      return;
-    }
     case 'selectAll':
       view.dispatch({ selection: { anchor: 0, head: view.state.doc.length } });
       view.focus();
   }
 }
 
-// 监听代码变化。同一个 CodeMirror 实例切换片段时重置选区和滚动；
-// 同一片段内的外部内容更新保留用户当前位置。
+// Reset history even if two fragments have identical text. Loading a fragment
+// must not emit an edit for the newly opened fragment.
 watch(
   [() => props.code, () => props.currentFragmentId],
   ([code, fragmentId], [, oldFragmentId]) => {
     const view = editorViewRef.value;
     if (!view) return;
 
-    const changedDocument =
-      oldFragmentId !== undefined && fragmentId !== oldFragmentId;
+    if (fragmentId !== oldFragmentId) {
+      documentRevision++;
+      const state = EditorState.create({
+        doc: code,
+        extensions: getExtensions()
+      });
+      view.setState(state);
+      view.scrollDOM.scrollTop = 0;
+      view.scrollDOM.scrollLeft = 0;
+      hasCodeSelection.value = false;
+      contextMenuRef.value?.hide();
+      updateStatusInfo(state);
+      updateSearchMatches(state);
+      return;
+    }
+
     if (code !== view.state.sliceDoc()) {
+      const separator = documentLineSeparator(code);
       view.dispatch({
         effects: lineSeparatorCompartment.reconfigure(
-          EditorState.lineSeparator.of(documentLineSeparator(code))
-        )
-      });
-      view.dispatch({
+          EditorState.lineSeparator.of(separator)
+        ),
         changes: {
           from: 0,
           to: view.state.doc.length,
-          insert: code
+          insert: Text.of(code.split(separator))
         },
-        ...(changedDocument
-          ? {
-              selection: { anchor: 0 },
-              scrollIntoView: true
-            }
-          : {})
-      });
-    } else if (changedDocument) {
-      view.dispatch({
-        selection: { anchor: 0 },
-        scrollIntoView: true
+        annotations: externalCodeUpdate.of(true)
       });
     }
-
-    if (changedDocument) view.scrollDOM.scrollTop = 0;
   }
 );
 
@@ -726,9 +713,8 @@ watch(
 );
 
 onBeforeUnmount(() => {
-  if (props.autoDestroy && editorViewRef.value) {
-    editorViewRef.value.destroy();
-  }
+  if (props.autoDestroy) editorViewRef.value?.destroy();
+  editorViewRef.value = undefined;
 });
 
 const emits = defineEmits<{
