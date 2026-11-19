@@ -1925,11 +1925,7 @@ fn is_main_window(hwnd: HWND) -> bool {
         }
 
         let owner = GetWindow(hwnd, GW_OWNER).unwrap_or(HWND(std::ptr::null_mut()));
-        if owner != HWND(std::ptr::null_mut()) {
-            return false;
-        }
-
-        true
+        owner == HWND(std::ptr::null_mut())
     }
 }
 
