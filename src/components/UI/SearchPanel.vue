@@ -8,16 +8,22 @@
         type="text"
         class="search-input"
         :placeholder="$t('editor.searchPlaceholder')"
-        @keydown.enter.prevent="handleEnter"
-        @keydown.esc="close"
+        @keydown="handleKeydown"
         @keydown.left.stop
         @keydown.right.stop
         @keydown.home.stop
         @keydown.end.stop
       />
       <div class="search-controls">
-        <span v-if="totalMatches > 0" class="match-count">
-          {{ currentMatchIndex === -1 ? '-' : currentMatchIndex + 1 }} /
+        <span v-if="searchQuery" class="match-count">
+          {{
+            totalMatches === 0
+              ? 0
+              : currentMatchIndex === -1
+                ? '-'
+                : currentMatchIndex + 1
+          }}
+          /
           {{ totalMatches }}
         </span>
         <button
@@ -99,19 +105,28 @@ watch([searchQuery, matchCase], () => {
   emits('search', searchQuery.value, matchCase.value);
 });
 
-const handleEnter = (event: KeyboardEvent) => {
-  event.shiftKey ? findPrevious() : findNext();
+const handleKeydown = (event: KeyboardEvent): void => {
+  if (event.isComposing) return;
+  if (!['ArrowUp', 'ArrowDown', 'Enter', 'Escape'].includes(event.key)) return;
+  event.preventDefault();
+  event.stopPropagation();
+  if (event.key === 'Escape') close();
+  else if (event.key === 'ArrowUp' || (event.key === 'Enter' && event.shiftKey))
+    findPrevious();
+  else findNext();
 };
 
 const findNext = () => {
   if (totalMatches.value > 0) {
     emits('next');
+    searchInputRef.value?.focus();
   }
 };
 
 const findPrevious = () => {
   if (totalMatches.value > 0) {
     emits('previous');
+    searchInputRef.value?.focus();
   }
 };
 
@@ -128,6 +143,10 @@ const updateMatchInfo = (current: number, total: number) => {
 };
 
 defineExpose({
+  setQuery: (query: string) => {
+    searchQuery.value = query;
+    matchCase.value = false;
+  },
   updateMatchInfo,
   focus: () => searchInputRef.value?.focus()
 });

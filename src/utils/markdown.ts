@@ -310,19 +310,51 @@ const UNSUPPORTED_EDITOR_HTML_TAG_RE =
 
 /**
  * Preserve explicit Markdown structures when a parallel HTML clipboard flavor
- * would reinterpret tag examples or rebuild an already valid table.
+ * would reinterpret tag examples or rebuild source headings, bold text or tables.
  */
 export function shouldPreferMarkdownClipboardText(
   text: string,
   html: string
 ): boolean {
-  return Boolean(
-    text.trim() &&
-      html.trim() &&
-      (ESCAPED_HTML_TAG_RE.test(text) ||
-        UNSUPPORTED_EDITOR_HTML_TAG_RE.test(text) ||
-        marked.lexer(text).some((token) => token.type === 'table'))
-  );
+  if (!text.trim() || !html.trim()) return false;
+  const tokens = marked.lexer(text);
+  if (
+    ESCAPED_HTML_TAG_RE.test(text) ||
+    UNSUPPORTED_EDITOR_HTML_TAG_RE.test(text) ||
+    tokens.some((token) => token.type === 'table')
+  ) {
+    return true;
+  }
+
+  // A copied code example can itself contain Markdown markers. Keep the rich
+  // code wrapper when all visible content belongs to code, but allow mixed
+  // Markdown documents (headings, prose and code) to retain their source.
+  const proseHtml = html
+    .replace(/<!--[^]*?-->/g, '')
+    .replace(/<(pre|code|script|style)\b[^>]*>[^]*?<\/\1\s*>/gi, '')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&(?:nbsp|#160|#xa0);/gi, ' ');
+  if (!proseHtml.trim()) return false;
+
+  // Keep the rich flavor for a single bold span when both flavors agree.
+  const [first] = tokens;
+  if (
+    tokens.length === 1 &&
+    first.type === 'paragraph' &&
+    first.tokens?.length === 1 &&
+    first.tokens[0].type === 'strong' &&
+    marked.parser(tokens).trim() === html.trim()
+  ) {
+    return false;
+  }
+
+  let hasSourceFormatting = false;
+  marked.walkTokens(tokens, (token) => {
+    if (token.type === 'heading' || token.type === 'strong') {
+      hasSourceFormatting = true;
+    }
+  });
+  return hasSourceFormatting;
 }
 
 /**
@@ -632,6 +664,18 @@ export function createTurndownService(): TurndownService {
   turndownService.escape = (value: string): string => {
     return escapeHtmlLikeMarkdownText(escapeMarkdownText(value));
   };
+
+  // A numeric prefix inside **...** cannot start a list. Turndown escapes it
+  // before adding the strong delimiters; remove only that generated escape.
+  // Literal backslashes and code content remain untouched.
+  turndownService.addRule('strong', {
+    filter: ['strong', 'b'],
+    replacement: (content, _node, options) => {
+      if (!content.trim()) return '';
+      const text = content.replace(/^(\d+)\\\.(?=\s)/, '$1.');
+      return options.strongDelimiter + text + options.strongDelimiter;
+    }
+  });
 
   // TipTap/Vue NodeView 的渲染 DOM 会包含代码语言按钮、复制按钮和高亮辅助节点。
   // 它们只属于编辑器界面，二次复制或 HTML 持久化时不能进入笔记正文。

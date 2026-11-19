@@ -234,12 +234,12 @@
       v-if="!isConfigRoute"
       class="titlebar-center"
       :class="{
-        'titlebar-center--drag-only': hideQuickSearch
+        'titlebar-center--drag-only': hideQuickSearch || !canQuickSearch
       }"
       data-tauri-drag-region
     >
       <button
-        v-show="!hideQuickSearch"
+        v-show="!hideQuickSearch && canQuickSearch"
         class="titlebar-quick-search"
         type="button"
         :title="$t('titlebar.quickSearch')"
@@ -317,7 +317,10 @@
                 <span class="ml-2">{{ tab.label }}</span>
               </el-dropdown-item>
             </template>
-            <el-dropdown-item v-if="hideQuickSearch" command="search">
+            <el-dropdown-item
+              v-if="hideQuickSearch && canQuickSearch"
+              command="search"
+            >
               <Search width="16" height="16" />
               <span class="ml-2">{{ $t('titlebar.quickSearch') }}</span>
             </el-dropdown-item>
@@ -400,6 +403,7 @@
     </div>
   </main>
   <ConfigQuickSearch
+    v-if="canQuickSearch"
     :model-value="quickSearchVisible"
     @update:model-value="setQuickSearchVisible"
   />
@@ -487,6 +491,8 @@ const pluginStore = usePluginStore();
 const {
   visible: quickSearchVisible,
   open: openConfigQuickSearch,
+  close: closeConfigQuickSearch,
+  clearContentSearch,
   setVisible: setQuickSearchVisible
 } = useConfigQuickSearch();
 const { hasUpdate, checkForUpdates } = useUpdateAvailability();
@@ -550,6 +556,16 @@ const isTabActive = (path: string): boolean =>
   isConfigNavigationPathActive(router.currentRoute.value.path, path);
 const isConfigRoute = computed(() =>
   router.currentRoute.value.path.startsWith('/config')
+);
+const canQuickSearch = computed(
+  () => getConfigTabLabelKey(router.currentRoute.value.path) === 'nav.workspace'
+);
+watch([canQuickSearch, quickSearchVisible], ([allowed]) => {
+  if (!allowed) closeConfigQuickSearch();
+});
+watch(
+  () => router.currentRoute.value.path,
+  () => clearContentSearch()
 );
 const activeTabTitle = computed(() => {
   const key = getConfigTabLabelKey(router.currentRoute.value.path);
@@ -629,8 +645,16 @@ const handleViewMenuCommand = async (command: string): Promise<void> => {
 };
 
 const handleGlobalKeydown = (event: KeyboardEvent) => {
+  if (
+    !canQuickSearch.value ||
+    event.isComposing ||
+    event.altKey ||
+    event.shiftKey
+  )
+    return;
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
     event.preventDefault();
+    event.stopPropagation();
     openConfigQuickSearch();
   }
 };
@@ -659,7 +683,7 @@ const handleMoreMenuCommand = (command: string) => {
   }
   switch (command) {
     case 'search':
-      openConfigQuickSearch();
+      if (canQuickSearch.value) openConfigQuickSearch();
       break;
     case 'userCenter':
       navigateTo('/config/category/contentList/user');
@@ -677,7 +701,7 @@ const handleMoreMenuCommand = (command: string) => {
 };
 
 onMounted(async () => {
-  window.addEventListener('keydown', handleGlobalKeydown);
+  window.addEventListener('keydown', handleGlobalKeydown, true);
   const results = await Promise.allSettled([
     initEnv().then(() => {
       state.appName = appName;
@@ -693,7 +717,7 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
-  window.removeEventListener('keydown', handleGlobalKeydown);
+  window.removeEventListener('keydown', handleGlobalKeydown, true);
 });
 </script>
 

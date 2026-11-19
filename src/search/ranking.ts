@@ -495,6 +495,17 @@ export const isRelevantSearchResult = (
   const normalizedQuery = normalizeSearchValue(query);
   if (!normalizedQuery) return false;
 
+  // A multi-word document query must also be findable as a literal phrase
+  // inside one field. Token/fuzzy scores cannot establish a phrase match.
+  if (getSource(item) === 'markdown' && /\s/.test(normalizedQuery)) {
+    const fields = options.deepSearch
+      ? [item.title, item.content, ...(item.tags ?? [])]
+      : [item.title];
+    return fields.some((field) =>
+      normalizeSearchValue(field).includes(normalizedQuery)
+    );
+  }
+
   const aliases = Array.isArray(item.metadata?.search_aliases)
     ? item.metadata.search_aliases.map(normalizeSearchValue)
     : [];

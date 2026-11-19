@@ -16,7 +16,7 @@ import { syntaxTree } from '@codemirror/language';
 import type { SyntaxNode } from '@lezer/common';
 import { renderNoteMarkdown } from '@/utils/markdown';
 import { configurePreviewImage } from '@/components/MarkdownPreview/rendering';
-import { TableWidget } from './table';
+import { TableWidget, tableSearchHighlights } from './table';
 import { trailingCodeParagraph } from './document';
 
 export interface PreviewTarget {
@@ -737,6 +737,7 @@ export function livePreview(options: PreviewOptions): Extension {
     previewHasFocus,
     previewDragging,
     previewDragGesture,
+    tableSearchHighlights,
     EditorView.focusChangeEffect.of((_state, focused) =>
       setPreviewFocus.of(focused)
     ),

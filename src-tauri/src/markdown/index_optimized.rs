@@ -392,6 +392,9 @@ impl OptimizedIndexManager {
 
     // 并行搜索（支持精确匹配 + 模糊匹配）
     pub fn search(&self, query: &str) -> Vec<(IndexEntry, f32)> {
+        let query = query.trim();
+        let query_lower = query.to_lowercase();
+        let is_phrase = query.chars().any(char::is_whitespace);
         let entries = match self.entries.read() {
             Ok(e) => e,
             Err(_) => return Vec::new(),
@@ -414,6 +417,18 @@ impl OptimizedIndexManager {
             .par_iter()
             .enumerate()
             .filter_map(|(idx, entry)| {
+                // Phrase results must be findable in one field. Filter before
+                // scoring/limiting so partial-token hits cannot crowd them out.
+                if is_phrase
+                    && !entry.title.to_lowercase().contains(&query_lower)
+                    && !entry.full_content.to_lowercase().contains(&query_lower)
+                    && !entry
+                        .tags
+                        .iter()
+                        .any(|tag| tag.to_lowercase().contains(&query_lower))
+                {
+                    return None;
+                }
                 let score = self.calculate_relevance_score(entry, &query_tokens);
                 if score > 0.0 {
                     Some((idx, score))
@@ -427,9 +442,7 @@ impl OptimizedIndexManager {
         let mut all_results = exact_results;
 
         // 如果精确匹配结果不足 10 条，补充模糊匹配
-        if all_results.len() < 10 && !query.is_empty() {
-            let query_lower = query.to_lowercase();
-
+        if all_results.len() < 10 && !query.is_empty() && !is_phrase {
             let fuzzy_results: Vec<(usize, f32)> = entries
                 .par_iter()
                 .enumerate()

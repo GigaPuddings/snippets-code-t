@@ -1,5 +1,8 @@
 import { EditorView, WidgetType } from '@codemirror/view';
 import { undo, redo, isolateHistory } from '@codemirror/commands';
+import { Text as EditorText } from '@codemirror/state';
+import { getSearchQuery, type SearchQuery } from '@codemirror/search';
+import { syntaxTree } from '@codemirror/language';
 import { wrapSelection } from './document';
 import { markdownClipboardText } from './clipboard';
 import {
@@ -13,6 +16,30 @@ import { renderNoteMarkdown } from '@/utils/markdown';
 import type { PreviewOptions, PreviewTarget } from './preview';
 
 const controllers = new WeakMap<HTMLElement, TableController>();
+
+export const tableSearchHighlights = EditorView.updateListener.of((update) => {
+  const query = getSearchQuery(update.state);
+  const previous = getSearchQuery(update.startState);
+  if (
+    (!query.valid && !previous.valid) ||
+    (!update.selectionSet && previous.eq(query))
+  )
+    return;
+  for (const table of update.view.contentDOM.querySelectorAll<HTMLElement>(
+    '.md-preview-table'
+  ))
+    controllers.get(table)?.updateSearchHighlights();
+});
+
+type MatchRange = { from: number; to: number };
+type TableSearchMark = { element: HTMLElement; source?: MatchRange };
+
+function collectMatches(cursor: Iterator<MatchRange>): MatchRange[] {
+  const matches: MatchRange[] = [];
+  for (let result = cursor.next(); !result.done; result = cursor.next())
+    matches.push(result.value);
+  return matches;
+}
 
 export function tableCellAt(
   target: PreviewTarget,
@@ -54,6 +81,9 @@ class TableController {
   editRange: { from: number; to: number } | null = null;
   widths: number[] = [];
   cleanupResize?: () => void;
+  private searchQuery?: SearchQuery;
+  private searchMarks: TableSearchMark[] = [];
+  private activeSearchMark?: HTMLElement;
   private parsed?: {
     source: string;
     prefix?: string;
@@ -152,6 +182,9 @@ class TableController {
   }
   update(target: PreviewTarget, options: PreviewOptions) {
     const hadFocus = this.input === document.activeElement;
+    const sourceChanged =
+      this.target.source !== target.source ||
+      this.target.prefix !== target.prefix;
     const imagePathsChanged =
       this.options.workspaceRoot !== options.workspaceRoot ||
       this.options.noteFilePath !== options.noteFilePath;
@@ -172,6 +205,7 @@ class TableController {
     const shapeChanged =
       this.table.rows.length !== model.rows.length ||
       this.table.rows[0]?.cells.length !== model.alignments.length;
+    let cellsChanged = shapeChanged || sourceChanged;
     if (shapeChanged) {
       this.input = null;
       this.table.replaceChildren();
@@ -202,6 +236,7 @@ class TableController {
           if (!this.composing && !this.committing && this.input.value !== value)
             this.input.value = value;
         } else if (cell.dataset.markdown !== value || imagePathsChanged) {
+          cellsChanged = true;
           cell.innerHTML = renderNoteMarkdown(
             value,
             options.workspaceRoot,
@@ -232,8 +267,102 @@ class TableController {
         );
       }
     }
+    this.updateSearchHighlights(cellsChanged);
     this.resizeInput();
     this.view.requestMeasure();
+  }
+  updateSearchHighlights(cellsChanged = false): void {
+    const { state } = this.view;
+    const query = getSearchQuery(state);
+    if (cellsChanged || !this.searchQuery?.eq(query)) {
+      this.searchQuery = query;
+      for (const { element } of this.searchMarks) {
+        const parent = element.parentNode;
+        element.replaceWith(...element.childNodes);
+        parent?.normalize();
+      }
+      this.searchMarks = [];
+      if (query.valid) {
+        this.ranges().forEach((row, rowIndex) =>
+          row.forEach((range, column) => {
+            const cell = this.table.rows[rowIndex]?.cells[column];
+            if (cell && this.input?.parentElement !== cell)
+              this.highlightCell(cell, range, query);
+          })
+        );
+      }
+    }
+
+    const { from, to } = state.selection.main;
+    const offset = this.target.from;
+    const active = this.searchMarks.find(
+      ({ source }) =>
+        source?.from === from - offset && source.to === to - offset
+    )?.element;
+    if (active !== this.activeSearchMark) {
+      this.activeSearchMark?.classList.remove('cm-searchMatch-selected');
+      active?.classList.add('cm-searchMatch-selected');
+      this.activeSearchMark = active;
+    }
+  }
+  private highlightCell(
+    cell: HTMLTableCellElement,
+    range: MatchRange,
+    query: SearchQuery
+  ): void {
+    const { state } = this.view;
+    const offset = this.target.from;
+    let sourceMatches = collectMatches(
+      query.getCursor(state, offset + range.from, offset + range.to)
+    );
+    if (!sourceMatches.length) return;
+
+    // Rendered cells own their text nodes, independently of CodeMirror's marks.
+    const walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT);
+    const textNodes: Text[] = [];
+    for (let node = walker.nextNode(); node; node = walker.nextNode())
+      textNodes.push(node as Text);
+    const marks = textNodes.flatMap((text) =>
+      collectMatches(query.getCursor(EditorText.of(text.data.split('\n'))))
+        .reverse()
+        .map(({ from, to }) => {
+          const suffix = text.splitText(to);
+          const match = text.splitText(from);
+          const mark = document.createElement('span');
+          mark.className = 'cm-searchMatch';
+          mark.append(match);
+          suffix.before(mark);
+          return mark;
+        })
+        .reverse()
+    );
+    if (sourceMatches.length !== marks.length) {
+      // A link destination or attribute can match in Markdown without being
+      // rendered as text. Keep those hits from selecting a visible occurrence.
+      const tree = syntaxTree(state);
+      sourceMatches = sourceMatches.filter(({ from, to }) => {
+        const node = tree.resolveInner(from, 1);
+        return (
+          node.to < to ||
+          !(
+            (node.name === 'URL' && node.parent?.name !== 'Autolink') ||
+            node.name === 'LinkTitle' ||
+            node.name === 'HTMLTag' ||
+            node.name === 'Image'
+          )
+        );
+      });
+    }
+    marks.forEach((element, index) => {
+      const match =
+        sourceMatches.length === marks.length
+          ? sourceMatches[index]
+          : undefined;
+      this.searchMarks.push({
+        element,
+        source: match && { from: match.from - offset, to: match.to - offset }
+      });
+    });
   }
   addResizeHandle(cell: HTMLTableCellElement, column: number) {
     const handle = document.createElement('span');

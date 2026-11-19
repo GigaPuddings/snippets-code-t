@@ -137,6 +137,7 @@ import type { CSSProperties } from 'vue';
 import { useI18n } from 'vue-i18n';
 import {
   Compartment,
+  EditorSelection,
   EditorState,
   Text,
   type Extension
@@ -532,7 +533,10 @@ function extensions(): Extension[] {
     bracketMatching(),
     EditorView.lineWrapping,
     editorPlaceholder(props.placeholder),
-    search(),
+    search({
+      scrollToMatch: (range) =>
+        EditorView.scrollIntoView(range, { y: 'center' })
+    }),
     ViewPlugin.define(
       (editor) => ({
         decorations: searchHighlights(editor),
@@ -1092,10 +1096,35 @@ async function openLink(href: string, wiki: boolean) {
   const { openUrl } = await import('@tauri-apps/plugin-opener');
   await openUrl(href).catch((error) => modal.error(String(error)));
 }
-function openSearch() {
+function openSearch(text?: string) {
+  const editor = view;
+  const id = documentId;
   if (viewMode.value === 'reading') setViewMode('preview');
+  // Explicit search navigation takes priority over mode-switch scroll restoration.
+  if (text !== undefined) scrollRequest++;
   showSearch.value = true;
-  nextTick(() => searchPanel.value?.focus());
+  nextTick(async () => {
+    if (!editor || view !== editor || documentId !== id) return;
+    if (text !== undefined) {
+      searchPanel.value?.setQuery(text);
+      await nextTick();
+      if (view !== editor || documentId !== id) return;
+      handleSearch(text, false);
+      const match = getSearchQuery(editor.state).getCursor(editor.state).next();
+      if (!match.done) {
+        const selection = EditorSelection.single(
+          match.value.from,
+          match.value.to
+        );
+        editor.dispatch({
+          selection,
+          effects: EditorView.scrollIntoView(selection.main, { y: 'center' })
+        });
+      }
+      updateSearchCount();
+    }
+    searchPanel.value?.focus();
+  });
 }
 function searchHighlights(editor: EditorView) {
   const query = getSearchQuery(editor.state);

@@ -101,6 +101,7 @@ import {
   useSearchResultDisplay
 } from '@/pages/search/composables/useSearchResultDisplay';
 import { useConfigurationStore } from '@/store';
+import { useConfigQuickSearch } from '@/composables/useConfigQuickSearch';
 import modal from '@/utils/modal';
 import {
   getConfigContentPath,
@@ -126,6 +127,7 @@ type ConfigSearchResult = ContentType & {
 const router = useRouter();
 const { t } = useI18n();
 const store = useConfigurationStore();
+const { requestContentSearch } = useConfigQuickSearch();
 const inputRef = ref<HTMLInputElement | null>(null);
 const bodyRef = ref<HTMLElement | null>(null);
 const activeIndex = ref(0);
@@ -284,11 +286,14 @@ function getTypeLabelText(item: ConfigSearchResult): string {
 }
 
 async function openConfigContent(item: ConfigSearchResult): Promise<void> {
-  await navigateConfigRoute(
-    router,
-    getConfigContentPath(getRawSearchResultId(item), item.category_id),
-    true
+  const path = getConfigContentPath(
+    getRawSearchResultId(item),
+    item.category_id
   );
+  const query = searchText.value;
+  await navigateConfigRoute(router, path, true);
+  if (router.currentRoute.value.path === path)
+    requestContentSearch(path, query);
 }
 
 async function openFolderResult(item: ConfigSearchResult): Promise<void> {

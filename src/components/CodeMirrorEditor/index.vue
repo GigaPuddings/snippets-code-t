@@ -413,9 +413,20 @@ onMounted(() => {
 });
 
 // 搜索功能
-const openSearch = () => {
+const openSearch = (text?: string) => {
+  const view = editorViewRef.value;
+  const id = props.currentFragmentId;
   showSearch.value = true;
-  nextTick(() => {
+  nextTick(async () => {
+    if (!view || editorViewRef.value !== view || props.currentFragmentId !== id)
+      return;
+    if (text !== undefined) {
+      searchPanelRef.value?.setQuery(text);
+      await nextTick();
+      if (editorViewRef.value !== view || props.currentFragmentId !== id)
+        return;
+      handleSearch(text, false);
+    }
     searchPanelRef.value?.focus();
   });
 };
@@ -484,7 +495,6 @@ const scrollToMatch = (index: number) => {
     effects: EditorView.scrollIntoView(match.from, { y: 'center' })
   });
   searchPanelRef.value?.updateMatchInfo(index, searchMatches.length);
-  view.focus();
 };
 
 function handleContextMenu(event: MouseEvent): void {
@@ -736,6 +746,7 @@ const getSelection = (): string => {
 
 // 暴露方法给父组件
 defineExpose({
+  openSearch,
   getSelection,
   getView: () => editorViewRef.value
 });

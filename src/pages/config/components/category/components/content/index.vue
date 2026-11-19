@@ -398,6 +398,7 @@
 
 <script setup lang="ts">
 import { useContentHeading } from './useContentHeading';
+import { useContentSearchNavigation } from './useContentSearchNavigation';
 import UiEllipsisVertical from '~icons/lucide/ellipsis-vertical';
 import Save from '~icons/lucide/save';
 import Type from '~icons/lucide/type';
@@ -927,6 +928,18 @@ const finishMountedEditorLoading = () => {
     finishEditorLoadingAfterPaint();
   }
 };
+
+useContentSearchNavigation(
+  computed(() => route.path),
+  computed(
+    () => state.isEditorReady && !state.isInitializing && !state.editorError
+  ),
+  computed(() =>
+    currentEditorType.value === 'note'
+      ? noteEditorRef.value
+      : codeMirrorEditorRef.value
+  )
+);
 
 const handleEditorReady = () => {
   finishEditorLoadingAfterPaint();

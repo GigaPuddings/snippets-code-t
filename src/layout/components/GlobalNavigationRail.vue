@@ -75,7 +75,7 @@
               <Me width="18" height="18" />
               <span>{{ t('titlebar.userCenter') }}</span>
             </el-dropdown-item>
-            <el-dropdown-item command="search">
+            <el-dropdown-item v-if="canQuickSearch" command="search">
               <Search width="18" height="18" />
               <span>{{ t('titlebar.quickSearch') }}</span>
             </el-dropdown-item>
@@ -104,6 +104,7 @@ import modal from '@/utils/modal';
 import { openConfigSettings } from '@/utils/config-navigation';
 import {
   configNavigationTabs,
+  getConfigTabLabelKey,
   isConfigNavigationPathActive
 } from '@/plugins/navigation';
 
@@ -111,6 +112,9 @@ defineOptions({ name: 'GlobalNavigationRail' });
 
 const { t } = useI18n();
 const route = useRoute();
+const canQuickSearch = computed(
+  () => getConfigTabLabelKey(route.path) === 'nav.workspace'
+);
 const router = useRouter();
 const accountDropdown = ref<{ handleClose: () => void } | null>(null);
 watch(
@@ -197,7 +201,7 @@ watch(
 
 const handleAccountCommand = async (command: string): Promise<void> => {
   try {
-    if (command === 'search') openQuickSearch();
+    if (command === 'search' && canQuickSearch.value) openQuickSearch();
     else if (command === 'settings') await openConfigSettings(router);
     else if (command === 'userCenter')
       await router.push('/config/category/contentList/user');

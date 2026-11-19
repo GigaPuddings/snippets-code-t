@@ -26,6 +26,7 @@
               </strong>
               <div class="flex shrink-0 items-center gap-1">
                 <el-tooltip
+                  v-if="canQuickSearch"
                   effect="light"
                   placement="bottom-end"
                   :show-after="350"
@@ -235,6 +236,7 @@ import {
   type FragmentDropPosition
 } from '@/utils/fragmentDragDrop';
 import { useConfigQuickSearch } from '@/composables/useConfigQuickSearch';
+import { getConfigTabLabelKey } from '@/plugins/navigation';
 import Down from '~icons/lucide/chevron-down';
 import EditTwo from '~icons/lucide/square-pen';
 import FileCodeOne from '~icons/lucide/file-code';
@@ -274,6 +276,9 @@ watch(
 );
 const { t } = useI18n();
 const { open: openConfigQuickSearch } = useConfigQuickSearch();
+const canQuickSearch = computed(
+  () => getConfigTabLabelKey(route.path) === 'nav.workspace'
+);
 const recentDocuments = ref<ContentType[]>([]);
 const selectedContentId = computed(() =>
   route.params.id
