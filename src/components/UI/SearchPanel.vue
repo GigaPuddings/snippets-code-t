@@ -86,6 +86,7 @@ const emits = defineEmits<{
 const searchInputRef = ref<HTMLInputElement | null>(null);
 const searchQuery = ref('');
 const matchCase = ref(false);
+let settingQuery = false;
 const currentMatchIndex = ref(0);
 const totalMatches = ref(0);
 
@@ -101,9 +102,13 @@ watch(
   }
 );
 
-watch([searchQuery, matchCase], () => {
-  emits('search', searchQuery.value, matchCase.value);
-});
+watch(
+  [searchQuery, matchCase],
+  ([query, caseSensitive]) => {
+    if (!settingQuery) emits('search', query, caseSensitive);
+  },
+  { flush: 'sync' }
+);
 
 const handleKeydown = (event: KeyboardEvent): void => {
   if (event.isComposing) return;
@@ -144,8 +149,11 @@ const updateMatchInfo = (current: number, total: number) => {
 
 defineExpose({
   setQuery: (query: string) => {
+    // The editor decides whether to jump or keep the selected match.
+    settingQuery = true;
     searchQuery.value = query;
     matchCase.value = false;
+    settingQuery = false;
   },
   updateMatchInfo,
   focus: () => searchInputRef.value?.focus()

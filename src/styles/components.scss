@@ -1,6 +1,16 @@
 @use './plugin-config';
 @use './icons';
 
+.cm-editor .cm-content {
+  .cm-searchMatch {
+    @apply rounded-sm bg-[var(--el-color-warning-light-7)];
+  }
+
+  .cm-searchMatch-selected {
+    @apply bg-search-highlight ring-1 ring-inset ring-[var(--search-highlight-text)];
+  }
+}
+
 // Shared UI appearance. Tailwind utilities on callers describe layout only.
 @layer components {
   .ui-action {

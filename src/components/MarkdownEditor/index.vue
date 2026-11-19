@@ -144,8 +144,6 @@ import {
 } from '@codemirror/state';
 import {
   EditorView,
-  Decoration,
-  ViewPlugin,
   type ViewUpdate,
   keymap,
   drawSelection,
@@ -201,6 +199,8 @@ import {
 import { resolveImageFilePath } from './imagePath';
 import { copyImageToClipboard } from '@/utils/imageClipboard';
 import { renderNoteMarkdown } from '@/utils/markdown';
+import { editorSearchHighlights } from '@/utils/editorSearchHighlights';
+import { searchQueryFromSelection } from '@/utils/text';
 import { markdownClipboardText } from './clipboard';
 import { getWorkspaceRoot } from '@/api/markdown';
 import {
@@ -537,21 +537,7 @@ function extensions(): Extension[] {
       scrollToMatch: (range) =>
         EditorView.scrollIntoView(range, { y: 'center' })
     }),
-    ViewPlugin.define(
-      (editor) => ({
-        decorations: searchHighlights(editor),
-        update(update: ViewUpdate) {
-          if (
-            update.docChanged ||
-            update.selectionSet ||
-            update.viewportChanged ||
-            getSearchQuery(update.startState) !== getSearchQuery(update.state)
-          )
-            this.decorations = searchHighlights(update.view);
-        }
-      }),
-      { decorations: (plugin) => plugin.decorations }
-    ),
+    editorSearchHighlights,
     themeCompartment.of([
       EditorView.theme({}, { dark: props.dark }),
       syntaxHighlighting(
@@ -1099,17 +1085,20 @@ async function openLink(href: string, wiki: boolean) {
 function openSearch(text?: string) {
   const editor = view;
   const id = documentId;
+  const query = text ?? searchQueryFromSelection(getSelection()?.text);
   if (viewMode.value === 'reading') setViewMode('preview');
   // Explicit search navigation takes priority over mode-switch scroll restoration.
   if (text !== undefined) scrollRequest++;
   showSearch.value = true;
   nextTick(async () => {
     if (!editor || view !== editor || documentId !== id) return;
-    if (text !== undefined) {
-      searchPanel.value?.setQuery(text);
+    if (query !== undefined) {
+      searchPanel.value?.setQuery(query);
       await nextTick();
       if (view !== editor || documentId !== id) return;
-      handleSearch(text, false);
+      handleSearch(query, false);
+    }
+    if (text !== undefined) {
       const match = getSearchQuery(editor.state).getCursor(editor.state).next();
       if (!match.done) {
         const selection = EditorSelection.single(
@@ -1125,28 +1114,6 @@ function openSearch(text?: string) {
     }
     searchPanel.value?.focus();
   });
-}
-function searchHighlights(editor: EditorView) {
-  const query = getSearchQuery(editor.state);
-  if (!query.valid) return Decoration.none;
-  const ranges = [];
-  for (const { from, to } of editor.visibleRanges) {
-    const cursor = query.getCursor(editor.state, from, to);
-    for (let match = cursor.next(); !match.done; match = cursor.next()) {
-      const selected = editor.state.selection.ranges.some(
-        (range) =>
-          range.from === match.value.from && range.to === match.value.to
-      );
-      ranges.push(
-        Decoration.mark({
-          class: selected
-            ? 'cm-searchMatch cm-searchMatch-selected'
-            : 'cm-searchMatch'
-        }).range(match.value.from, match.value.to)
-      );
-    }
-  }
-  return Decoration.set(ranges, true);
 }
 function closeSearch() {
   showSearch.value = false;
@@ -1785,14 +1752,6 @@ defineExpose({
   .md-editing:not(.md-source) .cm-content ::selection {
     color: inherit;
     background: var(--el-color-primary-light-7);
-  }
-
-  .cm-searchMatch {
-    background: var(--el-color-warning-light-7);
-  }
-
-  .cm-searchMatch-selected {
-    background: var(--el-color-warning-light-5);
   }
 
   .md-source .cm-scroller,

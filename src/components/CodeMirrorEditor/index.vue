@@ -56,7 +56,12 @@ import { EditorView, ViewUpdate, keymap, lineNumbers } from '@codemirror/view';
 import { tags as t } from '@lezer/highlight';
 import { createTheme } from '@uiw/codemirror-themes';
 import { Annotation, Compartment, EditorState, Text } from '@codemirror/state';
-import { SearchQuery } from '@codemirror/search';
+import {
+  getSearchQuery,
+  search,
+  SearchQuery,
+  setSearchQuery
+} from '@codemirror/search';
 import { documentLineSeparator } from './lineEndings';
 import {
   history,
@@ -69,6 +74,8 @@ import {
 import type { Extension } from '@codemirror/state';
 import type { CreateThemeOptions } from '@uiw/codemirror-themes';
 import { SearchPanel } from '@/components/UI';
+import { editorSearchHighlights } from '@/utils/editorSearchHighlights';
+import { searchQueryFromSelection } from '@/utils/text';
 import { createPairedBraceEnterEdit } from '@/utils/pairedBraceEnter';
 import {
   detectCodeLanguage,
@@ -219,7 +226,6 @@ const lines = ref(1);
 const length = ref(0);
 const showSearch = ref(false);
 const searchPanelRef = ref<InstanceType<typeof SearchPanel> | null>(null);
-let searchQuery = new SearchQuery({ search: '' });
 let searchMatches: Array<{ from: number; to: number }> = [];
 const externalCodeUpdate = Annotation.define<boolean>();
 let documentRevision = 0;
@@ -318,6 +324,8 @@ const getExtensions = (): Extension[] => {
     ),
     lineNumbers(),
     EditorView.lineWrapping,
+    search(),
+    editorSearchHighlights,
     themeCompartment.of(customTheme.value),
     languageCompartment.of(getLanguageExtension(detectedLanguage.value)),
     history(),
@@ -333,7 +341,6 @@ const getExtensions = (): Extension[] => {
       if (update.docChanged) {
         documentRevision++;
         updateStatusInfo(update.state);
-        updateSearchMatches(update.state);
         if (
           update.transactions.some(
             (transaction) =>
@@ -355,6 +362,14 @@ const getExtensions = (): Extension[] => {
       }
       if (update.selectionSet) {
         hasCodeSelection.value = !update.state.selection.main.empty;
+      }
+      if (
+        update.docChanged ||
+        getSearchQuery(update.startState) !== getSearchQuery(update.state)
+      ) {
+        updateSearchMatches(update.state);
+      } else if (update.selectionSet) {
+        updateSearchMatchInfo(update.state);
       }
     })
   ];
@@ -416,16 +431,17 @@ onMounted(() => {
 const openSearch = (text?: string) => {
   const view = editorViewRef.value;
   const id = props.currentFragmentId;
+  const query = text ?? searchQueryFromSelection(getSelection());
   showSearch.value = true;
   nextTick(async () => {
     if (!view || editorViewRef.value !== view || props.currentFragmentId !== id)
       return;
-    if (text !== undefined) {
-      searchPanelRef.value?.setQuery(text);
+    if (query !== undefined) {
+      searchPanelRef.value?.setQuery(query);
       await nextTick();
       if (editorViewRef.value !== view || props.currentFragmentId !== id)
         return;
-      handleSearch(text, false);
+      handleSearch(query, false, text !== undefined);
     }
     searchPanelRef.value?.focus();
   });
@@ -433,33 +449,46 @@ const openSearch = (text?: string) => {
 
 const closeSearch = () => {
   showSearch.value = false;
-  searchQuery = new SearchQuery({ search: '' });
   const view = editorViewRef.value;
   if (!view) return;
-  updateSearchMatches(view.state);
-  view.dispatch({ selection: { anchor: view.state.selection.main.head } });
+  view.dispatch({
+    effects: setSearchQuery.of(new SearchQuery({ search: '' })),
+    selection: { anchor: view.state.selection.main.head }
+  });
 };
 
-const handleSearch = (query: string, matchCase: boolean) => {
+const handleSearch = (
+  query: string,
+  matchCase: boolean,
+  jumpToFirst = true
+) => {
   const view = editorViewRef.value;
   if (!view) return;
-  searchQuery = new SearchQuery({
-    search: query,
-    caseSensitive: matchCase,
-    literal: true
+  view.dispatch({
+    effects: setSearchQuery.of(
+      new SearchQuery({
+        search: query,
+        caseSensitive: matchCase,
+        literal: true
+      })
+    )
   });
-  updateSearchMatches(view.state);
-  scrollToMatch(0);
+  if (jumpToFirst) scrollToMatch(0);
 };
 
 function updateSearchMatches(state: EditorState): void {
   searchMatches = [];
+  const searchQuery = getSearchQuery(state);
   if (searchQuery.valid) {
     const cursor = searchQuery.getCursor(state);
     for (let match = cursor.next(); !match.done; match = cursor.next()) {
       searchMatches.push(match.value);
     }
   }
+  updateSearchMatchInfo(state);
+}
+
+function updateSearchMatchInfo(state: EditorState): void {
   searchPanelRef.value?.updateMatchInfo(
     getCurrentMatchIndex(state),
     searchMatches.length
@@ -481,6 +510,7 @@ const findPrevious = () => {
 
 function getCurrentMatchIndex(state: EditorState): number {
   const selection = state.selection.main;
+  if (selection.empty) return -1;
   return searchMatches.findIndex(
     (match) => match.from === selection.from && match.to === selection.to
   );
@@ -494,7 +524,6 @@ const scrollToMatch = (index: number) => {
     selection: { anchor: match.from, head: match.to },
     effects: EditorView.scrollIntoView(match.from, { y: 'center' })
   });
-  searchPanelRef.value?.updateMatchInfo(index, searchMatches.length);
 };
 
 function handleContextMenu(event: MouseEvent): void {
@@ -655,7 +684,9 @@ watch(
       const state = EditorState.create({
         doc: code,
         extensions: getExtensions()
-      });
+      }).update({
+        effects: setSearchQuery.of(getSearchQuery(view.state))
+      }).state;
       view.setState(state);
       view.scrollDOM.scrollTop = 0;
       view.scrollDOM.scrollLeft = 0;

@@ -202,8 +202,8 @@ export function applySorting(
 
     switch (sortBy) {
       case 'created':
-        const aCreated = new Date(a.created_at || 0).getTime();
-        const bCreated = new Date(b.created_at || 0).getTime();
+        const aCreated = Date.parse(a.created_at ?? '') || 0;
+        const bCreated = Date.parse(b.created_at ?? '') || 0;
         compareResult = aCreated - bCreated;
         break;
 

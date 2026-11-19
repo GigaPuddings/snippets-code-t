@@ -10,6 +10,7 @@ use crate::markdown::CacheManager;
 use crate::markdown::IndexManager; // 使用模块级别的 IndexManager（已重命名为 OptimizedIndexManager）
 use log::{debug, info, warn};
 use serde::{Deserialize, Serialize};
+use std::cmp::Reverse;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
@@ -1341,25 +1342,23 @@ pub async fn get_files_by_category(
 ) -> Result<Vec<MarkdownFile>, String> {
     let cache_manager = Arc::clone(cache_manager.inner());
     tauri::async_runtime::spawn_blocking(move || {
-        list_files_by_category(&app_handle, category, include_content, cache_manager)
+        let fs_manager = get_fs_manager(&app_handle)?;
+        let cache = cache_manager
+            .read()
+            .map_err(|e| format!("获取 cache 锁失败: {}", e))?;
+        list_files_by_category(&fs_manager, category, include_content, &cache)
     })
     .await
     .map_err(|error| format!("获取文件列表任务失败: {error}"))?
 }
 
 fn list_files_by_category(
-    app_handle: &AppHandle,
+    fs_manager: &FileSystemManager,
     category: Option<i64>,
     include_content: Option<bool>,
-    cache_manager: Arc<RwLock<CacheManager>>,
+    cache: &CacheManager,
 ) -> Result<Vec<MarkdownFile>, String> {
-    let fs_manager = get_fs_manager(app_handle)?;
-    let workspace_root = fs_manager.workspace_root().to_path_buf();
-
-    // 获取 cache 以查找分类名称
-    let cache = cache_manager
-        .read()
-        .map_err(|e| format!("获取 cache 锁失败: {}", e))?;
+    let workspace_root = fs_manager.workspace_root();
 
     // 根据分类 ID 获取分类名称
     let category_name = if let Some(cat_id) = category {
@@ -1403,7 +1402,7 @@ fn list_files_by_category(
         match metadata_and_body {
             Ok((frontmatter_opt, body)) => {
                 // 获取相对路径
-                match get_relative_path(&workspace_root, &path) {
+                match get_relative_path(workspace_root, &path) {
                     Ok(relative_path) => {
                         // 从 cache 提取分类信息（frontmatter 不存储分类信息）
                         let category_name = cache.extract_category_from_path(&relative_path);
@@ -1440,20 +1439,26 @@ fn list_files_by_category(
                                 score: None,
                             });
                         } else {
-                            // 无 Frontmatter 的文件：使用文件名作为标题，其余使用默认值
-                            // 这是外部系统创建文件或 Git 拉取的正常情况，使用 debug 级别
-                            // cache.json 不再存储内容元数据，无法回退
+                            // 无 Frontmatter 的文件使用已有的创建时间，避免每次刷新都被视为新文件。
                             let title = path
                                 .file_stem()
                                 .and_then(|s| s.to_str())
                                 .unwrap_or("Untitled")
                                 .to_string();
-                            let now = chrono::Utc::now().to_rfc3339();
+                            let cached = cache.get_file_metadata(&relative_path);
+                            let created = cached
+                                .and_then(|meta| {
+                                    chrono::DateTime::from_timestamp_millis(meta.created)
+                                })
+                                .or_else(|| {
+                                    let time = path.metadata().ok()?.created().ok()?;
+                                    Some(chrono::DateTime::<chrono::Utc>::from(time))
+                                })
+                                .map(|date| date.to_rfc3339())
+                                .unwrap_or_default();
                             files.push(MarkdownFile {
                                 content_revision: None,
-                                document_id: cache
-                                    .get_file_metadata(&relative_path)
-                                    .map(|meta| meta.id.clone()),
+                                document_id: cached.map(|meta| meta.id.clone()),
                                 ai_source: None,
                                 id: path.to_string_lossy().to_string(),
                                 title,
@@ -1465,8 +1470,8 @@ fn list_files_by_category(
                                 category_id,
                                 category_name,
                                 tags: vec![],
-                                created: now.clone(),
-                                modified: now,
+                                created,
+                                modified: chrono::Utc::now().to_rfc3339(),
                                 file_type: "note".to_string(),
                                 language: None,
                                 framework: None,
@@ -1491,10 +1496,25 @@ fn list_files_by_category(
             }
         }
     }
-    files.sort_by_key(|file| {
-        get_relative_path(&workspace_root, Path::new(&file.file_path))
+    files.sort_by_cached_key(|file| {
+        let order = get_relative_path(workspace_root, Path::new(&file.file_path))
             .map(|path| cache.file_order(&path))
-            .unwrap_or(usize::MAX)
+            .unwrap_or(usize::MAX);
+        // 分类中的新文件先按创建时间排列，再显示已保存的顺序。
+        let sort_by_created = category.is_some() && order == usize::MAX;
+        let created = if sort_by_created {
+            file.created
+                .parse::<chrono::DateTime<chrono::Utc>>()
+                .or_else(|_| {
+                    file.created
+                        .parse::<chrono::NaiveDate>()
+                        .map(|date| date.and_time(chrono::NaiveTime::MIN).and_utc())
+                })
+                .ok()
+        } else {
+            None
+        };
+        (!sort_by_created, order, Reverse(created))
     });
     Ok(files)
 }

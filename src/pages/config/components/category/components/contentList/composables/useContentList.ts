@@ -28,7 +28,7 @@ export function useContentList(): UseContentListReturn {
       route.query.view === 'favorites'
         ? store.contents.filter((content) => content.favorite)
         : store.contents,
-      'updated',
+      'created',
       'desc'
     )
   );

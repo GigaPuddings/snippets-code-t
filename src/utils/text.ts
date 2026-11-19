@@ -2,6 +2,13 @@
  * 文本处理工具函数：用于格式化、转义和文本操作
  */
 
+/** The document search input accepts one non-blank line. */
+export function searchQueryFromSelection(
+  selection?: string
+): string | undefined {
+  return selection?.trim() && !/[\r\n]/.test(selection) ? selection : undefined;
+}
+
 /**
  * 从 HTML 内容中提取纯文本
  *
