@@ -9,15 +9,19 @@
     <div
       v-if="imageBlobUrl && mode === 'pin'"
       class="image-wrapper"
-      :style="imageWrapperStyle"
+      :class="{ 'is-dragging': isPinDragging }"
+      :style="{ '--pin-shadow-inset': pinShadowInset }"
+      @pointerdown="startPinDrag"
+      @pointermove="movePinDrag"
+      @pointerup="endPinDrag"
+      @pointercancel="endPinDrag"
+      @lostpointercapture="endPinDrag"
       @wheel.capture="handleWheel"
       @contextmenu.prevent="handleContextMenu"
-      data-tauri-drag-region="deep"
     >
       <img
         :src="imageBlobUrl"
         :alt="$t('screenshot.pin')"
-        :style="imageStyle"
         @load="handleImageLoad"
         draggable="false"
       />
@@ -439,7 +443,7 @@
           class="ocr-action-btn more"
           type="text"
           :title="$t('pin.more')"
-          @click.stop="handleMoreActions"
+          @click.stop="handleContextMenu"
         >
           <More width="18" height="18" />
         </CustomButton>
@@ -451,43 +455,50 @@
     </div>
 
     <!-- 右键菜单 -->
-    <div v-if="showContextMenu" class="context-menu" :style="contextMenuStyle">
-      <div class="menu-item" @click="handleToggleAlwaysOnTop">
-        <component
-          class="menu-item-icon"
-          :is="isAlwaysOnTop ? Pin : Pushpin"
-          width="18"
-          height="18"
-        />
+    <div
+      v-if="showContextMenu"
+      ref="contextMenuRef"
+      class="pin-context-menu"
+      :style="contextMenuStyle"
+      tabindex="-1"
+      @contextmenu.prevent.stop
+    >
+      <button
+        type="button"
+        class="ui-menu-item"
+        @click="handleToggleAlwaysOnTop"
+      >
+        <component :is="isAlwaysOnTop ? Pin : Pushpin" width="16" height="16" />
         <span>
           {{ isAlwaysOnTop ? $t('pin.togglePin') : $t('pin.pinWindow') }}
         </span>
-      </div>
-      <div class="menu-item" @click="handleResetZoom">
-        <Redo class="menu-item-icon" width="18" height="18" />
+      </button>
+      <button type="button" class="ui-menu-item" @click="handleResetZoom">
+        <Redo width="16" height="16" />
         <span>{{ $t('pin.resetZoom') }}</span>
-      </div>
-      <div class="menu-item" @click="handleCopyImage">
-        <Copy class="menu-item-icon" width="18" height="18" />
+      </button>
+      <button type="button" class="ui-menu-item" @click="handleCopyImage">
+        <Copy width="16" height="16" />
         <span>{{ $t('pin.copyImage') }}</span>
-      </div>
-      <div class="menu-item" @click="handleSaveImage">
-        <Save class="menu-item-icon" width="18" height="18" />
+      </button>
+      <button type="button" class="ui-menu-item" @click="handleSaveImage">
+        <Save width="16" height="16" />
         <span>{{ $t('pin.saveImage') }}</span>
-      </div>
-      <div
+      </button>
+      <button
         v-if="mode === 'ocr' && ocrText.trim()"
-        class="menu-item"
+        type="button"
+        class="ui-menu-item"
         @click="handleCopyOcrText"
       >
-        <Copy class="menu-item-icon" width="18" height="18" />
+        <Copy width="16" height="16" />
         <span>{{ $t('pin.copyText') }}</span>
-      </div>
-      <div class="menu-divider"></div>
-      <div class="menu-item danger" @click="handleClose">
-        <Close class="menu-item-icon" width="18" height="18" />
-        <span>{{ $t('pin.closePin') }}</span>
-      </div>
+      </button>
+      <hr class="pin-context-divider" />
+      <button type="button" class="ui-menu-item danger" @click="handleClose">
+        <Trash width="16" height="16" />
+        <span>{{ destroyPinLabel }}</span>
+      </button>
     </div>
   </div>
 </template>
@@ -510,6 +521,7 @@ import Redo from '~icons/lucide/rotate-ccw';
 import Copy from '~icons/lucide/copy';
 import Save from '~icons/lucide/save';
 import Close from '~icons/lucide/x';
+import Trash from '~icons/lucide/trash-2';
 import Loading from '~icons/lucide/loader-circle';
 import TextRecognition from '~icons/lucide/scan-text';
 import Minus from '~icons/lucide/minus';
@@ -548,11 +560,17 @@ import {
   requireScreenshotPlugin,
   screenshotCapabilityError
 } from '@/plugins/screenshot/utils/recognition';
+import { PIN_SHADOW_INSET } from '@/plugins/screenshot/utils/pinWindow';
+import { usePinDrag } from './usePinDrag';
 
-const { t, te } = useI18n();
+const { t, te, locale } = useI18n();
 
 const containerRef = ref<HTMLDivElement>();
 const appWindow = ref<Window | null>(null);
+const pinShadowInset = `${PIN_SHADOW_INSET}px`;
+const { isPinDragging, startPinDrag, movePinDrag, endPinDrag } = usePinDrag(
+  () => appWindow.value
+);
 const ocrPreviewStageRef = ref<HTMLDivElement>();
 const ocrPreviewImageRef = ref<HTMLImageElement>();
 const ocrResultScrollRef = ref<HTMLDivElement>();
@@ -713,30 +731,19 @@ const isResizing = ref(false);
 let zoomInfoTimer: ReturnType<typeof setTimeout> | null = null;
 
 const showContextMenu = ref(false);
-const contextMenuPosition = ref({ x: 0, y: 0 });
+const contextMenuRef = ref<HTMLDivElement>();
+const contextMenuStyle = ref<CSSProperties>();
 const isAlwaysOnTop = ref(true);
-const windowSize = ref({ width: 0, height: 0 });
+
+// An updated plugin can also be installed on a host with the older catalog.
+const destroyPinLabel = computed(() => {
+  if (te('pin.destroyPin')) return t('pin.destroyPin');
+  return locale.value === 'en-US' ? 'Destroy Pin' : '销毁贴图';
+});
 
 let unlistenImageData: (() => void) | null = null;
 let ocrRequestId = 0;
 const lastAppliedPayloadKey = ref('');
-const imageWrapperStyle = computed(() => ({
-  width: '100%',
-  height: mode.value === 'ocr' ? 'auto' : '100%',
-  flex: mode.value === 'ocr' ? '1 1 auto' : undefined,
-  minHeight: mode.value === 'ocr' ? '120px' : undefined,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  overflow: 'hidden'
-}));
-
-// 计算图片样式（窗口缩放模式：图片始终填充窗口，不使用 CSS scale）
-const imageStyle = computed(() => ({
-  width: '100%',
-  height: '100%',
-  objectFit: 'contain' as const
-}));
 
 const ocrImageMeta = computed(() => {
   if (imageWidth.value > 0 && imageHeight.value > 0) {
@@ -997,24 +1004,6 @@ const formatOcrFileName = () => {
   return `${t('pin.screenshotPrefix')} ${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}.${pad(date.getMinutes())}.${pad(date.getSeconds())}.png`;
 };
 
-const contextMenuStyle = computed(() => {
-  const minDimension = Math.min(
-    windowSize.value.width,
-    windowSize.value.height
-  );
-  let menuScale = 1;
-  if (minDimension < 300) {
-    menuScale = Math.max(0.4, minDimension / 300);
-  }
-
-  return {
-    left: `${contextMenuPosition.value.x}px`,
-    top: `${contextMenuPosition.value.y}px`,
-    transform: `scale(${menuScale})`,
-    transformOrigin: 'top left'
-  };
-});
-
 interface PinWindowDataPayload {
   mode?: 'pin' | 'ocr';
   imageData?: string;
@@ -1078,6 +1067,7 @@ const applyPinWindowData = (payload: PinWindowDataPayload): boolean => {
   }
 
   lastAppliedPayloadKey.value = payloadKey;
+  endPinDrag();
   mode.value = nextMode;
   updateImageData(payload.imageData);
   closeContextMenu();
@@ -1509,10 +1499,6 @@ const translateOcrText = async (
   })) as string;
 };
 
-const handleMoreActions = (event: MouseEvent) => {
-  handleContextMenu(event);
-};
-
 const handleMinimize = async () => {
   if (!appWindow.value) return;
   const windowRef = appWindow.value as any;
@@ -1561,62 +1547,14 @@ const handleImageLoad = async (event: Event) => {
   }
 };
 
-const handleWheel = async (event: WheelEvent) => {
+const handleWheel = (event: WheelEvent): void => {
   if (!event.ctrlKey) {
     return;
   }
 
   event.preventDefault();
   event.stopPropagation();
-
-  if (isResizing.value) {
-    return;
-  }
-
-  if (appWindow.value) {
-    isResizing.value = true;
-
-    try {
-      const currentSizeRaw = await appWindow.value.innerSize();
-      const currentSize = currentSizeRaw.toLogical(
-        await appWindow.value.scaleFactor()
-      );
-      const scaleFactor = event.deltaY > 0 ? 0.95 : 1.05;
-
-      const currentWidth = currentSize.width;
-      const currentHeight = currentSize.height;
-      const newWidth = Math.round(currentWidth * scaleFactor);
-      const newHeight = Math.round(currentHeight * scaleFactor);
-
-      const minSize = 50;
-      const maxSize = 3000;
-
-      if (
-        newWidth >= minSize &&
-        newWidth <= maxSize &&
-        newHeight >= minSize &&
-        newHeight <= maxSize
-      ) {
-        await appWindow.value.setSize(new LogicalSize(newWidth, newHeight));
-
-        if (imageWidth.value > 0) {
-          const scalePercentage = Math.round(
-            (newWidth / imageWidth.value) * 100
-          );
-          scale.value = scalePercentage / 100;
-        }
-
-        showZoomInfo.value = true;
-        showZoomIndicator();
-      }
-    } catch (error) {
-      logger.error('[PIN窗口] 窗口缩放失败', error);
-    } finally {
-      setTimeout(() => {
-        isResizing.value = false;
-      }, 100);
-    }
-  }
+  void scaleWindow(event.deltaY > 0 ? 0.95 : 1.05);
 };
 
 const handleContainerWheel = (event: WheelEvent) => {
@@ -1637,51 +1575,52 @@ const showZoomIndicator = () => {
   }, 1000);
 };
 
-const handleContextMenu = (event: MouseEvent) => {
+const handleContextMenu = async (event: MouseEvent): Promise<void> => {
   event.preventDefault();
   event.stopPropagation();
-  showContextMenu.value = false;
+  contextMenuStyle.value = { visibility: 'hidden' };
+  showContextMenu.value = true;
+  await nextTick();
 
-  setTimeout(() => {
-    const windowWidth = window.innerWidth;
-    const windowHeight = window.innerHeight;
+  const menu = contextMenuRef.value;
+  if (!menu) return;
 
-    windowSize.value = { width: windowWidth, height: windowHeight };
-
-    const minDimension = Math.min(windowWidth, windowHeight);
-    let menuScale = 1;
-    if (minDimension < 300) {
-      menuScale = Math.max(0.4, minDimension / 300);
-    }
-    const baseMenuWidth = mode.value === 'ocr' ? 176 : 150;
-    const baseMenuHeight =
-      mode.value === 'ocr' && ocrText.value.trim() ? 222 : 180;
-    const menuWidth = baseMenuWidth * menuScale;
-    const menuHeight = baseMenuHeight * menuScale;
-
-    let x = event.clientX;
-    let y = event.clientY;
-
-    if (x + menuWidth > windowWidth) {
-      x = windowWidth - menuWidth - 5;
-    }
-
-    if (y + menuHeight > windowHeight) {
-      y = windowHeight - menuHeight - 5;
-    }
-
-    x = Math.max(5, x);
-    y = Math.max(5, y);
-
-    contextMenuPosition.value = { x, y };
-    showContextMenu.value = true;
-  }, 10);
+  const inset = 4;
+  const { innerWidth, innerHeight } = window;
+  const { offsetWidth, offsetHeight } = menu;
+  const menuScale = Math.min(
+    1,
+    (innerWidth - 2 * inset) / offsetWidth,
+    (innerHeight - 2 * inset) / offsetHeight
+  );
+  const x = Math.min(
+    event.clientX,
+    innerWidth - inset - offsetWidth * menuScale
+  );
+  const y = Math.min(
+    event.clientY,
+    innerHeight - inset - offsetHeight * menuScale
+  );
+  contextMenuStyle.value = {
+    left: `${Math.max(inset, x)}px`,
+    top: `${Math.max(inset, y)}px`,
+    transform: `scale(${menuScale})`
+  };
+  if (event.button !== 2) {
+    await nextTick();
+    menu.focus({ preventScroll: true });
+  }
 };
 
 const closeContextMenu = () => {
   showContextMenu.value = false;
   showTranslateMenu.value = false;
   showOcrLanguageMenu.value = false;
+};
+
+const handleWindowBlur = (): void => {
+  endPinDrag();
+  closeContextMenu();
 };
 
 // 切换置顶状态
@@ -1693,7 +1632,7 @@ const handleToggleAlwaysOnTop = async () => {
   closeContextMenu();
 };
 
-const scaleWindowByKeyboard = async (factor: number) => {
+const scaleWindow = async (factor: number): Promise<void> => {
   if (appWindow.value && !isResizing.value) {
     isResizing.value = true;
     try {
@@ -1701,8 +1640,10 @@ const scaleWindowByKeyboard = async (factor: number) => {
       const currentSize = currentSizeRaw.toLogical(
         await appWindow.value.scaleFactor()
       );
-      const newWidth = Math.round(currentSize.width * factor);
-      const newHeight = Math.round(currentSize.height * factor);
+      const isPin = mode.value === 'pin';
+      const shadowSpace = isPin ? 2 * PIN_SHADOW_INSET : 0;
+      const newWidth = Math.round((currentSize.width - shadowSpace) * factor);
+      const newHeight = Math.round((currentSize.height - shadowSpace) * factor);
 
       const minSize = 50;
       const maxSize = 3000;
@@ -1713,16 +1654,20 @@ const scaleWindowByKeyboard = async (factor: number) => {
         newHeight >= minSize &&
         newHeight <= maxSize
       ) {
-        await appWindow.value.setSize(new LogicalSize(newWidth, newHeight));
-
-        if (imageWidth.value > 0) {
-          scale.value = newWidth / imageWidth.value;
+        await appWindow.value.setSize(
+          new LogicalSize(newWidth + shadowSpace, newHeight + shadowSpace)
+        );
+        const originalWidth = isPin
+          ? initialWindowSize.value.width - shadowSpace
+          : imageWidth.value;
+        if (originalWidth > 0) {
+          scale.value = newWidth / originalWidth;
         }
 
         showZoomIndicator();
       }
     } catch (error) {
-      logger.error('[PIN窗口] 键盘缩放失败', error);
+      logger.error('[PIN窗口] 窗口缩放失败', error);
     } finally {
       setTimeout(() => {
         isResizing.value = false;
@@ -1825,7 +1770,7 @@ const globalContextMenuHandler = (e: MouseEvent) => {
 const handleClickOutside = (event: MouseEvent) => {
   const target = event.target as HTMLElement;
   if (
-    !target.closest('.context-menu') &&
+    !target.closest('.pin-context-menu') &&
     !target.closest('.ocr-engine-btn-group') &&
     !target.closest('.translate-btn-group') &&
     !target.closest('.ocr-floating-menu')
@@ -1855,11 +1800,11 @@ const handleKeydown = (event: KeyboardEvent): void => {
     } else if (event.key === '=' || event.key === '+') {
       // Ctrl/Cmd + + 放大（增加 5%）
       event.preventDefault();
-      scaleWindowByKeyboard(1.05);
+      void scaleWindow(1.05);
     } else if (event.key === '-') {
       // Ctrl/Cmd + - 缩小（减少 5%）
       event.preventDefault();
-      scaleWindowByKeyboard(0.95);
+      void scaleWindow(0.95);
     }
   }
 };
@@ -1941,7 +1886,7 @@ onMounted(async () => {
   window.addEventListener('resize', updateFloatingMenuStyles);
   window.addEventListener('resize', syncOcrPreviewScale);
   window.addEventListener('scroll', updateFloatingMenuStyles, true);
-  window.addEventListener('blur', closeContextMenu);
+  window.addEventListener('blur', handleWindowBlur);
 
   if (document.body) {
     document.body.oncontextmenu = (e) => {
@@ -1952,6 +1897,7 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  endPinDrag();
   if (imageBlobUrl.value) {
     URL.revokeObjectURL(imageBlobUrl.value);
   }
@@ -1966,7 +1912,7 @@ onUnmounted(() => {
   window.removeEventListener('resize', updateFloatingMenuStyles);
   window.removeEventListener('resize', syncOcrPreviewScale);
   window.removeEventListener('scroll', updateFloatingMenuStyles, true);
-  window.removeEventListener('blur', closeContextMenu);
+  window.removeEventListener('blur', handleWindowBlur);
 
   ocrPreviewResizeObserver?.disconnect();
 
@@ -1995,11 +1941,41 @@ onUnmounted(() => {
   }
 
   .image-wrapper {
-    @apply relative z-10;
-    @apply w-full h-full;
+    @apply absolute z-10 cursor-grab;
+
+    --pin-outline-color: color-mix(
+      in srgb,
+      var(--el-color-white) 55%,
+      transparent
+    );
+    --pin-shadow-color: color-mix(
+      in srgb,
+      var(--el-color-black) 28%,
+      transparent
+    );
+
+    inset: var(--pin-shadow-inset);
+    box-shadow:
+      0 0 0 1px var(--pin-outline-color),
+      0 1px 9px var(--pin-shadow-color);
+
+    &.is-dragging {
+      @apply cursor-grabbing;
+
+      --pin-outline-color: color-mix(
+        in srgb,
+        var(--el-color-primary-light-3) 55%,
+        transparent
+      );
+      --pin-shadow-color: color-mix(
+        in srgb,
+        var(--el-color-primary) 28%,
+        transparent
+      );
+    }
 
     img {
-      @apply block select-none;
+      @apply block h-full w-full select-none object-contain;
 
       user-select: none;
       -webkit-user-drag: none;
@@ -2757,28 +2733,32 @@ onUnmounted(() => {
     pointer-events: none;
   }
 
-  .context-menu {
-    @apply fixed bg-panel rounded-lg py-2;
+  .pin-context-menu {
+    @apply fixed z-[9999] w-max min-w-44 origin-top-left rounded-ui border border-ui bg-[var(--settings-surface)] p-1 font-ui shadow-toast outline-none;
 
-    z-index: 9999;
-    min-width: 176px;
-    border: 1px solid var(--panel-border);
+    .ui-menu-item {
+      @apply w-full whitespace-nowrap bg-transparent px-2.5 py-1 text-left;
 
-    .menu-item {
-      @apply px-3 py-1 hover:bg-panel-hover-bg cursor-pointer text-sm flex items-center whitespace-nowrap;
+      &:hover:not(:disabled),
+      &:focus-visible {
+        @apply bg-ui-hover;
+      }
 
-      .menu-item-icon {
-        @apply mr-2 inline-block align-middle mb-[1px] flex-shrink-0;
+      svg {
+        @apply shrink-0 text-ui-muted;
       }
 
       &.danger {
-        @apply text-red-500;
+        &,
+        svg {
+          color: var(--el-color-danger);
+        }
       }
     }
+  }
 
-    .menu-divider {
-      @apply h-px bg-panel my-1;
-    }
+  .pin-context-divider {
+    @apply mx-1.5 my-1 border-0 border-t border-ui;
   }
 }
 

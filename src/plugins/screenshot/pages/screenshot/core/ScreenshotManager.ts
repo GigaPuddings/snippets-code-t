@@ -33,6 +33,7 @@ import {
   requireScreenshotPlugin,
   screenshotCapabilityError
 } from '@/plugins/screenshot/utils/recognition';
+import { getPinWindowBounds } from '@/plugins/screenshot/utils/pinWindow';
 import {
   chatWithAi,
   getAiProviderStatus,
@@ -3788,38 +3789,38 @@ export class ScreenshotManager {
       const screenBottom = Math.round(
         windowInfo.y + window.innerHeight * scale
       );
-      const pinWindowWidth =
-        mode === 'ocr'
-          ? Math.min(
-              Math.max(screenWidth, 760),
-              Math.max(360, screenRight - windowInfo.x)
-            )
-          : screenWidth;
-      const pinWindowHeight =
-        mode === 'ocr'
-          ? Math.min(
-              Math.max(screenHeight, 520),
-              Math.max(260, screenBottom - windowInfo.y)
-            )
-          : screenHeight;
-      const expandedX =
-        mode === 'ocr'
-          ? Math.round(screenX - Math.max(0, pinWindowWidth - screenWidth) / 2)
-          : screenX;
-      const pinWindowX =
-        mode === 'ocr'
-          ? Math.max(
-              windowInfo.x,
-              Math.min(expandedX, screenRight - pinWindowWidth)
-            )
-          : screenX;
-      const pinWindowY =
-        mode === 'ocr'
-          ? Math.max(
-              windowInfo.y,
-              Math.min(screenY, screenBottom - pinWindowHeight)
-            )
-          : screenY;
+      const screen = {
+        x: windowInfo.x,
+        y: windowInfo.y,
+        width: screenRight - windowInfo.x,
+        height: screenBottom - windowInfo.y
+      };
+      let windowBounds: Rect;
+      if (mode === 'pin') {
+        windowBounds = getPinWindowBounds(
+          { x: screenX, y: screenY, width: screenWidth, height: screenHeight },
+          screen,
+          scale
+        );
+      } else {
+        const width = Math.min(
+          Math.max(screenWidth, 760),
+          Math.max(360, screen.width)
+        );
+        const height = Math.min(
+          Math.max(screenHeight, 520),
+          Math.max(260, screen.height)
+        );
+        const expandedX = Math.round(
+          screenX - Math.max(0, width - screenWidth) / 2
+        );
+        windowBounds = {
+          x: Math.max(screen.x, Math.min(expandedX, screenRight - width)),
+          y: Math.max(screen.y, Math.min(screenY, screenBottom - height)),
+          width,
+          height
+        };
+      }
 
       // 2. 从背景图像裁剪选区，而不是重新截屏
       const cropOptions: CropOptions = {};
@@ -3847,10 +3848,7 @@ export class ScreenshotManager {
       await invoke('create_pin_window', {
         mode,
         imageData: finalImage,
-        x: pinWindowX,
-        y: pinWindowY,
-        width: pinWindowWidth,
-        height: pinWindowHeight
+        ...windowBounds
       });
 
       // 5. 关闭截图窗口

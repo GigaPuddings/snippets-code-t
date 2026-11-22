@@ -1645,6 +1645,7 @@ export default {
     copyImage: 'Copy Image',
     saveImage: 'Save Image',
     closePin: 'Close Pin',
+    destroyPin: 'Destroy Pin',
     ocrResult: 'OCR Result',
     viewOriginal: 'View Original',
     ocrPreviewAlt: 'OCR Preview',

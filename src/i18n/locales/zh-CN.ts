@@ -1553,6 +1553,7 @@ export default {
     copyImage: '复制图片',
     saveImage: '保存图片',
     closePin: '关闭贴图',
+    destroyPin: '销毁贴图',
     ocrResult: '文字识别结果',
     viewOriginal: '查看原图',
     ocrPreviewAlt: '识别预览',
