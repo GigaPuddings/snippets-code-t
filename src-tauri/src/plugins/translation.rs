@@ -1,16 +1,31 @@
 use log::info;
+use regex::Regex;
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde_json::{json, Value};
+use std::sync::LazyLock;
+use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
 
 use crate::window::{WindowManager, WindowReadyCallback, WindowShowBehavior, WindowSpec};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum BingResponse {
+    Translations(Vec<BingTranslation>),
+    Error {
+        #[serde(rename = "statusCode")]
+        status_code: u16,
+    },
+}
+
+#[derive(Deserialize)]
 struct BingTranslation {
+    #[serde(default)]
     translations: Vec<BingTranslationText>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Deserialize)]
 struct BingTranslationText {
     text: String,
 }
@@ -208,226 +223,205 @@ pub fn get_translation_engine(app_handle: AppHandle) -> Result<String, String> {
     Ok(crate::config::get_translation_engine(app_handle))
 }
 
-// 使用Bing翻译
-async fn translate_with_bing(text: String, from: String, to: String) -> Result<String, String> {
-    let client = Client::new();
-    let token_url = "https://edge.microsoft.com/translate/auth";
+const BING_TRANSLATOR_URL: &str = "https://www.bing.com/translator";
+const GOOGLE_TRANSLATE_ORIGIN: &str = "https://translate.google.com";
+const GOOGLE_TRANSLATE_RPC_ID: &str = "MkEWBc";
 
-    // 获取token
-    let token_response = client
-        .get(token_url)
-        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36 Edg/113.0.1774.42")
-        .send()
-        .await
-        .map_err(|e| format!("获取Bing令牌失败: {}", e))?;
-
-    let token = token_response
-        .text()
-        .await
-        .map_err(|e| format!("读取Bing令牌失败: {}", e))?;
-
-    if token.is_empty() {
-        return Err("获取Bing令牌为空".to_string());
-    }
-
-    // 转换语言代码
-    let from_code = match from.as_str() {
-        "auto" => "",
-        "zh" => "zh-Hans",
-        "zh_tw" => "zh-Hant",
-        "en" => "en",
-        "ja" => "ja",
-        "ko" => "ko",
-        "fr" => "fr",
-        "de" => "de",
-        "ru" => "ru",
-        "es" => "es",
-        "pt_pt" => "pt-pt",
-        "pt_br" => "pt",
-        "vi" => "vi",
-        "id" => "id",
-        "th" => "th",
-        "ar" => "ar",
-        _ => &from,
-    };
-
-    let to_code = match to.as_str() {
-        "zh" => "zh-Hans",
-        "zh_tw" => "zh-Hant",
-        "en" => "en",
-        "ja" => "ja",
-        "ko" => "ko",
-        "fr" => "fr",
-        "de" => "de",
-        "ru" => "ru",
-        "es" => "es",
-        "pt_pt" => "pt-pt",
-        "pt_br" => "pt",
-        "vi" => "vi",
-        "id" => "id",
-        "th" => "th",
-        "ar" => "ar",
-        _ => &to,
-    };
-
-    // 构造翻译请求
-    let url = format!(
-        "https://api.cognitive.microsofttranslator.com/translate?api-version=3.0&from={}&to={}",
-        from_code, to_code
-    );
-
-    let json_body = serde_json::json!([{"text": text}]);
-
-    // 发送翻译请求
-    let response = client
-        .post(url)
-        .header("Content-Type", "application/json")
-        .header("Authorization", format!("Bearer {}", token))
-        .json(&json_body)
-        .send()
-        .await
-        .map_err(|e| format!("Bing翻译请求失败: {}", e))?;
-
-    let status = response.status();
-
-    if status.is_success() {
-        let result: Vec<BingTranslation> = response
-            .json()
-            .await
-            .map_err(|e| format!("解析Bing翻译结果失败: {}", e))?;
-
-        if let Some(first_result) = result.first() {
-            if let Some(translation) = first_result.translations.first() {
-                return Ok(translation.text.trim().to_string());
+fn online_translation_client() -> Result<Client, String> {
+    Client::builder()
+        .connect_timeout(Duration::from_secs(8))
+        .timeout(Duration::from_secs(15))
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        .redirect(reqwest::redirect::Policy::custom(|attempt| {
+            let url = attempt.url();
+            if attempt.previous().len() < 5
+                && url.scheme() == "https"
+                && matches!(url.host_str(), Some("www.bing.com" | "cn.bing.com" | "translate.google.com"))
+            {
+                attempt.follow()
+            } else {
+                attempt.stop()
             }
-        }
+        }))
+        .build()
+        .map_err(|error| translation_request_error("初始化在线翻译", error))
+}
 
-        Err("Bing翻译结果解析错误".to_string())
+fn translation_request_error(stage: &str, error: reqwest::Error) -> String {
+    if let Some(status) = error.status() {
+        format!("{stage}失败：HTTP {status}")
+    } else if error.is_timeout() {
+        format!("{stage}超时")
+    } else if error.is_connect() || error.is_body() {
+        format!("{stage}网络连接失败：{}", error.without_url())
     } else {
-        let error_text = response
-            .text()
-            .await
-            .unwrap_or_else(|_| "无法获取错误详情".to_string());
-
-        Err(format!(
-            "Bing翻译API错误，状态码: {}，详情: {}",
-            status, error_text
-        ))
+        format!("{stage}失败：{}", error.without_url())
     }
 }
 
-// 使用Google翻译
-async fn translate_with_google(text: String, from: String, to: String) -> Result<String, String> {
-    let client = Client::new();
+fn bing_language(language: &str) -> &str {
+    match language {
+        "auto" => "auto-detect",
+        "zh" => "zh-Hans",
+        "zh_tw" => "zh-Hant",
+        "pt_pt" => "pt-pt",
+        "pt_br" => "pt",
+        _ => language,
+    }
+}
 
-    let from_code = match from.as_str() {
-        "auto" => "auto",
-        "zh" => "zh-CN",
-        "zh_tw" => "zh-TW",
-        "en" => "en",
-        "ja" => "ja",
-        "ko" => "ko",
-        "fr" => "fr",
-        "de" => "de",
-        "ru" => "ru",
-        "es" => "es",
-        "pt_pt" => "pt-PT",
-        "pt_br" => "pt-BR",
-        "vi" => "vi",
-        "id" => "id",
-        "th" => "th",
-        "ar" => "ar",
-        _ => &from,
-    };
+fn bing_page_session(html: &str) -> Option<(&str, &str, u64, String)> {
+    static IMPRESSION_ID: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r#"\bIG\s*:\s*"([A-Za-z0-9]+)""#).unwrap());
+    static TRANSLATOR_ID: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r#"data-iid="(translator\.[0-9]+)""#).unwrap());
+    static PAGE_PARAMETERS: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"params_AbusePreventionHelper\s*=\s*(\[[^\]]+\])").unwrap());
 
-    let to_code = match to.as_str() {
-        "zh" => "zh-CN",
-        "zh_tw" => "zh-TW",
-        "en" => "en",
-        "ja" => "ja",
-        "ko" => "ko",
-        "fr" => "fr",
-        "de" => "de",
-        "ru" => "ru",
-        "es" => "es",
-        "pt_pt" => "pt-PT",
-        "pt_br" => "pt-BR",
-        "vi" => "vi",
-        "id" => "id",
-        "th" => "th",
-        "ar" => "ar",
-        _ => &to,
-    };
+    let impression_id = IMPRESSION_ID.captures(html)?.get(1)?.as_str();
+    let translator_id = TRANSLATOR_ID.captures(html)?.get(1)?.as_str();
+    let parameters = PAGE_PARAMETERS.captures(html)?.get(1)?.as_str();
+    let parameters: Value = serde_json::from_str(parameters).ok()?;
+    let key = parameters[0].as_u64()?;
+    let token = parameters[1].as_str()?;
+    Some((impression_id, translator_id, key, token.to_string()))
+}
 
-    let url = "https://translate.google.com/translate_a/single";
-
-    // 构造请求参数
-    let response = client
-        .get(url)
-        .query(&[
-            ("client", "gtx"),
-            ("sl", from_code),
-            ("tl", to_code),
-            ("hl", to_code),
-            ("dt", "t"),
-            ("dt", "at"),
-            ("dt", "bd"),
-            ("dt", "ex"),
-            ("dt", "ld"),
-            ("dt", "md"),
-            ("dt", "qca"),
-            ("dt", "rw"),
-            ("dt", "rm"),
-            ("dt", "ss"),
-            ("ie", "UTF-8"),
-            ("oe", "UTF-8"),
-            ("otf", "1"),
-            ("ssel", "0"),
-            ("tsel", "0"),
-            ("kc", "7"),
-            ("q", &text),
-        ])
-        .header("Content-Type", "application/json")
-        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+async fn translate_with_bing(text: String, from: String, to: String) -> Result<String, String> {
+    let client = online_translation_client()?;
+    // The retired Edge token endpoint has been replaced by Bing's translator page session.
+    let page = client
+        .get(BING_TRANSLATOR_URL)
         .send()
         .await
-        .map_err(|e| format!("Google翻译请求失败: {}", e))?;
+        .and_then(reqwest::Response::error_for_status)
+        .map_err(|error| translation_request_error("打开必应翻译页面", error))?;
+    let origin = page.url().origin().ascii_serialization();
+    let html = page
+        .text()
+        .await
+        .map_err(|error| translation_request_error("读取必应翻译页面", error))?;
 
-    let status = response.status();
+    let (impression_id, translator_id, key, token) =
+        bing_page_session(&html).ok_or_else(|| "必应翻译页面未返回有效的会话参数".to_string())?;
+    let iid = format!("{translator_id}.1");
+    let key = key.to_string();
 
-    if status.is_success() {
-        let result: serde_json::Value = response
-            .json()
-            .await
-            .map_err(|e| format!("解析Google翻译结果失败: {}", e))?;
+    let response = client
+        .post(format!("{origin}/ttranslatev3"))
+        .header(reqwest::header::ORIGIN, &origin)
+        .header(reqwest::header::REFERER, format!("{origin}/translator"))
+        .query(&[
+            ("isVertical", "1"),
+            ("IG", impression_id),
+            ("IID", iid.as_str()),
+        ])
+        .form(&[
+            ("fromLang", bing_language(&from)),
+            (
+                "to",
+                if to == "auto" {
+                    "en"
+                } else {
+                    bing_language(&to)
+                },
+            ),
+            ("text", text.as_str()),
+            ("key", key.as_str()),
+            ("token", token.as_str()),
+        ])
+        .send()
+        .await
+        .and_then(reqwest::Response::error_for_status)
+        .map_err(|error| translation_request_error("必应翻译请求", error))?;
 
-        let mut translated_text = String::new();
-
-        // 解析Google翻译结果
-        if let Some(outer_array) = result.get(0).and_then(|v| v.as_array()) {
-            for item in outer_array {
-                if let Some(inner_array) = item.get(0) {
-                    if let Some(text) = inner_array.as_str() {
-                        translated_text.push_str(text);
-                    }
-                }
-            }
-
-            if !translated_text.is_empty() {
-                return Ok(translated_text.trim().to_string());
-            }
-        }
-
-        Err("Google翻译结果解析错误".to_string())
-    } else {
-        let error_text = response
-            .text()
-            .await
-            .unwrap_or_else(|_| "无法获取错误详情".to_string());
-
-        Err(format!(
-            "Google翻译API错误，状态码: {}，详情: {}",
-            status, error_text
-        ))
+    let result: BingResponse = response
+        .json()
+        .await
+        .map_err(|error| translation_request_error("解析必应翻译结果", error))?;
+    match result {
+        BingResponse::Translations(results) => results
+            .into_iter()
+            .flat_map(|result| result.translations)
+            .next()
+            .map(|translation| translation.text.trim().to_string())
+            .filter(|text| !text.is_empty())
+            .ok_or_else(|| "必应翻译未返回译文".to_string()),
+        BingResponse::Error { status_code } => Err(format!("必应翻译服务错误：{status_code}")),
     }
+}
+
+fn google_language(language: &str) -> &str {
+    match language {
+        "zh" => "zh-CN",
+        "zh_tw" => "zh-TW",
+        "pt_pt" => "pt-PT",
+        "pt_br" => "pt-BR",
+        _ => language,
+    }
+}
+
+async fn translate_with_google(text: String, from: String, to: String) -> Result<String, String> {
+    let client = online_translation_client()?;
+    let target = google_language(&to);
+    let arguments = json!([[text, google_language(&from), target, true], [null]]);
+    let payload = json!([[[
+        GOOGLE_TRANSLATE_RPC_ID,
+        arguments.to_string(),
+        null,
+        "generic"
+    ]]]);
+
+    let body = client
+        .post(format!(
+            "{GOOGLE_TRANSLATE_ORIGIN}/_/TranslateWebserverUi/data/batchexecute"
+        ))
+        .header(reqwest::header::ORIGIN, GOOGLE_TRANSLATE_ORIGIN)
+        .header(
+            reqwest::header::REFERER,
+            format!("{GOOGLE_TRANSLATE_ORIGIN}/"),
+        )
+        .query(&[("rpcids", GOOGLE_TRANSLATE_RPC_ID), ("rt", "c")])
+        .form(&[("f.req", payload.to_string())])
+        .send()
+        .await
+        .and_then(reqwest::Response::error_for_status)
+        .map_err(|error| translation_request_error("谷歌翻译请求", error))?
+        .text()
+        .await
+        .map_err(|error| translation_request_error("读取谷歌翻译结果", error))?;
+
+    parse_google_translation(&body, target).ok_or_else(|| "谷歌翻译未返回有效的译文".to_string())
+}
+
+fn parse_google_translation(body: &str, target: &str) -> Option<String> {
+    // rt=c returns one JSON frame per line, preceded by an XSSI guard and byte counts.
+    let reply = body
+        .lines()
+        .filter_map(|line| serde_json::from_str::<Vec<Value>>(line).ok())
+        .flatten()
+        .find(|item| item[0] == "wrb.fr" && item[1] == GOOGLE_TRANSLATE_RPC_ID)?;
+    let payload: Value = serde_json::from_str(reply[2].as_str()?).ok()?;
+    let translation = &payload[1][0][0];
+
+    let mut text = String::new();
+    if let Some(parts) = translation[5].as_array() {
+        let use_spaces = !matches!(target, "zh-CN" | "zh-TW" | "ja");
+        for part in parts.iter().filter_map(|part| part[0].as_str()) {
+            if use_spaces
+                && !text.is_empty()
+                && !text.ends_with(char::is_whitespace)
+                && !part.is_empty()
+                && !part.starts_with(char::is_whitespace)
+            {
+                text.push(' ');
+            }
+            text.push_str(part);
+        }
+    }
+    if text.trim().is_empty() {
+        text = translation[0].as_str()?.to_string();
+    }
+    let text = text.trim();
+    (!text.is_empty()).then(|| text.to_string())
 }

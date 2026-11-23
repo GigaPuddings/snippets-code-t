@@ -27,7 +27,7 @@ tauri-plugin-process = "2.3.1"
 tauri-plugin-autostart = "2.5.1"
 tauri-plugin-http = "2.5.9"
 tauri-plugin-shell = "2.3.5"
-reqwest = { version = "0.13.4", features = ["json", "query", "stream", "native-tls", "gzip", "brotli", "deflate"] }
+reqwest = { version = "0.13.4", features = ["form", "json", "query", "stream", "native-tls", "gzip", "brotli", "deflate"] }
 rusqlite = { version = "0.32.1", features = ["backup"] }
 log = "0.4.33"
 regex = "1.12.4"
