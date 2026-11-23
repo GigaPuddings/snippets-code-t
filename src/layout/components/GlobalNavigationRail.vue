@@ -17,7 +17,7 @@
     </router-link>
 
     <div
-      class="flex min-h-0 w-full flex-1 flex-col items-center overflow-y-auto"
+      class="ui-sidebar-scroll flex min-h-0 w-full flex-1 flex-col items-center overflow-y-auto"
     >
       <router-link
         v-for="tab in visibleTabs"

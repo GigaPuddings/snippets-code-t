@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-0 flex-1 overflow-y-auto pt-2">
+  <div class="ui-sidebar-scroll min-h-0 flex-1 overflow-y-auto pt-2">
     <p v-if="!groups.length" class="px-3 py-1 text-ui-caption text-content">
       {{ $t('tags.noTags') }}
     </p>

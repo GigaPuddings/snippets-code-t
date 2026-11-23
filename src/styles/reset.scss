@@ -71,3 +71,22 @@ a:hover {
     height: 0;
   }
 }
+
+.ui-sidebar-scroll,
+.chat-sidebar .chat-list {
+  --sidebar-scrollbar-color: transparent;
+
+  &:hover,
+  &:focus-within {
+    --sidebar-scrollbar-color: var(--app-sidebar-scrollbar-thumb);
+  }
+
+  @supports not selector(::-webkit-scrollbar) {
+    scrollbar-color: var(--sidebar-scrollbar-color) transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background-color: var(--sidebar-scrollbar-color) !important;
+    border: 0;
+  }
+}

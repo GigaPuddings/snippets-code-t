@@ -4,7 +4,7 @@
       <RecycleScroller
         v-if="contents.length > 0"
         ref="scrollerRef"
-        class="content-scroller"
+        class="content-scroller ui-sidebar-scroll"
         :items="contents"
         :item-size="ITEM_SIZE"
         :buffer="200"

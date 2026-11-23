@@ -88,6 +88,7 @@
               class="category-page__browse"
               ref="browseRef"
               :class="{
+                'ui-sidebar-scroll': sidebarMode === 'folders',
                 'category-page__browse--results': sidebarMode !== 'folders'
               }"
             >
@@ -599,13 +600,6 @@ watch(
 
   .category-page__browse {
     @apply flex-1 min-h-0 overflow-y-auto;
-
-    scrollbar-width: thin;
-    scrollbar-color: transparent transparent;
-
-    &:hover {
-      scrollbar-color: var(--app-scrollbar-thumb) transparent;
-    }
 
     &--results {
       @apply flex flex-col overflow-hidden;

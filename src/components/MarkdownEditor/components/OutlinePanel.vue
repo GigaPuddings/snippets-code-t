@@ -99,7 +99,7 @@
 
     <nav
       ref="contentRef"
-      class="outline-sidebar-content min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-1.5 pb-2"
+      class="outline-sidebar-content ui-sidebar-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-1.5 pb-2"
       :aria-label="$t('noteEditor.outline')"
     >
       <div

@@ -70,6 +70,11 @@
   --workspace-panel-radius: 10px;
   --app-scrollbar-thumb: #d4d8d6;
   --app-scrollbar-hover: #bcc3bf;
+  --app-sidebar-scrollbar-thumb: color-mix(
+    in oklab,
+    var(--workspace-nav-heading) 12%,
+    transparent
+  );
   --workspace-panel-shadow: -2px 0 12px rgb(26 40 34 / 3%),
     0 -2px 12px rgb(26 40 34 / 2%);
   --settings-surface: #fff;
@@ -300,6 +305,11 @@ html.dark {
   --settings-muted: #aeb6b2;
   --app-scrollbar-thumb: #454d49;
   --app-scrollbar-hover: #626c66;
+  --app-sidebar-scrollbar-thumb: color-mix(
+    in oklab,
+    var(--workspace-nav-heading) 16%,
+    transparent
+  );
   --categories-panel-bg: #1a1a1a;
   --categories-panel-bg-rgb: 26, 26, 26;
   --categories-content-bg: #2c2c2c;

@@ -20,7 +20,7 @@
       >
         {{ t('nav.deletedEmpty') }}
       </p>
-      <ul v-else class="min-h-0 flex-1 overflow-y-auto pb-2">
+      <ul v-else class="ui-sidebar-scroll min-h-0 flex-1 overflow-y-auto pb-2">
         <li
           v-for="note in notes"
           :key="note.id"

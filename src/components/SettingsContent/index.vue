@@ -18,7 +18,7 @@
           {{ t('titlebar.settings') }}
         </h1>
         <nav
-          class="min-h-0 flex-1 overflow-y-auto"
+          class="ui-sidebar-scroll min-h-0 flex-1 overflow-y-auto"
           :aria-label="t('titlebar.settings')"
         >
           <section v-for="group in menuGroups" :key="group.id" class="mb-7">

@@ -54,7 +54,7 @@
       </button>
     </div>
 
-    <div class="backlink-sidebar-content">
+    <div class="backlink-sidebar-content ui-sidebar-scroll">
       <!-- 加载状态 -->
       <div v-if="loading" class="loading-state">
         <div class="spinner"></div>
