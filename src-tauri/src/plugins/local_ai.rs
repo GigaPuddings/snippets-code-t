@@ -681,9 +681,14 @@ fn server_command(program: &Path) -> Command {
     command
 }
 
+fn local_service_client(timeout: Duration) -> Result<Client, reqwest::Error> {
+    // llama-server only listens on loopback, even when a system proxy is enabled.
+    Client::builder().no_proxy().timeout(timeout).build()
+}
+
 async fn health_check_url(base_url: &str) -> bool {
     let url = format!("{}/health", base_url.trim_end_matches('/'));
-    let Ok(client) = Client::builder().timeout(Duration::from_secs(3)).build() else {
+    let Ok(client) = local_service_client(Duration::from_secs(3)) else {
         return false;
     };
 
@@ -697,10 +702,7 @@ async fn health_check_url(base_url: &str) -> bool {
 
 async fn server_context_size(base_url: &str) -> Option<u32> {
     let url = format!("{}/props", base_url.trim_end_matches('/'));
-    let client = Client::builder()
-        .timeout(Duration::from_secs(3))
-        .build()
-        .ok()?;
+    let client = local_service_client(Duration::from_secs(3)).ok()?;
     let value = client
         .get(url)
         .send()
@@ -1146,9 +1148,7 @@ async fn chat_completion(
     ensure_service_running(app_handle, &config).await?;
     let _guard = mark_request_started();
 
-    let client = Client::builder()
-        .timeout(Duration::from_secs(config.request_timeout_secs as u64))
-        .build()
+    let client = local_service_client(Duration::from_secs(config.request_timeout_secs as u64))
         .map_err(|error| format!("创建本地 AI 请求客户端失败: {}", error))?;
     let url = format!("{}/v1/chat/completions", base_url(&config));
     let body = serde_json::json!({
@@ -1378,9 +1378,7 @@ async fn chat_completion_stream(
         }),
     );
 
-    let client = Client::builder()
-        .timeout(Duration::from_secs(config.request_timeout_secs as u64))
-        .build()
+    let client = local_service_client(Duration::from_secs(config.request_timeout_secs as u64))
         .map_err(|error| format!("创建本地 AI 请求客户端失败: {}", error))?;
     let url = format!("{}/v1/chat/completions", base_url(&config));
     let body = serde_json::json!({
