@@ -1,64 +1,67 @@
 import { computed, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useConfigurationStore } from '@/store';
-import { getFavoriteFragments, getFragmentList } from '@/api/fragment';
+import { getFragmentList } from '@/api/fragment';
 import { applySorting } from '@/utils/filterEngine';
-import { useContentFavorites } from '@/composables/useContentFavorites';
+import { parseTags } from '@/utils/fragment';
 import modal from '@/utils/modal';
+
+export interface TagGroup {
+  tag: string;
+  contents: ContentType[];
+}
 
 export interface UseContentListReturn {
   contents: ComputedRef<ContentType[]>;
+  tagGroups: ComputedRef<TagGroup[]>;
   queryFragments: (cid?: string) => Promise<void>;
-  toggleContentFavorite: (content: ContentType) => Promise<void>;
 }
 
 /**
- * Loads the compact quick-access list. Search and advanced filters live in the
- * global quick-search surface, so this sidebar only reflects its active scope.
+ * Loads the compact quick-access list and applies the active sidebar scope.
  */
 export function useContentList(): UseContentListReturn {
   const route = useRoute();
   const store = useConfigurationStore();
   let latestQueryId = 0;
-  const { toggleContentFavorite } = useContentFavorites();
-  let loadedFavorites = false;
 
-  const contents = computed<ContentType[]>(() =>
-    applySorting(
-      route.query.view === 'favorites'
-        ? store.contents.filter((content) => content.favorite)
-        : store.contents,
-      'created',
-      'desc'
-    )
+  const contents = computed(() =>
+    applySorting(store.contents, 'created', 'desc')
   );
+  const tagGroups = computed<TagGroup[]>(() => {
+    if (route.query.view !== 'tags') return [];
+    const groups = new Map<string, TagGroup>();
+    for (const item of contents.value) {
+      for (const tag of new Set(parseTags(item.tags))) {
+        let group = groups.get(tag);
+        if (!group) {
+          group = { tag, contents: [] };
+          groups.set(tag, group);
+        }
+        group.contents.push(item);
+      }
+    }
+    return [...groups.values()].sort((a, b) => a.tag.localeCompare(b.tag));
+  });
 
   const queryFragments = async (cid?: string): Promise<void> => {
     const queryId = ++latestQueryId;
-    const favorites = route.query.view === 'favorites';
-    if (!favorites || !loadedFavorites) store.favoriteCount = null;
-    if (!favorites) loadedFavorites = false;
     if (route.query.view === 'trash') {
       store.contents = [];
       return;
     }
 
     try {
-      const categoryId = cid ? Number(cid) : undefined;
-      const result = favorites
-        ? await getFavoriteFragments()
-        : await getFragmentList(categoryId, '');
+      const categoryId =
+        cid && route.query.view !== 'tags' ? Number(cid) : undefined;
+      const result = await getFragmentList(categoryId, '');
 
       if (queryId === latestQueryId) {
         store.contents = result as ContentType[];
-        store.favoriteCount = favorites ? result.length : null;
-        loadedFavorites = favorites;
       }
     } catch (error) {
       if (queryId === latestQueryId) {
         store.contents = [];
-        store.favoriteCount = null;
-        loadedFavorites = false;
         modal.error(error instanceof Error ? error.message : String(error));
       }
     }
@@ -72,5 +75,9 @@ export function useContentList(): UseContentListReturn {
     { immediate: true }
   );
 
-  return { contents, queryFragments, toggleContentFavorite };
+  return {
+    contents,
+    tagGroups,
+    queryFragments
+  };
 }

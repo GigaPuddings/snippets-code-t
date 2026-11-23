@@ -14,7 +14,6 @@
         <ContentItem
           :content="item"
           @delete="$emit('delete', item)"
-          @toggle-favorite="$emit('toggle-favorite', item)"
           @change-category="$emit('change-category', item)"
           @convert-type="handleConvertType"
         />
@@ -50,7 +49,6 @@ interface ContentListViewProps {
 interface ContentListViewEmits {
   /** 删除内容 */
   (e: 'delete', content: ContentType): void;
-  (e: 'toggle-favorite', content: ContentType): void;
   /** 更改分类 */
   (e: 'change-category', content: ContentType): void;
   /** 转换内容类型 */
@@ -76,7 +74,7 @@ const activeContentId = computed(() => {
   const id = route.params.id;
   const routeId = Array.isArray(id) ? id[0] : id;
   if (!routeId) return -1;
-  const normalizedRouteId = decodeURIComponent(routeId).replace(/\\/g, '/');
+  const normalizedRouteId = routeId.replace(/\\/g, '/');
   return normalizedRouteId;
 });
 

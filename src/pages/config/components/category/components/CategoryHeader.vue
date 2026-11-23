@@ -5,6 +5,21 @@
     </div>
     <div class="category-header-action">
       <button
+        v-if="!viewLabel || tagTree"
+        type="button"
+        class="ui-icon-button ui-icon-button--small"
+        :title="toggleLabel"
+        :aria-label="toggleLabel"
+        :disabled="!hasFolders"
+        @click="$emit('toggle-groups')"
+      >
+        <component
+          :is="hasExpanded ? FoldVertical : UnfoldVertical"
+          width="16"
+          height="16"
+        />
+      </button>
+      <button
         v-if="viewLabel"
         type="button"
         class="ui-icon-button ui-icon-button--small"
@@ -15,20 +30,6 @@
         <ArrowLeft width="16" height="16" />
       </button>
       <template v-else>
-        <button
-          type="button"
-          class="ui-icon-button ui-icon-button--small"
-          :title="toggleLabel"
-          :aria-label="toggleLabel"
-          :disabled="!hasFolders"
-          @click="$emit('toggle-folders')"
-        >
-          <component
-            :is="hasExpanded ? FoldVertical : UnfoldVertical"
-            width="16"
-            height="16"
-          />
-        </button>
         <button
           type="button"
           class="ui-icon-button ui-icon-button--small"
@@ -84,6 +85,7 @@ interface CategoryHeaderProps {
   hasExpanded: boolean;
   hasFolders: boolean;
   savingOrder: boolean;
+  tagTree?: boolean;
 }
 
 /**
@@ -95,7 +97,7 @@ interface CategoryHeaderEmits {
   /** 点击添加分类按钮时触发 */
   (e: 'add'): void;
   (e: 'back'): void;
-  (e: 'toggle-folders'): void;
+  (e: 'toggle-groups'): void;
 }
 
 defineOptions({
@@ -105,7 +107,15 @@ defineOptions({
 const props = defineProps<CategoryHeaderProps>();
 const { t } = useI18n();
 const toggleLabel = computed(() =>
-  t(props.hasExpanded ? 'category.collapseFolders' : 'category.expandFolders')
+  t(
+    props.tagTree
+      ? props.hasExpanded
+        ? 'tags.collapseAll'
+        : 'tags.expandAll'
+      : props.hasExpanded
+        ? 'category.collapseFolders'
+        : 'category.expandFolders'
+  )
 );
 const emit = defineEmits<CategoryHeaderEmits>();
 

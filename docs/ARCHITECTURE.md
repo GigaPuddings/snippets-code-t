@@ -362,7 +362,7 @@ category/
 ```
 
 **关键组件**:
-- `ContentItem`: 笔记/片段的紧凑列表项，支持收藏与右键操作
+- `ContentItem`: 笔记/片段的紧凑列表项，支持右键操作
 - `ContentListView`: 虚拟滚动内容列表；搜索统一使用全局快速搜索入口
 - `DeletedNotesView`: 最近删除的内容与恢复入口
 - `MarkdownEditor`: Markdown 笔记编辑器
@@ -625,7 +625,6 @@ interface Fragment {
   tags: string[];
   created_at: string;
   updated_at: string;
-  is_favorite: boolean;
   language?: string;
 }
 

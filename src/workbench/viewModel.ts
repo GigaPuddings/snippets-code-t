@@ -246,10 +246,6 @@ const buildWorkspaceLayer = (
     {
       label: input.t('settings.workbench.stats.categories'),
       value: input.categoriesCount
-    },
-    {
-      label: input.t('settings.workbench.stats.favorites'),
-      value: input.content.favorites
     }
   ],
   actions: [

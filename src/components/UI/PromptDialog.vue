@@ -3,8 +3,10 @@
     v-model="visible"
     :title="computedTitle"
     :width="width"
-    :show-close="showClose"
+    :show-close="showClose && !loading"
+    :close-on-press-escape="!loading"
     :close-on-click-modal="false"
+    @open-auto-focus="focusInput"
   >
     <div class="prompt-body">
       <div v-if="message" class="prompt-message">{{ message }}</div>
@@ -12,18 +14,20 @@
         ref="inputRef"
         v-model="inputValue"
         :placeholder="placeholder"
+        :aria-label="placeholder || computedTitle"
+        :disabled="loading"
         clearable
-        @keyup.enter="handleConfirm"
+        @keydown.enter="handleEnter"
       />
       <div v-if="errorMessage" class="prompt-error">{{ errorMessage }}</div>
     </div>
 
     <template #footer>
       <div class="prompt-footer">
-        <CustomButton @click="handleCancel">
+        <CustomButton :disabled="loading" @click="handleCancel">
           {{ computedCancelText }}
         </CustomButton>
-        <CustomButton type="primary" @click="handleConfirm">
+        <CustomButton type="primary" :loading="loading" @click="handleConfirm">
           {{ computedConfirmText }}
         </CustomButton>
       </div>
@@ -33,6 +37,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
+import type { InputInstance } from 'element-plus';
 import CommonDialog from './CommonDialog.vue';
 import CustomButton from './CustomButton.vue';
 
@@ -53,6 +58,8 @@ interface Props {
   showClose?: boolean;
   trimOnConfirm?: boolean;
   required?: boolean;
+  selectOnOpen?: boolean;
+  loading?: boolean;
   maxLength?: number;
   validator?: (value: string) => PromptValidationResult;
 }
@@ -69,6 +76,8 @@ const props = withDefaults(defineProps<Props>(), {
   showClose: true,
   trimOnConfirm: true,
   required: false,
+  selectOnOpen: false,
+  loading: false,
   maxLength: 0,
   validator: undefined
 });
@@ -83,7 +92,7 @@ const { t } = useI18n();
 
 const visible = ref(props.modelValue);
 const inputValue = ref(props.initialValue);
-const inputRef = ref<any>(null);
+const inputRef = ref<InputInstance | null>(null);
 const errorMessage = ref('');
 
 const computedTitle = computed(() => props.title || t('common.inputTitle'));
@@ -101,9 +110,6 @@ watch(
     if (val) {
       inputValue.value = props.initialValue || '';
       errorMessage.value = '';
-      nextTick(() => {
-        inputRef.value?.focus?.();
-      });
     }
   }
 );
@@ -120,6 +126,7 @@ watch(visible, (val) => {
 });
 
 const handleConfirm = () => {
+  if (props.loading) return;
   const value = props.trimOnConfirm
     ? inputValue.value.trim()
     : inputValue.value;
@@ -151,6 +158,21 @@ const handleConfirm = () => {
   errorMessage.value = '';
   emit('confirm', value);
 };
+
+function focusInput(): void {
+  // Element Plus focuses the dialog container on the next tick.
+  requestAnimationFrame(() => {
+    if (!visible.value) return;
+    inputRef.value?.focus();
+    if (props.selectOnOpen) inputRef.value?.select();
+  });
+}
+
+function handleEnter(event: Event): void {
+  if (event instanceof KeyboardEvent && event.isComposing) return;
+  event.preventDefault();
+  handleConfirm();
+}
 
 const handleCancel = () => {
   errorMessage.value = '';

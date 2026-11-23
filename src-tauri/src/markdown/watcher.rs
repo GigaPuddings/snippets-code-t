@@ -513,7 +513,7 @@ impl FileWatcher {
                     let old = workspace_root.join(&re.from);
                     let new = workspace_root.join(&re.to);
                     // 重命名不能只删除旧项；否则新文件会从 cache.json 丢失，
-                    // 后续收藏、保存和按时间排序都会读取不到它。
+                    // 后续保存和按时间排序都会读取不到它。
                     let removed = cache.remove_file(&old, workspace_root).is_ok();
                     let added = cache.add_file(&new, workspace_root).is_ok();
                     dirty |= removed || added;

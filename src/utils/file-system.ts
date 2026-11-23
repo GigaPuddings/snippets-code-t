@@ -1,5 +1,15 @@
 import { invoke } from '@tauri-apps/api/core';
 
+export function resolveWorkspaceFilePath(
+  filePath: string,
+  workspaceRoot: string
+): string | null {
+  if (/^(?:[a-z]:[/\\]|[/\\]{2}|\/)/i.test(filePath)) return filePath;
+  return workspaceRoot
+    ? `${workspaceRoot.replace(/[/\\]+$/, '')}/${filePath}`
+    : null;
+}
+
 export async function openFileWithDefaultApp(filePath: string): Promise<void> {
   await invoke('open_file_with_default_app', { filePath });
 }

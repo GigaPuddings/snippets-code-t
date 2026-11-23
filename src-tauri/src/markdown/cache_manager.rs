@@ -7,7 +7,7 @@ use log::{info, warn};
 use std::path::{Path, PathBuf};
 
 /// 从 .md 文件的 Frontmatter 提取索引所需的核心字段（id/created/modified/size）。
-/// cache.json 只作为文件系统索引，内容元数据（tags/type/language/favorite）
+/// cache.json 只作为文件系统索引，内容元数据（tags/type/language）
 /// 统一从 Frontmatter 读取，不再写入 cache.json。
 fn build_index_metadata(file_path: &Path) -> FileMetadata {
     if let Ok(raw) = std::fs::read_to_string(file_path) {
@@ -312,12 +312,6 @@ impl CacheManager {
     // 按标签过滤（已废弃：tags 不再存储在 cache.json，此函数始终返回空）
     #[allow(dead_code)]
     pub fn filter_by_tag(&self, _tag: &str) -> Vec<(String, &FileMetadata)> {
-        vec![]
-    }
-
-    // 获取收藏文件（已废弃：favorite 不再存储在 cache.json，此函数始终返回空）
-    #[allow(dead_code)]
-    pub fn get_favorites(&self) -> Vec<(String, &FileMetadata)> {
         vec![]
     }
 

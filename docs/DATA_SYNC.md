@@ -74,7 +74,7 @@ v1 数据契约的实现入口为 `src-tauri/src/sync_data.rs`，所有应用内
 | --- | --- | --- | --- |
 | `type: code` 的 Markdown | `SYNC_CONTENT` | 是 | 拉取并建立本机 Markdown 索引 |
 | `type: note` 的 Markdown | `SYNC_CONTENT` | 是 | 拉取并建立本机 Markdown 索引 |
-| Frontmatter、标签、收藏、分类目录 | `SYNC_CONTENT` | 是 | 以文件和相对路径恢复 |
+| Frontmatter、标签、分类目录 | `SYNC_CONTENT` | 是 | 以文件和相对路径恢复 |
 | 被内容引用的 `assets/...` | `SYNC_CONTENT` | 是 | 校验相对引用和文件 hash |
 | vault ID、内容 schema | `SYNC_CONTENT` | 是 | 先做兼容性检查 |
 | 快捷键和通用偏好 | `SYNC_PREFERENCE` | 是 | 校验后合并到本机配置 |

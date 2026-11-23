@@ -62,8 +62,7 @@ const file: MarkdownFile = {
   categoryId: 1,
   categoryName: 'Notes',
   type: 'note',
-  tags: [],
-  favorite: false
+  tags: []
 };
 
 beforeEach(() => {
@@ -114,7 +113,7 @@ describe('workbench refresh isolation', () => {
     expect(mocks.push).not.toHaveBeenCalled();
   });
 
-  it('loads metadata only while preserving counts, favorites, and recent routes', async () => {
+  it('loads metadata only while preserving counts and recent routes', async () => {
     mocks.getAllFiles.mockResolvedValue([
       file,
       {
@@ -123,8 +122,7 @@ describe('workbench refresh isolation', () => {
         title: 'Snippet',
         filePath: 'E:/Workspace/snippet.md',
         modified: '2026-02-01T00:00:00Z',
-        type: 'code',
-        favorite: true
+        type: 'code'
       }
     ]);
     const controller = useWorkbenchOverview();
@@ -138,10 +136,10 @@ describe('workbench refresh isolation', () => {
       value: 2,
       meta: 'settings.workbench.metrics.contentMeta:{"snippets":1,"notes":1}'
     });
-    expect(controller.layers.value[0].stats).toContainEqual({
-      label: 'settings.workbench.stats.favorites',
-      value: 1
-    });
+    expect(controller.layers.value[0].stats).toEqual([
+      { label: 'settings.workbench.stats.path', value: 'E:/Workspace' },
+      { label: 'settings.workbench.stats.categories', value: 0 }
+    ]);
     expect(controller.recentItems.value).toMatchObject([
       {
         title: 'Snippet',

@@ -30,8 +30,6 @@ pub struct IndexEntry {
     pub title: String,
     // 标签
     pub tags: Vec<String>,
-    // 是否收藏
-    pub favorite: bool,
     // 文件类型
     pub file_type: String,
     // 编程语言（代码片段）
@@ -53,8 +51,6 @@ pub struct OptimizedIndexManager {
     entries: SharedIndex<Vec<IndexEntry>>,
     // 标签索引：标签 -> 索引项索引列表
     tag_index: SharedIndex<HashMap<String, Vec<usize>>>,
-    // 收藏索引：收藏的索引项索引列表
-    favorite_index: SharedIndex<Vec<usize>>,
     // 中文分词器
     jieba: Arc<Jieba>,
     // 模糊匹配器
@@ -69,7 +65,6 @@ impl OptimizedIndexManager {
         Self {
             entries: Arc::new(RwLock::new(Vec::new())),
             tag_index: Arc::new(RwLock::new(HashMap::new())),
-            favorite_index: Arc::new(RwLock::new(Vec::new())),
             jieba: Arc::new(Jieba::new()),
             fuzzy_matcher: SkimMatcherV2::default(),
             inverted_index: Arc::new(RwLock::new(HashMap::new())),
@@ -194,7 +189,6 @@ impl OptimizedIndexManager {
         // 扫描所有 Markdown 文件
         let mut entries = Vec::new();
         let mut tag_index: HashMap<String, Vec<usize>> = HashMap::new();
-        let mut favorite_index = Vec::new();
         let mut inverted_index: HashMap<String, Vec<(usize, usize)>> = HashMap::new();
 
         for entry in WalkDir::new(workspace_root)
@@ -219,7 +213,7 @@ impl OptimizedIndexManager {
             };
 
             // 从 Frontmatter 读取所有内容元数据（唯一数据源）
-            let (title, tags, file_type, language, framework, kind, favorite, body) = {
+            let (title, tags, file_type, language, framework, kind, body) = {
                 let (fm_opt, body) = try_parse_front_matter(&raw_content);
                 if let Some(fm) = fm_opt {
                     (
@@ -229,7 +223,6 @@ impl OptimizedIndexManager {
                         fm.language,
                         fm.framework,
                         fm.kind,
-                        fm.favorite,
                         body,
                     )
                 } else {
@@ -246,7 +239,6 @@ impl OptimizedIndexManager {
                         None,
                         None,
                         None,
-                        false,
                         raw_content.clone(),
                     )
                 }
@@ -266,7 +258,6 @@ impl OptimizedIndexManager {
                 id: path.to_string_lossy().to_string(),
                 title: title.clone(),
                 tags,
-                favorite,
                 file_type,
                 language,
                 framework,
@@ -306,11 +297,6 @@ impl OptimizedIndexManager {
             for tag in &index_entry.tags {
                 tag_index.entry(tag.clone()).or_default().push(entry_index);
             }
-
-            // 更新收藏索引
-            if index_entry.favorite {
-                favorite_index.push(entry_index);
-            }
         }
 
         // 更新管理器的数据
@@ -319,9 +305,6 @@ impl OptimizedIndexManager {
         }
         if let Ok(mut t) = manager.tag_index.write() {
             *t = tag_index;
-        }
-        if let Ok(mut f) = manager.favorite_index.write() {
-            *f = favorite_index;
         }
         if let Ok(mut i) = manager.inverted_index.write() {
             *i = inverted_index;
@@ -380,11 +363,6 @@ impl OptimizedIndexManager {
                     score += 2.5;
                 }
             }
-        }
-
-        // 收藏加权（1.5倍）
-        if entry.favorite {
-            score *= 1.5;
         }
 
         score
@@ -518,25 +496,6 @@ impl OptimizedIndexManager {
         }
     }
 
-    // 获取收藏列表
-    #[allow(dead_code)]
-    pub fn get_favorites(&self) -> Vec<IndexEntry> {
-        let entries = match self.entries.read() {
-            Ok(e) => e,
-            Err(_) => return Vec::new(),
-        };
-
-        let favorite_index = match self.favorite_index.read() {
-            Ok(f) => f,
-            Err(_) => return Vec::new(),
-        };
-
-        favorite_index
-            .iter()
-            .filter_map(|&index| entries.get(index).cloned())
-            .collect()
-    }
-
     // 获取所有标签
     #[allow(dead_code)]
     pub fn get_all_tags(&self) -> Vec<String> {
@@ -571,7 +530,7 @@ impl OptimizedIndexManager {
             fs::read_to_string(file_path).map_err(|e| format!("读取文件失败: {}", e))?;
 
         // 从 Frontmatter 读取所有内容元数据（唯一数据源）
-        let (title, tags, file_type, language, framework, kind, favorite, body) = {
+        let (title, tags, file_type, language, framework, kind, body) = {
             let (fm_opt, body) = try_parse_front_matter(&raw_content);
             if let Some(fm) = fm_opt {
                 (
@@ -581,7 +540,6 @@ impl OptimizedIndexManager {
                     fm.language,
                     fm.framework,
                     fm.kind,
-                    fm.favorite,
                     body,
                 )
             } else {
@@ -597,7 +555,6 @@ impl OptimizedIndexManager {
                     None,
                     None,
                     None,
-                    false,
                     raw_content.clone(),
                 )
             }
@@ -617,7 +574,6 @@ impl OptimizedIndexManager {
             id: file_path.to_string_lossy().to_string(),
             title: title.clone(),
             tags,
-            favorite,
             file_type,
             language,
             framework,
@@ -629,7 +585,6 @@ impl OptimizedIndexManager {
         // 更新或添加索引项
         let mut entries = self.entries.write().map_err(|_| "获取写锁失败")?;
         let mut tag_index = self.tag_index.write().map_err(|_| "获取写锁失败")?;
-        let mut favorite_index = self.favorite_index.write().map_err(|_| "获取写锁失败")?;
         let mut inverted_index = self.inverted_index.write().map_err(|_| "获取写锁失败")?;
 
         // 查找现有索引项
@@ -643,11 +598,6 @@ impl OptimizedIndexManager {
                         tag_index.remove(tag);
                     }
                 }
-            }
-
-            // 移除旧的收藏索引
-            if old_entry.favorite {
-                favorite_index.retain(|&i| i != index);
             }
 
             // 移除旧的倒排索引
@@ -686,11 +636,6 @@ impl OptimizedIndexManager {
                     .or_insert_with(Vec::new)
                     .push(index);
             }
-
-            // 添加新的收藏索引
-            if new_entry.favorite {
-                favorite_index.push(index);
-            }
         } else {
             // 添加新索引项
             let index = entries.len();
@@ -724,11 +669,6 @@ impl OptimizedIndexManager {
                     .or_insert_with(Vec::new)
                     .push(index);
             }
-
-            // 添加收藏索引
-            if new_entry.favorite {
-                favorite_index.push(index);
-            }
         }
 
         Ok(())
@@ -738,7 +678,6 @@ impl OptimizedIndexManager {
     pub fn remove_entry(&self, file_path: &Path) -> Result<(), String> {
         let mut entries = self.entries.write().map_err(|_| "获取写锁失败")?;
         let mut tag_index = self.tag_index.write().map_err(|_| "获取写锁失败")?;
-        let mut favorite_index = self.favorite_index.write().map_err(|_| "获取写锁失败")?;
         let mut inverted_index = self.inverted_index.write().map_err(|_| "获取写锁失败")?;
 
         // 查找索引项
@@ -755,11 +694,6 @@ impl OptimizedIndexManager {
                 }
             }
 
-            // 移除收藏索引
-            if entry.favorite {
-                favorite_index.retain(|&i| i != index);
-            }
-
             // 移除倒排索引
             for token_entries in inverted_index.values_mut() {
                 token_entries.retain(|(i, _)| *i != index);
@@ -774,12 +708,6 @@ impl OptimizedIndexManager {
                     if *i > index {
                         *i -= 1;
                     }
-                }
-            }
-
-            for i in favorite_index.iter_mut() {
-                if *i > index {
-                    *i -= 1;
                 }
             }
 

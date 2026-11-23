@@ -33,8 +33,7 @@ const file: MarkdownFile = {
   tags: [],
   created: '2026-01-01',
   modified: '2026-01-01',
-  type: 'note',
-  favorite: false
+  type: 'note'
 };
 const savedReference = {
   documentId: file.documentId,

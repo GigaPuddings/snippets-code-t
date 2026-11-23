@@ -779,7 +779,6 @@ pub fn run() {
             markdown::delete_category_folder,           // 删除分类文件夹
             markdown::rename_category_folder,           // 重命名分类文件夹
             markdown::get_files_by_category,            // 获取分类下的文件
-            markdown::toggle_favorite,                  // 切换收藏状态
             markdown::ignore_next_change,               // 忽略下一次文件变化
             markdown::find_file_by_title,               // 通过标题查找文件
             markdown::get_all_file_titles,              // 获取所有文件标题

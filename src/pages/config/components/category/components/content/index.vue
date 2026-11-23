@@ -5,23 +5,6 @@
   >
     <div class="content-header">
       <div class="content-title">
-        <el-input
-          ref="titleInputRef"
-          class="content-title-input"
-          :model-value="showHeading ? contextHeading : draftTitle"
-          :readonly="showHeading"
-          :title="
-            showHeading
-              ? t('content.stickyHeadingHint', { heading: contextHeading })
-              : draftTitle
-          "
-          placeholder=""
-          @input="handleTitleInput"
-          @focus="handleTitleFocus"
-          @blur="handleTitleBlur"
-          @keydown.enter.prevent="commitTitleChange"
-        />
-
         <div v-if="state.currentContent" class="content-header-actions">
           <nav
             class="workspace-breadcrumb"
@@ -38,23 +21,18 @@
             <span class="min-w-0 truncate" :title="draftTitle">
               {{ draftTitle }}
             </span>
+            <template v-if="contextHeading">
+              <span class="shrink-0" aria-hidden="true">/</span>
+              <span
+                class="min-w-0 truncate"
+                :title="
+                  t('content.stickyHeadingHint', { heading: contextHeading })
+                "
+              >
+                {{ contextHeading }}
+              </span>
+            </template>
           </nav>
-          <button
-            class="ui-icon-button ui-icon-button--small text-panel-text-secondary disabled:cursor-wait"
-            type="button"
-            :title="favoriteActionLabel"
-            :aria-label="favoriteActionLabel"
-            :aria-pressed="isCurrentFavorite"
-            :disabled="isFavoritePending(state.currentContent.id)"
-            @click="toggleContentFavorite(state.currentContent)"
-          >
-            <Star
-              :class="{ 'app-icon--filled': isCurrentFavorite }"
-              width="18"
-              height="18"
-              aria-hidden="true"
-            />
-          </button>
           <!-- 编辑器控制按钮（仅笔记类型显示） -->
           <div v-if="currentEditorType === 'note'" class="editor-controls">
             <!-- 阅读模式切换按钮 -->
@@ -97,11 +75,7 @@
             </button>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item command="save" :disabled="state.isLoading">
-                  <Save width="16" height="16" aria-hidden="true" />
-                  {{ t('common.save') }}
-                </el-dropdown-item>
-                <el-dropdown-item command="copyTitle" divided>
+                <el-dropdown-item command="copyTitle">
                   <Type width="16" height="16" aria-hidden="true" />
                   {{ t('content.copyTitle') }}
                 </el-dropdown-item>
@@ -119,7 +93,6 @@
                 <el-dropdown-item
                   v-if="currentEditorType === 'note'"
                   command="outline"
-                  divided
                   :class="{ 'is-active': isOutlineVisible }"
                 >
                   <ListTree width="16" height="16" aria-hidden="true" />
@@ -132,15 +105,38 @@
                   />
                 </el-dropdown-item>
                 <el-dropdown-item
-                  v-if="currentEditorType === 'note'"
                   command="addTag"
+                  :disabled="state.isInitializing"
                 >
                   <Tags width="16" height="16" aria-hidden="true" />
                   {{ t('tags.addTag') }}
                 </el-dropdown-item>
-                <el-dropdown-item command="aiAssist" divided>
+                <el-dropdown-item command="aiAssist">
                   <Sparkles width="16" height="16" aria-hidden="true" />
                   {{ t('content.aiAssistant') }}
+                </el-dropdown-item>
+                <el-dropdown-item
+                  command="openWith"
+                  :disabled="state.isLoading || state.isInitializing"
+                >
+                  <ArrowUpRight width="16" height="16" aria-hidden="true" />
+                  {{ t('content.openWith') }}
+                </el-dropdown-item>
+                <el-dropdown-item
+                  command="save"
+                  :disabled="state.isLoading"
+                  divided
+                >
+                  <Save width="16" height="16" aria-hidden="true" />
+                  {{ t('common.save') }}
+                </el-dropdown-item>
+                <el-dropdown-item
+                  command="delete"
+                  class="is-danger"
+                  :disabled="state.isLoading || state.isInitializing"
+                >
+                  <Trash2 width="16" height="16" aria-hidden="true" />
+                  {{ t('common.delete') }}
                 </el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -157,17 +153,14 @@
 
       <!-- 标签输入 -->
       <div
-        v-if="
-          state.currentContent &&
-          (currentEditorType !== 'note' ||
-            state.tags.length > 0 ||
-            showTagEditor)
-        "
+        v-if="state.currentContent && (state.tags.length > 0 || isAddingTag)"
         class="content-tags"
       >
         <div class="content-tags-input">
           <TagInput
-            v-model="state.tags"
+            :key="state.currentContent.id"
+            v-model:adding="isAddingTag"
+            :model-value="state.tags"
             :existing-tags="allTags"
             @update:model-value="handleTagsChange"
           />
@@ -271,7 +264,7 @@
       :workspace-root="workspaceRoot"
       :note-file-path="String(state.currentContent?.id ?? '')"
       @apply-content="applyAiContent"
-      @apply-title="applyAiTitle"
+      @apply-title="applyTitle"
       @apply-tags="applyAiTags"
     />
 
@@ -327,13 +320,12 @@
           </div>
 
           <div class="editor-loading__copy">
-            <span>{{ editorLoadingMessage }}</span>
+            <span>{{ t('category.loadingEditor') }}</span>
           </div>
         </div>
       </Transition>
 
       <div
-        v-if="!state.isEditorDeferred"
         class="editor-surface"
         :class="{ 'editor-surface--loading': showEditorLoading }"
       >
@@ -398,6 +390,7 @@
 
 <script setup lang="ts">
 import { useContentHeading } from './useContentHeading';
+import { contentEditorKey } from '@/components/ContentItem/contentEditor';
 import { useContentSearchNavigation } from './useContentSearchNavigation';
 import UiEllipsisVertical from '~icons/lucide/ellipsis-vertical';
 import Save from '~icons/lucide/save';
@@ -407,15 +400,11 @@ import Link from '~icons/lucide/link';
 import ListTree from '~icons/lucide/list-tree';
 import Tags from '~icons/lucide/tags';
 import Sparkles from '~icons/lucide/sparkles';
+import ArrowUpRight from '~icons/lucide/arrow-up-right';
+import Trash2 from '~icons/lucide/trash-2';
 import Check from '~icons/lucide/check';
 import BookOpen from '~icons/lucide/book-open';
 import EditTwo from '~icons/lucide/square-pen';
-import Star from '~icons/lucide/star';
-import {
-  useContentFavorites,
-  applyFavoriteChange,
-  type FavoriteChangeDetail
-} from '@/composables/useContentFavorites';
 import { useConfigurationStore, usePluginStore } from '@/store';
 import {
   getFragmentContent,
@@ -428,7 +417,7 @@ import {
 import { searchMarkdownFiles, createMarkdownFile } from '@/api/markdown';
 import { debounce } from '@/utils';
 import { logger } from '@/utils/logger';
-import { parseFragment } from '@/utils/fragment';
+import { parseFragment, parseTags, replaceFragmentTag } from '@/utils/fragment';
 import {
   handleSaveError,
   handleLoadError,
@@ -437,6 +426,11 @@ import {
 import { useI18n } from 'vue-i18n';
 import modal from '@/utils/modal';
 import { getConfigContentPath } from '@/utils/config-navigation';
+import {
+  openFileWithOtherWays,
+  resolveWorkspaceFilePath
+} from '@/utils/file-system';
+import '@/styles/menus.scss';
 import TagInput from '@/components/TagInput/index.vue';
 import { useRouter, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
 import {
@@ -500,7 +494,6 @@ const state = reactive({
   contentChanged: false,
   isEditorLoading: false,
   isEditorReady: false,
-  isEditorDeferred: false,
   editorError: null as string | null,
   lastSavedAt: null as Date | null,
   autoSaveEnabled: true,
@@ -511,9 +504,8 @@ const state = reactive({
 });
 
 const draftTitle = ref('');
-const showTagEditor = ref(false);
+const isAddingTag = ref(false);
 const titleDirty = ref(false);
-let deferredEditorTimer: ReturnType<typeof setTimeout> | null = null;
 let editorReadyTimer: ReturnType<typeof setTimeout> | null = null;
 let editorReadyFrame: number | null = null;
 let editorLoadingStartedAt = 0;
@@ -543,12 +535,7 @@ const beginEditorLoading = () => {
 };
 
 const finishEditorLoading = (generation: number) => {
-  if (
-    generation !== editorLoadingGeneration ||
-    state.editorError ||
-    state.isEditorDeferred
-  )
-    return;
+  if (generation !== editorLoadingGeneration || state.editorError) return;
 
   const showEditor = () => {
     if (generation !== editorLoadingGeneration) return;
@@ -584,25 +571,6 @@ const failEditorLoading = () => {
   editorLoadingGeneration++;
   state.isEditorReady = false;
   state.isEditorLoading = false;
-};
-
-const cancelDeferredEditorMount = () => {
-  if (deferredEditorTimer !== null) {
-    clearTimeout(deferredEditorTimer);
-    deferredEditorTimer = null;
-  }
-};
-
-const mountDeferredEditor = () => {
-  cancelDeferredEditorMount();
-  state.isEditorDeferred = false;
-  beginEditorLoading();
-};
-
-const scheduleDeferredEditorMount = (delay = 700) => {
-  if (!state.isEditorDeferred) return;
-  cancelDeferredEditorMount();
-  deferredEditorTimer = setTimeout(mountDeferredEditor, delay);
 };
 
 // 笔记按需加载，代码片段继续使用独立的代码编辑器。
@@ -723,15 +691,8 @@ const pluginStore = usePluginStore();
 const isDark = computed(() => store.effectiveDark);
 const showEditorLoading = computed(() => {
   if (!route.params.id || state.editorError) return false;
-  return (
-    state.isEditorLoading || state.isEditorDeferred || !state.isEditorReady
-  );
+  return state.isEditorLoading || !state.isEditorReady;
 });
-const editorLoadingMessage = computed(() =>
-  state.isEditorDeferred
-    ? t('category.preparingEditor')
-    : t('category.loadingEditor')
-);
 
 const notifyFileEditIfGitSyncEnabled = async () => {
   if (!pluginStore.initialized) {
@@ -779,7 +740,7 @@ const allTags = computed(() => {
 
 const normalizeFragmentId = (id: string) => id.replace(/^markdown:/i, '');
 const normalizePathForCompare = (id: string | number) =>
-  decodeURIComponent(String(id)).replace(/\\/g, '/');
+  String(id).replace(/\\/g, '/');
 
 const removeMissingContentFromList = (id: string | number): void => {
   const normalizedId = normalizePathForCompare(id);
@@ -796,7 +757,7 @@ const resetMissingContentState = (id: string | number, notify = true): void => {
   draftTitle.value = '';
   titleDirty.value = false;
   state.tags = [];
-  showTagEditor.value = false;
+  isAddingTag.value = false;
   state.editorContent = '';
   state.contentChanged = false;
   state.lastSavedAt = null;
@@ -842,33 +803,15 @@ const contentFolder = computed(() => {
   };
 });
 
-const { toggleContentFavorite, isFavoritePending } = useContentFavorites();
-const isCurrentFavorite = computed(
-  () =>
-    store.contents.find(
-      (item) => String(item.id) === String(state.currentContent?.id)
-    )?.favorite ??
-    state.currentContent?.favorite ??
-    false
-);
-const favoriteActionLabel = computed(() =>
-  t(isCurrentFavorite.value ? 'nav.favoritedAction' : 'nav.addFavorite')
-);
-
 const noteProperties = computed(() => {
   const content = state.currentContent;
   if (!content) return [];
-  const favorite = isCurrentFavorite.value;
   const values: Record<string, string | undefined> = {
     title: state.title,
     type: t(
       content.type === 'note' ? 'fragmentType.note' : 'fragmentType.codeSnippet'
     ),
     folder: contentFolder.value.name,
-    favorite:
-      typeof favorite === 'boolean'
-        ? t(favorite ? 'common.yes' : 'common.no')
-        : undefined,
     tags: state.tags.length ? state.tags.join(', ') : undefined,
     created: content.created_at
       ? formatUpdatedAt(content.created_at)
@@ -947,8 +890,6 @@ const handleEditorReady = () => {
 
 // 重试加载编辑器
 const retryLoadEditor = () => {
-  cancelDeferredEditorMount();
-  state.isEditorDeferred = false;
   state.editorError = null;
   state.editorLoadRetries = 0;
   beginEditorLoading();
@@ -958,35 +899,17 @@ const retryLoadEditor = () => {
   });
 };
 
-// 标题输入框引用
-const titleInputRef = ref<any>(null);
 const stickyHeadingEnabled = computed(
   () => store.editorStickyHeadings && currentEditorType.value === 'note'
 );
 const {
   heading: contextHeading,
-  titleFocused,
-  showHeading,
   setHeading: setContextHeading,
   clearHeading: clearContextHeading
 } = useContentHeading(
   stickyHeadingEnabled,
   computed(() => `${workspaceRoot.value}/${state.currentContent?.id ?? ''}`)
 );
-
-const handleTitleFocus = () => {
-  const wasShowingHeading = showHeading.value;
-  titleFocused.value = true;
-  if (wasShowingHeading)
-    nextTick(() => {
-      if (titleFocused.value) titleInputRef.value?.select();
-    });
-};
-
-const handleTitleBlur = () => {
-  commitTitleChange();
-  titleFocused.value = false;
-};
 
 // 编辑器视图模式状态
 const editorViewMode = ref<'reading' | 'preview' | 'source'>('preview');
@@ -1091,10 +1014,15 @@ const handleTagsChange = (newTags: string[]) => {
   debouncedSave();
 };
 
+interface ContentSaveOptions {
+  updateRoute?: boolean;
+  preserveFilename?: boolean;
+}
+
 // 保存内容的核心逻辑（提取公共部分）
 const performSaveNow = async (
   data: Partial<ContentType> = {},
-  options: { updateRoute?: boolean } = {}
+  options: ContentSaveOptions = {}
 ) => {
   if (!state.currentContent) return;
 
@@ -1163,6 +1091,7 @@ const performSaveNow = async (
   // 准备 API 参数（category_id 转换为 null 而不是 undefined）
   const apiParams = {
     ...updateParams,
+    preserveFilename: options.preserveFilename,
     category_id: saveSnapshot.category_id ?? null
   };
 
@@ -1284,7 +1213,7 @@ const performSaveNow = async (
 // Serialize explicit saves and route saves against the latest committed baseline.
 const performSave = async (
   data: Partial<ContentType> = {},
-  options: { updateRoute?: boolean } = {}
+  options: ContentSaveOptions = {}
 ) => {
   while (pendingSave) await pendingSave;
   const operation = performSaveNow(data, options);
@@ -1411,6 +1340,36 @@ const saveContent = async (data: Partial<ContentType> = {}) => {
 const handleContentMenuCommand = async (command: string) => {
   if (!state.currentContent) return;
 
+  if (command === 'openWith' || command === 'delete') {
+    if (state.isLoading || state.isInitializing) return;
+
+    if (command === 'delete') {
+      window.dispatchEvent(
+        new CustomEvent('sidebar-content-action', {
+          detail: { action: 'delete', content: state.currentContent }
+        })
+      );
+      return;
+    }
+
+    const path = resolveWorkspaceFilePath(
+      String(state.currentContent.id),
+      workspaceRoot.value
+    );
+    if (!path) {
+      modal.warning(t('workbenchHome.workspaceNotSet'));
+      return;
+    }
+
+    try {
+      await openFileWithOtherWays(path);
+    } catch (error) {
+      logger.error('[Content] Opening the app chooser failed:', error);
+      modal.error(t('content.openWithFailed'));
+    }
+    return;
+  }
+
   if (command === 'copyNoteLink' && currentEditorType.value === 'note') {
     await copyNoteLink();
     return;
@@ -1420,8 +1379,8 @@ const handleContentMenuCommand = async (command: string) => {
     toggleOutline();
     return;
   }
-  if (command === 'addTag' && currentEditorType.value === 'note') {
-    showTagEditor.value = true;
+  if (command === 'addTag') {
+    if (!state.isInitializing) isAddingTag.value = true;
     return;
   }
   if (command === 'aiAssist') {
@@ -1508,24 +1467,11 @@ const saveContentWithoutBacklinkCheck = async (
   }
 };
 
-// 处理内容变更的通用函数
-const handleContentChange = (
-  value: string,
-  field: 'title' | 'content',
-  currentValue?: string
-) => {
-  if (state.isInitializing) return;
-
-  if (value !== currentValue) {
-    if (field === 'title') {
-      draftTitle.value = value;
-      titleDirty.value = value.trim() !== state.title.trim();
-    } else {
-      state.editorContent = value;
-      state.contentChanged = true;
-      debouncedSave();
-    }
-  }
+const handleContentChange = (value: string): void => {
+  if (state.isInitializing || value === state.editorContent) return;
+  state.editorContent = value;
+  state.contentChanged = true;
+  debouncedSave();
 };
 
 const syncDraftTitleToState = () => {
@@ -1539,13 +1485,6 @@ const syncDraftTitleToState = () => {
     state.title = nextTitle;
     draftTitle.value = nextTitle;
   }
-};
-
-const handleTitleInput = (value: string) => {
-  if (state.isInitializing || showHeading.value) return;
-  draftTitle.value = value;
-  titleDirty.value = value.trim() !== state.title.trim();
-  scheduleDeferredEditorMount(600);
 };
 
 const rollbackTitleDraft = () => {
@@ -1570,8 +1509,6 @@ const commitTitleChange = () => {
     rollbackTitleDraft();
     return;
   }
-
-  if (state.isEditorDeferred) scheduleDeferredEditorMount(0);
 
   const original = originalTitle.value ?? state.currentContent?.title;
   draftTitle.value = nextTitle;
@@ -1819,18 +1756,89 @@ const applyAiContent = (content: string) => {
     const markdown = normalizeAiMarkdown(content);
     noteEditorRef.value?.setViewMode('preview');
     if (!noteEditorRef.value?.replaceDocument(markdown)) {
-      handleContentChange(markdown, 'content', state.editorContent);
+      handleContentChange(markdown);
     }
     return;
   }
-  handleContentChange(content, 'content', state.editorContent);
+  handleContentChange(content);
 };
 
-const applyAiTitle = (title: string) => {
+const applyTitle = (title: string) => {
   draftTitle.value = title;
   titleDirty.value = title.trim() !== state.title.trim();
   commitTitleChange();
 };
+
+async function changeTag(source: string, target: string | null): Promise<void> {
+  const id = state.currentContent?.id;
+  const root = workspaceRoot.value;
+  if (pendingSave) {
+    await pendingSave;
+    await nextTick();
+  }
+  const content = state.currentContent;
+  if (
+    !content ||
+    content.id !== id ||
+    workspaceRoot.value !== root ||
+    state.isInitializing ||
+    state.isLoading ||
+    pendingSave ||
+    saveIssue.value ||
+    draftTitle.value.trim() !== originalTitle.value
+  ) {
+    throw new Error(t('tags.changeUnavailable'));
+  }
+  const tags = replaceFragmentTag(state.tags, source, target);
+  if (!tags && !parseTags(content.tags)?.includes(source)) return;
+
+  debouncedSave.cancel();
+  const previousTags = state.tags;
+  const previousBody = state.editorContent;
+  const wasDirty = state.contentChanged;
+  state.isLoading = true;
+  state.tags = tags ?? [...previousTags];
+  const changedTags = state.tags;
+  state.contentChanged = true;
+  let saved = false;
+  try {
+    saved = Boolean(await performSave({}, { preserveFilename: true }));
+  } catch (error) {
+    if (state.currentContent?.id === content.id) {
+      if (state.tags === changedTags) {
+        state.tags = previousTags;
+        state.contentChanged = wasDirty || state.editorContent !== previousBody;
+      }
+      if (hasUnsavedChanges()) recordSaveFailure(error);
+      else persistDraft();
+    }
+    throw error;
+  } finally {
+    state.isLoading = false;
+    if (saved && state.contentChanged) debouncedSave();
+  }
+}
+
+const activeEditor = inject(contentEditorKey, null);
+watchEffect((onCleanup) => {
+  if (
+    !activeEditor ||
+    state.isInitializing ||
+    state.editorError ||
+    !state.currentContent
+  )
+    return;
+  activeEditor.value = {
+    id: state.currentContent.id,
+    title: draftTitle.value,
+    workspaceRoot: workspaceRoot.value,
+    rename: applyTitle,
+    changeTag
+  };
+  onCleanup(() => {
+    activeEditor.value = null;
+  });
+});
 
 const applyAiTags = (tags: string[]) => {
   handleTagsChange(tags);
@@ -1931,7 +1939,7 @@ const handleEditorChange = (value: string) => {
   if (state.isInitializing) return;
   // Undo can return to the saved text; compare against the current draft so it
   // also reaches the parent and does not get replaced by an outdated prop.
-  handleContentChange(value, 'content', state.editorContent);
+  handleContentChange(value);
 };
 
 // 处理 Wikilink 点击
@@ -2107,8 +2115,6 @@ const confirmCreateNote = async () => {
 // 按指定 ID 获取片段内容（用于外部变更重载，避免 route.params.id 与 state.currentContent.id 不一致）
 const fetchContentById = async (id: string) => {
   const loadGeneration = ++contentLoadGeneration;
-  cancelDeferredEditorMount();
-  state.isEditorDeferred = false;
   state.isInitializing = true;
   state.editorError = null;
   beginEditorLoading();
@@ -2164,8 +2170,6 @@ const fetchContentById = async (id: string) => {
 // 获取片段内容（使用 route.params.id）
 const fetchContent = async () => {
   const loadGeneration = ++contentLoadGeneration;
-  cancelDeferredEditorMount();
-  state.isEditorDeferred = false;
   state.isInitializing = true;
   state.editorError = null;
   beginEditorLoading();
@@ -2201,32 +2205,8 @@ const fetchContent = async () => {
       );
       restoreDraft();
 
-      const isNewEmptyContent =
-        parsedContent.title === 'New Fragment' &&
-        !parsedContent.content?.trim();
-
-      // 新建空内容先让标题输入框获得主线程；完整编辑器在用户输入停顿后挂载。
-      state.isEditorDeferred = isNewEmptyContent;
       await nextTick();
-      if (isNewEmptyContent) {
-        state.isInitializing = false;
-        scheduleDeferredEditorMount(900);
-      } else {
-        finishMountedEditorLoading();
-      }
-
-      // 如果是新建的内容，自动聚焦并选中标题输入框中的默认标题
-      if (parsedContent.title === 'New Fragment' && titleInputRef.value) {
-        nextTick(() => {
-          const inputElement =
-            titleInputRef.value?.$el?.querySelector('input') ||
-            titleInputRef.value?.input;
-          if (inputElement) {
-            inputElement.focus();
-            inputElement.select();
-          }
-        });
-      }
+      finishMountedEditorLoading();
     } else {
       resetMissingContentState(fragmentId);
       await goBackToContentList();
@@ -2284,7 +2264,7 @@ watch(
       beginEditorLoading();
     }
     if (newId !== oldId) {
-      showTagEditor.value = false;
+      isAddingTag.value = false;
       showAiAssist.value = false;
       showSelectionAiAssist.value = false;
       noteAiSelection = null;
@@ -2294,25 +2274,6 @@ watch(
     // 加载新内容（但不在初始化时执行，由 onMounted 处理）
     if (newId && oldId !== undefined) {
       await fetchContent();
-
-      // 只有在重命名操作时才聚焦标题输入框
-      if (route.query.rename === 'true') {
-        nextTick(() => {
-          if (titleInputRef.value) {
-            titleInputRef.value.focus();
-            // 选中所有文本
-            titleInputRef.value.select();
-          }
-        });
-
-        // 清除 query 参数，避免下次进入时误触发
-        const query = { ...route.query };
-        delete query.rename;
-        router.replace({
-          path: route.path,
-          query
-        });
-      }
     }
   }
   // 移除 immediate: true，改为在 onMounted 中手动调用 fetchContent
@@ -2362,18 +2323,42 @@ const handleRefreshData = async (event: Event) => {
   const customEvent = event as CustomEvent;
   const source = customEvent.detail?.source;
 
-  if (source === 'favorite-change') {
-    applyFavoriteChange(
-      state.currentContent,
-      customEvent.detail as FavoriteChangeDetail
-    );
-    persistDraft();
-    return;
-  }
-
   // Local create/rename events refresh navigation lists. The editor already
   // owns its latest state and must not reload its body in response.
   if (source === 'fragment-create' || source === 'fragment-rename') return;
+
+  if (source === 'closed-fragment-tags-changed') {
+    const id = state.currentContent?.id;
+    const changedIds: ContentType['id'][] = customEvent.detail.ids;
+    if (
+      id !== undefined &&
+      changedIds.some(
+        (changedId) =>
+          normalizePathForCompare(id) === normalizePathForCompare(changedId)
+      ) &&
+      !pendingSave &&
+      !hasUnsavedChanges()
+    )
+      await fetchContentById(String(id));
+    return;
+  }
+
+  if (source === 'delete-fragment') {
+    const deletedId = customEvent.detail.deletedId;
+    if (
+      state.currentContent &&
+      deletedId &&
+      getConfigContentPath(state.currentContent.id) ===
+        getConfigContentPath(deletedId)
+    ) {
+      debouncedSave.cancel();
+      persistDraft();
+      state.currentContent = null;
+      state.contentChanged = false;
+      titleDirty.value = false;
+    }
+    return;
+  }
 
   // git-pull 事件跳过，等待 files-changed-batch
   if (source === 'git-pull') return;
@@ -2500,6 +2485,8 @@ const saveBeforeNavigation = async (to: {
   params: Record<string, unknown>;
   query: Record<string, unknown>;
 }) => {
+  if (!state.currentContent) return true;
+
   if (
     to.query.skipReload === 'true' &&
     String(to.params.id) === String(state.currentContent?.id)
@@ -2524,7 +2511,6 @@ onBeforeRouteUpdate((to, from) =>
 );
 onBeforeUnmount(() => {
   contentLoadGeneration++;
-  cancelDeferredEditorMount();
   cancelEditorReadyTransition();
   debouncedSave.cancel();
   persistDraft();
@@ -2602,24 +2588,6 @@ onMounted(async () => {
       @apply flex flex-wrap items-center gap-0 min-h-10;
 
       min-width: 0;
-
-      .content-title-input {
-        @apply mt-2 w-full;
-
-        flex: 0 0 100%;
-        min-width: 0;
-
-        :deep(.el-input__wrapper) {
-          padding-right: var(--editor-content-padding-inline);
-          padding-left: var(--editor-content-padding-inline);
-        }
-      }
-
-      :deep(input) {
-        @apply box-border text-ui-title font-semibold text-panel;
-
-        text-overflow: ellipsis;
-      }
 
       .editor-controls {
         @apply flex shrink-0 items-center gap-0.5;

@@ -9,10 +9,18 @@
       :to="sidebarTarget"
     >
       <div class="left-panel__content">
+        <TagContentList
+          v-if="route.query.view === 'tags'"
+          v-model:expanded="expandedTags"
+          :groups="tagGroups"
+          :moving="movingTag"
+          :change-tags="changeContentTags"
+          @move-tag="moveContentTag"
+        />
         <ContentListView
+          v-else
           :contents="contents"
           @delete="handleDelete"
-          @toggle-favorite="handleToggleFavorite"
           @change-category="handleChangeCategory"
           @convert-type="handleConvertType"
         />
@@ -26,6 +34,35 @@
       />
       <router-view v-else />
     </div>
+
+    <PromptDialog
+      class="content-name-dialog"
+      v-model="showCreateDialog"
+      :title="
+        t(creationType === 'note' ? 'nav.newNote' : 'fragmentType.newSnippet')
+      "
+      :message="t('fragmentType.nameHint')"
+      :initial-value="
+        t(
+          creationType === 'note'
+            ? 'fragmentType.untitledNote'
+            : 'fragmentType.untitledSnippet'
+        )
+      "
+      :placeholder="
+        t(
+          creationType === 'note'
+            ? 'fragmentType.noteName'
+            : 'fragmentType.snippetName'
+        )
+      "
+      :confirm-text="t('common.create')"
+      :loading="isCreating"
+      width="min(420px, calc(100vw - 32px))"
+      required
+      select-on-open
+      @confirm="confirmCreation"
+    />
 
     <!-- Delete Confirmation Dialog -->
     <ConfirmDialog
@@ -93,10 +130,12 @@ import { useI18n } from 'vue-i18n';
 import type { Ref } from 'vue';
 import {
   ConfirmDialog,
+  PromptDialog,
   SelectConfirmDialog,
   BacklinkUpdateDialog
 } from '@/components/UI';
 import ContentListView from './components/ContentListView.vue';
+import TagContentList from './components/TagContentList.vue';
 import DeletedNotesView from './components/DeletedNotesView.vue';
 import { useContentList } from './composables/useContentList';
 import { useContentDialogs } from './composables/useContentDialogs';
@@ -121,6 +160,10 @@ const sidebarTarget = inject<Ref<HTMLElement | null>>(
   'categorySidebarTarget',
   shallowRef(null)
 );
+const expandedTags = inject<Ref<Set<string>>>(
+  'categoryExpandedTags',
+  ref(new Set<string>())
+);
 const { t } = useI18n();
 
 defineOptions({
@@ -128,11 +171,7 @@ defineOptions({
 });
 
 // 使用内容列表 Composable
-const {
-  contents,
-  queryFragments,
-  toggleContentFavorite: handleToggleFavorite
-} = useContentList();
+const { contents, tagGroups, queryFragments } = useContentList();
 
 // 使用对话框 Composable
 const {
@@ -144,7 +183,14 @@ const {
   typeConversionTargetType,
   selectedCategoryId,
   backlinkStats,
-  handleTypeConfirm,
+  showCreateDialog,
+  creationType,
+  isCreating,
+  confirmCreation,
+  movingTag,
+  moveContentTag,
+  changeContentTags,
+  openCreateDialog,
   handleDelete,
   confirmDelete,
   confirmDeleteWithBacklinks,
@@ -174,11 +220,6 @@ const refreshHandler = getDebouncedHandler('contentList-refresh', 200);
 // 监听数据刷新事件（Git Pull 完成后的无感刷新）
 const handleRefreshData = async (event: Event) => {
   const customEvent = event as CustomEvent;
-
-  if (customEvent.detail?.source === 'favorite-change') {
-    await queryFragments(route.params.cid as string | undefined);
-    return;
-  }
 
   // 使用防抖处理，避免重复刷新
   await refreshHandler.handle(async () => {
@@ -242,7 +283,6 @@ function handleSidebarContentAction(event: Event): void {
     }>
   ).detail;
   if (action === 'delete') handleDelete(content);
-  else if (action === 'toggle-favorite') void handleToggleFavorite(content);
   else if (action === 'change-category') handleChangeCategory(content);
   else if (action === 'convert-type' && targetType)
     handleConvertType(content, targetType);
@@ -252,10 +292,12 @@ watch(
   () => route.query.create,
   async (value) => {
     if (value !== 'note' && value !== 'code') return;
+    const cid = String(route.query.createIn ?? route.params.cid ?? '');
     const query = { ...route.query };
     delete query.create;
-    await router.replace({ path: route.path, query });
-    await handleTypeConfirm(value);
+    delete query.createIn;
+    const failure = await router.replace({ path: route.path, query });
+    if (!failure) openCreateDialog(value, cid);
   },
   { immediate: true }
 );
@@ -272,5 +314,34 @@ watch(
 
 .right-panel {
   @apply h-full w-full min-w-0 max-w-full overflow-hidden bg-panel dark:bg-panel;
+}
+</style>
+
+<style lang="scss">
+.el-dialog.content-name-dialog {
+  @apply p-5;
+
+  border-radius: 20px !important;
+
+  .el-dialog__header {
+    @apply pb-1;
+
+    .el-dialog__title {
+      font-size: 20px !important;
+    }
+  }
+
+  .el-input__wrapper {
+    @apply min-h-9 rounded-lg;
+  }
+
+  .custom-button {
+    @apply min-w-16 rounded-lg;
+  }
+
+  .custom-button--primary {
+    color: var(--dialog-bg);
+    background: var(--dialog-text);
+  }
 }
 </style>

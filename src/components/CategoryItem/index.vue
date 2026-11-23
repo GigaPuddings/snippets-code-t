@@ -107,7 +107,6 @@
           :content="content"
           :category-id="category.id"
           @delete="dispatchContentAction('delete', content)"
-          @toggle-favorite="dispatchContentAction('toggle-favorite', content)"
           @change-category="dispatchContentAction('change-category', content)"
           @convert-type="
             (_, targetType) =>

@@ -177,6 +177,18 @@ export function parseTags(tags: unknown): string[] | undefined {
   return undefined;
 }
 
+export function replaceFragmentTag(
+  tags: ContentType['tags'],
+  source: string,
+  target: string | null
+): string[] | undefined {
+  const current = parseTags(tags);
+  if (source === target || !current?.includes(source)) return undefined;
+  return target === null || current.includes(target)
+    ? current.filter((tag) => tag !== source)
+    : [...new Set(current.map((tag) => (tag === source ? target : tag)))];
+}
+
 /**
  * 将代码内容转换为笔记格式（包装在代码块中）
  *

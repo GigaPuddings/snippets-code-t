@@ -7,8 +7,10 @@
       tabindex="0"
       :aria-label="content.title"
       :aria-current="isActive ? 'page' : undefined"
-      draggable="true"
+      :draggable="!renameEditor"
       @click.prevent="handleClick"
+      @dblclick.prevent="startRename"
+      @keydown.f2.prevent="startRename"
       @keydown.enter.prevent="handleClick"
       @keydown.space.prevent="handleClick"
       @dragstart="handleDragStart"
@@ -22,17 +24,20 @@
           class="shrink-0"
           :title="fragmentTypeLabel"
         />
-        <span class="min-w-0 flex-1 truncate" :title="content.title">
+        <input
+          v-if="renameEditor"
+          ref="renameInput"
+          class="h-6 min-w-0 flex-1 select-text rounded border border-active bg-panel px-1 text-panel outline-none"
+          :aria-label="t('contentItem.rename')"
+          @click.stop
+          @dblclick.stop
+          @contextmenu.stop
+          @keydown.stop="handleRenameKey"
+          @blur="finishRename(true)"
+        />
+        <span v-else class="min-w-0 flex-1 truncate" :title="content.title">
           {{ content.title }}
         </span>
-        <Star
-          v-if="content.favorite"
-          width="13"
-          height="13"
-          class="app-icon--filled shrink-0 text-[var(--workspace-nav-muted)]"
-          :title="t('nav.favorited')"
-          :aria-label="t('nav.favorited')"
-        />
       </main>
     </div>
   </ContextMenu>
@@ -46,14 +51,17 @@ import Notebook from '~icons/lucide/notebook';
 import FileCodeOne from '~icons/lucide/file-code';
 import FolderOpen from '~icons/lucide/folder-open';
 import FileConversion from '~icons/lucide/replace';
-import Star from '~icons/lucide/star';
 import type { Component } from 'vue';
+import { contentEditorKey } from './contentEditor';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { ErrorHandler, ErrorType } from '@/utils/error-handler';
-import { invoke } from '@tauri-apps/api/core';
 import { getWorkspaceRoot } from '@/api/markdown';
 import modal from '@/utils/modal';
+import {
+  resolveWorkspaceFilePath,
+  revealFileInFolder
+} from '@/utils/file-system';
 import {
   getConfigContentPath,
   navigateConfigRoute
@@ -71,6 +79,7 @@ interface ContentItemProps {
   /** 内容项数据 */
   content: ContentType;
   categoryId?: string | number;
+  sourceTag?: string;
 }
 
 /**
@@ -83,7 +92,7 @@ interface ContentItemEmits {
   (e: 'changeCategory', content: ContentType): void;
   /** 转换内容类型 */
   (e: 'convertType', content: ContentType, targetType: 'code' | 'note'): void;
-  (e: 'toggle-favorite', content: ContentType): void;
+  (e: 'removeTag', content: ContentType): void;
 }
 
 /**
@@ -109,48 +118,51 @@ defineOptions({
   name: 'ContentItem'
 });
 
-const menu = computed<MenuItem[]>(() => [
-  {
-    label: t(content.value.favorite ? 'nav.removeFavorite' : 'nav.addFavorite'),
-    type: 'toggleFavorite',
-    icon: Star
-  },
-  {
+const menu = computed<MenuItem[]>(() => {
+  const showInExplorer = {
     label: t('contentItem.showInExplorer'),
     type: 'showInExplorer',
     icon: FolderOpen
-  },
-  {
-    label: t('contentItem.changeCategory'),
-    type: 'edit',
-    icon: CategoryManagement
-  },
-  {
-    label:
-      content.value.type === 'note'
-        ? t('category.convertToCode')
-        : t('category.convertToNote'),
-    type: 'convertType',
-    icon: FileConversion
-  },
-  {
-    label: t('contentItem.rename'),
-    type: 'rename',
-    icon: EditTwo
-  },
-  {
-    label: t('contentItem.delete'),
-    type: 'delete',
-    icon: DeleteFour
+  };
+  if (props.sourceTag) {
+    return [
+      showInExplorer,
+      { label: t('tags.remove'), type: 'delete', icon: DeleteFour }
+    ];
   }
-]);
+  return [
+    showInExplorer,
+    {
+      label: t('contentItem.changeCategory'),
+      type: 'edit',
+      icon: CategoryManagement
+    },
+    {
+      label:
+        content.value.type === 'note'
+          ? t('category.convertToCode')
+          : t('category.convertToNote'),
+      type: 'convertType',
+      icon: FileConversion
+    },
+    {
+      label: t('contentItem.rename'),
+      type: 'rename',
+      icon: EditTwo
+    },
+    {
+      label: t('contentItem.delete'),
+      type: 'delete',
+      icon: DeleteFour
+    }
+  ];
+});
 
 const isActive = computed(() => {
   const routeId = route.params.id as string | undefined;
   if (!routeId) return false;
-  const currentId = content.value.id as string;
-  // route.params.id 为 encodeURIComponent 编码，需解码后比较；路径统一为 / 以便跨平台一致
-  const normalizedRouteId = decodeURIComponent(routeId).replace(/\\/g, '/');
+  const currentId = String(content.value.id);
+  const normalizedRouteId = routeId.replace(/\\/g, '/');
   const normalizedContentId = currentId.replace(/\\/g, '/');
   return normalizedRouteId === normalizedContentId;
 });
@@ -159,6 +171,57 @@ const fragmentTypeLabel = computed(() => {
   const type = content.value.type || 'code';
   return type === 'note' ? t('contentItem.note') : t('contentItem.codeSnippet');
 });
+
+const activeEditor = inject(contentEditorKey, null);
+const editingId = ref<ContentType['id'] | null>(null);
+const renameInput = ref<HTMLInputElement | null>(null);
+const renameEditor = computed(() => {
+  const editor = activeEditor?.value;
+  return isActive.value &&
+    editingId.value === content.value.id &&
+    editor &&
+    getConfigContentPath(editor.id) === getConfigContentPath(content.value.id)
+    ? editor
+    : null;
+});
+
+watch(
+  renameInput,
+  (input) => {
+    if (!input || !renameEditor.value) return;
+    input.value = renameEditor.value.title;
+    input.focus();
+    input.select();
+  },
+  { flush: 'post' }
+);
+
+watch([() => content.value.id, isActive], () => {
+  editingId.value = null;
+});
+
+async function startRename(): Promise<void> {
+  const id = content.value.id;
+  // Keep the originating row mounted, including Recent and quick-access lists.
+  await openContent();
+  if (isActive.value && content.value.id === id) editingId.value = id;
+}
+
+function finishRename(commit: boolean): void {
+  const editor = renameEditor.value;
+  const title = renameInput.value?.value.trim();
+  editingId.value = null;
+  if (commit && title && editor && title !== editor.title) editor.rename(title);
+}
+
+function handleRenameKey(event: KeyboardEvent): void {
+  if (event.isComposing || (event.key !== 'Enter' && event.key !== 'Escape'))
+    return;
+  event.preventDefault();
+  const row = renameInput.value?.closest<HTMLElement>('[role="link"]');
+  finishRename(event.key === 'Enter');
+  row?.focus();
+}
 
 const createDragPreview = (source: HTMLElement): HTMLElement => {
   const preview = document.createElement('div');
@@ -183,7 +246,9 @@ const createDragPreview = (source: HTMLElement): HTMLElement => {
 /**
  * 处理点击事件
  */
-const handleClick = async (): Promise<void> => {
+const handleClick = (): Promise<void> => openContent(props.categoryId);
+
+const openContent = async (categoryId?: string | number): Promise<void> => {
   try {
     // 如果已经在当前内容，不做任何操作
     if (isActive.value) {
@@ -191,7 +256,7 @@ const handleClick = async (): Promise<void> => {
     }
 
     // 获取当前的 cid（保持当前分类上下文）
-    const currentCid = props.categoryId ?? route.params.cid;
+    const currentCid = categoryId ?? route.params.cid;
 
     // 构建路由路径，始终保持当前的 cid
     const targetPath = getConfigContentPath(content.value.id, currentCid);
@@ -201,8 +266,8 @@ const handleClick = async (): Promise<void> => {
       {
         path: targetPath,
         query:
-          props.categoryId === undefined && route.query.view
-            ? { view: route.query.view }
+          categoryId === undefined && route.query.view === 'tags'
+            ? { view: 'tags' }
             : {},
         replace: true
       },
@@ -226,7 +291,8 @@ const handleDragStart = (event: DragEvent): void => {
   const payload = {
     id: content.value.id,
     title: content.value.title,
-    categoryId: content.value.category_id
+    categoryId: content.value.category_id,
+    sourceTag: props.sourceTag
   };
   isDragging.value = true;
   setActiveFragmentDrag(payload);
@@ -260,41 +326,22 @@ onBeforeUnmount(handleDragEnd);
 const handleContextMenu = async (item: MenuItem): Promise<void> => {
   try {
     if (item.type === 'showInExplorer') {
-      // 在文件资源管理器中显示
+      const rawPath = String(content.value.id);
       const workspaceRoot = await getWorkspaceRoot();
-      if (!workspaceRoot) {
+      const fullPath = resolveWorkspaceFilePath(rawPath, workspaceRoot);
+      if (!fullPath) {
         modal.warning(t('workbenchHome.workspaceNotSet'));
         return;
       }
-      const rawPath = content.value.id as string;
-      // 判断是否为绝对路径
-      const isAbsolute = /^[a-zA-Z]:[/\\]/.test(rawPath);
-      // 拼接为绝对路径，统一用反斜杠（Windows 兼容）
-      let fullPath = isAbsolute ? rawPath : `${workspaceRoot}\\${rawPath}`;
-      // explorer /select 需要 Windows 风格的反斜杠路径
-      await invoke('show_file_in_folder', { filePath: fullPath });
+      if (props.sourceTag && rawPath === String(content.value.id)) {
+        await openContent();
+      }
+      await revealFileInFolder(fullPath.replace(/\//g, '\\'));
     } else if (item.type === 'rename') {
-      // 重命名时，通过 query 参数传递标识
-      // 获取当前的 cid（保持当前分类上下文）
-      const currentCid = props.categoryId ?? route.params.cid;
-
-      // 构建正确的路由路径，始终保持当前的 cid
-      const targetPath = getConfigContentPath(content.value.id, currentCid);
-
-      await navigateConfigRoute(router, {
-        path: targetPath,
-        query: {
-          ...(props.categoryId === undefined && route.query.view
-            ? { view: route.query.view }
-            : {}),
-          rename: 'true'
-        }
-      });
+      await startRename();
     } else if (item.type === 'delete') {
-      // 触发删除事件，让父组件处理
-      emit('delete', content.value);
-    } else if (item.type === 'toggleFavorite') {
-      emit('toggle-favorite', content.value);
+      if (props.sourceTag) emit('removeTag', content.value);
+      else emit('delete', content.value);
     } else if (item.type === 'edit') {
       // 触发更改分类事件，让父组件处理
       emit('changeCategory', content.value);

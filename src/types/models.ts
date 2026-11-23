@@ -57,8 +57,6 @@ export interface ContentType {
   updated_at?: string;
   /** 使用次数 */
   usage_count?: number;
-  /** 收藏状态 */
-  favorite?: boolean;
 }
 
 /**
@@ -197,8 +195,6 @@ export interface MarkdownFile {
   framework?: string;
   /** 片段语义类型 */
   kind?: string;
-  /** 是否收藏 */
-  favorite: boolean;
   /** 文件路径 */
   filePath: string;
   /** 搜索相关度分数（后端提供，可选） */

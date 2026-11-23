@@ -28,25 +28,16 @@
       </div>
     </router-link>
     <router-link
-      to="/config/category/contentList?view=favorites"
+      to="/config/category/contentList?view=tags"
       class="ui-menu-item mb-ui-row-gap h-ui-row px-3 truncate"
-      :class="{ active: activeView === 'favorites' }"
-      :aria-current="activeView === 'favorites' ? 'page' : undefined"
+      :class="{ active: activeView === 'tags' }"
+      :aria-current="activeView === 'tags' ? 'page' : undefined"
       replace
-      @click="$emit('open', 'favorites')"
+      @click="$emit('open', 'tags')"
     >
       <div class="quick-nav-item">
-        <Star class="quick-nav-item-icon" width="16" height="16" />
-        <div class="quick-nav-item-title">{{ $t('nav.favorites') }}</div>
-        <span
-          v-if="
-            activeView === 'favorites' && favoriteCount && favoriteCount > 0
-          "
-          class="ml-auto flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-[var(--workspace-nav-bg)] px-1 text-ui-caption tabular-nums text-[var(--workspace-nav-text)]"
-          :aria-label="$t('nav.favoriteCount', { count: favoriteCount })"
-        >
-          {{ favoriteCount }}
-        </span>
+        <Tags class="quick-nav-item-icon" width="16" height="16" />
+        <div class="quick-nav-item-title">{{ $t('tags.tags') }}</div>
       </div>
     </router-link>
     <router-link
@@ -68,14 +59,14 @@
 <script setup lang="ts">
 import AllApplication from '~icons/lucide/layout-grid';
 import Inbox from '~icons/lucide/inbox';
-import Star from '~icons/lucide/star';
+import Tags from '~icons/lucide/tags';
 import DeleteFour from '~icons/lucide/trash-2';
 defineOptions({
   name: 'QuickNav'
 });
 
-type QuickView = 'folders' | 'all' | 'uncategorized' | 'favorites' | 'trash';
-defineProps<{ activeView: QuickView; favoriteCount?: number | null }>();
+type QuickView = 'folders' | 'all' | 'uncategorized' | 'tags' | 'trash';
+defineProps<{ activeView: QuickView }>();
 defineEmits<{ (e: 'open', view: QuickView): void }>();
 </script>
 

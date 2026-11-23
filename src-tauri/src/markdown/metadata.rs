@@ -56,7 +56,7 @@ impl Default for CacheConfig {
 //
 // 设计原则：cache.json 只作为文件系统索引（id、时间戳、大小、hash），
 // 用于快速判断文件是否存在/是否变更，以及按日期排序。
-// tags/type/language/favorite 等内容元数据统一存储在各 .md 文件的
+// tags/type/language 等内容元数据统一存储在各 .md 文件的
 // Frontmatter 中，避免双重存储带来的一致性问题。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileMetadata {
@@ -158,9 +158,6 @@ pub struct FrontMatter {
     // 片段语义类型（如 component、hook、style、api、regex、error-fix）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub kind: Option<String>,
-    // 是否收藏
-    #[serde(default)]
-    pub favorite: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -253,7 +250,6 @@ pub fn read_front_matter_metadata(mut reader: impl BufRead) -> Result<Option<Fro
 // created: "2024-01-01T00:00:00Z"
 // modified: "2024-01-01T00:00:00Z"
 // type: "note"
-// favorite: false
 // ---
 //
 // # Content here
@@ -306,7 +302,7 @@ mod metadata_reader_tests {
     use super::*;
     use std::io::Cursor;
 
-    const HEADER: &str = "---\nid: note-id\ntitle: 架构文档\ncreated: '2026-10-07'\nmodified: '2026-10-07'\ntype: note\nfavorite: true\n---\n";
+    const HEADER: &str = "---\nid: note-id\ntitle: 架构文档\ncreated: '2026-10-07'\nmodified: '2026-10-07'\ntype: note\n---\n";
 
     #[test]
     fn markdown_body_keeps_indentation_blank_lines_and_hard_breaks() {
@@ -348,7 +344,6 @@ mod metadata_reader_tests {
         let mut cursor = Cursor::new(document.as_bytes());
         let metadata = read_front_matter_metadata(&mut cursor).unwrap().unwrap();
         assert_eq!(metadata.title, "架构文档");
-        assert!(metadata.favorite);
         assert_eq!(cursor.position() as usize, HEADER.len());
     }
 

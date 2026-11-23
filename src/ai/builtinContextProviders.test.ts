@@ -18,7 +18,6 @@ const markdownFile = (overrides: Partial<MarkdownFile> = {}): MarkdownFile => ({
   created: '2026-01-01T00:00:00.000Z',
   modified: '2026-01-01T00:00:00.000Z',
   type: 'note',
-  favorite: false,
   filePath: 'notes/router.md',
   score: 0.92,
   ...overrides

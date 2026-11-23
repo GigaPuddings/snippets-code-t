@@ -44,7 +44,7 @@ pub struct MarkdownFile {
     pub framework: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub kind: Option<String>,
-    pub favorite: bool,
+
     #[serde(rename = "filePath")]
     pub file_path: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -88,7 +88,6 @@ impl MarkdownFile {
             language: metadata.language,
             framework: metadata.framework,
             kind: metadata.kind,
-            favorite: metadata.favorite,
             file_path: file_path.to_string_lossy().to_string(),
             score: None,
         }
@@ -100,16 +99,6 @@ fn get_fs_manager(app_handle: &AppHandle) -> Result<FileSystemManager, String> {
     let workspace_root =
         get_workspace_root(app_handle)?.ok_or("工作区未配置，请先设置工作区根目录")?;
     Ok(FileSystemManager::new(workspace_root))
-}
-
-fn favorite_after_metadata_update(
-    metadata: &serde_json::Value,
-    current: Option<&FrontMatter>,
-) -> bool {
-    metadata
-        .get("favorite")
-        .and_then(|value| value.as_bool())
-        .unwrap_or_else(|| current.is_some_and(|fm| fm.favorite))
 }
 
 fn compute_content_hash(content: &str) -> u64 {
@@ -353,11 +342,6 @@ pub async fn create_markdown_file(
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
 
-    let favorite = metadata
-        .get("favorite")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
-
     // 生成 ID 和时间戳
     let id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Utc::now();
@@ -375,7 +359,6 @@ pub async fn create_markdown_file(
         language: language.clone(),
         framework: framework.clone(),
         kind: kind.clone(),
-        favorite,
     };
 
     // 创建文件（Front Matter 与正文）
@@ -454,7 +437,6 @@ pub fn read_markdown_file(
         language,
         framework,
         kind,
-        favorite,
         document_id,
         ai_source,
     ) = {
@@ -470,7 +452,6 @@ pub fn read_markdown_file(
                 fm.language,
                 fm.framework,
                 fm.kind,
-                fm.favorite,
                 Some(fm.id),
                 fm.ai_source,
             )
@@ -526,7 +507,6 @@ pub fn read_markdown_file(
                 None,
                 None,
                 None,
-                false,
                 Some(id),
                 None,
             )
@@ -556,7 +536,6 @@ pub fn read_markdown_file(
         language,
         framework,
         kind,
-        favorite,
         file_path: file_path.clone(),
         score: None,
     })
@@ -774,6 +753,7 @@ pub async fn update_markdown_file(
             .get("title")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string())
+            .or_else(|| current_frontmatter.as_ref().map(|fm| fm.title.clone()))
             .unwrap_or_else(|| {
                 path.file_stem()
                     .and_then(|s| s.to_str())
@@ -825,7 +805,6 @@ pub async fn update_markdown_file(
                 .get("kind")
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string()),
-            favorite: favorite_after_metadata_update(meta, current_frontmatter.as_ref()),
         })
     } else {
         None
@@ -1434,7 +1413,6 @@ fn list_files_by_category(
                                 language: fm.language,
                                 framework: fm.framework,
                                 kind: fm.kind,
-                                favorite: fm.favorite,
                                 file_path: path.to_string_lossy().to_string(),
                                 score: None,
                             });
@@ -1476,7 +1454,6 @@ fn list_files_by_category(
                                 language: None,
                                 framework: None,
                                 kind: None,
-                                favorite: false,
                                 file_path: path.to_string_lossy().to_string(),
                                 score: None,
                             });
@@ -1519,132 +1496,25 @@ fn list_files_by_category(
     Ok(files)
 }
 
-// ============= 收藏操作命令 =============
-
-// 切换收藏状态
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FavoriteSaveResult {
-    previous_revision: String,
-    content_revision: String,
-}
-
-#[command]
-pub async fn toggle_favorite(
-    app_handle: AppHandle,
-    file_path: String,
-    favorite: bool,
-    index_manager: State<'_, Arc<RwLock<Option<IndexManager>>>>,
-    _watcher: State<'_, Arc<Mutex<Option<FileWatcher>>>>,
-    cache_manager: State<'_, Arc<RwLock<CacheManager>>>,
-) -> Result<FavoriteSaveResult, String> {
-    let fs_manager = get_fs_manager(&app_handle)?;
-    set_file_favorite(
-        &fs_manager,
-        Path::new(&file_path),
-        favorite,
-        &index_manager,
-        &cache_manager,
-    )
-}
-
-fn set_file_favorite(
-    fs_manager: &FileSystemManager,
-    file_path: &Path,
-    favorite: bool,
-    index_manager: &RwLock<Option<IndexManager>>,
-    cache_manager: &RwLock<CacheManager>,
-) -> Result<FavoriteSaveResult, String> {
-    let workspace_root = fs_manager.workspace_root();
-    let path = if file_path.is_absolute() {
-        file_path.to_path_buf()
-    } else {
-        workspace_root.join(file_path)
-    };
-
-    // Disk metadata is authoritative. Failed reads/writes must reach the UI.
-    let raw = fs_manager.read_markdown_file_content(&path)?;
-    let previous_revision = super::safe_write::revision(raw.as_bytes());
-    let mut fm = match crate::markdown::metadata::parse_front_matter(&raw) {
-        Ok((metadata, _)) => metadata,
-        Err(_) => {
-            // Imported Markdown remains read-only until the first real edit.
-            // Reuse the existing fallback, preserving any cached identity.
-            let (mut metadata, _) = fs_manager.read_markdown_file(&path)?;
-            let relative = get_relative_path(workspace_root, &path)?;
-            let cache = cache_manager.read().map_err(|e| e.to_string())?;
-            if let Some(cached) = cache.get_file_metadata(&relative) {
-                metadata.id = cached.id.clone();
-                if let Some(created) = chrono::DateTime::from_timestamp_millis(cached.created) {
-                    metadata.created = created.to_rfc3339();
-                }
-            }
-            metadata
-        }
-    };
-    fm.favorite = favorite;
-    fm.modified = chrono::Utc::now().to_rfc3339();
-    let content_revision = fs_manager.update_markdown_file_checked(
-        &path,
-        None,
-        Some(&fm),
-        Some(&previous_revision),
-    )?;
-
-    // Release the cache write lock before updating the search index. The old
-    // command acquired a cache read lock while still holding this write lock.
-    let cache_result = (|| -> Result<(), String> {
-        let cache_snapshot = {
-            let mut cache = cache_manager
-                .write()
-                .map_err(|e| format!("获取 cache 锁失败: {}", e))?;
-            cache.update_file(&path, workspace_root)?;
-            cache.save()?;
-            cache.clone()
-        };
-
-        let manager_lock = index_manager
-            .read()
-            .map_err(|e| format!("获取索引锁失败: {}", e))?;
-        if let Some(manager) = manager_lock.as_ref() {
-            manager.update_entry(&path, workspace_root, &cache_snapshot)?;
-        }
-        Ok(())
-    })();
-    if let Err(error) = cache_result {
-        warn!("收藏已保存，缓存更新失败: {}", error);
-    }
-
-    info!("✅ 切换收藏状态: {} -> {}", path.display(), favorite);
-    Ok(FavoriteSaveResult {
-        previous_revision,
-        content_revision,
-    })
-}
-
 #[cfg(test)]
-mod favorite_tests {
+mod markdown_file_tests {
     use super::*;
     use crate::markdown::metadata::format_frontmatter_block;
-    use std::sync::mpsc;
-    use std::time::Duration;
 
     struct Workspace {
         root: PathBuf,
         fs: FileSystemManager,
-        cache: RwLock<CacheManager>,
-        index: RwLock<Option<IndexManager>>,
     }
 
     impl Workspace {
         fn new() -> Self {
-            let root = std::env::temp_dir()
-                .join(format!("snippets-favorite-test-{}", uuid::Uuid::new_v4()));
+            let root = std::env::temp_dir().join(format!(
+                "snippets-markdown-file-test-{}",
+                uuid::Uuid::new_v4()
+            ));
             std::fs::create_dir_all(&root).unwrap();
             Self {
                 fs: FileSystemManager::new(root.clone()),
-                cache: RwLock::new(CacheManager::new_silent(root.join(".snippets-code")).unwrap()),
-                index: RwLock::new(Some(IndexManager::new())),
                 root,
             }
         }
@@ -1661,7 +1531,6 @@ mod favorite_tests {
                 language: Some("typescript".to_string()),
                 framework: Some("vue".to_string()),
                 kind: Some("component".to_string()),
-                favorite: false,
             };
             let path = self.root.join(name);
             std::fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -1686,7 +1555,7 @@ mod favorite_tests {
                 .file_name()
                 .unwrap()
                 .to_string_lossy()
-                .starts_with("snippets-favorite-test-"));
+                .starts_with("snippets-markdown-file-test-"));
             let _ = std::fs::remove_dir_all(&self.root);
         }
     }
@@ -1937,97 +1806,7 @@ mod favorite_tests {
     }
 
     #[test]
-    fn favoriting_an_imported_plain_markdown_keeps_its_body_and_revision() {
-        let workspace = Workspace::new();
-        let path = workspace.root.join("imported.md");
-        let body = "\r\n  imported  \r\n";
-        std::fs::write(&path, body).unwrap();
-        let result = set_file_favorite(
-            &workspace.fs,
-            &path,
-            true,
-            &workspace.index,
-            &workspace.cache,
-        )
-        .unwrap();
-        assert_eq!(
-            result.previous_revision,
-            super::super::safe_write::revision(body.as_bytes())
-        );
-        assert_eq!(
-            result.content_revision,
-            super::super::safe_write::revision(&std::fs::read(&path).unwrap())
-        );
-        let (metadata, saved_body) = workspace.fs.read_markdown_file(&path).unwrap();
-        assert!(metadata.favorite);
-        assert_eq!(saved_body, body);
-    }
-
-    #[test]
-    fn persists_both_types_and_refreshes_index_without_relocking_cache() {
-        let (sender, receiver) = mpsc::channel();
-        let worker = std::thread::spawn(move || {
-            let workspace = Workspace::new();
-            let suffix = "\r\n\r\n    indented code\r\n\r\n";
-            for file_type in ["note", "code"] {
-                let path = workspace.write(&format!("Docs/{file_type}.md"), file_type, suffix);
-                for favorite in [true, true, false] {
-                    set_file_favorite(
-                        &workspace.fs,
-                        &path,
-                        favorite,
-                        &workspace.index,
-                        &workspace.cache,
-                    )
-                    .unwrap();
-                    let (metadata, _) = workspace.fs.read_markdown_file(&path).unwrap();
-                    assert_eq!(metadata.favorite, favorite);
-                    assert_eq!(metadata.fragment_type, file_type);
-                    assert_eq!(metadata.created, "2026-01-01T00:00:00Z");
-                    assert_eq!(metadata.language.as_deref(), Some("typescript"));
-                    assert_eq!(metadata.framework.as_deref(), Some("vue"));
-                    assert_eq!(metadata.tags, vec!["keep"]);
-                    let raw = std::fs::read_to_string(&path).unwrap();
-                    let closing = 3 + raw[3..].find("\n---").unwrap();
-                    assert_eq!(&raw[closing + 4..], suffix);
-                    let indexed = workspace.index.read().unwrap();
-                    let favorites = indexed.as_ref().unwrap().get_favorites();
-                    assert_eq!(favorites.len(), usize::from(favorite));
-                    assert!(workspace
-                        .cache
-                        .read()
-                        .unwrap()
-                        .get_file_metadata(&format!("Docs/{file_type}.md"))
-                        .is_some());
-                }
-            }
-            // Reload from disk: persistence must survive cache reinitialization.
-            let reloaded = CacheManager::new_silent(workspace.root.join(".snippets-code")).unwrap();
-            assert!(reloaded.get_file_metadata("Docs/note.md").is_some());
-            sender.send(()).unwrap();
-        });
-        receiver
-            .recv_timeout(Duration::from_secs(10))
-            .expect("favorite update deadlocked");
-        worker.join().unwrap();
-    }
-
-    #[test]
-    fn missing_file_returns_error_without_changing_cache() {
-        let workspace = Workspace::new();
-        assert!(set_file_favorite(
-            &workspace.fs,
-            Path::new("missing.md"),
-            true,
-            &workspace.index,
-            &workspace.cache
-        )
-        .is_err());
-        assert!(workspace.cache.read().unwrap().get_all_files().is_empty());
-    }
-
-    #[test]
-    fn ai_provenance_survives_body_edits_favorites_and_moved_note_deduplication() {
+    fn ai_provenance_survives_edits_and_moved_note_deduplication() {
         let workspace = Workspace::new();
         let path = workspace.write("Docs/answer.md", "note", "\n\n```ts\n42;\n```\n");
         let (mut metadata, _) = workspace.fs.read_markdown_file(&path).unwrap();
@@ -2050,14 +1829,6 @@ mod favorite_tests {
             .fs
             .update_markdown_file(&path, Some("User edited answer"), None)
             .unwrap();
-        set_file_favorite(
-            &workspace.fs,
-            &path,
-            true,
-            &workspace.index,
-            &workspace.cache,
-        )
-        .unwrap();
         let moved = workspace.root.join("Docs/moved.md");
         std::fs::rename(&path, &moved).unwrap();
         assert_eq!(
@@ -2067,7 +1838,6 @@ mod favorite_tests {
         let (saved, body) = workspace.fs.read_markdown_file(&moved).unwrap();
         assert_eq!(saved.ai_source, Some(source.clone()));
         assert_eq!(saved.id, metadata.id);
-        assert!(saved.favorite);
         assert_eq!(body, "User edited answer");
         let mut different = source;
         different.message_id = "message-2".to_string();
@@ -2124,42 +1894,6 @@ mod favorite_tests {
         assert!(check_expected_workspace(&workspace.root, None).is_ok());
     }
 
-    #[test]
-    fn editor_metadata_updates_preserve_favorite_unless_explicitly_changed() {
-        let workspace = Workspace::new();
-        let path = workspace.write("note.md", "note", "\n\nbody\n");
-        set_file_favorite(
-            &workspace.fs,
-            &path,
-            true,
-            &workspace.index,
-            &workspace.cache,
-        )
-        .unwrap();
-        let (current, _) = workspace.fs.read_markdown_file(&path).unwrap();
-        let editor_update = serde_json::json!({ "title": "Edited title", "tags": ["new"] });
-        let mut updated = current.clone();
-        updated.favorite = favorite_after_metadata_update(&editor_update, Some(&current));
-        updated.title = "Edited title".to_string();
-        workspace
-            .fs
-            .update_markdown_file(&path, Some("edited body"), Some(&updated))
-            .unwrap();
-        let (saved, body) = workspace.fs.read_markdown_file(&path).unwrap();
-        assert!(saved.favorite);
-        assert_eq!(saved.title, "Edited title");
-        assert_eq!(body, "edited body");
-        assert!(!favorite_after_metadata_update(
-            &serde_json::json!({"favorite": false}),
-            Some(&saved)
-        ));
-        assert!(favorite_after_metadata_update(
-            &serde_json::json!({"favorite": true}),
-            None
-        ));
-        assert!(!favorite_after_metadata_update(&editor_update, None));
-    }
-
     #[cfg(windows)]
     #[test]
     fn failed_disk_write_is_not_reported_as_success() {
@@ -2170,12 +1904,12 @@ mod favorite_tests {
         let mut read_only = permissions.clone();
         read_only.set_readonly(true);
         std::fs::set_permissions(&path, read_only).unwrap();
-        let result = set_file_favorite(
-            &workspace.fs,
+        let revision = super::super::safe_write::revision(&original);
+        let result = workspace.fs.update_markdown_file_checked(
             &path,
-            true,
-            &workspace.index,
-            &workspace.cache,
+            Some("edited body"),
+            None,
+            Some(&revision),
         );
         std::fs::set_permissions(&path, permissions).unwrap();
         assert!(result.is_err());
@@ -2571,7 +2305,6 @@ pub async fn search_markdown_files_optimized(
                 language: entry.language,
                 framework: entry.framework,
                 kind: entry.kind,
-                favorite: entry.favorite,
                 file_path: file_path_str,
                 score: Some(score),
             }

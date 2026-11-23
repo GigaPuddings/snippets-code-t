@@ -48,19 +48,8 @@ function markdownFileToContentType(file: MarkdownFile): ContentType {
     metadata: Object.keys(metadata).length > 0 ? metadata : null,
     created_at: file.created,
     updated_at: file.modified,
-    usage_count: 0,
-    favorite: file.favorite
+    usage_count: 0
   };
-}
-
-export async function getFavoriteFragments(): Promise<ContentType[]> {
-  try {
-    const files = await markdownApi.getFavoriteFiles();
-    return files.map(markdownFileToContentType);
-  } catch (error) {
-    if (isWorkspaceNotSetError(error)) return [];
-    throw error;
-  }
 }
 
 // ============= 分类相关 API =============
@@ -376,8 +365,7 @@ export async function addFragment(params?: AddFragmentParams): Promise<string> {
       tags: params?.tags || [],
       language: params?.metadata?.language as string | undefined,
       framework: params?.metadata?.framework as string | undefined,
-      kind: params?.metadata?.kind as string | undefined,
-      favorite: false
+      kind: params?.metadata?.kind as string | undefined
     };
 
     // 创建文件
@@ -448,6 +436,7 @@ export interface EditFragmentParams {
   id: number | string;
   /** 标题 */
   title: string;
+  preserveFilename?: boolean;
   /** 内容 */
   content: string;
   /** 分类 ID */
@@ -506,7 +495,7 @@ export async function editFragment(
         filePath,
         params.content,
         {
-          title: params.title,
+          ...(params.preserveFilename ? {} : { title: params.title }),
           tags: params.tags || [],
           ...(params.fragmentType ? { type: params.fragmentType } : {}),
           language: params.metadata?.language as string | undefined,
@@ -588,7 +577,7 @@ export async function editFragment(
  * 仅移动片段到目标分类，不重写正文或 Front Matter。
  *
  * 分类移动是文件系统操作。若复用 editFragment，列表中的精简数据会参与元数据回写，
- * 容易覆盖 type、favorite 等仅存在于磁盘中的字段。
+ * 容易覆盖 type 等仅存在于磁盘中的字段。
  */
 export async function moveFragmentToCategory(
   id: number | string,
@@ -625,7 +614,7 @@ export async function moveFragmentToCategory(
  * 转换片段类型并保存转换后的正文。
  *
  * 与 editFragment 不同，此操作始终先读取磁盘中的最新 Front Matter，避免列表缓存
- * 覆盖 language、framework、kind、favorite 等未展示字段。
+ * 覆盖 language、framework、kind 等未展示字段。
  *
  * @param id - 片段文件路径
  * @param targetType - 目标类型

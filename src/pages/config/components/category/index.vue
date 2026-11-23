@@ -57,55 +57,26 @@
                 <GitContributionMiniEntry />
               </div>
             </div>
-            <div class="mx-2 mb-2 flex shrink-0 items-center gap-0.5">
-              <button
-                type="button"
-                class="ui-action min-w-0 flex-1 justify-start gap-2 px-3 font-normal"
-                :title="
-                  t('fragmentType.createIn', { folder: creationFolderName })
-                "
-                @click="createContent('note')"
-              >
-                <EditTwo width="16" height="16" class="shrink-0" />
-                <span class="shrink-0">{{ t('nav.newNote') }}</span>
-                <span
-                  class="ml-auto max-w-24 truncate text-ui-caption text-content"
-                >
-                  {{ creationFolderName }}
-                </span>
-              </button>
-              <el-dropdown trigger="click" @command="createContent($event)">
-                <button
-                  type="button"
-                  class="ui-icon-button"
-                  :title="t('fragmentType.selectType')"
-                  :aria-label="t('fragmentType.selectType')"
-                >
-                  <Down width="14" height="14" />
-                </button>
-                <template #dropdown>
-                  <el-dropdown-menu>
-                    <el-dropdown-item command="note" :icon="Notebook">
-                      {{ t('nav.newNote') }}
-                    </el-dropdown-item>
-                    <el-dropdown-item command="code" :icon="FileCodeOne">
-                      {{ t('fragmentType.newSnippet') }}
-                    </el-dropdown-item>
-                  </el-dropdown-menu>
-                </template>
-              </el-dropdown>
-            </div>
-            <QuickNav
-              :active-view="sidebarMode"
-              :favorite-count="store.favoriteCount"
-              @open="sidebarMode = $event"
+            <ContentCreateControl
+              :folder="creationFolderName"
+              @create="createContent"
             />
+            <QuickNav :active-view="sidebarMode" @open="sidebarMode = $event" />
             <CategoryHeader
               :sort-order="categorySort"
-              :has-folders="categories.length > 0"
-              :has-expanded="hasExpandedFolders"
+              :has-folders="
+                sidebarMode === 'tags'
+                  ? tagNames.size > 0
+                  : categories.length > 0
+              "
+              :has-expanded="
+                sidebarMode === 'tags' ? hasExpandedTags : hasExpandedFolders
+              "
+              :tag-tree="sidebarMode === 'tags'"
               :saving-order="savingOrder"
-              @toggle-folders="toggleFolders"
+              @toggle-groups="
+                sidebarMode === 'tags' ? toggleTags() : toggleFolders()
+              "
               :view-label="
                 sidebarMode === 'folders' ? undefined : sidebarViewLabel
               "
@@ -159,9 +130,6 @@
                   :content="item"
                   :category-id="item.category_id ?? ''"
                   @delete="dispatchContentAction('delete', item)"
-                  @toggle-favorite="
-                    dispatchContentAction('toggle-favorite', item)
-                  "
                   @change-category="
                     dispatchContentAction('change-category', item)
                   "
@@ -216,10 +184,15 @@ import {
 } from '@/store/layout';
 import Splitter from '@/components/Splitter/index.vue';
 import ContentItem from '@/components/ContentItem/index.vue';
+import {
+  contentEditorKey,
+  type ContentEditor
+} from '@/components/ContentItem/contentEditor';
 import { useCategoryManagement } from './composables/useCategoryManagement';
 import CategoryHeader from './components/CategoryHeader.vue';
 import CategoryListView from './components/CategoryListView.vue';
 import CategorySyncStatus from './components/CategorySyncStatus.vue';
+import ContentCreateControl from './components/ContentCreateControl.vue';
 import GitContributionMiniEntry from '@/plugins/git-sync/components/GitContributionMiniEntry.vue';
 import { PromptDialog } from '@/components/UI';
 import {
@@ -229,6 +202,7 @@ import {
   moveFragmentToCategory
 } from '@/api/fragment';
 import modal from '@/utils/modal';
+import { parseTags } from '@/utils/fragment';
 import { requestOpenFragmentCategoryMove } from '@/utils/fragmentCategoryMove';
 import { setMarkdownFileOrder, getWorkspaceRoot } from '@/api/markdown';
 import {
@@ -237,10 +211,6 @@ import {
 } from '@/utils/fragmentDragDrop';
 import { useConfigQuickSearch } from '@/composables/useConfigQuickSearch';
 import { getConfigTabLabelKey } from '@/plugins/navigation';
-import Down from '~icons/lucide/chevron-down';
-import EditTwo from '~icons/lucide/square-pen';
-import FileCodeOne from '~icons/lucide/file-code';
-import Notebook from '~icons/lucide/notebook';
 import Search from '~icons/lucide/search';
 
 const store = useConfigurationStore();
@@ -248,16 +218,30 @@ const layoutStore = useLayoutStore();
 const route = useRoute();
 const router = useRouter();
 const isSettingsRoute = computed(() => route.name === 'Settings');
-type SidebarMode = 'folders' | 'all' | 'uncategorized' | 'favorites' | 'trash';
+type SidebarMode = 'folders' | 'all' | 'uncategorized' | 'tags' | 'trash';
 const sidebarMode = ref<SidebarMode>('folders');
+provide(contentEditorKey, shallowRef<ContentEditor | null>(null));
 provide('categorySidebarMode', sidebarMode);
+const expandedTags = ref(new Set<string>());
+provide('categoryExpandedTags', expandedTags);
+const tagNames = computed(
+  () => new Set(store.contents.flatMap((item) => parseTags(item.tags) ?? []))
+);
+const hasExpandedTags = computed(() =>
+  [...expandedTags.value].some((tag) => tagNames.value.has(tag))
+);
+function toggleTags(): void {
+  expandedTags.value = hasExpandedTags.value
+    ? new Set()
+    : new Set(tagNames.value);
+}
 const sidebarResults = shallowRef<HTMLElement | null>(null);
 provide('categorySidebarTarget', sidebarResults);
 const sidebarViewLabel = computed(() => {
   const labels = {
     all: 'nav.allSnippets',
     uncategorized: 'nav.uncategorized',
-    favorites: 'nav.favorites',
+    tags: 'tags.tags',
     trash: 'nav.recentlyDeleted'
   } as const;
   return sidebarMode.value === 'folders'
@@ -267,9 +251,13 @@ const sidebarViewLabel = computed(() => {
 watch(
   [() => route.query.view, () => route.params.cid],
   ([view, cid]) => {
-    if (view === 'trash' || view === 'favorites') sidebarMode.value = view;
+    if (view === 'trash' || view === 'tags') sidebarMode.value = view;
     else if (cid === '0') sidebarMode.value = 'uncategorized';
-    else if (cid || sidebarMode.value === 'trash')
+    else if (
+      cid ||
+      sidebarMode.value === 'trash' ||
+      sidebarMode.value === 'tags'
+    )
       sidebarMode.value = 'folders';
   },
   { immediate: true }
@@ -281,9 +269,7 @@ const canQuickSearch = computed(
 );
 const recentDocuments = ref<ContentType[]>([]);
 const selectedContentId = computed(() =>
-  route.params.id
-    ? decodeURIComponent(String(route.params.id)).replace(/\\/g, '/')
-    : ''
+  route.params.id ? String(route.params.id).replace(/\\/g, '/') : ''
 );
 const lastOpenedFolder = ref<{ id: string; contentId: string } | null>(null);
 watch(
@@ -364,16 +350,14 @@ const createContent = (type: 'note' | 'code', categoryId?: string | number) => {
     (sidebarMode.value === 'folders' || sidebarMode.value === 'uncategorized'
       ? route.params.cid
       : undefined);
-  if (cid && String(cid) !== '0') sidebarMode.value = 'folders';
-  else if (sidebarMode.value !== 'uncategorized') sidebarMode.value = 'all';
-  void router.push({
-    path: `/config/category/contentList${cid !== undefined && cid !== '' ? `/${cid}` : ''}${contentSuffix()}`,
-    query: { create: type }
+  void router.replace({
+    path: route.path,
+    query: { ...route.query, create: type, createIn: String(cid ?? '') }
   });
 };
 const showFolders = () => {
   sidebarMode.value = 'folders';
-  if (route.query.view === 'trash' || route.query.view === 'favorites') {
+  if (route.query.view === 'trash' || route.query.view === 'tags') {
     const query = { ...route.query };
     delete query.view;
     void router.replace({ path: route.path, query });

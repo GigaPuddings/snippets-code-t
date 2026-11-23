@@ -23,7 +23,6 @@ export interface FileChangeEvent {
     modified: string;
     type: 'snippet' | 'note';
     language?: string;
-    favorite: boolean;
   };
 }
 

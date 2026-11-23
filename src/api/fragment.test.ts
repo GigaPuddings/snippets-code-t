@@ -15,7 +15,6 @@ const currentFile: MarkdownFile = {
   language: 'typescript',
   framework: 'vue',
   kind: 'component',
-  favorite: true,
   filePath: 'Code/Current title.md'
 };
 
@@ -29,8 +28,7 @@ describe('buildFragmentTypeConversionUpdate', () => {
         type: 'note',
         language: 'typescript',
         framework: 'vue',
-        kind: 'component',
-        favorite: true
+        kind: 'component'
       }
     });
   });
@@ -51,8 +49,7 @@ describe('buildFragmentTypeConversionUpdate', () => {
         type: 'note',
         language: 'tsx',
         framework: 'vue',
-        kind: 'component',
-        favorite: true
+        kind: 'component'
       }
     });
   });

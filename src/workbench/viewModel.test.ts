@@ -29,7 +29,7 @@ const input = (
   t,
   workspaceRoot: 'E:/Workspace',
   categoriesCount: 2,
-  content: { total: 3, snippets: 2, notes: 1, favorites: 1 },
+  content: { total: 3, snippets: 2, notes: 1 },
   plugins: { installed: 2, enabled: 1, surfaces: 3 },
   search: { registered: 3, failed: 0, searching: 0 },
   ai: { providers: 2, healthy: 2, unavailable: 0 },
@@ -89,7 +89,6 @@ describe('buildWorkbenchRecentItems', () => {
       created: modified,
       modified,
       type: 'note',
-      favorite: false,
       filePath: `E:/Workspace/${id}.md`
     });
 

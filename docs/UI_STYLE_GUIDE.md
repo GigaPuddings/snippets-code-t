@@ -88,7 +88,7 @@ Tauri 的普通 `data-tauri-drag-region` 只响应标记元素本身。顶部搜
 
 - 主 UI 图标集为 **Lucide**，通过 `~icons/lucide/<名称>` 静态导入。品牌图标使用 `~icons/simple-icons/<名称>` 或已有品牌资产，不混用其他 UI 图标集。
 - 主应用 Vite 使用 `scripts/icon-config.mjs`。`unplugin-icons` 从本地 Iconify JSON 数据按需生成 Vue 3 SVG 组件；禁用自动安装，运行时不请求 Iconify API，也不打包整个图标集。图标构建工具要求 Node.js 20.19.x 或 22.12 及更新版本。
-- 默认尺寸为 `1em`；使用 `width`、`height` 或现有尺寸 class 设置 16/18/20/24px 等大小，颜色继承 `currentColor`。移除旧 `theme`、`size`、`strokeWidth` 属性。旋转用 `animate-spin`，收藏星等实心状态用 `app-icon--filled`。
+- 默认尺寸为 `1em`；使用 `width`、`height` 或现有尺寸 class 设置 16/18/20/24px 等大小，颜色继承 `currentColor`。移除旧 `theme`、`size`、`strokeWidth` 属性。旋转用 `animate-spin`，实心图标状态用 `app-icon--filled`。
 - 列表类型图标用 16px，标题栏和文档工具栏用 18px，主导航用 20px；点击区域由按钮控制，不在 SVG 上添加按钮尺寸或内边距。工作区入口统一用 `library`，笔记类型用 `notebook`，代码片段用 `file-code`；阅读模式保留 `book-open`。拖拽预览克隆已渲染的类型 SVG，避免开发服务无法加载的原始图标虚拟导入。
 - `src/styles/icons.scss` 中的全局规则适用于弹出层；Lucide 的 24px 网格描边统一取 `--app-icon-stroke`。品牌图标、进度环和图表保留自己的绘制规则。
 - 动态菜单和导航继续传递 Vue `Component`，通过静态导入配置；不引入完整图标名称注册表。普通 SVG 图标同样改用生成的组件。

@@ -12,8 +12,7 @@ import {
 
 const markdownFile = (
   id: string,
-  type: MarkdownFile['type'],
-  favorite = false
+  type: MarkdownFile['type']
 ): MarkdownFile => ({
   id,
   title: id,
@@ -24,7 +23,6 @@ const markdownFile = (
   created: '2026-01-01T00:00:00.000Z',
   modified: '2026-01-01T00:00:00.000Z',
   type,
-  favorite,
   filePath: `${id}.md`
 });
 
@@ -80,18 +78,17 @@ const aiProvider = (
 });
 
 describe('summarizeWorkbenchContent', () => {
-  it('summarizes workspace content by type and favorite state', () => {
+  it('summarizes workspace content by type', () => {
     expect(
       summarizeWorkbenchContent([
-        markdownFile('code-1', 'code', true),
+        markdownFile('code-1', 'code'),
         markdownFile('code-2', 'code'),
         markdownFile('note-1', 'note')
       ])
     ).toEqual({
       total: 3,
       snippets: 2,
-      notes: 1,
-      favorites: 1
+      notes: 1
     });
   });
 });

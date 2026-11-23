@@ -197,20 +197,6 @@ export async function getFilesByTag(tag: string): Promise<MarkdownFile[]> {
 }
 
 /**
- * 获取收藏的文件列表
- * @returns 收藏的文件列表
- */
-export async function getFavoriteFiles(): Promise<MarkdownFile[]> {
-  try {
-    // Reuse the registered workspace listing command; favorite is read from
-    // each file's frontmatter, so no separate or stale favorites cache is used.
-    return (await getAllFiles()).filter((file) => file.favorite);
-  } catch (error) {
-    throw new Error(`获取收藏列表失败: ${error}`);
-  }
-}
-
-/**
  * 获取所有标签列表
  * @returns 唯一标签列表
  */
@@ -392,29 +378,6 @@ export async function getAllFiles(options?: {
 }
 
 // ─── workspace UI 状态 ───────────────────────────────────────────────────────
-
-/**
- * 切换文件的收藏状态
- * @param filePath 文件路径
- * @param favorite 是否收藏
- */
-export interface FavoriteSaveResult {
-  previousRevision: string;
-  contentRevision: string;
-}
-export async function toggleFavorite(
-  filePath: string,
-  favorite: boolean
-): Promise<FavoriteSaveResult | undefined> {
-  try {
-    return await invoke<FavoriteSaveResult | undefined>('toggle_favorite', {
-      filePath,
-      favorite
-    });
-  } catch (error) {
-    throw new Error(`切换收藏状态失败: ${error}`);
-  }
-}
 
 /**
  * 解决文件冲突

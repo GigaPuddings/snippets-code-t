@@ -5,7 +5,7 @@ import { createI18n } from 'vue-i18n';
 import { describe, expect, it } from 'vitest';
 import QuickNav from './index.vue';
 
-type QuickView = 'folders' | 'all' | 'uncategorized' | 'favorites' | 'trash';
+type QuickView = 'folders' | 'all' | 'uncategorized' | 'tags' | 'trash';
 
 type NavigationRender = {
   html: string;
@@ -35,7 +35,7 @@ async function renderNavigation(
   });
   await router.push(path);
   await router.isReady();
-  const app = createSSRApp(QuickNav, { activeView, favoriteCount: 3 });
+  const app = createSSRApp(QuickNav, { activeView });
   app.use(router);
   app.use(
     createI18n({
@@ -47,10 +47,9 @@ async function renderNavigation(
             quickAccess: 'Quick access',
             allSnippets: 'All snippets',
             uncategorized: 'Uncategorized',
-            favorites: 'Favorites',
-            recentlyDeleted: 'Recently deleted',
-            favoriteCount: '{count} favorites'
-          }
+            recentlyDeleted: 'Recently deleted'
+          },
+          tags: { tags: 'Tags' }
         }
       }
     })
@@ -80,7 +79,7 @@ describe('QuickNav selection', () => {
   it.each([
     ['all', '/config/category/contentList'],
     ['uncategorized', '/config/category/contentList/0'],
-    ['favorites', '/config/category/contentList?view=favorites'],
+    ['tags', '/config/category/contentList?view=tags'],
     ['trash', '/config/category/contentList?view=trash']
   ] as const)('marks only the %s collection as current', async (view, path) => {
     const { links } = await renderNavigation(path, view);
@@ -102,15 +101,5 @@ describe('QuickNav selection', () => {
         active: true
       }
     ]);
-  });
-
-  it('shows the favorite count only while the favorites collection is current', async () => {
-    const favorites = await renderNavigation(
-      '/config/category/contentList?view=favorites',
-      'favorites'
-    );
-    const all = await renderNavigation('/config/category/contentList', 'all');
-    expect(favorites.html).toContain('aria-label="3 favorites"');
-    expect(all.html).not.toContain('aria-label="3 favorites"');
   });
 });

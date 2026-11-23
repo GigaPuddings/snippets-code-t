@@ -13,7 +13,6 @@ import {
   getCategories,
   getFragmentContent,
   getFragmentList,
-  getFavoriteFragments,
   getUncategorizedId,
   convertFragmentType,
   moveFragmentToCategory
@@ -28,6 +27,17 @@ import {
   type FragmentType
 } from '@/utils/fragmentTypeConversion';
 import { requestOpenFragmentCategoryMove } from '@/utils/fragmentCategoryMove';
+import {
+  contentEditorKey,
+  type ContentEditor
+} from '@/components/ContentItem/contentEditor';
+import {
+  getWorkspaceRoot,
+  readMarkdownFile,
+  updateMarkdownFile
+} from '@/api/markdown';
+import { parseTags, replaceFragmentTag } from '@/utils/fragment';
+import { createEditorDraftStore } from '@/utils/editorDrafts';
 
 /**
  * 为内容列表添加分类名称
@@ -84,8 +94,22 @@ export interface UseContentDialogsReturn {
       occurrences: number;
     }>;
   } | null>;
-  /** 处理类型确认 */
-  handleTypeConfirm: (type: 'code' | 'note') => Promise<void>;
+  openCreateDialog: (type: FragmentType, cid?: string) => void;
+  showCreateDialog: Ref<boolean>;
+  creationType: Ref<FragmentType>;
+  isCreating: Ref<boolean>;
+  confirmCreation: (title: string) => Promise<void>;
+  movingTag: Ref<boolean>;
+  moveContentTag: (
+    id: ContentType['id'],
+    source: string,
+    target: string
+  ) => Promise<void>;
+  changeContentTags: (
+    ids: ContentType['id'][],
+    source: string,
+    target: string | null
+  ) => Promise<boolean>;
   /** 处理删除 */
   handleDelete: (content: ContentType) => Promise<void>;
   /** 确认删除 */
@@ -114,7 +138,7 @@ export interface UseContentDialogsReturn {
  *
  * @example
  * ```typescript
- * const { handleTypeConfirm, handleDelete } = useContentDialogs();
+ * const { openCreateDialog, handleDelete } = useContentDialogs();
  * ```
  */
 export function useContentDialogs(): UseContentDialogsReturn {
@@ -126,10 +150,138 @@ export function useContentDialogs(): UseContentDialogsReturn {
 
   const isCreating = ref(false);
   const sidebarMode = inject<Ref<string>>('categorySidebarMode', ref('all'));
-  const captureCreation = () => ({
-    cid: String(route.params.cid || ''),
-    sourcePath: route.fullPath
-  });
+  const activeEditor = inject(contentEditorKey, null);
+  const movingTag = ref(false);
+
+  const notifyFileEditIfGitSyncEnabled = async (): Promise<void> => {
+    try {
+      if (!pluginStore.initialized) await pluginStore.initialize();
+      if (pluginStore.isEnabled('git-sync')) {
+        const { notifyFileEdit } = await import('@/api/gitSync');
+        await notifyFileEdit();
+      }
+    } catch (error) {
+      console.debug('[useContentDialogs] 通知自动同步失败:', error);
+    }
+  };
+
+  const changeContentTag = async (
+    id: ContentType['id'],
+    source: string,
+    target: string | null,
+    root: string,
+    changedFiles: ContentType['id'][]
+  ): Promise<void> => {
+    const path = getConfigContentPath(id);
+    const findEditor = (): ContentEditor | undefined => {
+      const editor = activeEditor?.value;
+      return editor && getConfigContentPath(editor.id) === path
+        ? editor
+        : undefined;
+    };
+    const editOpenContent = async (editor: ContentEditor): Promise<void> => {
+      if (editor.workspaceRoot !== root)
+        throw new Error(t('tags.changeUnavailable'));
+      await editor.changeTag(source, target);
+    };
+    const initialEditor = findEditor();
+    if (initialEditor) return editOpenContent(initialEditor);
+
+    const filePath = String(id);
+    const file = await readMarkdownFile(filePath, {
+      expectedWorkspaceRoot: root
+    });
+    const openedEditor = findEditor();
+    if (openedEditor) return editOpenContent(openedEditor);
+
+    const tags = replaceFragmentTag(file.tags, source, target);
+    if (tags) {
+      if (
+        (route.params.id && getConfigContentPath(route.params.id) === path) ||
+        !file.contentRevision ||
+        createEditorDraftStore(localStorage).read(root, filePath)
+      )
+        throw new Error(t('tags.changeUnavailable'));
+
+      await updateMarkdownFile(
+        filePath,
+        undefined,
+        {
+          tags,
+          language: file.language,
+          framework: file.framework,
+          kind: file.kind
+        },
+        { expectedRevision: file.contentRevision, expectedWorkspaceRoot: root }
+      );
+      changedFiles.push(id);
+    }
+    const updated = store.contents.find(
+      (item) => getConfigContentPath(item.id) === path
+    );
+    if (updated) updated.tags = tags ?? parseTags(file.tags) ?? [];
+  };
+
+  const changeContentTags = async (
+    ids: ContentType['id'][],
+    source: string,
+    target: string | null
+  ): Promise<boolean> => {
+    if (movingTag.value || source === target) return false;
+    if (!ids.length) return true;
+    movingTag.value = true;
+    const changedFiles: ContentType['id'][] = [];
+    const failures: unknown[] = [];
+    try {
+      const root = await getWorkspaceRoot();
+      for (const id of ids) {
+        try {
+          await changeContentTag(id, source, target, root, changedFiles);
+        } catch (error) {
+          failures.push(error);
+        }
+      }
+      if (changedFiles.length) {
+        window.dispatchEvent(
+          new CustomEvent('refresh-data', {
+            detail: {
+              source: 'closed-fragment-tags-changed',
+              ids: changedFiles
+            }
+          })
+        );
+        await notifyFileEditIfGitSyncEnabled();
+      }
+      if (failures.length) {
+        if (ids.length === 1) throw failures[0];
+        console.error('Could not update all tagged files:', failures);
+        modal.error(
+          t('tags.changePartial', { count: failures.length, total: ids.length })
+        );
+        return false;
+      }
+      return true;
+    } catch (error) {
+      console.error('Failed to change fragment tags:', error);
+      modal.error(
+        error instanceof Error ? error.message : t('tags.changeFailed')
+      );
+      return false;
+    } finally {
+      movingTag.value = false;
+    }
+  };
+
+  const moveContentTag = async (
+    id: ContentType['id'],
+    source: string,
+    target: string
+  ): Promise<void> => {
+    await changeContentTags([id], source, target);
+  };
+  const showCreateDialog = ref(false);
+  const creationType = ref<FragmentType>('note');
+  let creationTarget: { cid: string; sourcePath: string } | null = null;
   const showDeleteDialog = ref<boolean>(false);
   const showCategoryDialog = ref<boolean>(false);
   const showBacklinkUpdateDialog = ref<boolean>(false);
@@ -149,22 +301,28 @@ export function useContentDialogs(): UseContentDialogsReturn {
     }>;
   } | null>(null);
 
-  /**
-   * 处理类型确认
-   * @param type - 片段类型（code 或 note）
-   */
-  const handleTypeConfirm = async (type: 'code' | 'note'): Promise<void> => {
-    if (isCreating.value) return;
-    const target = captureCreation();
-    await handleCreateContentConfirm(type, target);
+  const openCreateDialog = (
+    type: FragmentType,
+    cid = String(route.params.cid ?? '')
+  ): void => {
+    if (isCreating.value || showCreateDialog.value) return;
+    creationType.value = type;
+    creationTarget = { cid, sourcePath: route.fullPath };
+    showCreateDialog.value = true;
   };
 
-  const handleCreateContentConfirm = async (
-    type: 'code' | 'note',
-    target: { cid: string; sourcePath: string }
-  ): Promise<void> => {
-    const normalizedTitle = 'New Fragment';
-    const { cid } = target;
+  const confirmCreation = async (value: string): Promise<void> => {
+    const normalizedTitle = value.trim();
+    if (
+      !showCreateDialog.value ||
+      !creationTarget ||
+      !normalizedTitle ||
+      isCreating.value
+    )
+      return;
+
+    const type = creationType.value;
+    const { cid, sourcePath } = creationTarget;
     isCreating.value = true;
     try {
       // Explicit folder targets must still exist; never silently fall back.
@@ -198,17 +356,19 @@ export function useContentDialogs(): UseContentDialogsReturn {
           title: normalizedTitle
         }
       });
+      showCreateDialog.value = false;
+      creationTarget = null;
       // Keep All / Uncategorized / folder context, and do not steal navigation
       // if the user has moved elsewhere while the disk write was pending.
       window.dispatchEvent(
         new CustomEvent('refresh-data', {
           detail: {
             source: 'fragment-create',
-            activate: route.fullPath === target.sourcePath
+            activate: route.fullPath === sourcePath
           }
         })
       );
-      if (route.fullPath !== target.sourcePath) return;
+      if (route.fullPath !== sourcePath) return;
       const targetPath = getConfigContentPath(filePath, cid);
       const category = store.categories.find(
         (item) => Number(item.id) === categoryId
@@ -236,7 +396,7 @@ export function useContentDialogs(): UseContentDialogsReturn {
         cid === '0' ? 'uncategorized' : cid ? 'folders' : 'all';
       await router.replace(targetPath);
 
-      // 文件系统列表刷新放到空闲阶段，避免它与标题首轮输入、编辑器初始化争用主线程。
+      // 文件系统列表刷新放到空闲阶段，避免它与编辑器初始化争用主线程。
       const refreshAfterCreate = async () => {
         if (route.path !== targetPath) return;
         try {
@@ -319,51 +479,49 @@ export function useContentDialogs(): UseContentDialogsReturn {
     }
   };
 
+  const refreshAfterDelete = async (
+    deletedId: ContentType['id']
+  ): Promise<void> => {
+    window.dispatchEvent(
+      new CustomEvent('refresh-data', {
+        detail: { source: 'delete-fragment', deletedId }
+      })
+    );
+
+    const cid = route.params.cid as string | undefined;
+    const view = route.query.view;
+    if (
+      route.params.id &&
+      getConfigContentPath(route.params.id) === getConfigContentPath(deletedId)
+    ) {
+      const path = cid
+        ? `/config/category/contentList/${cid}`
+        : '/config/category/contentList';
+      void router.push({ path, query: route.query });
+    }
+
+    const result = await getFragmentList(
+      cid && view !== 'tags' ? Number(cid) : undefined,
+      ''
+    );
+    if (route.params.cid === cid && route.query.view === view) {
+      store.contents = addCategoryNames(result, store.categories);
+    }
+  };
+
   /**
    * 确认删除内容
    */
   const confirmDelete = async (): Promise<void> => {
-    if (!deleteTarget.value) return;
+    const target = deleteTarget.value;
+    if (!target) return;
 
     try {
-      // 直接传递 ID（文件路径），不需要转换为数字
-      await deleteFragment(deleteTarget.value.id);
+      await deleteFragment(target.id);
       modal.success(t('contentItem.deleteSuccess'));
-
-      // 先刷新内容列表
-      const cid = route.params.cid as string | undefined;
-      let categoryId: number | undefined;
-
-      if (!cid) {
-        categoryId = undefined;
-      } else {
-        // 将 cid 转换为数字（包括 '0' 表示"未分类"）
-        categoryId = Number(cid);
-      }
-
-      const result = (
-        route.query.view === 'favorites'
-          ? await getFavoriteFragments()
-          : await getFragmentList(categoryId, '')
-      ) as ContentType[];
-      // 为内容添加分类名称
-      store.contents = addCategoryNames(result, store.categories);
-      window.dispatchEvent(
-        new CustomEvent('refresh-data', {
-          detail: { source: 'delete-fragment' }
-        })
-      );
-
-      // 如果当前正在查看被删除的片段，导航到列表页
-      if (route.params.id) {
-        const targetPath = cid
-          ? `/config/category/contentList/${cid}`
-          : '/config/category/contentList';
-        router.push({ path: targetPath, query: route.query });
-      }
-
       showDeleteDialog.value = false;
       deleteTarget.value = null;
+      await refreshAfterDelete(target.id);
     } catch (error) {
       ErrorHandler.handle(
         error,
@@ -386,7 +544,8 @@ export function useContentDialogs(): UseContentDialogsReturn {
   const confirmDeleteWithBacklinks = async (
     shouldUpdate: boolean
   ): Promise<void> => {
-    if (!deleteTarget.value) return;
+    const target = deleteTarget.value;
+    if (!target) return;
 
     showBacklinkUpdateDialog.value = false;
 
@@ -398,13 +557,12 @@ export function useContentDialogs(): UseContentDialogsReturn {
       ) {
         // 更新所有反向链接，将 [[标题]] 替换为 标题（移除链接，保留文本）
         const updateResult = await updateBacklinks(
-          deleteTarget.value.title,
-          deleteTarget.value.title,
+          target.title,
+          target.title,
           false
         );
 
-        // 执行删除 - 直接传递 ID（文件路径），不需要转换为数字
-        await deleteFragment(deleteTarget.value.id);
+        await deleteFragment(target.id);
 
         // 显示综合消息（右上角显示）
         if (updateResult.failureCount > 0) {
@@ -425,44 +583,13 @@ export function useContentDialogs(): UseContentDialogsReturn {
         }
       } else {
         // 仅删除片段，不更新反向链接
-        await deleteFragment(deleteTarget.value.id);
+        await deleteFragment(target.id);
         modal.success(t('contentItem.deleteSuccess'));
-      }
-
-      // 先刷新内容列表
-      const cid = route.params.cid as string | undefined;
-      let categoryId: number | undefined;
-
-      if (!cid) {
-        categoryId = undefined;
-      } else {
-        // 将 cid 转换为数字（包括 '0' 表示"未分类"）
-        categoryId = Number(cid);
-      }
-
-      const result = (
-        route.query.view === 'favorites'
-          ? await getFavoriteFragments()
-          : await getFragmentList(categoryId, '')
-      ) as ContentType[];
-      // 为内容添加分类名称
-      store.contents = addCategoryNames(result, store.categories);
-      window.dispatchEvent(
-        new CustomEvent('refresh-data', {
-          detail: { source: 'delete-fragment' }
-        })
-      );
-
-      // 如果当前正在查看被删除的片段，导航到列表页
-      if (route.params.id) {
-        const targetPath = cid
-          ? `/config/category/contentList/${cid}`
-          : '/config/category/contentList';
-        router.push({ path: targetPath, query: route.query });
       }
 
       deleteTarget.value = null;
       backlinkStats.value = null;
+      await refreshAfterDelete(target.id);
     } catch (error) {
       ErrorHandler.handle(
         error,
@@ -637,17 +764,7 @@ export function useContentDialogs(): UseContentDialogsReturn {
         };
       }
 
-      try {
-        if (!pluginStore.initialized) {
-          await pluginStore.initialize();
-        }
-        if (pluginStore.isEnabled('git-sync')) {
-          const { notifyFileEdit } = await import('@/api/gitSync');
-          await notifyFileEdit();
-        }
-      } catch (error) {
-        console.debug('[useContentDialogs] 通知自动同步失败:', error);
-      }
+      await notifyFileEditIfGitSyncEnabled();
 
       modal.success(t('category.convertSuccess'));
     } catch (error) {
@@ -679,7 +796,14 @@ export function useContentDialogs(): UseContentDialogsReturn {
     selectedCategoryId,
     uncategorizedId,
     backlinkStats,
-    handleTypeConfirm,
+    showCreateDialog,
+    creationType,
+    isCreating,
+    confirmCreation,
+    movingTag,
+    moveContentTag,
+    changeContentTags,
+    openCreateDialog,
     handleDelete,
     confirmDelete,
     confirmDeleteWithBacklinks,

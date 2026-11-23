@@ -26,7 +26,6 @@ describe('protected editor writes', () => {
       content: '![image](assets/old/pixel.png)',
       tags: [],
       type: 'code',
-      favorite: false,
       contentRevision: 'r1'
     });
     mocks.updateMarkdownFile.mockResolvedValueOnce({
@@ -77,7 +76,6 @@ describe('protected editor writes', () => {
       content: 'body',
       tags: [],
       type: 'code',
-      favorite: false,
       contentRevision: 'r1'
     });
     mocks.updateMarkdownFile.mockResolvedValueOnce({

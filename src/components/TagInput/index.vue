@@ -40,7 +40,12 @@
         @keyup.esc="handleInputCancel"
       />
 
-      <button v-else class="add-tag-btn" @click="showInputField">
+      <button
+        v-else
+        type="button"
+        class="add-tag-btn"
+        @click="showInput = true"
+      >
         <UiPlus width="14" height="14" />
         <span>{{ $t('tags.addTag') }}</span>
       </button>
@@ -97,8 +102,9 @@ const props = withDefaults(defineProps<TagInputProps>(), {
 const emit = defineEmits<TagInputEmits>();
 
 const inputValue: Ref<string> = ref('');
-const showInput: Ref<boolean> = ref(false);
+const showInput = defineModel<boolean>('adding', { default: false });
 const inputRef: Ref<HTMLInputElement | null> = ref(null);
+watch(inputRef, (input) => input?.focus(), { flush: 'post' });
 
 // 编辑标签相关状态
 const editingIndex: Ref<number> = ref(-1);
@@ -121,16 +127,6 @@ const filteredSuggestions = computed<string[]>(() => {
     )
     .slice(0, 5);
 });
-
-/**
- * 显示输入框
- */
-const showInputField = (): void => {
-  showInput.value = true;
-  nextTick(() => {
-    inputRef.value?.focus();
-  });
-};
 
 /**
  * 验证标签
@@ -186,9 +182,10 @@ const handleInputConfirm = (): void => {
  * 处理输入框失焦
  */
 const handleInputBlur = (): void => {
+  const input = inputRef.value;
   // 延迟执行，给 mousedown 事件留出时间
   setTimeout(() => {
-    handleInputConfirm();
+    if (input && input === inputRef.value) handleInputConfirm();
   }, 150);
 };
 

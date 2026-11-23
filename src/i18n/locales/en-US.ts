@@ -198,7 +198,7 @@ export default {
     editorLineHeightDesc: 'Adjust line spacing in the note editor',
     editorStickyHeadings: 'Show Current Heading When Scrolling',
     editorStickyHeadingsDesc:
-      'Show the current section heading in the filename area after it scrolls out of view',
+      'Show the current section heading in the breadcrumb after it scrolls out of view',
     exitApp: 'Exit App',
     exitAppDesc: 'Exit the application',
     exitAppConfirm: 'Are you sure you want to exit?',
@@ -235,7 +235,6 @@ export default {
       stats: {
         path: 'Path',
         categories: 'Categories',
-        favorites: 'Favorites',
         sources: 'Sources',
         failed: 'Failed',
         timeout: 'Default Timeout',
@@ -893,12 +892,6 @@ export default {
     aiChat: 'AI Chat',
     allSnippets: 'All Snippets',
     uncategorized: 'Uncategorized',
-    favorites: 'Favorites',
-    addFavorite: 'Add to Favorites',
-    removeFavorite: 'Remove from Favorites',
-    favorited: 'Favorited',
-    favoritedAction: 'Favorited, click to remove',
-    favoriteCount: '{count} favorites',
     recentlyDeleted: 'Recently Deleted',
     recentDocuments: 'Recent Documents',
     newNote: 'New Note',
@@ -1316,7 +1309,6 @@ export default {
     missingFileRemoved:
       'Note file no longer exists and was removed from the list',
     loadingEditor: 'Loading editor...',
-    preparingEditor: 'Preparing the editor while you finish the title',
     retry: 'Retry',
     deleteConfirm:
       'Delete folder "{name}"? Notes and snippets inside will move to Recently Deleted.',
@@ -1352,7 +1344,7 @@ export default {
 
   // Content Editing
   content: {
-    stickyHeadingHint: 'Current section: {heading}; click to edit the filename',
+    stickyHeadingHint: 'Current section: {heading}',
     handleLinkFailed: 'Failed to handle link',
     createNoteFailed: 'Failed to create note',
     aiAssistant: 'AI Assistant',
@@ -1361,7 +1353,9 @@ export default {
     copyTitle: 'Copy title',
     copyContent: 'Copy content',
     copySuccess: 'Copied to clipboard',
-    copyFailed: 'Failed to copy'
+    copyFailed: 'Failed to copy',
+    openWith: 'Open with',
+    openWithFailed: 'Could not open the app chooser'
   },
 
   aiAssist: {
@@ -2280,7 +2274,6 @@ export default {
       title: 'Title',
       type: 'Type',
       folder: 'Folder',
-      favorite: 'Favorite',
       tags: 'Tags',
       created: 'Created',
       modified: 'Modified',
@@ -2430,6 +2423,11 @@ export default {
   fragmentType: {
     selectType: 'Create New Content',
     newSnippet: 'New Snippet',
+    noteName: 'Note name',
+    snippetName: 'Snippet name',
+    nameHint: 'Choose a short, recognizable name.',
+    untitledNote: 'Untitled note',
+    untitledSnippet: 'Untitled snippet',
     createIn: 'Create in: {folder}',
     creationFolderMissing:
       'The target folder no longer exists. Select a folder before creating content.',
@@ -2571,6 +2569,18 @@ export default {
     filterByTag: 'Filter by Tag',
     allTags: 'All Tags',
     noTags: 'No tags',
+    removeTag: 'Remove Tag',
+    remove: 'Remove',
+    removeGroupConfirm:
+      'Remove the tag “{tag}” from all {count} linked notes and snippets?',
+    removeContentConfirm: 'Remove the tag “{tag}” from “{title}”?',
+    expandAll: 'Expand All Tags',
+    collapseAll: 'Collapse All Tags',
+    changeUnavailable:
+      'Could not update the tag. Finish any pending saves or draft recovery.',
+    changeFailed: 'Could not update the tag',
+    changePartial:
+      'Could not update {count} of {total} files. You can retry the remaining files.',
     clickToFilter: 'Click tag to view related snippets'
   },
 

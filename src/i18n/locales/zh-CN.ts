@@ -53,7 +53,7 @@ export default {
     manage: '管理',
     quickActionDescriptions: {
       note: '记录思路与知识',
-      code: '收藏可复用的代码',
+      code: '保存可复用的代码',
       workspace: '打开工作区面板',
       launcher: '快速启动应用',
       todo: '管理我的任务',
@@ -74,7 +74,7 @@ export default {
     title: '从这里开始，整理你的知识',
     description: '记录想法，保存可复用的代码。新建一份内容，或继续最近的工作。',
     noteDescription: '记录思路与知识',
-    codeDescription: '收藏可复用的代码',
+    codeDescription: '保存可复用的代码',
     searchDescription: '搜索内容 · Ctrl K',
     recent: '最近更新',
     noRecent: '还没有内容。新建一份笔记或片段，让你的知识积累从这里开始。',
@@ -188,8 +188,7 @@ export default {
     editorLineHeight: '编辑器行距',
     editorLineHeightDesc: '设置笔记编辑器正文的行间距',
     editorStickyHeadings: '滚动时显示当前标题',
-    editorStickyHeadingsDesc:
-      '正文标题滚出顶部时，在文件名位置显示当前段落标题',
+    editorStickyHeadingsDesc: '正文标题滚出顶部时，在面包屑中显示当前段落标题',
     exitApp: '退出应用',
     exitAppDesc: '是否退出应用',
     exitAppConfirm: '确定要退出应用吗？',
@@ -226,7 +225,6 @@ export default {
       stats: {
         path: '路径',
         categories: '分类',
-        favorites: '收藏',
         sources: '来源',
         failed: '失败',
         timeout: '默认超时',
@@ -857,12 +855,6 @@ export default {
     aiChat: 'AI 对话',
     allSnippets: '所有片段',
     uncategorized: '未分类',
-    favorites: '收藏',
-    addFavorite: '添加到收藏',
-    removeFavorite: '取消收藏',
-    favorited: '已收藏',
-    favoritedAction: '已收藏，点击取消收藏',
-    favoriteCount: '{count} 个收藏',
     recentlyDeleted: '最近删除',
     recentDocuments: '最近文档',
     newNote: '新建笔记',
@@ -1247,7 +1239,6 @@ export default {
     loadFailed: '获取内容失败，请重试',
     missingFileRemoved: '笔记文件不存在，已从列表移除',
     loadingEditor: '编辑器加载中...',
-    preparingEditor: '正在准备编辑器，标题输入完成后即可编辑正文',
     retry: '重试',
     deleteConfirm:
       '确定要删除文件夹「{name}」吗？其中的笔记和片段会移入最近删除。',
@@ -1283,7 +1274,7 @@ export default {
 
   // 内容编辑
   content: {
-    stickyHeadingHint: '当前段落：{heading}；点击编辑文件名',
+    stickyHeadingHint: '当前段落：{heading}',
     handleLinkFailed: '处理链接失败',
     createNoteFailed: '创建笔记失败',
     aiAssistant: 'AI 助手',
@@ -1292,7 +1283,9 @@ export default {
     copyTitle: '复制标题',
     copyContent: '复制内容',
     copySuccess: '已复制到剪贴板',
-    copyFailed: '复制失败'
+    copyFailed: '复制失败',
+    openWith: '打开方式',
+    openWithFailed: '无法打开应用选择器'
   },
 
   aiAssist: {
@@ -2166,7 +2159,6 @@ export default {
       title: '标题',
       type: '类型',
       folder: '文件夹',
-      favorite: '收藏',
       tags: '标签',
       created: '创建时间',
       modified: '修改时间',
@@ -2316,6 +2308,11 @@ export default {
   fragmentType: {
     selectType: '创建新内容',
     newSnippet: '新建片段',
+    noteName: '笔记名称',
+    snippetName: '片段名称',
+    nameHint: '输入简短且易于识别的名称。',
+    untitledNote: '未命名笔记',
+    untitledSnippet: '未命名片段',
     createIn: '创建位置：{folder}',
     creationFolderMissing: '目标文件夹已不存在，请重新选择文件夹后创建',
     codeSnippet: '片段',
@@ -2443,6 +2440,17 @@ export default {
     filterByTag: '按标签筛选',
     allTags: '全部标签',
     noTags: '暂无标签',
+    removeTag: '移除标签',
+    remove: '移除',
+    removeGroupConfirm:
+      '确定从已绑定的 {count} 个笔记或片段中移除标签「{tag}」吗？',
+    removeContentConfirm: '确定从「{title}」中移除标签「{tag}」吗？',
+    expandAll: '展开所有标签',
+    collapseAll: '收起所有标签',
+    changeUnavailable: '暂时无法更新标签，请先处理待保存的修改或恢复草稿。',
+    changeFailed: '更新标签失败',
+    changePartial:
+      '有 {count} 个文件更新失败（共 {total} 个），可对剩余文件重试。',
     clickToFilter: '点击标签查看相关片段'
   },
 

@@ -2,7 +2,7 @@
 
 ## 产品范围
 
-AI 回复可以保存为普通工作区 Markdown 笔记，随后使用现有编辑、检索、收藏、移动、重命名和回收站能力管理。工作区知识问答、文档／文献问答和知识型 Agent 不属于本次交付范围。
+AI 回复可以保存为普通工作区 Markdown 笔记，随后使用现有编辑、检索、移动、重命名和回收站能力管理。工作区知识问答、文档／文献问答和知识型 Agent 不属于本次交付范围。
 
 主应用提供文件写入、稳定身份、来源保存和重复保存保护。保存／打开入口由 local-ai 插件独立更新提供；主应用更新不会替换已安装的插件包。
 
@@ -17,7 +17,7 @@ AI 回复可以保存为普通工作区 Markdown 笔记，随后使用现有编�
 | `src-tauri/src/markdown/metadata.rs` | 来源的 frontmatter 序列化与元数据读取 |
 | `src-tauri/src/markdown/file_system_manager.rs` | 复用现有路径校验与文件读写 |
 
-- `documentId` 来自 frontmatter UUID，独立于兼容旧界面的路径型 `id`，编辑、收藏、移动和重命名不会重新生成身份。
+- `documentId` 来自 frontmatter UUID，独立于兼容旧界面的路径型 `id`，编辑、移动和重命名不会重新生成身份。
 - `aiSource` 保存 `version`、`conversationId`、`messageId`、`generatedAt`、可选的 `modelName` 和 `question`。旧来源的未知属性按原样保留，不作为执行指令或问答上下文使用。
 - `expectedWorkspaceRoot` 为可选参数。插件传入来源工作区后，主应用在读写前拒绝已切换工作区的请求；旧调用可以继续省略该参数。
 - `getAllFiles({ includeContent: false })` 只读取元数据，不传输正文或来源快照；未指定时保留原有完整内容读取行为。文件列表扫描使用后台任务。

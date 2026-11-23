@@ -27,8 +27,7 @@ export function buildFragmentTypeConversionUpdate(
       framework:
         (updates.metadata?.framework as string | undefined) ??
         currentFile.framework,
-      kind: (updates.metadata?.kind as string | undefined) ?? currentFile.kind,
-      favorite: currentFile.favorite
+      kind: (updates.metadata?.kind as string | undefined) ?? currentFile.kind
     }
   };
 }

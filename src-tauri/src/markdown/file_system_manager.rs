@@ -297,7 +297,6 @@ impl FileSystemManager {
                     language: None,
                     framework: None,
                     kind: None,
-                    favorite: false,
                 };
 
                 debug!("📖 读取文件（无 Front Matter）: {}", full_path.display());

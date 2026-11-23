@@ -7,7 +7,6 @@ export interface WorkbenchContentSummary {
   total: number;
   snippets: number;
   notes: number;
-  favorites: number;
 }
 
 export interface WorkbenchPluginSummary {
@@ -33,8 +32,7 @@ export const summarizeWorkbenchContent = (
 ): WorkbenchContentSummary => ({
   total: files.length,
   snippets: files.filter((file) => file.type === 'code').length,
-  notes: files.filter((file) => file.type === 'note').length,
-  favorites: files.filter((file) => file.favorite).length
+  notes: files.filter((file) => file.type === 'note').length
 });
 
 export const summarizeWorkbenchPlugins = (
