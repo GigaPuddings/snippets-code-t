@@ -41,7 +41,7 @@
   "entry": {
     "frontend": "dist/frontend.js",
     "styles": [
-      "dist/assets/runtime-entry-BXGfXVwh.css"
+      "dist/assets/runtime-entry-D4fPzvW6.css"
     ]
   },
   "minAppVersion": "2.2.19",

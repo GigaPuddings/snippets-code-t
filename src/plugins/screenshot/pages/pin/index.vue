@@ -455,51 +455,46 @@
     </div>
 
     <!-- 右键菜单 -->
-    <div
+    <ContextMenuSurface
       v-if="showContextMenu"
       ref="contextMenuRef"
-      class="pin-context-menu"
+      class="z-[9999]"
       :style="contextMenuStyle"
       tabindex="-1"
+      scaled
       @contextmenu.prevent.stop
     >
-      <button
-        type="button"
-        class="ui-menu-item"
-        @click="handleToggleAlwaysOnTop"
-      >
+      <ContextMenuItem @click="handleToggleAlwaysOnTop">
         <component :is="isAlwaysOnTop ? Pin : Pushpin" width="16" height="16" />
         <span>
           {{ isAlwaysOnTop ? $t('pin.togglePin') : $t('pin.pinWindow') }}
         </span>
-      </button>
-      <button type="button" class="ui-menu-item" @click="handleResetZoom">
+      </ContextMenuItem>
+      <ContextMenuItem @click="handleResetZoom">
         <Redo width="16" height="16" />
         <span>{{ $t('pin.resetZoom') }}</span>
-      </button>
-      <button type="button" class="ui-menu-item" @click="handleCopyImage">
+      </ContextMenuItem>
+      <ContextMenuItem @click="handleCopyImage">
         <Copy width="16" height="16" />
         <span>{{ $t('pin.copyImage') }}</span>
-      </button>
-      <button type="button" class="ui-menu-item" @click="handleSaveImage">
+      </ContextMenuItem>
+      <ContextMenuItem @click="handleSaveImage">
         <Save width="16" height="16" />
         <span>{{ $t('pin.saveImage') }}</span>
-      </button>
-      <button
+      </ContextMenuItem>
+      <ContextMenuItem
         v-if="mode === 'ocr' && ocrText.trim()"
-        type="button"
-        class="ui-menu-item"
         @click="handleCopyOcrText"
       >
         <Copy width="16" height="16" />
         <span>{{ $t('pin.copyText') }}</span>
-      </button>
-      <hr class="pin-context-divider" />
-      <button type="button" class="ui-menu-item danger" @click="handleClose">
+      </ContextMenuItem>
+      <hr class="context-menu-divider" />
+      <ContextMenuItem danger @click="handleClose">
         <Trash width="16" height="16" />
         <span>{{ destroyPinLabel }}</span>
-      </button>
-    </div>
+      </ContextMenuItem>
+    </ContextMenuSurface>
   </div>
 </template>
 
@@ -535,6 +530,8 @@ import Left from '~icons/lucide/chevron-left';
 import Right from '~icons/lucide/chevron-right';
 import { logger, ocrDiagnosticLogger } from '@/utils/logger';
 import modal from '@/utils/modal';
+import ContextMenuSurface from '@/components/UI/ContextMenuSurface.vue';
+import ContextMenuItem from '@/components/UI/ContextMenuItem.vue';
 import CustomButton from '@/components/UI/CustomButton.vue';
 import Splitter from '@/components/Splitter/index.vue';
 import {
@@ -731,7 +728,7 @@ const isResizing = ref(false);
 let zoomInfoTimer: ReturnType<typeof setTimeout> | null = null;
 
 const showContextMenu = ref(false);
-const contextMenuRef = ref<HTMLDivElement>();
+const contextMenuRef = ref<InstanceType<typeof ContextMenuSurface>>();
 const contextMenuStyle = ref<CSSProperties>();
 const isAlwaysOnTop = ref(true);
 
@@ -1582,7 +1579,7 @@ const handleContextMenu = async (event: MouseEvent): Promise<void> => {
   showContextMenu.value = true;
   await nextTick();
 
-  const menu = contextMenuRef.value;
+  const menu = contextMenuRef.value?.element;
   if (!menu) return;
 
   const inset = 4;
@@ -1770,7 +1767,7 @@ const globalContextMenuHandler = (e: MouseEvent) => {
 const handleClickOutside = (event: MouseEvent) => {
   const target = event.target as HTMLElement;
   if (
-    !target.closest('.pin-context-menu') &&
+    !contextMenuRef.value?.element?.contains(target) &&
     !target.closest('.ocr-engine-btn-group') &&
     !target.closest('.translate-btn-group') &&
     !target.closest('.ocr-floating-menu')
@@ -2731,34 +2728,6 @@ onUnmounted(() => {
     @apply absolute top-4 right-4 bg-black/70 text-white px-3 py-1 rounded-md text-sm z-30;
 
     pointer-events: none;
-  }
-
-  .pin-context-menu {
-    @apply fixed z-[9999] w-max min-w-44 origin-top-left rounded-ui border border-ui bg-[var(--settings-surface)] p-1 font-ui shadow-toast outline-none;
-
-    .ui-menu-item {
-      @apply w-full whitespace-nowrap bg-transparent px-2.5 py-1 text-left;
-
-      &:hover:not(:disabled),
-      &:focus-visible {
-        @apply bg-ui-hover;
-      }
-
-      svg {
-        @apply shrink-0 text-ui-muted;
-      }
-
-      &.danger {
-        &,
-        svg {
-          color: var(--el-color-danger);
-        }
-      }
-    }
-  }
-
-  .pin-context-divider {
-    @apply mx-1.5 my-1 border-0 border-t border-ui;
   }
 }
 
