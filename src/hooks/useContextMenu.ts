@@ -1,4 +1,4 @@
-import { onMounted, onUnmounted, ref, type Ref } from 'vue';
+import { nextTick, onMounted, onUnmounted, ref, type Ref } from 'vue';
 import { ErrorHandler, ErrorType } from '@/utils/error-handler';
 
 /**
@@ -55,9 +55,7 @@ export default function useContextMenu(
       showMenu.value = true;
 
       // 等待DOM更新后调整位置
-      setTimeout(() => {
-        adjustMenuPosition();
-      }, 0);
+      void nextTick(adjustMenuPosition);
     } catch (error) {
       ErrorHandler.handle(error, {
         type: ErrorType.UNKNOWN_ERROR,
@@ -116,6 +114,13 @@ export default function useContextMenu(
     showMenu.value = false;
   };
 
+  const handleScroll = (event: Event): void => {
+    const { target } = event;
+    if (!(target instanceof Node) || !menuRef.value?.contains(target)) {
+      closeMenu();
+    }
+  };
+
   onMounted(() => {
     try {
       const div = containerRef.value;
@@ -124,7 +129,7 @@ export default function useContextMenu(
         window.addEventListener('click', closeMenu, true);
         window.addEventListener('contextmenu', closeMenu, true);
         // 添加滚动时关闭菜单
-        window.addEventListener('scroll', closeMenu, true);
+        window.addEventListener('scroll', handleScroll, true);
         // 添加窗口大小变化时调整菜单位置
         window.addEventListener('resize', adjustMenuPosition);
       }
@@ -144,7 +149,7 @@ export default function useContextMenu(
         div.removeEventListener('contextmenu', handleContextMenu);
         window.removeEventListener('click', closeMenu, true);
         window.removeEventListener('contextmenu', closeMenu, true);
-        window.removeEventListener('scroll', closeMenu, true);
+        window.removeEventListener('scroll', handleScroll, true);
         window.removeEventListener('resize', adjustMenuPosition);
       }
     } catch (error) {

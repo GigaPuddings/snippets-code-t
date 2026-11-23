@@ -1,84 +1,72 @@
 <template>
   <teleport to="body">
-    <div
+    <ContextMenuSurface
       v-if="visible"
       ref="menuRef"
-      class="code-context-menu"
-      :class="{ 'dark-theme': dark }"
+      class="z-[9999]"
       :style="menuStyle"
-      role="menu"
       @contextmenu.prevent
       @mousedown.stop
     >
-      <button
-        class="menu-item"
+      <ContextMenuItem
         :disabled="!canFormat"
-        role="menuitem"
+        shortcut="Ctrl+Shift+F"
         @click="run('format')"
       >
         <span>{{ $t('codeEditor.formatCode') }}</span>
-        <kbd>Ctrl+Shift+F</kbd>
-      </button>
-      <button
-        class="menu-item"
+      </ContextMenuItem>
+      <ContextMenuItem
         :disabled="!canEdit"
-        role="menuitem"
+        shortcut="Ctrl+Z"
         @click="run('undo')"
       >
         <span>{{ $t('codeEditor.undo') }}</span>
-        <kbd>Ctrl+Z</kbd>
-      </button>
-      <button
-        class="menu-item"
+      </ContextMenuItem>
+      <ContextMenuItem
         :disabled="!canEdit"
-        role="menuitem"
+        shortcut="Ctrl+Y"
         @click="run('redo')"
       >
         <span>{{ $t('codeEditor.redo') }}</span>
-        <kbd>Ctrl+Y</kbd>
-      </button>
+      </ContextMenuItem>
 
-      <div class="menu-divider"></div>
+      <div class="context-menu-divider" role="separator"></div>
 
-      <button
-        class="menu-item"
+      <ContextMenuItem
         :disabled="!canEdit || !hasSelection"
-        role="menuitem"
+        shortcut="Ctrl+X"
         @click="run('cut')"
       >
         <span>{{ $t('contextMenu.cut') }}</span>
-        <kbd>Ctrl+X</kbd>
-      </button>
-      <button
-        class="menu-item"
+      </ContextMenuItem>
+      <ContextMenuItem
         :disabled="!hasSelection"
-        role="menuitem"
+        shortcut="Ctrl+C"
         @click="run('copy')"
       >
         <span>{{ $t('contextMenu.copy') }}</span>
-        <kbd>Ctrl+C</kbd>
-      </button>
-      <button
-        class="menu-item"
+      </ContextMenuItem>
+      <ContextMenuItem
         :disabled="!canEdit"
-        role="menuitem"
+        shortcut="Ctrl+V"
         @click="run('paste')"
       >
         <span>{{ $t('contextMenu.paste') }}</span>
-        <kbd>Ctrl+V</kbd>
-      </button>
-      <button class="menu-item" role="menuitem" @click="run('copyAll')">
+      </ContextMenuItem>
+      <ContextMenuItem @click="run('copyAll')">
         <span>{{ $t('codeEditor.copyAll') }}</span>
-      </button>
-      <button class="menu-item" role="menuitem" @click="run('selectAll')">
+      </ContextMenuItem>
+      <ContextMenuItem shortcut="Ctrl+A" @click="run('selectAll')">
         <span>{{ $t('contextMenu.selectAll') }}</span>
-        <kbd>Ctrl+A</kbd>
-      </button>
-    </div>
+      </ContextMenuItem>
+    </ContextMenuSurface>
   </teleport>
 </template>
 
 <script setup lang="ts">
+import ContextMenuSurface from '@/components/UI/ContextMenuSurface.vue';
+import ContextMenuItem from '@/components/UI/ContextMenuItem.vue';
+
 type MenuAction =
   | 'format'
   | 'undo'
@@ -90,14 +78,12 @@ type MenuAction =
   | 'selectAll';
 
 interface Props {
-  dark?: boolean;
   canEdit?: boolean;
   canFormat?: boolean;
   hasSelection?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  dark: false,
   canEdit: true,
   canFormat: true,
   hasSelection: false
@@ -108,7 +94,7 @@ const emit = defineEmits<{
 }>();
 
 const visible = ref(false);
-const menuRef = ref<HTMLElement | null>(null);
+const menuRef = ref<InstanceType<typeof ContextMenuSurface> | null>(null);
 const position = ref({ x: 0, y: 0 });
 
 const menuStyle = computed(() => ({
@@ -122,7 +108,7 @@ function show(event: MouseEvent): void {
   visible.value = true;
 
   nextTick(() => {
-    const menu = menuRef.value;
+    const menu = menuRef.value?.element;
     if (!menu) return;
 
     const rect = menu.getBoundingClientRect();
@@ -157,7 +143,10 @@ function run(action: MenuAction): void {
 }
 
 function handleOutsidePointer(event: PointerEvent): void {
-  if (visible.value && !menuRef.value?.contains(event.target as Node)) {
+  if (
+    visible.value &&
+    !menuRef.value?.element?.contains(event.target as Node)
+  ) {
     hide();
   }
 }
@@ -178,52 +167,3 @@ onBeforeUnmount(() => {
 
 defineExpose({ show, hide });
 </script>
-
-<style lang="scss" scoped>
-.code-context-menu {
-  @apply fixed z-[9999] min-w-[188px] rounded-lg border p-1 select-none;
-
-  background-color: var(--panel-bg);
-  border-color: var(--panel-border);
-  box-shadow:
-    0 6px 16px rgb(0 0 0 / 12%),
-    0 2px 6px rgb(0 0 0 / 8%);
-
-  &.dark-theme {
-    box-shadow:
-      0 6px 16px rgb(0 0 0 / 50%),
-      0 2px 6px rgb(0 0 0 / 30%);
-  }
-}
-
-.menu-item {
-  @apply flex w-full items-center gap-4 rounded-md px-2.5 py-1.5 text-left text-sm;
-
-  color: var(--panel-text);
-
-  &:not(:disabled):hover {
-    background-color: var(--editor-hover-bg);
-  }
-
-  &:disabled {
-    @apply cursor-not-allowed opacity-45;
-  }
-
-  span {
-    @apply flex-1 whitespace-nowrap;
-  }
-
-  kbd {
-    @apply text-[10px];
-
-    font-family: 'SF Mono', Monaco, Consolas, monospace;
-    color: var(--panel-text-secondary);
-  }
-}
-
-.menu-divider {
-  @apply my-1 h-px;
-
-  background-color: var(--panel-border);
-}
-</style>

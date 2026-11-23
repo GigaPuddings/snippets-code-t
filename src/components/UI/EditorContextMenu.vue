@@ -1,423 +1,382 @@
 <template>
   <teleport to="body">
-    <div
+    <ContextMenuSurface
       v-if="visible"
       ref="menuRef"
-      class="context-menu"
-      :class="{ 'dark-theme': dark }"
+      class="z-50"
       :style="menuStyle"
-      role="menu"
       @contextmenu.prevent
     >
       <template v-if="image">
-        <button
-          type="button"
-          role="menuitem"
-          class="menu-item w-full text-left"
-          @click="imageAction('copy')"
-        >
-          <UiCopy class="menu-icon" />
+        <ContextMenuItem @click="imageAction('copy')">
+          <UiCopy />
           <span>{{ $t('contextMenu.copyImage') }}</span>
-        </button>
+        </ContextMenuItem>
         <template v-if="!image.readOnly">
-          <button
-            type="button"
-            role="menuitem"
-            class="menu-item has-submenu w-full text-left"
+          <ContextMenuItem
             aria-haspopup="menu"
             :aria-expanded="activeSubmenu === 'imageScale'"
             @click="showSubmenu('imageScale', $event)"
             @mouseenter="showSubmenu('imageScale', $event)"
             @mouseleave="handleMenuMouseLeave"
           >
-            <UiImage class="menu-icon" />
-            <span>{{ $t('settings.attachment.imageScale') }}</span>
-            <span class="menu-shortcut">{{ image.scale }}%</span>
-            <UiChevronRight class="menu-arrow" />
-          </button>
-          <button
-            type="button"
+            <UiImage />
+            <span>
+              {{ $t('settings.attachment.imageScale') }}
+            </span>
+            <kbd class="context-menu-shortcut">{{ image.scale }}%</kbd>
+            <UiChevronRight class="context-menu-arrow" />
+          </ContextMenuItem>
+          <ContextMenuItem
             role="menuitemcheckbox"
-            class="menu-item w-full text-left"
             :aria-checked="image.allImages"
             :title="$t('settings.attachment.applyToAllImages')"
             @click="emit('image-scope-change', !image.allImages)"
           >
-            <UiImages class="menu-icon" />
-            <span>{{ $t('settings.attachment.allImagesShort') }}</span>
-            <UiCheck v-if="image.allImages" class="check-mark" />
-          </button>
-          <div class="menu-divider"></div>
-          <button
-            type="button"
-            role="menuitem"
-            class="menu-item w-full text-left"
-            @click="imageAction('location')"
-          >
-            <UiFolderOpen class="menu-icon" />
-            <span>{{ $t('settings.attachment.openImageLocation') }}</span>
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            class="menu-item w-full text-left"
-            @click="imageAction('delete')"
-          >
-            <UiTrash class="menu-icon" />
-            <span>{{ $t('settings.attachment.deleteImage') }}</span>
-          </button>
+            <UiImages />
+            <span>
+              {{ $t('settings.attachment.allImagesShort') }}
+            </span>
+            <UiCheck v-if="image.allImages" class="context-menu-check" />
+          </ContextMenuItem>
+          <div class="context-menu-divider" role="separator"></div>
+          <ContextMenuItem @click="imageAction('location')">
+            <UiFolderOpen />
+            <span>
+              {{ $t('settings.attachment.openImageLocation') }}
+            </span>
+          </ContextMenuItem>
+          <ContextMenuItem danger @click="imageAction('delete')">
+            <UiTrash />
+            <span>
+              {{ $t('settings.attachment.deleteImage') }}
+            </span>
+          </ContextMenuItem>
         </template>
       </template>
       <template v-else>
-        <div
+        <ContextMenuItem
+          as="div"
           v-if="isCodeBlockActive && !isSourceMode"
-          class="menu-item"
           @click="formatCodeBlock"
         >
           <span>{{ $t('codeEditor.formatCode') }}</span>
-        </div>
+        </ContextMenuItem>
 
         <div
           v-if="isCodeBlockActive && !isSourceMode"
-          class="menu-divider"
+          class="context-menu-divider"
+          role="separator"
         ></div>
 
         <!-- 新增链接（内部链接） -->
-        <div class="menu-item" @click="handleAddLink">
-          <UiLink class="menu-icon" />
+        <ContextMenuItem as="div" @click="handleAddLink">
+          <UiLink />
           <span>{{ $t('contextMenu.addLink') }}</span>
-          <span class="menu-shortcut">[[]]</span>
-        </div>
+          <kbd class="context-menu-shortcut">[[]]</kbd>
+        </ContextMenuItem>
 
         <!-- 新增外部链接 -->
-        <div class="menu-item" @click="handleAddExternalLink">
-          <UiExternalLink class="menu-icon" />
+        <ContextMenuItem as="div" @click="handleAddExternalLink">
+          <UiExternalLink />
           <span>{{ $t('contextMenu.addExternalLink') }}</span>
-          <span class="menu-shortcut">[]()</span>
-        </div>
+          <kbd class="context-menu-shortcut">[]()</kbd>
+        </ContextMenuItem>
 
-        <div class="menu-divider"></div>
+        <div class="context-menu-divider" role="separator"></div>
 
         <!-- 文本格式子菜单 -->
-        <div
-          class="menu-item has-submenu"
-          :class="{ disabled: isMarkdownSyntaxDisabled }"
+        <ContextMenuItem
+          as="div"
+          :disabled="isMarkdownSyntaxDisabled"
           @mouseenter="showSubmenu('textFormat', $event)"
           @mouseleave="handleMenuMouseLeave"
         >
-          <UiType class="menu-icon" />
+          <UiType />
           <span>{{ $t('contextMenu.textFormat') }}</span>
-          <UiChevronRight class="menu-arrow" />
-        </div>
+          <UiChevronRight class="context-menu-arrow" />
+        </ContextMenuItem>
 
         <!-- 段落设置子菜单 -->
-        <div
-          class="menu-item has-submenu"
-          :class="{ disabled: isMarkdownSyntaxDisabled }"
+        <ContextMenuItem
+          as="div"
+          :disabled="isMarkdownSyntaxDisabled"
           @mouseenter="showSubmenu('paragraphSettings', $event)"
           @mouseleave="handleMenuMouseLeave"
         >
-          <UiPilcrow class="menu-icon" />
-          <span>{{ $t('contextMenu.paragraphSettings') }}</span>
-          <UiChevronRight class="menu-arrow" />
-        </div>
+          <UiPilcrow />
+          <span>
+            {{ $t('contextMenu.paragraphSettings') }}
+          </span>
+          <UiChevronRight class="context-menu-arrow" />
+        </ContextMenuItem>
 
         <!-- 插入子菜单 -->
-        <div
-          class="menu-item has-submenu"
-          :class="{ disabled: isMarkdownSyntaxDisabled }"
+        <ContextMenuItem
+          as="div"
+          :disabled="isMarkdownSyntaxDisabled"
           @mouseenter="showSubmenu('insert', $event)"
           @mouseleave="handleMenuMouseLeave"
         >
-          <UiPlus class="menu-icon" />
+          <UiPlus />
           <span>{{ $t('contextMenu.insert') }}</span>
-          <UiChevronRight class="menu-arrow" />
-        </div>
+          <UiChevronRight class="context-menu-arrow" />
+        </ContextMenuItem>
 
-        <div class="menu-divider"></div>
+        <div class="context-menu-divider" role="separator"></div>
 
         <!-- 剪贴板操作 -->
-        <div class="menu-item disabled">
-          <UiScissors class="menu-icon" />
+        <ContextMenuItem as="div" disabled>
+          <UiScissors />
           <span>{{ $t('contextMenu.cut') }}</span>
-        </div>
+        </ContextMenuItem>
 
-        <div class="menu-item disabled">
-          <UiCopy class="menu-icon" />
+        <ContextMenuItem as="div" disabled>
+          <UiCopy />
           <span>{{ $t('contextMenu.copy') }}</span>
-        </div>
+        </ContextMenuItem>
 
-        <div class="menu-item" @click="handlePaste">
-          <UiClipboardPaste class="menu-icon" />
+        <ContextMenuItem as="div" @click="handlePaste">
+          <UiClipboardPaste />
           <span>{{ $t('contextMenu.paste') }}</span>
-        </div>
+        </ContextMenuItem>
 
-        <div class="menu-item" @click="handlePasteAsPlainText">
-          <UiClipboardType class="menu-icon" />
+        <ContextMenuItem as="div" @click="handlePasteAsPlainText">
+          <UiClipboardType />
           <span>{{ $t('contextMenu.pasteAsPlainText') }}</span>
-        </div>
+        </ContextMenuItem>
 
-        <div class="menu-item" @click="handleSelectAll">
-          <UiSquareDashed class="menu-icon" />
+        <ContextMenuItem as="div" @click="handleSelectAll">
+          <UiSquareDashed />
           <span>{{ $t('contextMenu.selectAll') }}</span>
-        </div>
+        </ContextMenuItem>
       </template>
 
       <!-- 子菜单 -->
       <teleport to="body">
-        <div
+        <ContextMenuSurface
           v-if="activeSubmenu"
           ref="submenuRef"
-          class="context-menu submenu"
-          :class="{ 'dark-theme': dark }"
+          class="z-50"
           :style="submenuStyle"
-          role="menu"
           @mouseenter="keepSubmenuOpen"
           @mouseleave="hideSubmenu"
         >
           <template v-if="activeSubmenu === 'imageScale' && image">
-            <button
+            <ContextMenuItem
               v-for="scale in imageScales"
               :key="scale"
-              type="button"
               role="menuitemradio"
-              class="menu-item w-full text-left"
-              :class="{ active: image.scale === scale }"
+              :active="image.scale === scale"
               :aria-checked="image.scale === scale"
               @click="selectImageScale(scale)"
             >
               <span>{{ scale }}%</span>
-              <UiCheck v-if="image.scale === scale" class="check-mark" />
-            </button>
-            <div class="menu-divider"></div>
-            <button
-              type="button"
-              role="menuitem"
-              class="menu-item w-full text-left"
-              @click="imageAction('custom')"
-            >
-              <span>{{ $t('settings.attachment.customImageScale') }}</span>
-            </button>
+              <UiCheck
+                v-if="image.scale === scale"
+                class="context-menu-check"
+              />
+            </ContextMenuItem>
+            <div class="context-menu-divider" role="separator"></div>
+            <ContextMenuItem @click="imageAction('custom')">
+              <span>
+                {{ $t('settings.attachment.customImageScale') }}
+              </span>
+            </ContextMenuItem>
           </template>
           <template v-else-if="activeSubmenu === 'textFormat'">
-            <div
-              class="menu-item"
-              :class="[
-                { active: editor?.isActive('bold') },
-                markdownDisabledClass
-              ]"
+            <ContextMenuItem
+              as="div"
+              :active="editor?.isActive('bold')"
+              :disabled="isMarkdownSyntaxDisabled"
               @click="toggleBold"
             >
               <span>{{ $t('contextMenu.bold') }}</span>
-              <span class="menu-shortcut">**</span>
-            </div>
-            <div
-              class="menu-item"
-              :class="[
-                { active: editor?.isActive('italic') },
-                markdownDisabledClass
-              ]"
+              <kbd class="context-menu-shortcut">**</kbd>
+            </ContextMenuItem>
+            <ContextMenuItem
+              as="div"
+              :active="editor?.isActive('italic')"
+              :disabled="isMarkdownSyntaxDisabled"
               @click="toggleItalic"
             >
               <span>{{ $t('contextMenu.italic') }}</span>
-              <span class="menu-shortcut">*</span>
-            </div>
-            <div
-              class="menu-item"
-              :class="[
-                { active: editor?.isActive('strike') },
-                markdownDisabledClass
-              ]"
+              <kbd class="context-menu-shortcut">*</kbd>
+            </ContextMenuItem>
+            <ContextMenuItem
+              as="div"
+              :active="editor?.isActive('strike')"
+              :disabled="isMarkdownSyntaxDisabled"
               @click="toggleStrike"
             >
-              <span>{{ $t('contextMenu.strikethrough') }}</span>
-              <span class="menu-shortcut">~~</span>
-            </div>
-            <div
-              class="menu-item"
-              :class="[
-                { active: editor?.isActive('code') },
-                markdownDisabledClass
-              ]"
+              <span>
+                {{ $t('contextMenu.strikethrough') }}
+              </span>
+              <kbd class="context-menu-shortcut">~~</kbd>
+            </ContextMenuItem>
+            <ContextMenuItem
+              as="div"
+              :active="editor?.isActive('code')"
+              :disabled="isMarkdownSyntaxDisabled"
               @click="toggleCode"
             >
               <span>{{ $t('contextMenu.code') }}</span>
-              <span class="menu-shortcut">`</span>
-            </div>
-            <div class="menu-divider"></div>
-            <div
-              class="menu-item"
-              :class="markdownDisabledClass"
+              <kbd class="context-menu-shortcut">`</kbd>
+            </ContextMenuItem>
+            <div class="context-menu-divider" role="separator"></div>
+            <ContextMenuItem
+              as="div"
+              :disabled="isMarkdownSyntaxDisabled"
               @click="clearFormat"
             >
               <span>{{ $t('contextMenu.clearFormat') }}</span>
-            </div>
+            </ContextMenuItem>
           </template>
 
           <template v-else-if="activeSubmenu === 'paragraphSettings'">
-            <div
-              class="menu-item"
-              :class="[
-                { active: editor?.isActive('bulletList') },
-                markdownDisabledClass
-              ]"
+            <ContextMenuItem
+              as="div"
+              :active="editor?.isActive('bulletList')"
+              :disabled="isMarkdownSyntaxDisabled"
               @click="toggleBulletList"
             >
               <span>{{ $t('contextMenu.bulletList') }}</span>
-              <span class="menu-shortcut">-</span>
-            </div>
-            <div
-              class="menu-item"
-              :class="[
-                { active: editor?.isActive('orderedList') },
-                markdownDisabledClass
-              ]"
+              <kbd class="context-menu-shortcut">-</kbd>
+            </ContextMenuItem>
+            <ContextMenuItem
+              as="div"
+              :active="editor?.isActive('orderedList')"
+              :disabled="isMarkdownSyntaxDisabled"
               @click="toggleOrderedList"
             >
               <span>{{ $t('contextMenu.orderedList') }}</span>
-              <span class="menu-shortcut">1.</span>
-            </div>
-            <div
-              class="menu-item"
-              :class="[
-                { active: editor?.isActive('taskList') },
-                markdownDisabledClass
-              ]"
+              <kbd class="context-menu-shortcut">1.</kbd>
+            </ContextMenuItem>
+            <ContextMenuItem
+              as="div"
+              :active="editor?.isActive('taskList')"
+              :disabled="isMarkdownSyntaxDisabled"
               @click="toggleTaskList"
             >
               <span>{{ $t('contextMenu.taskList') }}</span>
-              <span class="menu-shortcut">- [ ]</span>
-            </div>
-            <div class="menu-divider"></div>
-            <div
-              class="menu-item"
-              :class="[
-                { active: editor?.isActive('heading', { level: 1 }) },
-                markdownDisabledClass
-              ]"
+              <kbd class="context-menu-shortcut">- [ ]</kbd>
+            </ContextMenuItem>
+            <div class="context-menu-divider" role="separator"></div>
+            <ContextMenuItem
+              as="div"
+              :active="editor?.isActive('heading', { level: 1 })"
+              :disabled="isMarkdownSyntaxDisabled"
               @click="setHeading(1)"
             >
               <span>H₁ {{ $t('contextMenu.heading1') }}</span>
-              <span class="menu-shortcut">#</span>
-            </div>
-            <div
-              class="menu-item"
-              :class="[
-                { active: editor?.isActive('heading', { level: 2 }) },
-                markdownDisabledClass
-              ]"
+              <kbd class="context-menu-shortcut">#</kbd>
+            </ContextMenuItem>
+            <ContextMenuItem
+              as="div"
+              :active="editor?.isActive('heading', { level: 2 })"
+              :disabled="isMarkdownSyntaxDisabled"
               @click="setHeading(2)"
             >
               <span>H₂ {{ $t('contextMenu.heading2') }}</span>
-              <span class="menu-shortcut">##</span>
-            </div>
-            <div
-              class="menu-item"
-              :class="[
-                { active: editor?.isActive('heading', { level: 3 }) },
-                markdownDisabledClass
-              ]"
+              <kbd class="context-menu-shortcut">##</kbd>
+            </ContextMenuItem>
+            <ContextMenuItem
+              as="div"
+              :active="editor?.isActive('heading', { level: 3 })"
+              :disabled="isMarkdownSyntaxDisabled"
               @click="setHeading(3)"
             >
               <span>H₃ {{ $t('contextMenu.heading3') }}</span>
-              <span class="menu-shortcut">###</span>
-            </div>
-            <div
-              class="menu-item"
-              :class="[
-                { active: editor?.isActive('heading', { level: 4 }) },
-                markdownDisabledClass
-              ]"
+              <kbd class="context-menu-shortcut">###</kbd>
+            </ContextMenuItem>
+            <ContextMenuItem
+              as="div"
+              :active="editor?.isActive('heading', { level: 4 })"
+              :disabled="isMarkdownSyntaxDisabled"
               @click="setHeading(4)"
             >
               <span>H₄ {{ $t('contextMenu.heading4') }}</span>
-              <span class="menu-shortcut">####</span>
-            </div>
-            <div
-              class="menu-item"
-              :class="[
-                { active: editor?.isActive('heading', { level: 5 }) },
-                markdownDisabledClass
-              ]"
+              <kbd class="context-menu-shortcut">####</kbd>
+            </ContextMenuItem>
+            <ContextMenuItem
+              as="div"
+              :active="editor?.isActive('heading', { level: 5 })"
+              :disabled="isMarkdownSyntaxDisabled"
               @click="setHeading(5)"
             >
               <span>H₅ {{ $t('contextMenu.heading5') }}</span>
-              <span class="menu-shortcut">#####</span>
-            </div>
-            <div
-              class="menu-item"
-              :class="[
-                { active: editor?.isActive('heading', { level: 6 }) },
-                markdownDisabledClass
-              ]"
+              <kbd class="context-menu-shortcut">#####</kbd>
+            </ContextMenuItem>
+            <ContextMenuItem
+              as="div"
+              :active="editor?.isActive('heading', { level: 6 })"
+              :disabled="isMarkdownSyntaxDisabled"
               @click="setHeading(6)"
             >
               <span>H₆ {{ $t('contextMenu.heading6') }}</span>
-              <span class="menu-shortcut">######</span>
-            </div>
-            <div
-              class="menu-item"
-              :class="[
-                { active: editor?.isActive('paragraph') },
-                markdownDisabledClass
-              ]"
+              <kbd class="context-menu-shortcut">######</kbd>
+            </ContextMenuItem>
+            <ContextMenuItem
+              as="div"
+              :active="editor?.isActive('paragraph')"
+              :disabled="isMarkdownSyntaxDisabled"
               @click="setParagraph"
             >
               <span>≡ {{ $t('contextMenu.paragraph') }}</span>
               <UiCheck
                 v-if="editor?.isActive('paragraph')"
-                class="check-mark"
+                class="context-menu-check"
                 width="16"
                 height="16"
               />
-            </div>
-            <div class="menu-divider"></div>
-            <div
-              class="menu-item"
-              :class="[
-                { active: editor?.isActive('blockquote') },
-                markdownDisabledClass
-              ]"
+            </ContextMenuItem>
+            <div class="context-menu-divider" role="separator"></div>
+            <ContextMenuItem
+              as="div"
+              :active="editor?.isActive('blockquote')"
+              :disabled="isMarkdownSyntaxDisabled"
               @click="toggleBlockquote"
             >
               <span>❝❞ {{ $t('contextMenu.blockquote') }}</span>
-              <span class="menu-shortcut">></span>
-            </div>
+              <kbd class="context-menu-shortcut">></kbd>
+            </ContextMenuItem>
           </template>
 
           <template v-else-if="activeSubmenu === 'insert'">
-            <div
-              class="menu-item"
-              :class="markdownDisabledClass"
+            <ContextMenuItem
+              as="div"
+              :disabled="isMarkdownSyntaxDisabled"
               @click="requestInsertTable"
             >
               <span>⊞ {{ $t('contextMenu.table') }}</span>
-            </div>
-            <div class="menu-divider"></div>
-            <div
-              class="menu-item"
-              :class="markdownDisabledClass"
+            </ContextMenuItem>
+            <div class="context-menu-divider" role="separator"></div>
+            <ContextMenuItem
+              as="div"
+              :disabled="isMarkdownSyntaxDisabled"
               @click="insertCodeBlock"
             >
               <span>&lt;&gt; {{ $t('contextMenu.codeBlock') }}</span>
-              <span class="menu-shortcut">```</span>
-            </div>
-            <div
-              class="menu-item"
-              :class="markdownDisabledClass"
+              <kbd class="context-menu-shortcut">```</kbd>
+            </ContextMenuItem>
+            <ContextMenuItem
+              as="div"
+              :disabled="isMarkdownSyntaxDisabled"
               @click="insertHorizontalRule"
             >
               <span>— {{ $t('contextMenu.horizontalRule') }}</span>
-              <span class="menu-shortcut">---</span>
-            </div>
+              <kbd class="context-menu-shortcut">---</kbd>
+            </ContextMenuItem>
           </template>
-        </div>
+        </ContextMenuSurface>
       </teleport>
-    </div>
+    </ContextMenuSurface>
   </teleport>
 </template>
 
 <script setup lang="ts">
+import ContextMenuSurface from './ContextMenuSurface.vue';
+import ContextMenuItem from './ContextMenuItem.vue';
 import UiCheck from '~icons/lucide/check';
 import UiImage from '~icons/lucide/image';
 import UiImages from '~icons/lucide/images';
@@ -440,7 +399,6 @@ import type { EditorMenuCommands } from './editorMenu';
 interface Props {
   commands: EditorMenuCommands;
   isActive?: (name: string, attrs?: Record<string, unknown>) => boolean;
-  dark?: boolean;
   viewMode?: 'reading' | 'preview' | 'source';
   image?: { scale: number; allImages: boolean; readOnly?: boolean };
 }
@@ -451,7 +409,6 @@ defineOptions({
 
 const props = withDefaults(defineProps<Props>(), {
   isActive: () => false,
-  dark: false,
   viewMode: 'preview'
 });
 
@@ -465,13 +422,13 @@ const emit = defineEmits<{
 const { t: $t } = useI18n();
 
 const visible = ref(false);
-const menuRef = ref<HTMLElement | null>(null);
-const submenuRef = ref<HTMLElement | null>(null);
+const menuRef = ref<InstanceType<typeof ContextMenuSurface> | null>(null);
+const submenuRef = ref<InstanceType<typeof ContextMenuSurface> | null>(null);
 const activeSubmenu = ref<string | null>(null);
 const menuPosition = ref({ x: 0, y: 0 });
 const submenuPosition = ref({ x: 0, y: 0 });
 let submenuTimer: ReturnType<typeof setTimeout> | null = null;
-const imageScales = [25, 50, 75, 100, 125, 150, 200];
+const imageScales = [35, 40, 45, 50, 100, 125];
 
 function selectImageScale(scale: number) {
   hide();
@@ -494,9 +451,6 @@ const editor = {
   isActive: (name: string, attrs?: Record<string, unknown>) =>
     props.isActive(name, attrs)
 };
-const markdownDisabledClass = computed(() => ({
-  disabled: isMarkdownSyntaxDisabled.value
-}));
 
 // 菜单样式
 const menuStyle = computed(() => ({
@@ -527,9 +481,10 @@ const show = (event: MouseEvent) => {
 
   // 下一帧调整位置以防止超出屏幕
   nextTick(() => {
-    if (!menuRef.value) return;
+    const menu = menuRef.value?.element;
+    if (!menu) return;
 
-    const menuRect = menuRef.value.getBoundingClientRect();
+    const menuRect = menu.getBoundingClientRect();
     const windowWidth = window.innerWidth;
     const windowHeight = window.innerHeight;
     const padding = 10; // 边距
@@ -590,10 +545,12 @@ const showSubmenu = (submenu: string, event: Event) => {
   )?.getBoundingClientRect();
 
   nextTick(() => {
-    if (!menuRef.value || !submenuRef.value) return;
+    const menu = menuRef.value?.element;
+    const submenu = submenuRef.value?.element;
+    if (!menu || !submenu) return;
 
-    const menuRect = menuRef.value.getBoundingClientRect();
-    const submenuRect = submenuRef.value.getBoundingClientRect();
+    const menuRect = menu.getBoundingClientRect();
+    const submenuRect = submenu.getBoundingClientRect();
     const windowWidth = window.innerWidth;
     const windowHeight = window.innerHeight;
     const padding = 10;
@@ -650,11 +607,7 @@ const hideSubmenu = () => {
 
 const handleMenuMouseLeave = (event: MouseEvent) => {
   const relatedTarget = event.relatedTarget as Node | null;
-  if (
-    submenuRef.value &&
-    relatedTarget &&
-    submenuRef.value.contains(relatedTarget)
-  ) {
+  if (relatedTarget && submenuRef.value?.element?.contains(relatedTarget)) {
     return;
   }
   hideSubmenu();
@@ -716,12 +669,9 @@ const handleKeydown = (event: KeyboardEvent) => {
 
 // 点击外部关闭菜单
 const handleClickOutside = (event: MouseEvent) => {
-  if (
-    visible.value &&
-    menuRef.value &&
-    !menuRef.value.contains(event.target as Node)
-  ) {
-    if (submenuRef.value && submenuRef.value.contains(event.target as Node)) {
+  const menu = menuRef.value?.element;
+  if (visible.value && menu && !menu.contains(event.target as Node)) {
+    if (submenuRef.value?.element?.contains(event.target as Node)) {
       return;
     }
     hide();
@@ -748,170 +698,3 @@ defineExpose({
   hide
 });
 </script>
-
-<style lang="scss" scoped>
-.context-menu {
-  @apply fixed z-50 min-w-[200px] max-w-[280px] border rounded-lg p-1 select-none;
-
-  background-color: var(--panel-bg);
-  border-color: var(--panel-border);
-  box-shadow:
-    0 6px 16px rgb(0 0 0 / 12%),
-    0 2px 6px rgb(0 0 0 / 8%);
-  transition:
-    background-color 0.2s ease,
-    border-color 0.2s ease;
-  animation: fadeIn 0.15s cubic-bezier(0.16, 1, 0.3, 1);
-
-  &.dark-theme {
-    background-color: var(--panel-bg);
-    border-color: var(--panel-border);
-    box-shadow:
-      0 6px 16px rgb(0 0 0 / 50%),
-      0 2px 6px rgb(0 0 0 / 30%);
-
-    .menu-item {
-      color: var(--panel-text);
-
-      &:hover:not(.disabled) {
-        color: var(--panel-text);
-        background: rgb(93 109 253 / 12%);
-      }
-
-      &.active {
-        color: var(--el-color-primary);
-        background: rgb(93 109 253 / 8%);
-      }
-
-      &.disabled {
-        color: var(--panel-text-secondary);
-        opacity: 0.5;
-      }
-    }
-
-    .menu-divider {
-      background-color: var(--panel-border);
-    }
-
-    .menu-arrow {
-      color: var(--panel-text-secondary);
-    }
-
-    .menu-icon {
-      color: var(--panel-text-secondary);
-    }
-  }
-
-  &.submenu {
-    animation: slideIn 0.12s cubic-bezier(0.16, 1, 0.3, 1);
-  }
-}
-
-.menu-item {
-  @apply flex items-center min-h-[32px] px-2.5 py-[5px] text-[13px] cursor-pointer relative rounded-[5px] gap-2;
-
-  color: var(--panel-text);
-  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-
-  &:hover:not(.disabled) {
-    color: var(--panel-text);
-    background: rgb(93 109 253 / 8%);
-  }
-
-  &.active {
-    font-weight: 500;
-    color: var(--el-color-primary);
-    background: rgb(93 109 253 / 5%);
-  }
-
-  &.disabled {
-    color: var(--panel-text-secondary);
-    cursor: not-allowed;
-    opacity: 0.5;
-
-    &:hover {
-      @apply bg-transparent;
-
-      transform: none;
-    }
-  }
-
-  &.has-submenu {
-    @apply pr-1.5;
-  }
-
-  .menu-icon {
-    @apply w-4 h-4 flex-shrink-0;
-
-    color: var(--panel-text-secondary);
-    transition: color 0.15s ease;
-  }
-
-  .menu-arrow {
-    @apply ml-auto w-4 h-4 text-panel-text-secondary flex-shrink-0;
-
-    transition: color 0.15s ease;
-  }
-
-  .check-mark {
-    @apply ml-auto w-4 h-4 flex-shrink-0;
-
-    color: var(--el-color-primary);
-  }
-
-  .menu-shortcut {
-    @apply ml-auto px-1.5 py-px text-[10px] flex-none rounded font-medium;
-
-    font-family: 'SF Mono', Monaco, Consolas, monospace;
-    color: var(--panel-text-secondary);
-    letter-spacing: 0.3px;
-    background: rgb(0 0 0 / 4%);
-  }
-
-  span {
-    @apply flex-1 whitespace-nowrap overflow-hidden text-ellipsis;
-  }
-}
-
-.menu-divider {
-  @apply h-px bg-panel mx-1.5 my-1;
-
-  transition: background-color 0.2s ease;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: scale(0.95) translateY(-4px);
-  }
-
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
-}
-
-@keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateX(-6px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-@media (width <= 768px) {
-  .context-menu {
-    @apply min-w-[180px];
-
-    max-width: calc(100vw - 24px);
-  }
-
-  .menu-item {
-    @apply min-h-[36px] px-2.5 py-1.5 text-sm;
-  }
-}
-</style>

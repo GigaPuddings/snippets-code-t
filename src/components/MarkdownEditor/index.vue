@@ -87,7 +87,6 @@
       ref="contextMenu"
       :commands="menuCommands"
       :is-active="isActive"
-      :dark="dark"
       :view-mode="viewMode"
       :image="
         imageMenu

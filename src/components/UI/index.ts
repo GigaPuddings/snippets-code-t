@@ -7,6 +7,8 @@ import SelectConfirmDialog from './SelectConfirmDialog.vue';
 import BacklinkUpdateDialog from './BacklinkUpdateDialog.vue';
 import SearchPanel from './SearchPanel.vue';
 import PromptDialog from './PromptDialog.vue';
+import ContextMenuSurface from './ContextMenuSurface.vue';
+import ContextMenuItem from './ContextMenuItem.vue';
 
 export {
   CustomButton,
@@ -17,5 +19,7 @@ export {
   SelectConfirmDialog,
   BacklinkUpdateDialog,
   SearchPanel,
-  PromptDialog
+  PromptDialog,
+  ContextMenuSurface,
+  ContextMenuItem
 };

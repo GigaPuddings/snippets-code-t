@@ -20,7 +20,6 @@
 
     <CodeContextMenu
       ref="contextMenuRef"
-      :dark="props.dark"
       :can-edit="!props.disabled"
       :can-format="canFormatCode"
       :has-selection="hasCodeSelection"
