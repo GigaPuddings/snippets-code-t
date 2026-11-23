@@ -38,7 +38,6 @@
 - 页面入口：`src/pages/search/index.vue`
 - 自动贴合 Hook：`src/hooks/useFitWindowToElement.ts`
 - 纯函数与防抖阈值：`src/hooks/windowContentSizing.ts`
-- 单元测试：`src/hooks/windowContentSizing.test.ts`
 - 默认窗口尺寸：`src-tauri/tauri.conf.json`
 
 页面将根容器交给 Hook：

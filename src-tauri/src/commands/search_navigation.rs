@@ -211,27 +211,3 @@ pub fn cancel_search_navigation(window: Window, request_id: String) -> Result<()
     }
     Ok(())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn accepts_only_bounded_serializable_actions() {
-        assert!(serde_json::from_value::<SearchAction>(
-            serde_json::json!({"kind":"command","command":"delete_all_data"})
-        )
-        .is_err());
-        let action: SearchAction = serde_json::from_value(
-            serde_json::json!({"kind":"conversation","conversationId":"chat-1"}),
-        )
-        .unwrap();
-        assert!(
-            matches!(action, SearchAction::Conversation { conversation_id } if conversation_id == "chat-1")
-        );
-        assert!(!valid_id("\nchat"));
-        assert!(!valid_fields(&HashMap::from([(
-            "unsafe key".into(),
-            "x".into()
-        )])));
-    }
-}

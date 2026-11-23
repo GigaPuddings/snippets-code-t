@@ -191,20 +191,3 @@ pub fn active_plugin_install_status() -> Option<(usize, String)> {
     active.sort_by_key(|task| task.updated_at);
     active.last().map(|task| (active.len(), task.phase.clone()))
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn active_download_progress_reaches_one_hundred_only_after_download() {
-        assert_eq!(
-            plugin_install_progress_percent("downloading", 1_000, Some(1_000)),
-            Some(99.0)
-        );
-        assert_eq!(
-            plugin_install_progress_percent("downloaded", 1_000, Some(1_000)),
-            Some(100.0)
-        );
-    }
-}

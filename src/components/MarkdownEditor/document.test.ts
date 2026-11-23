@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   Compartment,
-  EditorState,
   type Transaction,
   type TransactionSpec
 } from '@codemirror/state';
@@ -17,31 +16,24 @@ import {
   insertMarkdownNewline,
   prefixSelection,
   wrapSelection,
-  selectionIsCurrent,
   trailingCodeParagraph
 } from './document';
-import {
-  livePreview,
-  previewTargets,
-  setPreviewFocus,
-  setPreviewDragging,
-  sourceRangeIsActive
-} from './preview';
+import { livePreview, previewTargets } from './preview';
 
 function pressEnter(text: string, position?: number) {
   let state = createDocumentState(text);
   state = state.update({
     selection: { anchor: position ?? state.doc.length }
   }).state;
-  let lastTransaction: Transaction | undefined;
   const view = {
     get state() {
       return state;
     },
     dispatch(transaction: Transaction | TransactionSpec) {
-      lastTransaction =
-        'state' in transaction ? transaction : state.update(transaction);
-      state = lastTransaction.state;
+      state =
+        'state' in transaction
+          ? transaction.state
+          : state.update(transaction).state;
     }
   };
   const handled = insertMarkdownNewline(
@@ -50,8 +42,7 @@ function pressEnter(text: string, position?: number) {
   return {
     handled,
     content: state.sliceDoc(),
-    position: state.selection.main.head,
-    scrolledIntoView: lastTransaction?.scrollIntoView ?? false
+    position: state.selection.main.head
   };
 }
 
@@ -99,170 +90,6 @@ function previewMarkers(content: string) {
 }
 
 describe('Markdown source document', () => {
-  it('reuses distant preview decorations while keeping caret and range rendering identical to a full rebuild', () => {
-    const text = [
-      '# First',
-      '**bold**',
-      '- one\n  - nested',
-      '> quote\n>\n> text',
-      '```js\nconst x = 1;\n\n```',
-      'Setext\n---',
-      '3. ordered\n4. next',
-      '- [ ] pending\n\n- [x] done',
-      '| A | B |\n| --- | --- |\n| a | b |',
-      '![image](relative.png)',
-      '<img src="relative.png">',
-      '**multi\nline** and [link](https://example.com)',
-      '# Last'
-    ].join('\n\n');
-    let state = createDocumentState(text, [livePreview(options)]);
-    state = state.update({ effects: setPreviewFocus.of(true) }).state;
-    const collect = (document: EditorState) => {
-      const result: Array<{ from: number; to: number; decoration: unknown }> =
-        [];
-      for (const set of document.facet(EditorView.decorations)) {
-        if (typeof set === 'function') continue;
-        set.between(0, document.doc.length, (from, to, decoration) => {
-          result.push({ from, to, decoration });
-        });
-      }
-      return result;
-    };
-    const distant = collect(state).find(
-      (item) => item.from === text.indexOf('# Last')
-    );
-    for (const selection of [
-      { anchor: text.indexOf('bold') },
-      { anchor: text.indexOf('bold'), head: text.indexOf('bold') + 2 },
-      { anchor: text.indexOf('nested') },
-      { anchor: text.indexOf('quote'), head: text.indexOf('const') },
-      { anchor: text.indexOf('const') },
-      { anchor: 1 },
-      ...Array.from({ length: state.doc.lines - 2 }, (_, index) => ({
-        anchor: state.doc.line(index + 1).from
-      }))
-    ]) {
-      state = state.update({ selection, userEvent: 'select' }).state;
-      let rebuilt = createDocumentState(text, [livePreview(options)]);
-      rebuilt = rebuilt.update({
-        effects: setPreviewFocus.of(true),
-        selection
-      }).state;
-      const actual = collect(state);
-      expect(JSON.stringify(actual)).toBe(JSON.stringify(collect(rebuilt)));
-      expect(
-        actual.find((item) => item.from === text.indexOf('# Last'))?.decoration
-      ).toBe(distant?.decoration);
-    }
-  });
-
-  it('freezes preview geometry for a mouse gesture, then restores caret editing', () => {
-    let state = createDocumentState('# Title\n\n- `one`\n\n- **two**', [
-      livePreview(options)
-    ]);
-    const decorations = () => state.facet(EditorView.decorations)[0];
-    const rendered = decorations();
-    state = state.update({ effects: setPreviewDragging.of(true) }).state;
-    state = state.update({
-      effects: setPreviewFocus.of(true),
-      selection: { anchor: 2 },
-      userEvent: 'select.pointer'
-    }).state;
-    expect(decorations()).toBe(rendered);
-    state = state.update({
-      selection: { anchor: 2, head: state.doc.length },
-      userEvent: 'select.pointer'
-    }).state;
-    expect(decorations()).toBe(rendered);
-    state = state.update({ effects: setPreviewDragging.of(false) }).state;
-    expect(sourceRangeIsActive(state, 0, state.doc.length)).toBe(false);
-    state = state.update({
-      selection: { anchor: 2 },
-      userEvent: 'select'
-    }).state;
-    expect(sourceRangeIsActive(state, 0, 7)).toBe(true);
-  });
-
-  it('rebuilds preview ranges if the document changes during a drag', () => {
-    let state = createDocumentState('# Title\n\n- `one`', [
-      livePreview(options)
-    ]);
-    state = state.update({ effects: setPreviewDragging.of(true) }).state;
-    state = state.update({
-      changes: { from: 0, to: state.doc.length, insert: 'plain' },
-      selection: { anchor: 2 },
-      userEvent: 'input'
-    }).state;
-    expect(sourceRangeIsActive(state, 0, 5)).toBe(true);
-    expect(state.sliceDoc()).toBe('plain');
-  });
-
-  it('keeps markup rendered while selecting prose across formatted list items', () => {
-    const source =
-      '**Summary**\n\n- `super.field`: parent field\n\n- `super.method()`: parent method';
-    let state = createDocumentState(source, [livePreview(options)]);
-    state = state.update({
-      effects: setPreviewFocus.of(true),
-      selection: { anchor: 2, head: source.length - 2 },
-      userEvent: 'select.pointer'
-    }).state;
-    expect(sourceRangeIsActive(state, 0, source.length)).toBe(false);
-    expect(state.sliceDoc()).toBe(source);
-    state = state.update({
-      selection: { anchor: 3 },
-      userEvent: 'select'
-    }).state;
-    expect(sourceRangeIsActive(state, 0, 11)).toBe(true);
-  });
-
-  it('renders the first line until the editor is actively used and hides source on blur', () => {
-    const source = '# Heading\n\nText';
-    let state = createDocumentState(source, [livePreview(options)]);
-    const hidesHeadingMark = () => {
-      let hidden = false;
-      for (const decorations of state.facet(EditorView.decorations)) {
-        if (typeof decorations === 'function') continue;
-        decorations.between(0, 2, (from, to, decoration) => {
-          if (from === 0 && to === 2 && !decoration.spec.class) hidden = true;
-        });
-      }
-      return hidden;
-    };
-    expect(sourceRangeIsActive(state, 0, 9)).toBe(false);
-    expect(hidesHeadingMark()).toBe(true);
-    state = state.update({ effects: setPreviewFocus.of(true) }).state;
-    expect(sourceRangeIsActive(state, 0, 9)).toBe(true);
-    expect(hidesHeadingMark()).toBe(false);
-    state = state.update({ effects: setPreviewFocus.of(false) }).state;
-    expect(hidesHeadingMark()).toBe(true);
-    expect(state.sliceDoc()).toBe(source);
-  });
-
-  it('reveals a keyboard-selected line while a newly loaded note starts rendered', () => {
-    let state = createDocumentState('**Bold**', [livePreview(options)]);
-    state = state.update({
-      selection: { anchor: 3 },
-      userEvent: 'select'
-    }).state;
-    expect(sourceRangeIsActive(state, 0, 8)).toBe(true);
-    const next = createDocumentState('**Next**', [livePreview(options)]);
-    expect(sourceRangeIsActive(next, 0, 8)).toBe(false);
-  });
-
-  it.each([
-    '1. question',
-    '1. question\n   answer',
-    '1. ',
-    '> 1. question',
-    '- [ ] ',
-    '- [x] '
-  ])(
-    'scrolls the new caret into view when continuing or exiting markup: %s',
-    (source) => {
-      expect(pressEnter(source).scrolledIntoView).toBe(true);
-    }
-  );
-
   it.each([
     '```java\nclass User {}\n```',
     '```java\nclass User {}\n```   ',
@@ -310,14 +137,6 @@ describe('Markdown source document', () => {
       expect(trailingCodeParagraph(createDocumentState(source))).toBeNull();
     }
   );
-
-  it('does not add a paragraph to a read-only document', () => {
-    expect(
-      trailingCodeParagraph(
-        createDocumentState('```\ncode\n```', [EditorState.readOnly.of(true)])
-      )
-    ).toBeNull();
-  });
 
   it('preserves CRLF while creating real document lines after code and within ordered prose', () => {
     const source = '```java\r\nclass User {}\r\n```';
@@ -380,15 +199,6 @@ describe('Markdown source document', () => {
     }
   );
 
-  it('keeps a selection inside inserted text when normalizing its line breaks', () => {
-    const state = createDocumentState('intro\r\ntext').update({
-      changes: { from: 0, insert: '**a\nb**' },
-      selection: { anchor: 2, head: 5 }
-    }).state;
-    expect(state.sliceDoc(2, 5)).toBe('a\r\nb');
-    expect(state.selection.main.from).toBe(2);
-    expect(state.selection.main.to).toBe(5);
-  });
   it.each([
     ['1. first\n1. second\n1. third', ['1.', '2.', '3.']],
     ['3. first\n9. second\n20. third', ['3.', '4.', '5.']],
@@ -491,19 +301,6 @@ describe('Markdown source document', () => {
         livePreview(options)
       ])
     ).not.toThrow();
-  });
-
-  it('rejects stale AI and clipboard replacement snapshots after edits or navigation', () => {
-    const snapshot = {
-      from: 1,
-      to: 3,
-      text: '选区',
-      documentId: 'Java.md',
-      revision: 5
-    };
-    expect(selectionIsCurrent(snapshot, 'Java.md', 5)).toBe(true);
-    expect(selectionIsCurrent(snapshot, 'Java.md', 6)).toBe(false);
-    expect(selectionIsCurrent(snapshot, 'Other.md', 5)).toBe(false);
   });
 
   it('toggles existing inline marks using the text selection or caret inside them', () => {

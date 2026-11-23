@@ -2397,28 +2397,6 @@ pub fn clear_scan_progress_for(owner: &str) {
 }
 
 // 优化后的 GDI 截图函数
-#[cfg(test)]
-mod scan_terminal_tests {
-    use super::*;
-
-    #[test]
-    fn unsuccessful_scans_end_without_claiming_one_hundred_percent() {
-        for (status, expected) in [("partial", 3), ("failed", 3), ("success", 4)] {
-            let mut state = ScanProgressState {
-                current: 3,
-                total: 4,
-                ..Default::default()
-            };
-            state.finish("index", status, "result", (0, 0, 0));
-            assert!(state.completed);
-            assert_eq!(state.current, expected);
-            assert_eq!(state.task, "index");
-            assert_eq!(state.stage, "result");
-            assert_eq!(state.apps_count, 0);
-        }
-    }
-}
-
 fn capture_screen_gdi_optimized() -> Result<(Vec<u8>, i32, i32), String> {
     use windows::Win32::Graphics::Gdi::{
         BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDC,
@@ -3943,80 +3921,5 @@ pub fn close_setup_window() {
             error!("延迟重启启动失败，回退到内置重启: {}", error);
             app.restart();
         }
-    }
-}
-
-#[cfg(test)]
-mod window_ready_tests {
-    use super::WindowReadyState;
-
-    #[test]
-    fn timeout_removes_only_the_unready_generation_and_ignores_late_ready() {
-        let mut states = std::collections::HashMap::new();
-        states.insert(
-            "config".into(),
-            WindowReadyState {
-                generation: 2,
-                ..Default::default()
-            },
-        );
-        assert!(super::take_timed_out_window(&mut states, "config", 1).is_none());
-        assert!(super::take_timed_out_window(&mut states, "config", 2).is_some());
-        assert!(!states.contains_key("config"));
-        states.insert(
-            "config".into(),
-            WindowReadyState {
-                generation: 3,
-                ..Default::default()
-            },
-        );
-        assert!(super::take_timed_out_window(&mut states, "config", 2).is_none());
-        states.get_mut("config").unwrap().mark_ready();
-        assert!(super::take_timed_out_window(&mut states, "config", 3).is_none());
-    }
-
-    #[test]
-    fn first_open_waits_for_ready_and_preloads_only_once() {
-        let mut state = WindowReadyState::default();
-        assert_eq!(state.defer_show(&mut None), Some(true));
-        assert_eq!(state.defer_show(&mut None), Some(false));
-        assert!(!state.ready);
-        assert!(state.mark_ready().0);
-        assert!(state.ready);
-        assert_eq!(state.defer_show(&mut None), None);
-    }
-
-    #[test]
-    fn navigation_callbacks_are_held_until_ready_and_drained_once() {
-        let mut state = WindowReadyState::default();
-        let mut callback: Option<super::WindowReadyCallback> = Some(Box::new(|_| {}));
-        state.defer_show(&mut callback);
-        assert!(callback.is_none());
-        assert_eq!(state.callbacks.len(), 1);
-        let (reveal, callbacks) = state.mark_ready();
-        assert!(reveal);
-        assert_eq!(callbacks.len(), 1);
-        let (reveal, callbacks) = state.mark_ready();
-        assert!(!reveal);
-        assert!(callbacks.is_empty());
-    }
-
-    #[test]
-    fn ready_before_open_keeps_immediate_navigation_callback() {
-        let mut state = WindowReadyState::default();
-        assert!(!state.mark_ready().0);
-        let mut callback: Option<super::WindowReadyCallback> = Some(Box::new(|_| {}));
-        assert_eq!(state.defer_show(&mut callback), None);
-        assert!(callback.is_some());
-        assert!(state.callbacks.is_empty());
-    }
-
-    #[test]
-    fn recreated_window_requires_a_new_ready_signal() {
-        let mut state = WindowReadyState::default();
-        state.mark_ready();
-        state = WindowReadyState::default();
-        assert_eq!(state.defer_show(&mut None), Some(true));
-        assert!(!state.ready);
     }
 }

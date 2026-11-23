@@ -377,36 +377,6 @@ impl FileSystemManager {
         }
     }
 
-    /// 更新文件的 Front Matter 元数据（用于 cache → frontmatter 迁移）
-    /// 读取文件 → 解析/替换 frontmatter → 写回
-    #[cfg(test)]
-    pub fn update_file_frontmatter(
-        &self,
-        file_path: &Path,
-        metadata: &FrontMatter,
-    ) -> Result<(), String> {
-        let full_path = if file_path.is_absolute() {
-            file_path.to_path_buf()
-        } else {
-            self.workspace_root.join(file_path)
-        };
-
-        self.validate_path(&full_path)?;
-
-        let content = fs::read_to_string(&full_path)
-            .map_err(|e| format!("读取文件失败 '{}': {}", full_path.display(), e))?;
-
-        let new_content = Self::replace_frontmatter(&content, metadata)?;
-        super::safe_write::replace(
-            &full_path,
-            new_content.as_bytes(),
-            Some(&super::safe_write::revision(content.as_bytes())),
-        )?;
-
-        debug!("✏️ 更新文件 Front Matter: {}", full_path.display());
-        Ok(())
-    }
-
     // 移动 Markdown 文件到新分类
     //
     // # Arguments

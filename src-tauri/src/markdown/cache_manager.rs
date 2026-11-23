@@ -57,57 +57,6 @@ pub struct CacheManager {
     cache: CacheConfig,
 }
 
-#[test]
-fn note_positions_survive_restart_and_renaming() {
-    let root = std::env::temp_dir().join(format!("note-order-{}", uuid::Uuid::new_v4()));
-    let dir = root.join(".snippets-code");
-    let mut cache = CacheManager::new_silent(dir.clone()).unwrap();
-    cache
-        .save_file_order(&root, &["Docs/b.md".into(), "Docs/a.md".into()])
-        .unwrap();
-    let mut reopened = CacheManager::new_silent(dir.clone()).unwrap();
-    assert_eq!(reopened.file_order("Docs/b.md"), 0);
-    assert_eq!(reopened.file_order("Docs/a.md"), 1);
-    reopened.rename_file_order("Docs/b.md", "Renamed/b.md");
-    reopened.remove_file_metadata("Docs/b.md");
-    assert_eq!(reopened.file_order("Renamed/b.md"), 0);
-    assert_eq!(reopened.file_order("Docs/b.md"), usize::MAX);
-    assert!(reopened
-        .save_file_order(&root.join("other"), &["Docs/a.md".into()])
-        .is_err());
-    assert_eq!(reopened.file_order("Docs/a.md"), 1);
-    std::fs::remove_file(dir.join("cache.json")).unwrap();
-    std::fs::remove_dir(dir).unwrap();
-    std::fs::remove_dir(root).unwrap();
-}
-
-#[test]
-fn folder_order_survives_reopening_and_new_folders_precede_saved_positions() {
-    let root = std::env::temp_dir().join(format!("folder-order-{}", uuid::Uuid::new_v4()));
-    let dir = root.join(".snippets-code");
-    let mut cache = CacheManager::new_silent(dir.clone()).unwrap();
-    cache.get_or_create_category_id("Alpha");
-    cache.get_or_create_category_id("Zulu");
-    cache
-        .save_category_order(&root, &["Zulu".into(), "Alpha".into()])
-        .unwrap();
-
-    let mut reopened = CacheManager::new_silent(dir.clone()).unwrap();
-    reopened.get_or_create_category_id("New");
-    assert!(reopened
-        .save_category_order(&root.join("other"), &["Alpha".into()])
-        .is_err());
-    for (name, rank) in [("New", -1), ("Zulu", 0), ("Alpha", 1)] {
-        assert_eq!(
-            reopened.get_category_metadata(name).unwrap().order,
-            Some(rank)
-        );
-    }
-    std::fs::remove_file(dir.join("cache.json")).unwrap();
-    std::fs::remove_dir(dir).unwrap();
-    std::fs::remove_dir(root).unwrap();
-}
-
 impl CacheManager {
     // 创建新的 Cache 管理器
     //

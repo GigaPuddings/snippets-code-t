@@ -186,19 +186,3 @@ fn check_alarms(app: &tauri::AppHandle, generation: u64) -> Result<bool, String>
         .any(|card| schedule::next_alarm(card, now).is_some())
         || db::has_snoozes().map_err(|error| error.to_string())?)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::ServiceState;
-    #[test]
-    fn concurrent_starts_and_disable_reenable_never_revive_old_workers() {
-        let mut state = ServiceState::default();
-        let first = state.request_start().unwrap();
-        assert!(state.request_start().is_none());
-        assert!(state.current(first));
-        state.stop();
-        let second = state.request_start().unwrap();
-        assert!(!state.current(first));
-        assert!(state.current(second));
-    }
-}

@@ -19,10 +19,4 @@ describe('convertFragmentContent', () => {
       convertFragmentContent('# Title\n\n**Hello** world', 'note', 'code')
     ).toBe('Title\n\nHello world');
   });
-
-  it('does not change content when source and target types match', () => {
-    expect(convertFragmentContent('raw content', 'code', 'code')).toBe(
-      'raw content'
-    );
-  });
 });

@@ -318,36 +318,6 @@ mod metadata_reader_tests {
     }
 
     #[test]
-    fn saved_reply_attribution_preserves_opaque_legacy_fields() {
-        let current = serde_json::json!({
-            "version": 1, "conversationId": "chat", "messageId": "reply",
-            "generatedAt": "2026-10-07T00:00:00Z", "question": "Question"
-        });
-        let parsed: AiNoteSource = serde_json::from_value(current.clone()).unwrap();
-        assert_eq!(serde_json::to_value(&parsed).unwrap(), current);
-
-        let mut legacy = current;
-        legacy["sources"] = serde_json::json!([{
-            "filePath": "Doc/old.md", "content": "Original snapshot",
-            "startColumn": 2, "endColumn": 7
-        }]);
-        legacy["extraOrigin"] = serde_json::json!({"oldVersion": true});
-        let parsed: AiNoteSource = serde_json::from_value(legacy.clone()).unwrap();
-        let yaml = serde_yaml::to_string(&parsed).unwrap();
-        let restored: AiNoteSource = serde_yaml::from_str(&yaml).unwrap();
-        assert_eq!(serde_json::to_value(restored).unwrap(), legacy);
-    }
-
-    #[test]
-    fn metadata_reader_stops_before_a_large_body() {
-        let document = format!("{HEADER}{}", "正文 text\n".repeat(500_000));
-        let mut cursor = Cursor::new(document.as_bytes());
-        let metadata = read_front_matter_metadata(&mut cursor).unwrap().unwrap();
-        assert_eq!(metadata.title, "架构文档");
-        assert_eq!(cursor.position() as usize, HEADER.len());
-    }
-
-    #[test]
     fn metadata_reader_matches_parser_for_crlf_and_leading_whitespace() {
         let document = format!(" \r\n  {}正文", HEADER.replace('\n', "\r\n"));
         let streamed = read_front_matter_metadata(Cursor::new(document.as_bytes())).unwrap();

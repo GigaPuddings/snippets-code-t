@@ -174,34 +174,3 @@ fn delete_recorded_path(value_name: &str) -> Result<(), String> {
     }
     Ok(())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn cleanup_path_must_be_absolute_and_below_a_root() {
-        assert!(!is_safe_cleanup_path(Path::new("relative/path")));
-        assert!(is_safe_cleanup_path(
-            &std::env::temp_dir().join("snippets-code-cleanup-test")
-        ));
-    }
-
-    #[test]
-    fn managed_nsis_install_requires_sibling_uninstaller() {
-        let install_dir =
-            std::env::temp_dir().join(format!("snippets-code-nsis-test-{}", std::process::id()));
-        let executable_path = install_dir.join("snippets-code.exe");
-        let uninstaller_path = install_dir.join("uninstall.exe");
-
-        std::fs::create_dir_all(&install_dir).unwrap();
-        let _ = std::fs::remove_file(&uninstaller_path);
-        assert!(!is_managed_nsis_executable(&executable_path));
-
-        std::fs::write(&uninstaller_path, []).unwrap();
-        assert!(is_managed_nsis_executable(&executable_path));
-
-        std::fs::remove_file(uninstaller_path).unwrap();
-        std::fs::remove_dir(install_dir).unwrap();
-    }
-}

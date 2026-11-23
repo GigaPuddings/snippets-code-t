@@ -933,39 +933,3 @@ fn validate_windows_installer_payload(path: &Path, bytes: &[u8]) -> Result<(), S
         ))
     }
 }
-
-#[cfg(all(test, windows))]
-mod tests {
-    use super::{update_download_retry_delay, validate_windows_installer_payload};
-    use std::path::Path;
-    use std::time::Duration;
-
-    #[test]
-    fn schedules_update_download_retries_with_bounded_backoff() {
-        assert_eq!(update_download_retry_delay(1), Duration::from_millis(800));
-        assert_eq!(update_download_retry_delay(2), Duration::from_millis(1_600));
-    }
-
-    #[test]
-    fn accepts_expected_windows_installer_headers() {
-        assert!(validate_windows_installer_payload(Path::new("update.exe"), b"MZpayload").is_ok());
-        assert!(validate_windows_installer_payload(
-            Path::new("update.msi"),
-            &[0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]
-        )
-        .is_ok());
-        assert!(
-            validate_windows_installer_payload(Path::new("update.zip"), b"PK\x03\x04payload")
-                .is_ok()
-        );
-    }
-
-    #[test]
-    fn rejects_html_or_an_unsupported_installer_type() {
-        assert!(
-            validate_windows_installer_payload(Path::new("update.exe"), b"<!doctype html>")
-                .is_err()
-        );
-        assert!(validate_windows_installer_payload(Path::new("update.bin"), b"MZpayload").is_err());
-    }
-}

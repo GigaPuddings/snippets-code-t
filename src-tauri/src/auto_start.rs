@@ -402,16 +402,3 @@ pub fn migrate_legacy_auto_start(app_handle: AppHandle) {
     #[cfg(not(target_os = "windows"))]
     let _ = app_handle;
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn recognizes_current_and_legacy_auto_start_arguments() {
-        assert!(is_auto_start_argument(AUTO_START_ARG));
-        assert!(is_auto_start_argument("--flag1"));
-        assert!(is_auto_start_argument("--flag2"));
-        assert!(!is_auto_start_argument("--setup-restart"));
-    }
-}

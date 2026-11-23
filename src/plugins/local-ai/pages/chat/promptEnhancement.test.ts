@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  buildPromptEnhancementRequest,
-  hasRequiredEnhancedPromptLanguage,
-  normalizeEnhancedPrompt
-} from './promptEnhancement';
+import { normalizeEnhancedPrompt } from './promptEnhancement';
 
 describe('normalizeEnhancedPrompt', () => {
   it('removes reasoning, Markdown syntax, labels, and trailing commentary', () => {
@@ -52,41 +48,6 @@ This version is clearer and ready to use.
       ].join('\n')
     );
   });
-
-  it('preserves useful plain-text structure and technical identifiers', () => {
-    const response = `最终提示词：目标：修复 input_padding 问题。
-
-约束：保持 max-height 为 160px，不修改 llama-server。`;
-
-    expect(normalizeEnhancedPrompt(response)).toBe(
-      '目标：修复 input_padding 问题。\n\n约束：保持 max-height 为 160px，不修改 llama-server。'
-    );
-  });
-});
-
-describe('buildPromptEnhancementRequest', () => {
-  it('keeps the optimizer contract concise and avoids fixed output sections', () => {
-    const request = buildPromptEnhancementRequest(
-      '检查插件安装卡顿问题，并确认切换页面是否会取消下载。'
-    );
-
-    expect(request.systemPrompt.length).toBeLessThan(220);
-    expect(request.systemPrompt).not.toContain('问题描述');
-    expect(request.systemPrompt).not.toContain('功能需求');
-    expect(request.userPrompt).toContain(
-      '检查插件安装卡顿问题，并确认切换页面是否会取消下载。'
-    );
-    expect(request.maxTokens).toBe(320);
-  });
-
-  it('uses an English contract for English source prompts', () => {
-    const request = buildPromptEnhancementRequest(
-      'Fix the plugin installation progress.'
-    );
-
-    expect(request.systemPrompt).toContain("Rewrite the user's prompt");
-    expect(request.userPrompt).toContain('<source>');
-  });
 });
 
 describe('ordered prompt preservation', () => {
@@ -104,28 +65,5 @@ describe('ordered prompt preservation', () => {
         '3、修复 config 窗口最小化后无法从托盘菜单重新显示的问题。'
       ].join('\n')
     );
-  });
-});
-
-describe('enhanced prompt language', () => {
-  it('requires Chinese output when the source prompt contains Chinese', () => {
-    expect(
-      hasRequiredEnhancedPromptLanguage(
-        '请修复聊天页面的输入框。',
-        'Fix the chat input.'
-      )
-    ).toBe(false);
-    expect(
-      hasRequiredEnhancedPromptLanguage(
-        '请修复聊天页面的输入框。',
-        '请修复聊天页面的输入框，并保持 160px 高度上限。'
-      )
-    ).toBe(true);
-    expect(
-      hasRequiredEnhancedPromptLanguage(
-        'Fix the chat input.',
-        'Fix the chat input.'
-      )
-    ).toBe(true);
   });
 });

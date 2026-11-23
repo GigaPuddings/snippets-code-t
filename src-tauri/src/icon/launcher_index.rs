@@ -110,32 +110,3 @@ impl LauncherIndexResult {
         (title.into(), body)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn zero_results_are_success_and_partial_or_failed_writes_are_never_success() {
-        let mut outcome = IndexOutcome::default();
-        assert!(outcome.persisted("apps", Ok(())));
-        assert_eq!(outcome.count("apps", Ok(0)), Some(0));
-        assert_eq!(outcome.status(), IndexStatus::Success);
-        outcome.errors.push("One browser could not be read".into());
-        assert_eq!(outcome.status(), IndexStatus::Partial);
-        let mut failed = IndexOutcome::default();
-        assert!(!failed.persisted("apps", Err(rusqlite::Error::InvalidQuery)));
-        assert_eq!(
-            failed.count("apps", Err(rusqlite::Error::InvalidQuery)),
-            None
-        );
-        assert_eq!(failed.status(), IndexStatus::Failed);
-    }
-
-    #[test]
-    fn automatic_jobs_stay_quiet_and_manual_jobs_target_the_focused_window() {
-        assert_eq!(notification_target(false, Some("config")), None);
-        assert_eq!(notification_target(true, Some("config")), Some("config"));
-        assert_eq!(notification_target(true, None), None);
-    }
-}

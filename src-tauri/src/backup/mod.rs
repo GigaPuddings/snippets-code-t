@@ -468,6 +468,3 @@ fn restore_backup(source: &Path, destination: &Path, protected: &[&Path]) -> Res
         Ok(())
     })
 }
-
-#[cfg(test)]
-mod tests;

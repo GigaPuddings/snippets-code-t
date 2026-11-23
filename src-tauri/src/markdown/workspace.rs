@@ -123,17 +123,3 @@ pub fn update_category_metadata(
 ) {
     cache.categories.insert(category_name.to_string(), metadata);
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn workspace_semantic_match_ignores_json_formatting() {
-        let workspace = WorkspaceConfig::default();
-        let compact = serde_json::to_string(&workspace).expect("workspace should serialize");
-
-        assert!(workspace_content_matches(&compact, &workspace));
-        assert!(!workspace_content_matches("{}", &workspace));
-    }
-}

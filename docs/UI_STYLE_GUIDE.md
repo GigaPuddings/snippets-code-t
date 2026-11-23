@@ -142,4 +142,4 @@ Local AI 对话页采用独立的双栏布局，标题、图标按钮、列表�
 2. 变更 Tailwind 映射或 `@apply` 时验证 Vite 编译，确认公共类能生成。
 3. 在实际 config 窗口检查工作台、菜单、设置、文档工具栏及悬浮菜单的浅色/深色显示。
 4. 检查 hover、键盘焦点、禁用状态、长标题省略及窄窗口滚动行为。
-5. 图标构建改动运行 `pnpm exec vitest run scripts/icon-config.test.mjs`，这组测试也包含在 `pnpm test` 中。官方插件的独立构建验证随插件迁移进行；主应用提交不改写插件包和 manifest。
+5. 官方插件的独立构建验证随插件迁移进行；主应用提交不改写插件包和 manifest。
