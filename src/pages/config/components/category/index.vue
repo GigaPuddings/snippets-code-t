@@ -482,7 +482,8 @@ const handleMoveContent = async (
           position.paths,
           String(content.id),
           position.targetId,
-          true
+          position.swap,
+          position.after
         )
       );
       modal.success(t('contentItem.orderSuccess'));

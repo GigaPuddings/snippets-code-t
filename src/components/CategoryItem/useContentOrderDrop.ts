@@ -1,11 +1,85 @@
-import { ref, onMounted, onUnmounted, type Ref } from 'vue';
+import { onMounted, onUnmounted, shallowRef, watch, type Ref } from 'vue';
 import {
   FRAGMENT_DRAG_MIME,
   getActiveFragmentDrag,
   hasFragmentDragType,
+  normalizeFragmentDragId,
   parseFragmentDragPayload,
+  type FragmentDragPayload,
   type FragmentDropPosition
 } from '@/utils/fragmentDragDrop';
+
+type DropTarget =
+  | { id: string; placement: 'swap' | 'before' | 'after' }
+  | { id?: undefined; placement: 'empty' };
+
+function boundsAtPointer(
+  element: Element,
+  { clientX, clientY }: DragEvent
+): DOMRect | null {
+  const rect = element.getBoundingClientRect();
+  return clientX >= rect.left &&
+    clientX < rect.right &&
+    clientY >= rect.top &&
+    clientY < rect.bottom
+    ? rect
+    : null;
+}
+
+function hitTest(
+  event: DragEvent,
+  source: FragmentDragPayload | null,
+  sameFolder: boolean
+): DropTarget | null {
+  const list = event.currentTarget;
+  const element = event.target;
+  if (!(list instanceof HTMLElement) || !(element instanceof Element))
+    return null;
+
+  const empty = element.closest('[data-empty-drop-target]');
+  if (empty?.parentElement === list)
+    return !sameFolder && boundsAtPointer(empty, event)
+      ? { placement: 'empty' }
+      : null;
+
+  const row = element.closest<HTMLElement>('[data-content-id]');
+  const id = row?.dataset.contentId;
+  const sourceId = source && normalizeFragmentDragId(source.id);
+  const bounds = row?.parentElement === list && boundsAtPointer(row, event);
+  if (bounds && id) {
+    if (normalizeFragmentDragId(id) === sourceId) return null;
+    const placement = sameFolder
+      ? 'swap'
+      : event.clientY < (bounds.top + bounds.bottom) / 2
+        ? 'before'
+        : 'after';
+    return { id, placement };
+  }
+
+  // Resolve only gaps bounded by two rows. List padding is not an append zone.
+  let previous: { id: string; bounds: DOMRect } | undefined;
+  for (const child of list.children) {
+    if (!(child instanceof HTMLElement) || !child.dataset.contentId) continue;
+    const nextId = child.dataset.contentId;
+    const below = child.getBoundingClientRect();
+    if (event.clientY < below.top) {
+      if (!previous) return null;
+      const above = previous.bounds;
+      if (
+        event.clientY >= above.bottom &&
+        event.clientX >= Math.max(above.left, below.left) &&
+        event.clientX < Math.min(above.right, below.right) &&
+        normalizeFragmentDragId(nextId) !== sourceId &&
+        normalizeFragmentDragId(previous.id) !== sourceId
+      ) {
+        return { id: nextId, placement: 'before' };
+      }
+      return null;
+    }
+    previous = { id: nextId, bounds: below };
+  }
+  return null;
+}
 
 export function useContentOrderDrop(
   category: () => CategoryType,
@@ -17,56 +91,54 @@ export function useContentOrderDrop(
     position: FragmentDropPosition
   ) => void
 ) {
-  const targetId = ref('');
-  const placement = ref<'swap' | 'before' | 'after' | 'end'>('end');
+  const target = shallowRef<DropTarget | null>(null);
   const clear = (): void => {
-    targetId.value = '';
+    target.value = null;
   };
-  const accepts = (event: DragEvent): boolean =>
-    !busy() &&
-    Boolean(
-      event.dataTransfer && hasFragmentDragType(event.dataTransfer.types)
+  const accepts = (data: DataTransfer | null): data is DataTransfer =>
+    Boolean(data && hasFragmentDragType(data.types));
+  const resolve = (
+    event: DragEvent,
+    source: FragmentDragPayload | null
+  ): DropTarget | null => {
+    const destination = category();
+    if (busy() || !destination.workspaceRoot) return null;
+    return hitTest(
+      event,
+      source,
+      String(source?.categoryId) === String(destination.id)
     );
+  };
 
-  const dragOver = (event: DragEvent, content?: ContentType): void => {
-    if (!accepts(event)) return;
-    const source = getActiveFragmentDrag();
-    if (content && String(source?.id) === String(content.id)) {
-      event.stopPropagation();
+  const dragOver = (event: DragEvent): void => {
+    const data = event.dataTransfer;
+    if (!accepts(data)) return;
+    const next = resolve(event, getActiveFragmentDrag());
+    if (!next) {
+      data.dropEffect = 'none';
       clear();
       return;
     }
     event.preventDefault();
     event.stopPropagation();
-    targetId.value = content ? String(content.id) : 'end';
-    const sameFolder = String(source?.categoryId) === String(category().id);
-    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-    placement.value = !content
-      ? 'end'
-      : sameFolder
-        ? 'swap'
-        : event.clientY > rect.top + rect.height / 2
-          ? 'after'
-          : 'before';
-    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    data.dropEffect = 'move';
+    if (
+      target.value?.id !== next.id ||
+      target.value?.placement !== next.placement
+    )
+      target.value = next;
   };
 
-  const drop = (event: DragEvent, content?: ContentType): void => {
-    if (!accepts(event)) return;
+  const drop = (event: DragEvent): void => {
+    clear();
+    const data = event.dataTransfer;
+    if (!accepts(data)) return;
+    const source = parseFragmentDragPayload(data.getData(FRAGMENT_DRAG_MIME));
+    const destination = category();
+    const position = source && resolve(event, source);
+    if (!source || !position || !destination.workspaceRoot) return;
     event.preventDefault();
     event.stopPropagation();
-    const source = parseFragmentDragPayload(
-      event.dataTransfer?.getData(FRAGMENT_DRAG_MIME) || ''
-    );
-    const destination = category();
-    const after = placement.value === 'after';
-    clear();
-    if (
-      !source ||
-      !destination.workspaceRoot ||
-      String(source.id) === String(content?.id)
-    )
-      return;
     move(
       {
         id: source.id,
@@ -78,20 +150,32 @@ export function useContentOrderDrop(
       {
         workspaceRoot: destination.workspaceRoot,
         paths: contents.value.map((item) => String(item.id)),
-        targetId: content ? String(content.id) : undefined,
-        after
+        targetId: position.id,
+        swap: position.placement === 'swap',
+        after: position.placement === 'after'
       }
     );
   };
 
   const dragLeave = (event: DragEvent): void => {
-    if (
-      !(event.relatedTarget instanceof Node) ||
-      !(event.currentTarget as HTMLElement).contains(event.relatedTarget)
-    )
-      clear();
+    const list = event.currentTarget as HTMLElement;
+    // Chromium can omit relatedTarget when crossing descendants of the list.
+    const next =
+      event.relatedTarget instanceof Node
+        ? event.relatedTarget
+        : list.ownerDocument.elementFromPoint(event.clientX, event.clientY);
+    if (!list.contains(next)) clear();
   };
-  onMounted(() => window.addEventListener('dragend', clear));
-  onUnmounted(() => window.removeEventListener('dragend', clear));
-  return { targetId, placement, dragOver, dragLeave, drop };
+  watch([busy, getActiveFragmentDrag, () => category().workspaceRoot], clear, {
+    flush: 'sync'
+  });
+  onMounted(() => {
+    window.addEventListener('dragend', clear);
+    window.addEventListener('drop', clear, true);
+  });
+  onUnmounted(() => {
+    window.removeEventListener('dragend', clear);
+    window.removeEventListener('drop', clear, true);
+  });
+  return { target, dragOver, dragLeave, drop };
 }

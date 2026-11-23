@@ -62,23 +62,27 @@
 
     <div
       v-if="expanded"
-      class="ml-5 min-h-6 rounded-ui pl-1"
-      :class="{
-        'ring-1 ring-[var(--search-result-accent)]':
-          contentDrop.targetId.value === 'end'
-      }"
+      class="ml-5 flex min-h-6 flex-col gap-ui-row-gap pl-1"
       role="group"
       :aria-label="category.name"
-      @dragover="contentDrop.dragOver($event)"
+      @dragover="contentDrop.dragOver"
       @dragleave="contentDrop.dragLeave"
-      @drop="contentDrop.drop($event)"
+      @drop="contentDrop.drop"
     >
-      <div v-if="loadingContents" class="px-2 py-1 text-xs text-content">
+      <div
+        v-if="loadingContents && !folderContents.length"
+        class="px-2 py-1 text-xs text-content"
+      >
         {{ t('common.loading') }}
       </div>
       <div
         v-else-if="!folderContents.length"
-        class="px-2 py-1 text-xs text-content"
+        data-empty-drop-target
+        class="rounded-ui px-2 py-1 text-xs text-content"
+        :class="{
+          'ring-1 ring-inset ring-[color:var(--el-color-primary)]':
+            contentDrop.target.value?.placement === 'empty'
+        }"
       >
         {{ t('category.noContent') }}
       </div>
@@ -86,21 +90,18 @@
         v-for="content in folderContents"
         :key="String(content.id)"
         :data-content-id="String(content.id)"
-        class="relative rounded-ui"
+        class="folder-content-row relative rounded-ui"
         :class="{
-          'ring-1 ring-[var(--search-result-accent)]':
-            contentDrop.targetId.value === String(content.id) &&
-            contentDrop.placement.value === 'swap',
-          'before:absolute before:inset-x-0 before:top-0 before:border-t-2 before:border-[var(--search-result-accent)]':
-            contentDrop.targetId.value === String(content.id) &&
-            contentDrop.placement.value === 'before',
-          'after:absolute after:inset-x-0 after:bottom-0 after:border-b-2 after:border-[var(--search-result-accent)]':
-            contentDrop.targetId.value === String(content.id) &&
-            contentDrop.placement.value === 'after'
+          'before:pointer-events-none before:absolute before:inset-0 before:z-10 before:rounded-ui before:ring-1 before:ring-inset before:ring-[color:var(--el-color-primary)]':
+            contentDrop.target.value?.id === String(content.id) &&
+            contentDrop.target.value.placement === 'swap',
+          'before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:z-10 before:border-t-2 before:border-[color:var(--el-color-primary)]':
+            contentDrop.target.value?.id === String(content.id) &&
+            contentDrop.target.value.placement === 'before',
+          'after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:z-10 after:border-b-2 after:border-[color:var(--el-color-primary)]':
+            contentDrop.target.value?.id === String(content.id) &&
+            contentDrop.target.value.placement === 'after'
         }"
-        @dragover="contentDrop.dragOver($event, content)"
-        @dragleave="contentDrop.dragLeave"
-        @drop="contentDrop.drop($event, content)"
       >
         <ContentItem
           :content="content"
@@ -233,7 +234,7 @@ const emit = defineEmits<{
 const contentDrop = useContentOrderDrop(
   () => props.category,
   folderContents,
-  () => Boolean(props.contentBusy) || loadingContents.value,
+  () => !expanded.value || Boolean(props.contentBusy) || loadingContents.value,
   (content, categoryId, position) =>
     emit('move-content', content, categoryId, position)
 );
@@ -317,6 +318,13 @@ const isFragmentDrag = (event: DragEvent): boolean => {
   return Boolean(dataTransfer && hasFragmentDragType(dataTransfer.types));
 };
 
+const clearFolderDrop = (): void => {
+  dragDepth.value = 0;
+  isDropTarget.value = false;
+  isInvalidDropTarget.value = false;
+};
+watch(getActiveFragmentDrag, clearFolderDrop, { flush: 'sync' });
+
 const handleDragEnter = (event: DragEvent): void => {
   if (!isFragmentDrag(event)) return;
   dragDepth.value += 1;
@@ -335,16 +343,11 @@ const handleDragOver = (event: DragEvent): void => {
 
 const handleDragLeave = (): void => {
   dragDepth.value = Math.max(0, dragDepth.value - 1);
-  if (dragDepth.value === 0) {
-    isDropTarget.value = false;
-    isInvalidDropTarget.value = false;
-  }
+  if (dragDepth.value === 0) clearFolderDrop();
 };
 
 const handleDrop = (event: DragEvent): void => {
-  dragDepth.value = 0;
-  isDropTarget.value = false;
-  isInvalidDropTarget.value = false;
+  clearFolderDrop();
 
   const rawPayload = event.dataTransfer?.getData(FRAGMENT_DRAG_MIME) || '';
   const payload = parseFragmentDragPayload(rawPayload);
@@ -555,6 +558,10 @@ const confirmDelete = async () => {
 </script>
 
 <style scoped lang="scss">
+.folder-content-row :deep(.link) {
+  @apply mb-0;
+}
+
 .link {
   transition:
     color 0.16s ease,
@@ -579,16 +586,12 @@ const confirmDelete = async () => {
     /* 内描边始终绘制在滚动容器内，避免右边框被 overflow 裁切。 */
     border-color: transparent;
     box-shadow:
-      inset 0 0 0 1px var(--search-result-accent),
+      inset 0 0 0 1px var(--el-color-primary),
       var(--fragment-drop-shadow);
 
     .category-folder-icon {
-      color: var(--search-result-accent);
-      background: color-mix(
-        in srgb,
-        var(--search-result-accent) 14%,
-        transparent
-      );
+      color: var(--el-color-primary);
+      background: color-mix(in srgb, var(--el-color-primary) 14%, transparent);
       transform: scale(1.08);
     }
   }
@@ -644,10 +647,9 @@ const confirmDelete = async () => {
   font-size: 10px;
   font-weight: 600;
   line-height: 1;
-  color: var(--search-result-accent);
+  color: var(--el-color-primary);
   background: color-mix(in srgb, var(--search-card-bg) 82%, transparent);
-  border: 1px solid
-    color-mix(in srgb, var(--search-result-accent) 25%, transparent);
+  border: 1px solid color-mix(in srgb, var(--el-color-primary) 25%, transparent);
   border-radius: 999px;
   animation: drop-action-enter 0.16s ease-out;
 

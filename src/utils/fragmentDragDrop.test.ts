@@ -32,17 +32,19 @@ describe('fragment drag payload', () => {
       orderDroppedFragment(paths, 'Docs/c.md', 'Docs/missing.md', false)
     ).toThrow();
   });
-  it('round-trips a fragment without losing its category identity', () => {
+  it('round-trips the originating tag and category', () => {
     const serialized = serializeFragmentDragPayload({
       id: 'C:\\Workspace\\未分类\\note.md',
       title: 'note',
-      categoryId: 0
+      categoryId: 0,
+      sourceTag: '设计 / #1'
     });
 
     expect(parseFragmentDragPayload(serialized)).toEqual({
       id: 'C:\\Workspace\\未分类\\note.md',
       title: 'note',
-      categoryId: 0
+      categoryId: 0,
+      sourceTag: '设计 / #1'
     });
   });
 

@@ -1,7 +1,7 @@
 <template>
   <ContextMenu :menu="menu" @select="handleContextMenu">
     <div
-      class="link ui-menu-item block mt-0 mb-ui-row-gap"
+      class="link ui-menu-item block mt-0 mb-ui-row-gap select-none"
       :class="{ active: isActive, 'is-dragging': isDragging }"
       role="link"
       tabindex="0"
@@ -246,10 +246,12 @@ const handleDragStart = (event: DragEvent): void => {
 };
 
 const handleDragEnd = (): void => {
+  if (!isDragging.value) return;
   isDragging.value = false;
   setActiveFragmentDrag(null);
   document.documentElement.classList.remove('fragment-drag-active');
 };
+onBeforeUnmount(handleDragEnd);
 
 /**
  * 处理右键菜单选择
@@ -327,7 +329,7 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
       z-index: 2;
       pointer-events: none;
       content: '';
-      border: 2px dashed var(--search-result-accent);
+      border: 2px dashed var(--el-color-primary);
       border-radius: 7px;
     }
   }
@@ -362,7 +364,7 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
   background: color-mix(in srgb, var(--panel-bg) 97%, transparent);
   backdrop-filter: blur(12px);
   border: 1px solid
-    color-mix(in srgb, var(--search-result-accent) 26%, var(--panel-border));
+    color-mix(in srgb, var(--el-color-primary) 26%, var(--panel-border));
   border-radius: 9px;
   box-shadow: var(--fragment-drag-shadow);
 }
@@ -373,7 +375,7 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
   place-items: center;
   width: 24px;
   height: 24px;
-  color: var(--search-result-accent);
+  color: var(--el-color-primary);
   background: color-mix(in srgb, var(--search-result-active) 72%, transparent);
   border-radius: 7px;
 }

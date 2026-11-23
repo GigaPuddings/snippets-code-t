@@ -1,19 +1,27 @@
+import { shallowRef } from 'vue';
+
 export const FRAGMENT_DRAG_MIME = 'application/x-snippets-code-fragment';
 
 export interface FragmentDragPayload {
   id: string | number;
   title: string;
   categoryId?: string | number;
+  sourceTag?: string;
 }
 
 export interface FragmentDropPosition {
   workspaceRoot: string;
   paths: string[];
   targetId?: string;
+  swap: boolean;
   after?: boolean;
 }
 
-/** Same-folder drops swap rows; transfers insert beside the destination row. */
+export function normalizeFragmentDragId(id: string | number): string {
+  return String(id).replace(/\\/g, '/');
+}
+
+/** Row swaps preserve intervening positions. Insertions remove the source first. */
 export function orderDroppedFragment(
   paths: string[],
   sourceId: string,
@@ -21,14 +29,16 @@ export function orderDroppedFragment(
   swap: boolean,
   after = false
 ): string[] {
-  const normalize = (path: string): string => path.replace(/\\/g, '/');
+  const sourcePath = normalizeFragmentDragId(sourceId);
+  const targetPath =
+    targetId === undefined ? undefined : normalizeFragmentDragId(targetId);
   const source = paths.findIndex(
-    (path) => normalize(path) === normalize(sourceId)
+    (path) => normalizeFragmentDragId(path) === sourcePath
   );
   const target =
     targetId === undefined
       ? -1
-      : paths.findIndex((path) => normalize(path) === normalize(targetId));
+      : paths.findIndex((path) => normalizeFragmentDragId(path) === targetPath);
   if (swap && source < 0) throw new Error('Dragged note no longer exists');
   if (targetId !== undefined && target < 0)
     throw new Error('Drop target no longer exists');
@@ -38,18 +48,19 @@ export function orderDroppedFragment(
     return ordered;
   }
   const remaining = ordered.filter(
-    (path) => normalize(path) !== normalize(sourceId)
+    (path) => normalizeFragmentDragId(path) !== sourcePath
   );
   const insertion =
     targetId === undefined
       ? remaining.length
-      : remaining.findIndex((path) => normalize(path) === normalize(targetId)) +
-        Number(after);
+      : remaining.findIndex(
+          (path) => normalizeFragmentDragId(path) === targetPath
+        ) + Number(after);
   remaining.splice(insertion, 0, sourceId);
   return remaining;
 }
 
-let activeFragmentDrag: FragmentDragPayload | null = null;
+const activeFragmentDrag = shallowRef<FragmentDragPayload | null>(null);
 
 export function serializeFragmentDragPayload(
   payload: FragmentDragPayload
@@ -77,6 +88,9 @@ export function parseFragmentDragPayload(
       title: parsed.title,
       ...(parsed.categoryId !== undefined
         ? { categoryId: parsed.categoryId }
+        : {}),
+      ...(typeof parsed.sourceTag === 'string' && parsed.sourceTag
+        ? { sourceTag: parsed.sourceTag }
         : {})
     };
   } catch {
@@ -93,9 +107,9 @@ export function hasFragmentDragType(
 export function setActiveFragmentDrag(
   payload: FragmentDragPayload | null
 ): void {
-  activeFragmentDrag = payload;
+  activeFragmentDrag.value = payload;
 }
 
 export function getActiveFragmentDrag(): FragmentDragPayload | null {
-  return activeFragmentDrag;
+  return activeFragmentDrag.value;
 }
