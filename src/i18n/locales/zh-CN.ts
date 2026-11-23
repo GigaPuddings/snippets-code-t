@@ -2439,6 +2439,7 @@ export default {
     duplicateTag: '标签已存在',
     filterByTag: '按标签筛选',
     allTags: '全部标签',
+    groupLabel: '{tag}，共 {count} 个文件',
     noTags: '暂无标签',
     removeTag: '移除标签',
     remove: '移除',

@@ -242,7 +242,7 @@ const sidebarViewLabel = computed(() => {
   const labels = {
     all: 'nav.allSnippets',
     uncategorized: 'nav.uncategorized',
-    tags: 'tags.tags',
+    tags: 'tags.allTags',
     trash: 'nav.recentlyDeleted'
   } as const;
   return sidebarMode.value === 'folders'

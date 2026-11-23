@@ -1,12 +1,14 @@
 <template>
-  <div class="ui-sidebar-scroll min-h-0 flex-1 overflow-y-auto pt-2">
+  <div
+    class="ui-sidebar-scroll min-h-0 flex-1 overflow-y-auto pt-1 [--app-ui-row-height:1.75rem]"
+  >
     <p v-if="!groups.length" class="px-3 py-1 text-ui-caption text-content">
       {{ $t('tags.noTags') }}
     </p>
     <div v-for="group in groups" :key="group.tag">
       <div
         v-if="editingTag === group.tag"
-        class="mb-ui-row-gap flex h-ui-row items-center gap-1 px-2"
+        class="mb-ui-row-gap flex h-ui-row items-center gap-1 pl-12 pr-2"
       >
         <input
           :ref="focusRenameInput"
@@ -44,12 +46,18 @@
       >
         <button
           type="button"
-          class="ui-menu-item mb-ui-row-gap h-ui-row w-full px-2 text-left"
+          class="ui-menu-item mb-ui-row-gap h-ui-row w-full gap-1.5 px-2 text-left"
           :class="{
             'bg-search-active ring-1 ring-inset ring-active':
               targetTag === group.tag
           }"
           :aria-expanded="expanded.has(group.tag)"
+          :aria-label="
+            t('tags.groupLabel', {
+              tag: group.tag,
+              count: group.contents.length
+            })
+          "
           :title="group.tag"
           @click="toggleGroup(group.tag)"
           @dragover="handleDragOver($event, group.tag)"
@@ -57,19 +65,28 @@
           @drop="handleDrop($event, group.tag)"
         >
           <ChevronRight
-            class="pointer-events-none size-2.5 shrink-0 transition-transform"
+            class="pointer-events-none size-3 shrink-0 text-ui-muted transition-transform"
             :class="{ 'rotate-90': expanded.has(group.tag) }"
             aria-hidden="true"
           />
-          <Tag class="pointer-events-none size-4 shrink-0" aria-hidden="true" />
-          <span class="pointer-events-none min-w-0 truncate">
+          <Tag
+            class="pointer-events-none size-4 shrink-0 text-ui-muted"
+            aria-hidden="true"
+          />
+          <span class="pointer-events-none min-w-0 flex-1 truncate">
             {{ group.tag }}
+          </span>
+          <span
+            class="pointer-events-none shrink-0 text-ui-caption tabular-nums text-ui-muted"
+            aria-hidden="true"
+          >
+            {{ group.contents.length }}
           </span>
         </button>
       </ContextMenu>
       <div
         v-if="expanded.has(group.tag)"
-        class="ml-5 pl-1"
+        class="ml-10"
         role="group"
         :aria-label="group.tag"
       >

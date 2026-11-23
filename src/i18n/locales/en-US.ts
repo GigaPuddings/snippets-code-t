@@ -2568,6 +2568,7 @@ export default {
     duplicateTag: 'Tag already exists',
     filterByTag: 'Filter by Tag',
     allTags: 'All Tags',
+    groupLabel: '{tag}, linked files: {count}',
     noTags: 'No tags',
     removeTag: 'Remove Tag',
     remove: 'Remove',

@@ -1,13 +1,23 @@
 <template>
-  <div class="category-header-list">
-    <div class="ui-section-heading">
+  <div
+    class="flex shrink-0 items-center justify-between px-5"
+    :class="tagTree ? 'mt-3 h-7' : 'mt-1 h-8'"
+  >
+    <div
+      :class="
+        tagTree
+          ? 'select-none text-ui-caption font-medium text-ui-muted'
+          : 'ui-section-heading'
+      "
+    >
       {{ viewLabel || $t('category.folders') }}
     </div>
-    <div class="category-header-action">
+    <div class="flex items-center gap-1">
       <button
         v-if="!viewLabel || tagTree"
         type="button"
         class="ui-icon-button ui-icon-button--small"
+        :class="{ 'ui-action--muted': tagTree }"
         :title="toggleLabel"
         :aria-label="toggleLabel"
         :disabled="!hasFolders"
@@ -23,6 +33,7 @@
         v-if="viewLabel"
         type="button"
         class="ui-icon-button ui-icon-button--small"
+        :class="{ 'ui-action--muted': tagTree }"
         :title="$t('category.backToFolders')"
         :aria-label="$t('category.backToFolders')"
         @click="$emit('back')"
@@ -127,13 +138,3 @@ const handleAdd = () => {
   emit('add');
 };
 </script>
-
-<style scoped lang="scss">
-.category-header-list {
-  @apply flex h-8 shrink-0 justify-between items-center mt-1 px-5;
-
-  .category-header-action {
-    @apply flex items-center gap-1;
-  }
-}
-</style>

@@ -22,6 +22,7 @@
           width="16"
           height="16"
           class="shrink-0"
+          :class="{ 'text-ui-muted': sourceTag }"
           :title="fragmentTypeLabel"
         />
         <input
