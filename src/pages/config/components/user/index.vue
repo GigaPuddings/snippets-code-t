@@ -7,7 +7,7 @@
     </div>
 
     <!-- 可滚动内容 -->
-    <div class="user-center-content">
+    <div class="user-center-content" @scroll.passive="updateScrollEdge">
       <!-- 用户信息卡片 -->
       <div class="info-card">
         <div class="info-item">
@@ -216,6 +216,7 @@ import { getGitSettings, updateGitSettings } from '@/api/appConfig';
 import { usePluginStore } from '@/store';
 import modal from '@/utils/modal';
 import { openConfigSettings } from '@/utils/config-navigation';
+import { updateScrollEdge } from '@/utils/scroll-edge';
 type GitSyncApi = typeof import('@/api/gitSync');
 
 let gitSyncApiPromise: Promise<GitSyncApi> | null = null;
@@ -431,12 +432,23 @@ onActivated(() => {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/scroll-edge';
+
 .user-center-container {
   @apply w-full h-full flex flex-col bg-panel;
 }
 
 .user-center-header {
-  @apply flex-shrink-0 px-6 pt-6 pb-4 border-b border-panel;
+  @apply relative z-10 flex-shrink-0 px-6 pt-6 pb-4 border-b border-panel;
+}
+
+.user-center-container:has(> .user-center-content[data-scrolled])
+  > .user-center-header::after {
+  @include scroll-edge.mask(100%);
+
+  @apply content-[''];
+
+  --scroll-edge-surface: var(--categories-panel-bg);
 }
 
 .user-center-content {

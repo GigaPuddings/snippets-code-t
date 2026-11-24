@@ -2,6 +2,7 @@
   <div
     class="dark-mode-container select-none rounded-lg"
     :class="{ dark: isDark }"
+    @scroll.passive="updateScrollEdge"
   >
     <!-- 标题栏 -->
     <div
@@ -393,6 +394,7 @@ import Refresh from '~icons/lucide/refresh-cw';
 
 const { t } = useI18n();
 import { logger } from '@/utils/logger';
+import { updateScrollEdge } from '@/utils/scroll-edge';
 
 // 定义类型
 type ThemeMode = 'System' | 'Light' | 'Dark' | 'Schedule';
@@ -687,6 +689,8 @@ onUnmounted(() => {
 </script>
 
 <style lang="scss" scoped>
+@use '@/styles/scroll-edge';
+
 // ==================== 主题变量 ====================
 .dark-mode-container {
   // 浅色（默认）
@@ -782,6 +786,14 @@ onUnmounted(() => {
 // ==================== 标题栏 ====================
 .title-bar {
   @apply bg-dm-card border-b border-dm rounded-t-[10px];
+}
+
+.dark-mode-container[data-scrolled] > .title-bar::after {
+  @include scroll-edge.mask(100%);
+
+  @apply content-[''];
+
+  --scroll-edge-surface: var(--dm-card);
 }
 
 .title-icon-wrap {

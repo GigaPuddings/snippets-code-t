@@ -1,28 +1,32 @@
 <template>
   <div class="settings-panel">
-    <div class="panel-header plugins-header">
-      <h3 class="panel-title">{{ t('plugins.title') }}</h3>
-      <div class="plugins-actions">
-        <CustomButton size="small" :loading="installing" @click="handleInstall">
-          <FolderOpen width="14" height="14" class="button-icon" />
-          {{ t('plugins.installLocal') }}
-        </CustomButton>
-        <CustomButton
-          size="small"
-          :loading="installing"
-          @click="handleInstallZip"
-        >
-          <FileZip width="14" height="14" class="button-icon" />
-          {{ t('plugins.installZip') }}
-        </CustomButton>
-        <CustomButton size="small" plain @click="handleRefresh">
-          <Refresh width="14" height="14" class="button-icon" />
-          {{ t('plugins.refresh') }}
-        </CustomButton>
+    <header class="panel-header-group mb-4">
+      <div class="panel-header plugins-header">
+        <h3 class="panel-title">{{ t('plugins.title') }}</h3>
+        <div class="plugins-actions">
+          <CustomButton
+            size="small"
+            :loading="installing"
+            @click="handleInstall"
+          >
+            <FolderOpen width="14" height="14" class="button-icon" />
+            {{ t('plugins.installLocal') }}
+          </CustomButton>
+          <CustomButton
+            size="small"
+            :loading="installing"
+            @click="handleInstallZip"
+          >
+            <FileZip width="14" height="14" class="button-icon" />
+            {{ t('plugins.installZip') }}
+          </CustomButton>
+          <CustomButton size="small" plain @click="handleRefresh">
+            <Refresh width="14" height="14" class="button-icon" />
+            {{ t('plugins.refresh') }}
+          </CustomButton>
+        </div>
       </div>
-    </div>
 
-    <main class="panel-content">
       <section class="plugins-intro">
         <div class="plugins-intro-title">{{ t('plugins.builtinTitle') }}</div>
         <div class="plugins-intro-desc">{{ t('plugins.builtinDesc') }}</div>
@@ -31,7 +35,9 @@
           <span>{{ t('plugins.securityNotice') }}</span>
         </div>
       </section>
+    </header>
 
+    <main class="panel-content">
       <section
         v-if="!isGitSyncInstalled || !gitSyncConfigured"
         class="git-sync-onboarding"
@@ -1292,7 +1298,7 @@ const unregisterPluginHotkeys = async (
 
 <style scoped lang="scss">
 .plugins-intro {
-  @apply mb-4 pb-4 border-b border-panel;
+  @apply pb-4 border-b border-panel;
 }
 
 .plugins-header {

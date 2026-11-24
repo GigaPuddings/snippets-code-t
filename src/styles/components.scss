@@ -1,5 +1,6 @@
 @use './plugin-config';
 @use './icons';
+@use './scroll-edge';
 
 .cm-editor .cm-content {
   .cm-searchMatch {
@@ -115,12 +116,32 @@
 
 // Settings share one scroll surface and neutral, grouped controls.
 .settings-content {
-  .settings-panel {
-    @apply h-auto min-h-full;
-  }
-
   .panel-header {
     @apply mb-settings-group pb-0;
+  }
+
+  .settings-panel > :is(.panel-header, .panel-header-group) {
+    @apply sticky top-0 z-20 shrink-0;
+  }
+
+  &[data-scrolled] .settings-panel > :is(.panel-header, .panel-header-group) {
+    // Extend the header backdrop to the scroll viewport edges without
+    // changing the title or action alignment in individual settings panels.
+    &::before {
+      @apply pointer-events-none absolute inset-0 -z-10 bg-[var(--settings-surface)] content-[''];
+
+      inset-block-start: calc(-1 * var(--settings-content-top));
+      inset-inline: calc(-1 * var(--settings-content-inline));
+    }
+
+    &::after {
+      @include scroll-edge.mask(
+        100%,
+        calc(-1 * var(--settings-content-inline))
+      );
+
+      @apply content-[''];
+    }
   }
 
   .panel-title {

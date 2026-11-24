@@ -61,7 +61,11 @@
     </div>
 
     <!-- 右侧内容区 -->
-    <div ref="settingsContentRef" class="settings-content">
+    <div
+      ref="settingsContentRef"
+      class="settings-content"
+      @scroll.passive="updateScrollEdge"
+    >
       <component
         v-for="tab in loadedTabs"
         :key="componentKey(tab)"
@@ -82,6 +86,7 @@ import {
   pluginSettingsMenuItems
 } from '@/plugins/settings';
 import { useLayoutStore, usePluginStore } from '@/store';
+import { updateScrollEdge } from '@/utils/scroll-edge';
 import { defineAsyncComponent } from 'vue';
 
 defineOptions({
@@ -289,8 +294,11 @@ onMounted(async () => {
 }
 
 .settings-content {
-  @apply min-w-0 flex-1 overflow-y-auto bg-[var(--settings-surface)] px-6 pb-6 pt-8;
+  @apply min-w-0 flex-1 overflow-y-auto bg-[var(--settings-surface)] px-[var(--settings-content-inline)] pb-6 pt-[var(--settings-content-top)];
 
+  --settings-content-inline: theme('spacing.6');
+  --settings-content-top: theme('spacing.8');
+  --scroll-edge-surface: var(--settings-surface);
   --categories-panel-bg: var(--settings-surface);
   --categories-content-bg: var(--settings-surface);
   --categories-text-color: var(--workspace-nav-heading);
@@ -309,6 +317,11 @@ onMounted(async () => {
   --el-component-size: var(--settings-control-height);
 
   color: var(--workspace-nav-heading);
+
+  // The host owns scrolling even when a plugin's scoped styles set a fixed panel height.
+  > :deep(.settings-panel) {
+    @apply h-auto min-h-full;
+  }
 }
 
 @media (width <= 960px) {
@@ -317,13 +330,13 @@ onMounted(async () => {
   }
 
   .settings-content {
-    @apply px-5;
+    --settings-content-inline: theme('spacing.5');
   }
 }
 
 @media (height <= 760px) {
   .settings-content {
-    @apply pt-6;
+    --settings-content-top: theme('spacing.6');
   }
 }
 </style>

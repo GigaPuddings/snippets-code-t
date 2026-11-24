@@ -53,7 +53,7 @@
           />
           <template v-else>
             <div class="search-table">
-              <div class="table-scroll">
+              <div class="table-scroll" @scroll.passive="updateScrollEdge">
                 <div class="table-grid table-header">
                   <span>{{ $t('retrieve.name') }}</span>
                   <span class="justify-self-center">
@@ -205,6 +205,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { emit, listen } from '@tauri-apps/api/event';
 import { useI18n } from 'vue-i18n';
 import modal from '@/utils/modal';
+import { updateScrollEdge } from '@/utils/scroll-edge';
 import { ConfirmDialog, CustomButton } from '@/components/UI';
 
 const { t } = useI18n();
@@ -516,6 +517,8 @@ const handleIconError = async (engine: SearchEngineConfig) => {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/scroll-edge';
+
 .scanning-overlay {
   @apply absolute inset-0 z-50 flex items-center justify-center;
 
@@ -581,6 +584,14 @@ const handleIconError = async (engine: SearchEngineConfig) => {
 
       .table-header {
         @apply sticky top-0 z-10 rounded-ui bg-ui-card px-3 py-2 text-ui-caption font-medium whitespace-nowrap text-ui-muted;
+      }
+
+      .table-scroll[data-scrolled] > .table-header::after {
+        @include scroll-edge.mask(100%, 0);
+
+        @apply content-[''];
+
+        --scroll-edge-surface: var(--settings-surface);
       }
 
       .search-item {

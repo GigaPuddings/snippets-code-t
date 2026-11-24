@@ -99,8 +99,9 @@
     </div>
     <section
       v-if="alarmCards.length > 0"
-      class="min-h-0 flex-1 overflow-y-auto"
+      class="reminder-list min-h-0 flex-1 overflow-y-auto"
       :aria-busy="loading"
+      @scroll.passive="updateScrollEdge"
     >
       <div
         v-if="visibleCards.length"
@@ -271,6 +272,7 @@ import AlarmEditDialog from './components/AlarmEditDialog.vue';
 import { invoke } from '@tauri-apps/api/core';
 import { ConfirmDialog, CustomButton, CustomSwitch } from '@/components/UI';
 import modal from '@/utils/modal';
+import { updateScrollEdge } from '@/utils/scroll-edge';
 import {
   reminderCompleted,
   reminderSchedule,
@@ -416,3 +418,16 @@ const closePageDialogs = (): void => {
 onDeactivated(closePageDialogs);
 onUnmounted(closePageDialogs);
 </script>
+
+<style scoped lang="scss">
+@use '@/styles/scroll-edge';
+
+.reminder-list[data-scrolled]::before {
+  @include scroll-edge.mask($inline: auto, $position: sticky);
+
+  // Keep the fade at the list edge without reserving space above the cards.
+  @apply block -mb-4 content-[''];
+
+  --scroll-edge-surface: var(--settings-surface);
+}
+</style>

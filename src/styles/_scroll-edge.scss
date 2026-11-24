@@ -1,0 +1,14 @@
+@mixin mask($top: 0, $inline: 0 8px, $position: absolute) {
+  @apply pointer-events-none z-[2] h-4;
+
+  position: $position;
+  inset-inline: $inline;
+  top: $top;
+  background-color: color-mix(
+    in srgb,
+    var(--scroll-edge-surface) 84%,
+    transparent
+  );
+  backdrop-filter: blur(4px);
+  mask-image: linear-gradient(to bottom, #000, transparent);
+}
