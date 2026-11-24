@@ -14,7 +14,7 @@
           :ref="focusRenameInput"
           v-model="draftTag"
           class="h-6 min-w-0 flex-1 select-text rounded border border-active bg-panel px-1 text-panel outline-none"
-          :aria-label="t('contentItem.rename')"
+          :aria-label="t('tags.renameTag')"
           :readonly="moving"
           @keydown="handleRenameKey"
         />
@@ -118,6 +118,7 @@
 <script setup lang="ts">
 import Check from '~icons/lucide/check';
 import ChevronRight from '~icons/lucide/chevron-right';
+import Copy from '~icons/lucide/copy';
 import Edit from '~icons/lucide/square-pen';
 import Tag from '~icons/lucide/tag';
 import Trash from '~icons/lucide/trash-2';
@@ -160,8 +161,15 @@ const removalTarget = shallowRef<{ tag: string; content?: ContentType } | null>(
   null
 );
 const tagMenu = computed(() => [
-  { label: t('contentItem.rename'), type: 'rename', icon: Edit },
-  { label: t('common.delete'), type: 'delete', icon: Trash }
+  { label: t('tags.renameTag'), type: 'rename', icon: Edit },
+  { label: t('tags.copyTagName'), type: 'copyTagName', icon: Copy },
+  {
+    label: t('tags.removeTag'),
+    type: 'removeTag',
+    icon: Trash,
+    separatorBefore: true,
+    danger: true
+  }
 ]);
 const contentsFor = (tag: string): ContentType[] =>
   props.groups.find((group) => group.tag === tag)?.contents ?? [];
@@ -206,12 +214,19 @@ function focusRenameInput(element: unknown): void {
   });
 }
 
-function handleTagMenu(group: TagGroup, action: string): void {
+async function handleTagMenu(group: TagGroup, action: string): Promise<void> {
   if (props.moving || showRemovalDialog.value) return;
   if (action === 'rename') {
     draftTag.value = group.tag;
     editingTag.value = group.tag;
-  } else if (action === 'delete' && group.contents.length) {
+  } else if (action === 'copyTagName') {
+    try {
+      await navigator.clipboard.writeText(group.tag);
+      modal.success(t('content.copySuccess'));
+    } catch {
+      modal.error(t('content.copyFailed'));
+    }
+  } else if (action === 'removeTag' && group.contents.length) {
     removalTarget.value = { tag: group.tag };
     showRemovalDialog.value = true;
   }
@@ -263,7 +278,7 @@ async function confirmRemoval(): Promise<void> {
   const ids = target.content
     ? [target.content.id]
     : contentsFor(target.tag).map((content) => content.id);
-  await props.changeTags(ids, target.tag, null);
+  if (!(await props.changeTags(ids, target.tag, null))) return;
   if (!contentsFor(target.tag).length) expanded.value.delete(target.tag);
   showRemovalDialog.value = false;
 }

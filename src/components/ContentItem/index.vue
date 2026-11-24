@@ -52,6 +52,8 @@ import Notebook from '~icons/lucide/notebook';
 import FileCodeOne from '~icons/lucide/file-code';
 import FolderOpen from '~icons/lucide/folder-open';
 import FileConversion from '~icons/lucide/replace';
+import Tags from '~icons/lucide/tags';
+import X from '~icons/lucide/x';
 import type { Component } from 'vue';
 import { contentEditorKey } from './contentEditor';
 import { useI18n } from 'vue-i18n';
@@ -103,6 +105,7 @@ interface MenuItem {
   label: string;
   type: string;
   icon: Component;
+  separatorBefore?: boolean;
 }
 
 const { t } = useI18n();
@@ -121,14 +124,28 @@ defineOptions({
 
 const menu = computed<MenuItem[]>(() => {
   const showInExplorer = {
-    label: t('contentItem.showInExplorer'),
+    label: t(
+      props.sourceTag ? 'tags.showInFolder' : 'contentItem.showInExplorer'
+    ),
     type: 'showInExplorer',
     icon: FolderOpen
+  };
+  const rename = {
+    label: t('contentItem.rename'),
+    type: 'rename',
+    icon: EditTwo
   };
   if (props.sourceTag) {
     return [
       showInExplorer,
-      { label: t('tags.remove'), type: 'delete', icon: DeleteFour }
+      rename,
+      { label: t('tags.manageTags'), type: 'manageTags', icon: Tags },
+      {
+        label: t('tags.removeFromCurrentTag'),
+        type: 'removeTag',
+        icon: X,
+        separatorBefore: true
+      }
     ];
   }
   return [
@@ -146,11 +163,7 @@ const menu = computed<MenuItem[]>(() => {
       type: 'convertType',
       icon: FileConversion
     },
-    {
-      label: t('contentItem.rename'),
-      type: 'rename',
-      icon: EditTwo
-    },
+    rename,
     {
       label: t('contentItem.delete'),
       type: 'delete',
@@ -176,15 +189,18 @@ const fragmentTypeLabel = computed(() => {
 const activeEditor = inject(contentEditorKey, null);
 const editingId = ref<ContentType['id'] | null>(null);
 const renameInput = ref<HTMLInputElement | null>(null);
-const renameEditor = computed(() => {
+const openingTagManager = ref(false);
+const rowEditor = computed(() => {
   const editor = activeEditor?.value;
   return isActive.value &&
-    editingId.value === content.value.id &&
     editor &&
     getConfigContentPath(editor.id) === getConfigContentPath(content.value.id)
     ? editor
     : null;
 });
+const renameEditor = computed(() =>
+  editingId.value === content.value.id ? rowEditor.value : null
+);
 
 watch(
   renameInput,
@@ -199,6 +215,13 @@ watch(
 
 watch([() => content.value.id, isActive], () => {
   editingId.value = null;
+  openingTagManager.value = false;
+});
+
+watchEffect(() => {
+  if (!openingTagManager.value || !rowEditor.value) return;
+  openingTagManager.value = false;
+  rowEditor.value.manageTags();
 });
 
 async function startRename(): Promise<void> {
@@ -340,9 +363,16 @@ const handleContextMenu = async (item: MenuItem): Promise<void> => {
       await revealFileInFolder(fullPath.replace(/\//g, '\\'));
     } else if (item.type === 'rename') {
       await startRename();
+    } else if (item.type === 'manageTags') {
+      const id = content.value.id;
+      await openContent();
+      if (isActive.value && content.value.id === id) {
+        openingTagManager.value = true;
+      }
+    } else if (item.type === 'removeTag') {
+      emit('removeTag', content.value);
     } else if (item.type === 'delete') {
-      if (props.sourceTag) emit('removeTag', content.value);
-      else emit('delete', content.value);
+      emit('delete', content.value);
     } else if (item.type === 'edit') {
       // 触发更改分类事件，让父组件处理
       emit('changeCategory', content.value);

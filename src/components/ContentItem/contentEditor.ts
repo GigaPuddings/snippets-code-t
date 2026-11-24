@@ -6,6 +6,7 @@ export interface ContentEditor {
   title: string;
   workspaceRoot: string;
   rename: (title: string) => void;
+  manageTags: () => void;
   changeTag: (source: string, target: string | null) => Promise<void>;
 }
 

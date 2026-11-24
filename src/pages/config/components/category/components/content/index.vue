@@ -232,6 +232,19 @@
         </div>
       </div>
     </div>
+    <CommonDialog
+      v-model="showTagManager"
+      :title="t('tags.manageTags')"
+      width="min(460px, calc(100vw - 32px))"
+      :draggable="false"
+    >
+      <TagInput
+        v-if="showTagManager"
+        :model-value="state.tags"
+        :existing-tags="allTags"
+        @update:model-value="handleTagsChange"
+      />
+    </CommonDialog>
   </main>
 </template>
 
@@ -275,7 +288,12 @@ import {
   createEditorDraftStore,
   type EditorDraft
 } from '@/utils/editorDrafts';
-import { ConfirmDialog, CustomButton, ScrollEdgeMask } from '@/components/UI';
+import {
+  CommonDialog,
+  ConfirmDialog,
+  CustomButton,
+  ScrollEdgeMask
+} from '@/components/UI';
 import { findBacklinks, getBacklinkStats } from '@/utils/wikilink-updater';
 import BacklinkUpdateDialog from '@/components/UI/BacklinkUpdateDialog.vue';
 import AiAssistDialog from '@/components/AiAssistDialog/index.vue';
@@ -342,6 +360,7 @@ const state = reactive({
 
 const draftTitle = ref('');
 const isAddingTag = ref(false);
+const showTagManager = ref(false);
 const titleDirty = ref(false);
 let contentLoadGeneration = 0;
 const {
@@ -1637,6 +1656,9 @@ watchEffect((onCleanup) => {
     title: draftTitle.value,
     workspaceRoot: workspaceRoot.value,
     rename: applyTitle,
+    manageTags: () => {
+      showTagManager.value = true;
+    },
     changeTag
   };
   onCleanup(() => {
@@ -2002,6 +2024,7 @@ const deserializeContent = (content: string, format: ContentFormat): string => {
 watch(
   () => route.params.id,
   async (newId, oldId) => {
+    showTagManager.value = false;
     // 如果有 skipReload 查询参数，说明是重命名操作，不重新加载内容
     if (route.query.skipReload === 'true') {
       // 使用 nextTick 延迟清除查询参数，避免触发额外的路由变化

@@ -9,16 +9,21 @@
           class="sidebar-context-menu z-50"
           :style="{ left: x + 'px', top: y + 'px' }"
         >
-          <ContextMenuItem
-            v-for="item in props.menu"
-            :key="item.type"
-            as="div"
-            :danger="item.type === 'delete'"
-            @click="handleClick(item)"
-          >
-            <component :is="item.icon" aria-hidden="true" />
-            <span>{{ item.label }}</span>
-          </ContextMenuItem>
+          <template v-for="item in props.menu" :key="item.type">
+            <div
+              v-if="item.separatorBefore"
+              class="context-menu-divider"
+              role="separator"
+            ></div>
+            <ContextMenuItem
+              as="div"
+              :danger="item.danger ?? item.type === 'delete'"
+              @click="handleClick(item)"
+            >
+              <component :is="item.icon" aria-hidden="true" />
+              <span>{{ item.label }}</span>
+            </ContextMenuItem>
+          </template>
         </ContextMenuSurface>
       </Transition>
     </Teleport>
@@ -34,6 +39,8 @@ interface MenuItem {
   label: string;
   type: string;
   icon: Component;
+  separatorBefore?: boolean;
+  danger?: boolean;
 }
 
 defineOptions({ name: 'ContextMenu' });
