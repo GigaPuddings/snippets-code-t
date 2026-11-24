@@ -337,6 +337,45 @@ function childMarks(node: SyntaxNode, names: string[]) {
   return children;
 }
 
+interface OrderedListLayout {
+  nextOrdinal: number;
+  markerColumns: number;
+}
+
+function orderedListLayout(
+  state: EditorState,
+  list: SyntaxNode
+): OrderedListLayout {
+  const first = list.getChild('ListItem');
+  const firstMark = first?.getChild('ListMark');
+  const start = firstMark
+    ? Number(state.doc.sliceString(firstMark.from, firstMark.to - 1))
+    : 1;
+  let itemCount = 0;
+  let sourceColumns = 0;
+  for (let item = first; item; item = item.nextSibling) {
+    if (item.name !== 'ListItem') continue;
+    itemCount++;
+    const mark = item.getChild('ListMark');
+    // The original marker is visible when the user selects its source.
+    if (mark) sourceColumns = Math.max(sourceColumns, mark.to - mark.from);
+  }
+  return {
+    nextOrdinal: start,
+    markerColumns: Math.max(
+      sourceColumns,
+      String(start + itemCount - 1).length + 1
+    )
+  };
+}
+
+function listGutter(layout?: OrderedListLayout): string {
+  const minimum = 'var(--markdown-list-indent)';
+  return layout
+    ? `max(${minimum}, calc(${layout.markerColumns}ch + var(--md-list-marker-gap)))`
+    : minimum;
+}
+
 export function livePreview(options: PreviewOptions): Extension {
   const sourceKinds = new Set([
     'HTMLBlock',
@@ -355,7 +394,7 @@ export function livePreview(options: PreviewOptions): Extension {
     const headingLines = new Set<number>();
     const quoteLines = new Set<number>();
     const listLines = new Set<number>();
-    const orderedNumbers = new Map<number, number>();
+    const orderedLists = new Map<number, OrderedListLayout>();
     const activeQuotes: Array<{ from: number; to: number; line: number }> = [];
     const hide = (from: number, to: number) => {
       if (to > from) ranges.push(Decoration.replace({}).range(from, to));
@@ -377,11 +416,7 @@ export function livePreview(options: PreviewOptions): Extension {
           ? state.doc.sliceString(from, to)
           : '';
         if (name === 'OrderedList') {
-          const mark = node.getChild('ListItem')?.getChild('ListMark');
-          orderedNumbers.set(
-            from,
-            mark ? Number(state.doc.sliceString(mark.from, mark.to - 1)) : 1
-          );
+          orderedLists.set(from, orderedListLayout(state, node));
         }
         if (
           name === 'Table' ||
@@ -549,18 +584,23 @@ export function livePreview(options: PreviewOptions): Extension {
           else activeQuotes.push({ from, to, line: line.number });
         }
         if (name === 'ListItem') {
-          let depth = 0;
-          for (let parent = node.parent; parent; parent = parent.parent)
-            if (parent.name === 'ListItem') depth++;
           const mark = node.getChild('ListMark');
           if (mark) {
-            const ordered = node.parent?.name === 'OrderedList';
-            const ordinal = ordered
-              ? (orderedNumbers.get(node.parent!.from) ?? 1)
-              : 0;
-            if (ordered) orderedNumbers.set(node.parent!.from, ordinal + 1);
+            const layout = orderedLists.get(node.parent!.from);
+            const ordinal = layout ? layout.nextOrdinal++ : 0;
+            const gutters = [];
+            for (let parent = node.parent; parent; parent = parent.parent) {
+              if (parent.name === 'ListItem')
+                gutters.push(listGutter(orderedLists.get(parent.parent!.from)));
+            }
+            const nested = gutters.length > 0;
             const first = state.doc.lineAt(from);
             const task = /^\s*[-+*]\s+\[[ xX]\]/.test(first.text);
+            const markerWidth = listGutter(layout);
+            if (!task) gutters.push(markerWidth);
+            const padding = gutters.length
+              ? `calc(${gutters.join(' + ')})`
+              : '0px';
             const previous =
               node.prevSibling?.name === 'ListItem' ? node.prevSibling : null;
             const sameListKind =
@@ -589,7 +629,7 @@ export function livePreview(options: PreviewOptions): Extension {
                 Decoration.line({
                   class: 'md-list-line',
                   attributes: {
-                    style: `--md-list-depth:${depth + (task ? 0 : 1)};--md-list-hang:${number === first.number && !task ? 1 : 0};padding-top:${number === first.number ? (sameListKind ? 'var(--markdown-list-item-gap)' : depth > 0 ? 'var(--markdown-heading-bottom-gap)' : '0') : '0'}`
+                    style: `--md-list-padding:${padding};--md-list-marker-width:${markerWidth};--md-list-hang:${number === first.number && !task ? 1 : 0};padding-top:${number === first.number ? (sameListKind ? 'var(--markdown-list-item-gap)' : nested ? 'var(--markdown-heading-bottom-gap)' : '0') : '0'}`
                   }
                 }).range(state.doc.line(number).from)
               );

@@ -1881,18 +1881,20 @@ defineExpose({
   }
 
   .cm-editor .cm-line.md-list-line {
-    --md-list-padding: calc(var(--md-list-depth) * var(--markdown-list-indent));
+    --md-list-marker-gap: 6px;
 
     padding-left: var(--md-list-padding);
-    text-indent: calc(var(--md-list-hang) * -1 * var(--markdown-list-indent));
+    text-indent: calc(var(--md-list-hang) * -1 * var(--md-list-marker-width));
   }
 
   .md-list-marker-preview {
     display: inline-block;
-    width: var(--markdown-list-indent);
-    padding-right: 6px;
+    width: var(--md-list-marker-width);
+    padding-right: var(--md-list-marker-gap);
+    font-variant-numeric: tabular-nums;
     text-align: right;
     text-indent: 0;
+    white-space: nowrap;
   }
 
   .md-inline-code {
