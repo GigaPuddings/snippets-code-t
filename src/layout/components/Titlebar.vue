@@ -234,12 +234,12 @@
       v-if="!isConfigRoute"
       class="titlebar-center"
       :class="{
-        'titlebar-center--drag-only': hideQuickSearch || !canQuickSearch
+        'titlebar-center--drag-only': hideQuickSearch || !isWorkspace
       }"
       data-tauri-drag-region
     >
       <button
-        v-show="!hideQuickSearch && canQuickSearch"
+        v-show="!hideQuickSearch && isWorkspace"
         class="titlebar-quick-search"
         type="button"
         :title="$t('titlebar.quickSearch')"
@@ -557,8 +557,11 @@ const isTabActive = (path: string): boolean =>
 const isConfigRoute = computed(() =>
   router.currentRoute.value.path.startsWith('/config')
 );
-const canQuickSearch = computed(
+const isWorkspace = computed(
   () => getConfigTabLabelKey(router.currentRoute.value.path) === 'nav.workspace'
+);
+const canQuickSearch = computed(
+  () => isWorkspace.value || router.currentRoute.value.name === 'Workbench'
 );
 watch([canQuickSearch, quickSearchVisible], ([allowed]) => {
   if (!allowed) closeConfigQuickSearch();

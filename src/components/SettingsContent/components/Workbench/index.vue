@@ -17,8 +17,10 @@
           class="workbench-metric"
         >
           <span>{{ metric.label }}</span>
-          <strong>{{ metric.value }}</strong>
-          <small>{{ metric.meta }}</small>
+          <strong>{{ metric.value ?? '—' }}</strong>
+          <small>
+            {{ [metric.meta, metric.detail].filter(Boolean).join(' · ') }}
+          </small>
         </article>
       </section>
 

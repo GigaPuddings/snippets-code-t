@@ -3,14 +3,7 @@ import Application from '~icons/lucide/puzzle';
 import Library from '~icons/lucide/library';
 import MessageSearch from '~icons/lucide/search';
 import Brain from '~icons/lucide/brain';
-import EditTwo from '~icons/lucide/square-pen';
-import FileCodeOne from '~icons/lucide/file-code';
 import { AI_PROVIDER_CAPABILITIES } from '@/ai';
-import {
-  configNavigationTabs,
-  type ConfigNavigationTab
-} from '@/plugins/navigation';
-import type { PluginId } from '@/plugins/types';
 import { DEFAULT_SEARCH_PROVIDER_TIMEOUT_MS } from '@/search/sourceCatalog';
 import type { MarkdownFile } from '@/types';
 import { compareTimestamps } from '@/utils/time-format';
@@ -30,64 +23,20 @@ export interface WorkbenchAction {
   query?: Record<string, string>;
 }
 
-export type WorkbenchQuickAction = Pick<
-  ConfigNavigationTab,
-  'id' | 'labelKey' | 'icon' | 'path'
->;
-
-const quickActionIds = new Set(['workspace', 'launcher', 'todo', 'aiChat']);
-
-export const buildWorkbenchQuickActions = (
-  workspaceRoot: string,
-  isPluginEnabled: (pluginId: PluginId) => boolean
-): WorkbenchQuickAction[] => {
-  const createActions: WorkbenchQuickAction[] = workspaceRoot
-    ? [
-        {
-          id: 'note',
-          labelKey: 'nav.newNote',
-          icon: EditTwo,
-          path: '/config/category/contentList?create=note'
-        },
-        {
-          id: 'code',
-          labelKey: 'fragmentType.newSnippet',
-          icon: FileCodeOne,
-          path: '/config/category/contentList?create=code'
-        }
-      ]
-    : [];
-
-  return [
-    ...createActions,
-    ...configNavigationTabs
-      .filter(
-        (tab) =>
-          quickActionIds.has(tab.id) &&
-          (!tab.pluginId || isPluginEnabled(tab.pluginId))
-      )
-      .map((tab) =>
-        tab.id === 'workspace' && !workspaceRoot
-          ? {
-              ...tab,
-              labelKey: 'workbenchHome.configureWorkspace',
-              path: '/config/category/settings?tab=data'
-            }
-          : tab
-      )
-  ];
-};
-
 export interface WorkbenchStat {
   label: string;
   value: string | number;
 }
 
 export interface WorkbenchMetric {
-  id: string;
+  id: 'content' | 'plugins' | 'search' | 'ai';
   label: string;
-  value: number;
+  value: number | null;
   meta: string;
+  trend?: number[];
+  detail?: string;
+  tone?: 'success' | 'warning';
+  badge?: string;
 }
 
 export interface WorkbenchRecentItem {
@@ -95,12 +44,13 @@ export interface WorkbenchRecentItem {
   title: string;
   type: MarkdownFile['type'];
   categoryName: string;
+  tags: string[];
   modified: string;
   path: string;
 }
 
 export interface WorkbenchLayer {
-  id: string;
+  id: 'workspace' | 'plugins' | 'search' | 'ai';
   label: string;
   icon: Component;
   status: WorkbenchStatus;
@@ -118,6 +68,7 @@ export interface CapabilityItem {
 export interface WorkbenchOverviewController {
   loading: Ref<boolean>;
   loadError: Ref<string>;
+  contentAvailable: ComputedRef<boolean>;
   metrics: ComputedRef<WorkbenchMetric[]>;
   layers: ComputedRef<WorkbenchLayer[]>;
   capabilities: ComputedRef<CapabilityItem[]>;
@@ -143,6 +94,7 @@ export const buildWorkbenchRecentItems = (
         title: file.title || id,
         type: file.type,
         categoryName: file.categoryName,
+        tags: [...new Set(file.tags)].slice(0, 2),
         modified: file.modified,
         path: getConfigContentPath(id, file.categoryId)
       };
@@ -156,11 +108,13 @@ export type WorkbenchTranslator = (
 export interface WorkbenchViewModelInput {
   t: WorkbenchTranslator;
   workspaceRoot: string;
+  workspaceFailed: boolean;
+  pluginsFailed: boolean;
   categoriesCount: number;
-  content: WorkbenchContentSummary;
-  plugins: WorkbenchPluginSummary;
-  search: WorkbenchSearchSummary;
-  ai: WorkbenchAiSummary;
+  content: WorkbenchContentSummary | null;
+  plugins: WorkbenchPluginSummary | null;
+  search: WorkbenchSearchSummary | null;
+  ai: WorkbenchAiSummary | null;
   settingsAction: (tab: string, labelKey: string) => WorkbenchAction;
 }
 
@@ -172,60 +126,15 @@ export const statusChipClass = (
   'status-chip--inactive': status === 'inactive'
 });
 
-export const buildWorkbenchMetrics = ({
-  t,
-  content,
-  plugins,
-  search,
-  ai
-}: WorkbenchViewModelInput): WorkbenchMetric[] => [
-  {
-    id: 'content',
-    label: t('settings.workbench.metrics.content'),
-    value: content.total,
-    meta: t('settings.workbench.metrics.contentMeta', {
-      snippets: content.snippets,
-      notes: content.notes
-    })
-  },
-  {
-    id: 'plugins',
-    label: t('settings.workbench.metrics.plugins'),
-    value: plugins.enabled,
-    meta: t('settings.workbench.metrics.pluginsMeta', {
-      total: plugins.installed
-    })
-  },
-  {
-    id: 'search',
-    label: t('settings.workbench.metrics.searchSources'),
-    value: search.registered,
-    meta: t('settings.workbench.metrics.searchSourcesMeta', {
-      failed: search.failed
-    })
-  },
-  {
-    id: 'ai',
-    label: t('settings.workbench.metrics.aiProviders'),
-    value: ai.healthy,
-    meta: t('settings.workbench.metrics.aiProvidersMeta', {
-      total: ai.providers
-    })
-  }
-];
-
-const workspaceStatus = (workspaceRoot: string): WorkbenchStatus =>
-  workspaceRoot ? 'ready' : 'attention';
-
-const searchStatus = (search: WorkbenchSearchSummary): WorkbenchStatus => {
-  if (search.failed > 0) return 'attention';
+const searchStatus = (
+  search: WorkbenchSearchSummary | null
+): WorkbenchStatus => {
+  if (!search || search.failed > 0) return 'attention';
   return search.registered > 0 ? 'ready' : 'inactive';
 };
 
-const pluginStatus = (plugins: WorkbenchPluginSummary): WorkbenchStatus =>
-  plugins.enabled > 0 ? 'ready' : 'inactive';
-
-const aiStatus = (ai: WorkbenchAiSummary): WorkbenchStatus => {
+const aiStatus = (ai: WorkbenchAiSummary | null): WorkbenchStatus => {
+  if (!ai) return 'attention';
   if (ai.providers === 0) return 'inactive';
   return ai.healthy < ai.providers ? 'attention' : 'ready';
 };
@@ -236,7 +145,12 @@ const buildWorkspaceLayer = (
   id: 'workspace',
   label: input.t('settings.workbench.layers.workspace'),
   icon: Library,
-  status: workspaceStatus(input.workspaceRoot),
+  status:
+    input.workspaceFailed || !input.content
+      ? 'attention'
+      : input.workspaceRoot
+        ? 'ready'
+        : 'inactive',
   stats: [
     {
       label: input.t('settings.workbench.stats.path'),
@@ -265,11 +179,11 @@ const buildSearchLayer = (input: WorkbenchViewModelInput): WorkbenchLayer => ({
   stats: [
     {
       label: input.t('settings.workbench.stats.sources'),
-      value: input.search.registered
+      value: input.search?.registered ?? '—'
     },
     {
       label: input.t('settings.workbench.stats.failed'),
-      value: input.search.failed
+      value: input.search?.failed ?? '—'
     },
     {
       label: input.t('settings.workbench.stats.timeout'),
@@ -285,19 +199,24 @@ const buildPluginLayer = (input: WorkbenchViewModelInput): WorkbenchLayer => ({
   id: 'plugins',
   label: input.t('settings.workbench.layers.plugins'),
   icon: Application,
-  status: pluginStatus(input.plugins),
+  status:
+    input.pluginsFailed || !input.plugins
+      ? 'attention'
+      : input.plugins.enabled > 0
+        ? 'ready'
+        : 'inactive',
   stats: [
     {
       label: input.t('settings.workbench.stats.installed'),
-      value: input.plugins.installed
+      value: input.plugins?.installed ?? '—'
     },
     {
       label: input.t('settings.workbench.stats.enabled'),
-      value: input.plugins.enabled
+      value: input.plugins?.enabled ?? '—'
     },
     {
       label: input.t('settings.workbench.stats.surfaces'),
-      value: input.plugins.surfaces
+      value: input.plugins?.surfaces ?? '—'
     }
   ],
   actions: [
@@ -313,11 +232,11 @@ const buildAiLayer = (input: WorkbenchViewModelInput): WorkbenchLayer => ({
   stats: [
     {
       label: input.t('settings.workbench.stats.providers'),
-      value: input.ai.providers
+      value: input.ai?.providers ?? '—'
     },
     {
       label: input.t('settings.workbench.stats.healthy'),
-      value: input.ai.healthy
+      value: input.ai?.healthy ?? '—'
     },
     {
       label: input.t('settings.workbench.stats.capabilities'),

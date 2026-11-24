@@ -40,34 +40,28 @@ export default {
 
   workbenchHome: {
     title: '开发者工作台',
+    description: '管理你的知识资产、代码片段与开发工具。',
+    contentHint:
+      '统计当前工作区的笔记与片段。曲线按创建日期统计近七天的新增文件。',
+    creationTrend: '近七天每日新增的现存文件（从早到晚）：{counts}',
+    disabledPlugins: '{count} 个停用',
+    registered: '已注册 {count}',
+    available: '可用 {count}',
+    needsSetup: '待配置',
     workspaceNotSet: '尚未设置工作区',
     refresh: '刷新',
+    refreshFailed: '部分数据暂未更新，已有结果已保留。可以点击「刷新」重试。',
+    dataUnavailable: '暂无数据',
     metrics: '工作台概览',
-    recent: '最近内容',
+    recent: '最近更新',
     viewAll: '查看全部',
-    noRecent: '暂无最近内容',
+    noRecent: '工作区还没有笔记或片段',
+    recentUnavailable: '暂时无法读取最近更新',
     openWorkspace: '打开工作区',
     configureWorkspace: '设置工作区',
-    quickActions: '常用入口',
+    quickActions: '快捷操作',
     systemStatus: '能力状态',
-    manage: '管理',
-    quickActionDescriptions: {
-      note: '记录思路与知识',
-      code: '保存可复用的代码',
-      workspace: '打开工作区面板',
-      launcher: '快速启动应用',
-      todo: '管理我的任务',
-      aiChat: '与 AI 助手交流'
-    },
-    status: {
-      ready: '正常',
-      attention: '待配置',
-      inactive: '未启用'
-    },
-    footer: {
-      workspaceReady: 'Workspace 已就绪',
-      recentCount: '{count} 个最近内容'
-    }
+    manage: '管理'
   },
 
   workspaceStart: {
@@ -212,8 +206,8 @@ export default {
         plugins: '启用插件',
         pluginsMeta: '共 {total} 个已安装',
         searchSources: '搜索源',
-        searchSourcesMeta: '{failed} 个失败',
-        aiProviders: 'AI Provider',
+        searchSourcesMeta: '{failed} 个异常',
+        aiProviders: '可用 AI 服务',
         aiProvidersMeta: '共 {total} 个已注册'
       },
       layers: {

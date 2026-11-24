@@ -42,7 +42,8 @@ const routes: RouteRecordRaw[] = [
           {
             path: 'workbench',
             component: () => import('@/pages/workbench/index.vue'),
-            name: 'Workbench'
+            name: 'Workbench',
+            meta: { keepAlive: true }
           },
           {
             path: 'category',

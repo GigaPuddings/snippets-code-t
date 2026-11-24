@@ -7,6 +7,7 @@ export interface WorkbenchContentSummary {
   total: number;
   snippets: number;
   notes: number;
+  creationsByDay: number[];
 }
 
 export interface WorkbenchPluginSummary {
@@ -27,13 +28,32 @@ export interface WorkbenchAiSummary {
   unavailable: number;
 }
 
+// Number local calendar days independently of daylight-saving transitions.
+const calendarDay = (date: Date): number =>
+  Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86_400_000;
+
 export const summarizeWorkbenchContent = (
-  files: MarkdownFile[]
-): WorkbenchContentSummary => ({
-  total: files.length,
-  snippets: files.filter((file) => file.type === 'code').length,
-  notes: files.filter((file) => file.type === 'note').length
-});
+  files: MarkdownFile[],
+  today = new Date()
+): WorkbenchContentSummary => {
+  const days = Array<number>(7).fill(0);
+  const firstDay = calendarDay(today) - days.length + 1;
+  let hasCreationDate = false;
+  for (const file of files) {
+    if (!file.created) continue;
+    const created = new Date(file.created);
+    if (!Number.isFinite(created.getTime()) || created > today) continue;
+    hasCreationDate = true;
+    const index = calendarDay(created) - firstDay;
+    if (index >= 0 && index < days.length) days[index]++;
+  }
+  return {
+    total: files.length,
+    snippets: files.filter((file) => file.type === 'code').length,
+    notes: files.filter((file) => file.type === 'note').length,
+    creationsByDay: hasCreationDate ? days : []
+  };
+};
 
 export const summarizeWorkbenchPlugins = (
   plugins: RegisteredPlugin[],
@@ -75,7 +95,7 @@ export const summarizeWorkbenchAi = (
 ): WorkbenchAiSummary => ({
   providers: providers.length,
   healthy: providers.filter(
-    (provider) => provider.status.available && provider.status.healthy !== false
+    (provider) => provider.status.available && provider.status.healthy === true
   ).length,
   unavailable: providers.filter((provider) => !provider.status.available).length
 });

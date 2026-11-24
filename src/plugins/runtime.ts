@@ -1079,6 +1079,17 @@ const pluginNeedsFrontendEntry = (plugin: RegisteredPlugin): boolean => {
   });
 };
 
+export const isPluginFrontendReady = (plugin: RegisteredPlugin): boolean =>
+  plugin.source !== 'local' ||
+  (plugin.manifest.entry?.frontend
+    ? loadedFrontendEntries.has(String(plugin.id))
+    : !pluginNeedsFrontendEntry(plugin));
+
+export const hasPluginConfigRoute = (pluginId: string, name: string): boolean =>
+  runtimeConfigPluginRoutes.some(
+    (route) => route.name === name && route.meta?.pluginId === pluginId
+  );
+
 export const ensureLocalPluginFrontendEntry = async (
   plugin: RegisteredPlugin,
   isEnabled: (pluginId: string) => boolean

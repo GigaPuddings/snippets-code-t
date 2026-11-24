@@ -1,81 +1,84 @@
 <template>
   <main
-    class="flex h-full min-h-0 w-full min-w-0 overflow-hidden font-ui text-ui text-[var(--workspace-nav-text)]"
+    class="workbench h-full min-h-0 min-w-0 overflow-y-auto bg-[var(--settings-surface)] font-ui [&_button]:duration-150 motion-reduce:[&_button]:transition-none"
     :aria-busy="loading"
   >
     <div
-      class="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden bg-[var(--settings-surface)]"
+      class="workbench-content mx-auto flex min-h-full w-full max-w-[138rem] flex-col"
     >
-      <div
-        class="mx-auto flex w-full max-w-6xl shrink-0 flex-col gap-4 px-8 pt-4 pb-3 max-[640px]:px-5"
+      <WorkbenchHero
+        :workspace-root="workspaceRoot"
+        :loading="loading"
+        @open-workspace="navigateTo(workspaceAction)"
+        @refresh="refresh"
+      />
+      <p
+        v-if="loadError"
+        class="m-0 rounded-ui bg-[var(--el-color-warning-light-9)] px-3 py-2 text-ui-caption text-ui-main"
+        role="alert"
+        :title="loadError"
       >
-        <p
-          v-if="loadError"
-          class="m-0 rounded-lg bg-[var(--el-color-danger-light-9)] px-3 py-2 text-ui-caption text-[var(--el-color-danger)]"
-          role="alert"
-        >
-          {{ loadError }}
-        </p>
-        <WorkbenchHero
+        {{ t('workbenchHome.refreshFailed') }}
+      </p>
+      <WorkbenchMetrics
+        :metrics="metrics"
+        :loading="loading"
+        @select="openMetric"
+      />
+      <div class="workbench-columns grid min-w-0">
+        <RecentContent
+          :items="recentItems"
           :workspace-root="workspaceRoot"
+          :content-available="contentAvailable"
           :loading="loading"
-          @open-workspace="navigate(workspaceAction)"
-          @refresh="refresh"
+          :empty-action-label="
+            workspaceRoot
+              ? t('workbenchHome.openWorkspace')
+              : t('workbenchHome.configureWorkspace')
+          "
+          @open="navigateTo"
+          @open-empty="navigateTo(workspaceAction)"
+          @view-all="navigateTo(workspaceAction)"
         />
-        <WorkbenchMetrics :metrics="metrics" @select="openMetric" />
-        <div
-          class="grid min-w-0 grid-cols-[minmax(0,1.5fr)_minmax(280px,1fr)] items-start gap-8 max-[900px]:grid-cols-1"
-        >
-          <RecentContent
-            :items="recentItems"
-            :workspace-root="workspaceRoot"
-            :empty-action-label="
-              workspaceRoot
-                ? t('workbenchHome.openWorkspace')
-                : t('workbenchHome.configureWorkspace')
-            "
-            @open="navigate"
-            @open-empty="navigate(workspaceEmptyAction)"
-            @view-all="navigate('/config/category/contentList')"
+        <div class="workbench-tools flex min-w-0 flex-col">
+          <QuickActions :actions="quickActions" @select="runQuickAction" />
+          <CapabilityStatus
+            :layers="layers"
+            @manage="navigateTo('/config/category/settings?tab=workbench')"
+            @select="openCapability"
           />
-          <aside class="flex min-w-0 flex-col gap-5">
-            <QuickActions :actions="quickActions" @navigate="navigate" />
-            <CapabilityStatus
-              :layers="layers"
-              @manage="navigate('/config/category/settings?tab=workbench')"
-              @navigate-action="navigateTo"
-            />
-          </aside>
         </div>
       </div>
-      <WorkbenchFooter
-        class="mt-auto"
-        :recent-count="recentItems.length"
-        :workspace-ready="Boolean(workspaceRoot)"
-      />
     </div>
   </main>
 </template>
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
+import { useConfigQuickSearch } from '@/composables/useConfigQuickSearch';
+import { hasPluginConfigRoute } from '@/plugins/runtime';
 import { usePluginStore } from '@/store';
 import { useWorkbenchOverview } from '@/workbench/useWorkbenchOverview';
-import { buildWorkbenchQuickActions } from '@/workbench/viewModel';
+import type { WorkbenchLayer, WorkbenchMetric } from '@/workbench/viewModel';
+import {
+  buildWorkbenchQuickActions,
+  type WorkbenchQuickAction
+} from './quickActions';
 import CapabilityStatus from './components/CapabilityStatus.vue';
 import QuickActions from './components/QuickActions.vue';
 import RecentContent from './components/RecentContent.vue';
-import WorkbenchFooter from './components/WorkbenchFooter.vue';
 import WorkbenchHero from './components/WorkbenchHero.vue';
 import WorkbenchMetrics from './components/WorkbenchMetrics.vue';
 
 defineOptions({ name: 'WorkbenchHome' });
 
 const { t } = useI18n();
+const { open: openQuickSearch } = useConfigQuickSearch();
 const pluginStore = usePluginStore();
 const {
   loading,
   loadError,
+  contentAvailable,
   metrics,
   layers,
   workspaceRoot,
@@ -85,30 +88,79 @@ const {
 } = useWorkbenchOverview();
 
 const quickActions = computed(() =>
-  buildWorkbenchQuickActions(workspaceRoot.value, (pluginId) =>
-    pluginStore.isEnabled(pluginId)
-  )
+  buildWorkbenchQuickActions(workspaceRoot.value, (tab) => {
+    if (!tab.pluginId) return true;
+    // Runtime route registrations are published through the plugin store.
+    pluginStore.runtimeRevision;
+    return (
+      pluginStore.isEnabled(tab.pluginId) &&
+      hasPluginConfigRoute(tab.pluginId, tab.routeName)
+    );
+  })
 );
 
+const workspaceSettings = '/config/category/settings?tab=data';
 const workspaceAction = computed(() =>
-  workspaceRoot.value
-    ? '/config/category/contentList'
-    : '/config/category/settings?tab=data'
+  workspaceRoot.value ? '/config/category/contentList' : workspaceSettings
 );
 
-const workspaceEmptyAction = computed(() => workspaceAction.value);
-
-const metricDestinations: Record<string, string> = {
-  content: '/config/category/contentList',
+const metricDestinations = {
   plugins: '/config/category/settings?tab=plugins',
-  search: '/config/retrieve',
+  search: '/config/category/settings?tab=developer',
   ai: '/config/category/settings?tab=ai'
 };
 
-const navigate = navigateTo;
+const openMetric = (id: WorkbenchMetric['id']): void => {
+  navigateTo(id === 'content' ? workspaceAction.value : metricDestinations[id]);
+};
 
-const openMetric = (metricId: string): void => {
-  const path = metricDestinations[metricId];
-  if (path) navigate(path);
+const openCapability = (id: WorkbenchLayer['id']): void => {
+  navigateTo(id === 'workspace' ? workspaceSettings : metricDestinations[id]);
+};
+
+const runQuickAction = (action: WorkbenchQuickAction): void => {
+  if (action.path) navigateTo(action.path);
+  else openQuickSearch();
 };
 </script>
+
+<style scoped>
+.workbench {
+  container: workbench / size;
+}
+
+.workbench-content {
+  --wb-gap: clamp(0.75rem, min(2.2cqw, 2.5cqh), 2.25rem);
+  --wb-padding: clamp(0.75rem, 2.2cqw, 3.75rem);
+  --wb-inset: clamp(0.625rem, min(1.2cqw, 2cqh), 1.5rem);
+  --wb-control: clamp(var(--app-ui-control-height), 4.8cqh, 2.75rem);
+  --wb-primary: color-mix(
+    in srgb,
+    var(--workspace-nav-text) 76%,
+    var(--workspace-nav-muted)
+  );
+  --wb-caption: clamp(var(--app-ui-caption-size), 1cqw, 0.875rem);
+
+  gap: var(--wb-gap);
+  padding: var(--wb-gap) var(--wb-padding);
+  font-size: clamp(var(--app-ui-font-size), 1.14cqw, 1.0625rem);
+  line-height: 1.45;
+  color: var(--wb-primary);
+}
+
+.workbench-columns,
+.workbench-tools {
+  gap: var(--wb-gap);
+}
+
+@container workbench (min-width: 56rem) {
+  .workbench-columns {
+    grid-template-columns: minmax(0, 1.04fr) minmax(0, 1fr);
+  }
+
+  .workbench-tools {
+    padding-inline-start: var(--wb-gap);
+    border-inline-start: 1px solid var(--settings-border);
+  }
+}
+</style>

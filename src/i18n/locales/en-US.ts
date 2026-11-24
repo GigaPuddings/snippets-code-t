@@ -40,34 +40,31 @@ export default {
 
   workbenchHome: {
     title: 'Developer Workbench',
+    description:
+      'Manage your notes, code snippets, and developer tools in one place.',
+    contentHint:
+      'Notes and snippets in this workspace. The chart groups new files by creation date over the past seven days.',
+    creationTrend:
+      'Current files created each day over the past seven days, oldest first: {counts}',
+    disabledPlugins: '{count} disabled',
+    registered: '{count} registered',
+    available: '{count} available',
+    needsSetup: 'Needs setup',
     workspaceNotSet: 'Workspace is not configured',
     refresh: 'Refresh',
+    refreshFailed:
+      'Some data could not be refreshed. Previous results are kept where available. Select Refresh to retry.',
+    dataUnavailable: 'Data unavailable',
     metrics: 'Workbench overview',
-    recent: 'Recent Content',
+    recent: 'Recently Updated',
     viewAll: 'View All',
-    noRecent: 'No recent content',
+    noRecent: 'No notes or snippets in this workspace yet',
+    recentUnavailable: 'Recent updates could not be loaded',
     openWorkspace: 'Open Workspace',
     configureWorkspace: 'Configure Workspace',
-    quickActions: 'Quick Access',
+    quickActions: 'Quick Actions',
     systemStatus: 'Capability Status',
-    manage: 'Manage',
-    quickActionDescriptions: {
-      note: 'Capture ideas and knowledge',
-      code: 'Save reusable code',
-      workspace: 'Open the workspace panel',
-      launcher: 'Launch applications quickly',
-      todo: 'Manage your tasks',
-      aiChat: 'Work with your AI assistant'
-    },
-    status: {
-      ready: 'Healthy',
-      attention: 'Needs setup',
-      inactive: 'Inactive'
-    },
-    footer: {
-      workspaceReady: 'Workspace ready',
-      recentCount: '{count} recent items'
-    }
+    manage: 'Manage'
   },
 
   workspaceStart: {
@@ -223,7 +220,7 @@ export default {
         pluginsMeta: '{total} installed',
         searchSources: 'Search Sources',
         searchSourcesMeta: '{failed} failed',
-        aiProviders: 'AI Providers',
+        aiProviders: 'Available AI Providers',
         aiProvidersMeta: '{total} registered'
       },
       layers: {
