@@ -9,6 +9,7 @@ import SearchPanel from './SearchPanel.vue';
 import PromptDialog from './PromptDialog.vue';
 import ContextMenuSurface from './ContextMenuSurface.vue';
 import ContextMenuItem from './ContextMenuItem.vue';
+import ScrollEdgeMask from './ScrollEdgeMask.vue';
 
 export {
   CustomButton,
@@ -21,5 +22,6 @@ export {
   SearchPanel,
   PromptDialog,
   ContextMenuSurface,
-  ContextMenuItem
+  ContextMenuItem,
+  ScrollEdgeMask
 };

@@ -173,11 +173,10 @@
         :class="{ 'editor-surface--loading': showEditorLoading }"
         @scroll.capture.passive="handleEditorScroll"
       >
-        <div
+        <ScrollEdgeMask
           v-if="hasContentTags && editorScrolled && !showEditorLoading"
           class="editor-top-scroll-mask"
-          aria-hidden="true"
-        ></div>
+        />
         <!-- CodeMirror 代码编辑器 (type === 'code') -->
         <div
           v-if="currentEditorType === 'code'"
@@ -276,7 +275,7 @@ import {
   createEditorDraftStore,
   type EditorDraft
 } from '@/utils/editorDrafts';
-import { ConfirmDialog, CustomButton } from '@/components/UI';
+import { ConfirmDialog, CustomButton, ScrollEdgeMask } from '@/components/UI';
 import { findBacklinks, getBacklinkStats } from '@/utils/wikilink-updater';
 import BacklinkUpdateDialog from '@/components/UI/BacklinkUpdateDialog.vue';
 import AiAssistDialog from '@/components/AiAssistDialog/index.vue';
@@ -2375,6 +2374,7 @@ onMounted(async () => {
   @apply relative h-full min-h-0 min-w-0 overflow-hidden;
 
   --editor-bg: var(--editor-surface-bg);
+  --scroll-edge-surface: var(--editor-surface-bg);
 
   box-sizing: border-box;
   background: var(--editor-surface-bg);
@@ -2383,19 +2383,6 @@ onMounted(async () => {
 
 .editor-surface--loading {
   pointer-events: none;
-}
-
-.editor-top-scroll-mask {
-  @apply pointer-events-none absolute top-0 z-[2] h-4;
-
-  inset-inline: 0 8px;
-  background-color: color-mix(
-    in srgb,
-    var(--editor-surface-bg) 84%,
-    transparent
-  );
-  backdrop-filter: blur(4px);
-  mask-image: linear-gradient(to bottom, #000, transparent);
 }
 
 .editor-error {

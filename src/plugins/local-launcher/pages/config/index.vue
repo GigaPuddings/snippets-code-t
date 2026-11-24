@@ -243,6 +243,7 @@
         :item-size="listItemSize"
         :buffer="200"
         key-field="id"
+        @scroll.passive="syncListScrollMask"
         v-slot="{ item, index }"
       >
         <div class="item-wrapper" :style="{ height: `${listItemSize}px` }">
@@ -356,6 +357,7 @@
           </div>
         </div>
       </RecycleScroller>
+      <ScrollEdgeMask v-if="scrollerRef && listScrolled" />
     </div>
 
     <EditDialog
@@ -463,7 +465,12 @@ import Info from '~icons/lucide/info';
 import { RecycleScroller } from 'vue-virtual-scroller';
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css';
 import EditDialog from './components/EditDialog.vue';
-import { CommonDialog, ConfirmDialog, CustomButton } from '@/components/UI';
+import {
+  CommonDialog,
+  ConfirmDialog,
+  CustomButton,
+  ScrollEdgeMask
+} from '@/components/UI';
 import LauncherSettingsDialog from './components/LauncherSettingsDialog.vue';
 import BrowserBookmarkDeleteDialog from './components/BrowserBookmarkDeleteDialog.vue';
 import {
@@ -565,6 +572,10 @@ const openSettings = (tab = 'discovery') => {
 };
 const localContentRef = ref<HTMLElement | null>(null);
 const scrollerRef = ref<RecycleScrollerInstance | null>(null);
+const listScrolled = ref(false);
+const syncListScrollMask = () => {
+  listScrolled.value = (scrollerRef.value?.$el?.scrollTop ?? 0) > 0;
+};
 const listItemSize = ref(64);
 const visibleListItemCount = 8;
 
@@ -659,10 +670,11 @@ watch([searchQuery, activeTab, browserFilter], () => {
 });
 
 watch(
-  [filteredList, listItemSize],
+  [filteredList, listItemSize, scrollerRef],
   async () => {
     await nextTick();
     refreshRecycleScroller(scrollerRef.value);
+    syncListScrollMask();
   },
   { flush: 'post' }
 );
@@ -1086,7 +1098,9 @@ onUnmounted(() => {
   }
 
   .local-content {
-    @apply min-h-0 flex-1 overflow-hidden;
+    @apply relative min-h-0 flex-1 overflow-hidden;
+
+    --scroll-edge-surface: var(--settings-surface);
 
     .initial-index-state {
       @apply flex h-full flex-col items-center justify-center px-6 pb-10 text-center;
