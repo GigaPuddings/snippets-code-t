@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "system-theme",
-  "version": "2.0.20",
+  "version": "2.0.21",
   "kind": "local",
   "name": {
     "i18nKey": "plugins.systemTheme.name",
@@ -27,14 +27,14 @@
   "permissions": [
     "command:*"
   ],
-  "compatibleAppVersion": ">=2.2.7",
+  "compatibleAppVersion": ">=2.2.19",
   "entry": {
     "frontend": "dist/frontend.js",
     "styles": [
       "dist/assets/runtime-entry-maw9lUiz.css"
     ]
   },
-  "minAppVersion": "2.2.7",
+  "minAppVersion": "2.2.19",
   "repository": "https://github.com/GigaPuddings/snippets-code-plugin-system-theme",
-  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-system-theme/releases/tag/2.0.20"
+  "releaseUrl": "https://github.com/GigaPuddings/snippets-code-plugin-system-theme/releases/tag/2.0.21"
 }
