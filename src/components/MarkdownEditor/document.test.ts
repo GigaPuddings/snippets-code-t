@@ -19,6 +19,11 @@ import {
   trailingCodeParagraph
 } from './document';
 import { livePreview, previewTargets } from './preview';
+import { wikiLinkAtCursor } from './wikiLinkCompletion';
+import {
+  indexWikiLinkTitles,
+  matchWikiLinkTitles
+} from '@/utils/wikilink-titles';
 
 function pressEnter(text: string, position?: number) {
   let state = createDocumentState(text);
@@ -90,6 +95,89 @@ function previewMarkers(content: string) {
 }
 
 describe('Markdown source document', () => {
+  it('recognizes the editable wiki link without consuming adjacent Markdown', () => {
+    const source = '**说明 [[集合旧名]] 尾部**';
+    const head = source.indexOf('旧名');
+    expect(wikiLinkAtCursor(commandView(source, head).state)).toEqual({
+      from: source.indexOf('[['),
+      to: source.indexOf(']]') + 2,
+      query: '集合'
+    });
+    expect(
+      wikiLinkAtCursor(commandView(source, source.indexOf(']]') + 2).state)
+    ).toMatchObject({ query: '集合旧名', closed: true });
+    expect(
+      wikiLinkAtCursor(commandView('**[[集合 尾部**', 6).state)
+    ).toMatchObject({ query: '集合', to: 6 });
+  });
+
+  it.each(['`[[集合`', '\\[[集合', '```js\n[[集合\n```'])(
+    'ignores literal wiki link input in %s',
+    (source) => {
+      const head = source.indexOf('集合') + 2;
+      expect(wikiLinkAtCursor(commandView(source, head).state)).toBeNull();
+    }
+  );
+
+  it('ranks exact, prefix and substring wiki link titles with a stable target for duplicates', () => {
+    const titles = ['JavaScript', 'JP Java', 'Java', 'Java', 'Unrelated'].map(
+      (title, index) => ({
+        id: String(index),
+        filePath: `${index}.md`,
+        title,
+        categoryName: ''
+      })
+    );
+    const index = indexWikiLinkTitles(titles.reverse());
+    expect(index.get('java')?.path).toBe('2.md');
+    expect(
+      matchWikiLinkTitles(index, ' java ').map((target) => target.title)
+    ).toEqual(['Java', 'JavaScript', 'JP Java']);
+    expect(matchWikiLinkTitles(index, 'missing')).toEqual([]);
+  });
+
+  it('keeps empty or blank wiki link syntax literal inside bold text', () => {
+    const state = createDocumentState('**加粗 [[集合]]、[[]]、[[　 ]]**');
+    const links: string[] = [];
+    syntaxTree(state).iterate({
+      enter(node) {
+        if (node.name === 'WikiLink')
+          links.push(state.sliceDoc(node.from, node.to));
+      }
+    });
+    expect(links).toEqual(['[[集合]]']);
+  });
+
+  it('defers link decorations while a wiki link title is being composed', () => {
+    const state = createDocumentState('**测试[[]]**', [livePreview(options)]);
+    const composing = state.update({
+      changes: { from: 6, insert: 'ji' },
+      selection: { anchor: 8 },
+      userEvent: 'input.type.compose.start'
+    }).state;
+    const normal = state.update({
+      changes: { from: 6, insert: '集合' },
+      selection: { anchor: 8 },
+      userEvent: 'input.type'
+    }).state;
+    const hasLinkDecoration = (document: typeof state): boolean => {
+      let found = false;
+      for (const decorations of document.facet(EditorView.decorations)) {
+        if (typeof decorations === 'function') continue;
+        decorations.between(
+          0,
+          document.doc.length,
+          (_from, _to, decoration) => {
+            if (decoration.spec.attributes?.['data-wikilink']) found = true;
+          }
+        );
+      }
+      return found;
+    };
+    expect(composing.sliceDoc()).toBe('**测试[[ji]]**');
+    expect(hasLinkDecoration(composing)).toBe(false);
+    expect(hasLinkDecoration(normal)).toBe(true);
+  });
   it.each([
     '```java\nclass User {}\n```',
     '```java\nclass User {}\n```   ',

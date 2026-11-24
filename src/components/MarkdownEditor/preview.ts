@@ -18,6 +18,7 @@ import { renderNoteMarkdown } from '@/utils/markdown';
 import { configurePreviewImage } from '@/components/MarkdownPreview/rendering';
 import { TableWidget, tableSearchHighlights } from './table';
 import { trailingCodeParagraph } from './document';
+import { editorComposing, trackEditorComposition } from './composition';
 
 export interface PreviewTarget {
   kind: 'image' | 'table';
@@ -777,6 +778,7 @@ export function livePreview(options: PreviewOptions): Extension {
     previewHasFocus,
     previewDragging,
     previewDragGesture,
+    trackEditorComposition,
     tableSearchHighlights,
     EditorView.focusChangeEffect.of((_state, focused) =>
       setPreviewFocus.of(focused)
@@ -784,6 +786,11 @@ export function livePreview(options: PreviewOptions): Extension {
     StateField.define<DecorationSet>({
       create: (state) => build(state),
       update(value, transaction) {
+        // Keep the DOM ranges that the IME is editing stable until it commits.
+        if (transaction.state.field(editorComposing))
+          return value.map(transaction.changes);
+        if (transaction.startState.field(editorComposing, false))
+          return build(transaction.state);
         if (
           !transaction.docChanged &&
           transaction.startState.readOnly === transaction.state.readOnly &&
@@ -795,7 +802,7 @@ export function livePreview(options: PreviewOptions): Extension {
           transaction.startState.readOnly !== transaction.state.readOnly ||
           transaction.startState.field(previewHasFocus, false) !==
             transaction.state.field(previewHasFocus, false) ||
-          transaction.startState.field(previewDragging) !==
+          transaction.startState.field(previewDragging, false) !==
             transaction.state.field(previewDragging) ||
           syntaxTree(transaction.startState) !== syntaxTree(transaction.state)
         )

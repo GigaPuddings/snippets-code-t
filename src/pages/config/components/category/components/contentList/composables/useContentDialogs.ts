@@ -19,7 +19,10 @@ import {
 } from '@/api/fragment';
 import { ErrorHandler, ErrorType } from '@/utils/error-handler';
 import modal from '@/utils/modal';
-import { getConfigContentPath } from '@/utils/config-navigation';
+import {
+  getConfigContentPath,
+  navigateToNewConfigContent
+} from '@/utils/config-navigation';
 import { findBacklinks, updateBacklinks } from '@/utils/wikilink-updater';
 import {
   convertFragmentContent,
@@ -394,7 +397,7 @@ export function useContentDialogs(): UseContentDialogsReturn {
 
       sidebarMode.value =
         cid === '0' ? 'uncategorized' : cid ? 'folders' : 'all';
-      await router.replace(targetPath);
+      await navigateToNewConfigContent(router, targetPath, true);
 
       // 文件系统列表刷新放到空闲阶段，避免它与编辑器初始化争用主线程。
       const refreshAfterCreate = async () => {

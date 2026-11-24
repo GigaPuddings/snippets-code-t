@@ -21,6 +21,7 @@
         :workspace-root="workspaceRoot"
         :note-file-path="String(currentFragmentId ?? '')"
         :attachment-config="attachmentConfig"
+        :wiki-link-titles="wikiLinkTitles"
         :dark="dark"
         :line-height="lineHeight"
         @wikilink-click="emit('wikilink-click', $event)"
@@ -186,6 +187,12 @@ import TableToolbar from './TableToolbar.vue';
 import MarkdownPreview from '@/components/MarkdownPreview/index.vue';
 import { focusTableCell, tableCellAt } from './table';
 import { useEditorBacklinks } from './useEditorBacklinks';
+import { useWikiLinkCatalog } from './useWikiLinkCatalog';
+import {
+  wikiLinkCatalogChanged,
+  wikiLinkCompletion
+} from './wikiLinkCompletion';
+import '@/styles/menus.scss';
 import {
   createStickyHeadingTracker,
   stickyHeadingRanges
@@ -286,6 +293,13 @@ const host = ref<HTMLElement>();
 const readingPreview = ref<InstanceType<typeof MarkdownPreview>>();
 const readingHost = computed(() => readingPreview.value?.getElement());
 const source = ref(props.content);
+const wikiLinkCatalog = useWikiLinkCatalog(source);
+const wikiLinkTitles = computed(() =>
+  wikiLinkCatalog.value.status === 'ready'
+    ? wikiLinkCatalog.value.titles
+    : undefined
+);
+const wikiLinkPickerId = `wiki-link-picker-${useId()}`;
 const viewMode = ref<ViewMode>('preview');
 const workspaceRoot = ref('');
 const showOutline = ref(false);
@@ -537,6 +551,11 @@ function extensions(): Extension[] {
         EditorView.scrollIntoView(range, { y: 'center' })
     }),
     editorSearchHighlights,
+    wikiLinkCompletion({
+      id: wikiLinkPickerId,
+      catalog: () => wikiLinkCatalog.value,
+      text: (status) => t(`noteEditor.wikiLink.${status}`)
+    }),
     themeCompartment.of([
       EditorView.theme({}, { dark: props.dark }),
       syntaxHighlighting(
@@ -1578,6 +1597,9 @@ function onAttachmentConfig(event: Event) {
   reconfigurePreview();
   nextTick(stickyHeadingTracker.schedule);
 }
+watch(wikiLinkCatalog, (catalog) =>
+  view?.dispatch({ effects: wikiLinkCatalogChanged.of(catalog) })
+);
 watch(
   () => props.stickyHeadings,
   (enabled) => stickyHeadingTracker.setEnabled(enabled)
@@ -1934,6 +1956,40 @@ defineExpose({
     font-weight: 500;
     text-decoration: none;
     border-radius: 3px;
+  }
+
+  .cm-content .md-wikilink-missing {
+    color: var(--el-color-danger-dark-2);
+    text-decoration: underline wavy;
+    text-underline-offset: 0.2em;
+  }
+
+  .cm-tooltip.wiki-link-picker {
+    @apply z-30 w-72 overflow-auto;
+
+    max-height: min(15rem, 45vh);
+    background-color: var(--app-menu-background);
+    border-color: var(--settings-border);
+
+    .context-menu-item:not(.is-active):hover {
+      background-color: transparent;
+    }
+
+    .wiki-link-picker-title {
+      @apply min-w-0 flex-1 truncate;
+    }
+
+    .wiki-link-picker-folder {
+      @apply max-w-[35%] truncate text-ui-caption text-ui-muted;
+    }
+
+    .wiki-link-picker-message {
+      @apply px-2 py-1 text-ui-caption text-ui-muted;
+    }
+
+    .wiki-link-picker-message--missing {
+      color: var(--el-color-danger-dark-2);
+    }
   }
 
   .cm-editor .cm-line.md-quote-line {

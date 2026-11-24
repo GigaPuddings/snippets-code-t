@@ -13,6 +13,7 @@ import { useI18n } from 'vue-i18n';
 import { defaultHighlightStyle } from '@codemirror/language';
 import { oneDarkHighlightStyle } from '@codemirror/theme-one-dark';
 import { getWorkspaceRoot } from '@/api/markdown';
+import { wikiLinkTitleKey } from '@/utils/wikilink-titles';
 import {
   DEFAULT_ATTACHMENT_CONFIG,
   ATTACHMENT_CONFIG_UPDATED_EVENT,
@@ -38,6 +39,7 @@ const props = withDefaults(
     workspaceRoot?: string;
     noteFilePath?: string;
     attachmentConfig?: AttachmentConfig;
+    wikiLinkTitles?: ReadonlyMap<string, unknown>;
     dark?: boolean;
     lineHeight?: number;
   }>(),
@@ -57,6 +59,28 @@ const html = computed(() =>
     props.workspaceRoot ?? root.value,
     props.noteFilePath
   )
+);
+
+watch(
+  [host, html, () => props.wikiLinkTitles, locale],
+  () => {
+    host.value
+      ?.querySelectorAll<HTMLAnchorElement>('a[data-note-name]')
+      .forEach((link) => {
+        const missing =
+          props.wikiLinkTitles?.has(
+            wikiLinkTitleKey(link.dataset.noteName ?? '')
+          ) === false;
+        if (missing) {
+          link.setAttribute('data-wikilink-missing', '');
+          link.title = t('noteEditor.wikiLink.missing');
+        } else if (link.hasAttribute('data-wikilink-missing')) {
+          link.removeAttribute('data-wikilink-missing');
+          link.removeAttribute('title');
+        }
+      });
+  },
+  { flush: 'post' }
 );
 
 watch(

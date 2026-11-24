@@ -2146,6 +2146,14 @@ export default {
 
   // 笔记编辑器
   noteEditor: {
+    wikiLink: {
+      label: '内部链接候选',
+      loading: '正在读取本地文档…',
+      empty: '暂无可关联的文档',
+      missing: '未找到匹配的文档标题',
+      error: '暂时无法读取本地文档'
+    },
+    returnToTop: '返回顶部',
     selectionChanged: '原选区所在的笔记或正文已改变，请重新选择后替换。',
     documentStatus: '文档状态',
     properties: '{count} 个笔记属性',

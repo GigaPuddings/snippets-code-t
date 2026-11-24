@@ -19,6 +19,15 @@ describe('Markdown reading view', () => {
     expect(html).not.toContain('<B>');
   });
 
+  it('renders only non-empty wiki links inside bold text', () => {
+    const source = '**加粗 [[集合]]、[[]]、[[　 ]]**';
+    const html = renderNoteMarkdown(source, '', '');
+    expect(html).toContain('<strong>加粗 <a');
+    expect(html).toContain(
+      'data-note-name="集合">集合</a>、[[]]、[[　 ]]</strong>'
+    );
+  });
+
   it('renders one disabled checkbox per loose task item', () => {
     const html = renderNoteMarkdown('- [ ] one\n\n- [x] two', '', '');
     expect(html.match(/type="checkbox"/g)).toHaveLength(2);

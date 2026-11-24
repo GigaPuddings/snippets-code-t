@@ -230,6 +230,16 @@
             @sticky-heading-change="setContextHeading"
           />
         </div>
+        <button
+          v-if="editorScrolled && !showEditorLoading"
+          type="button"
+          class="editor-return-top ui-icon-button rounded-ui-lg border border-solid border-[var(--settings-border)] bg-[var(--statusbar-bg)] text-ui-muted"
+          :aria-label="t('noteEditor.returnToTop')"
+          :title="t('noteEditor.returnToTop')"
+          @click="returnToEditorTop"
+        >
+          <ArrowUp width="16" height="16" aria-hidden="true" />
+        </button>
       </div>
     </div>
     <CommonDialog
@@ -264,7 +274,7 @@ import {
   convertFragmentType,
   moveFragmentToCategory
 } from '@/api/fragment';
-import { searchMarkdownFiles, createMarkdownFile } from '@/api/markdown';
+import { createMarkdownFile, getAllFiles } from '@/api/markdown';
 import { debounce } from '@/utils';
 import { logger } from '@/utils/logger';
 import { parseFragment, parseTags, replaceFragmentTag } from '@/utils/fragment';
@@ -275,7 +285,13 @@ import {
 } from '@/utils/error-handler';
 import { useI18n } from 'vue-i18n';
 import modal from '@/utils/modal';
-import { getConfigContentPath } from '@/utils/config-navigation';
+import {
+  getConfigContentPath,
+  navigateToNewConfigContent,
+  newContentEditorRoute
+} from '@/utils/config-navigation';
+import type { EditorView } from '@codemirror/view';
+import ArrowUp from '~icons/lucide/arrow-up';
 import {
   openFileWithOtherWays,
   resolveWorkspaceFilePath
@@ -295,6 +311,7 @@ import {
   ScrollEdgeMask
 } from '@/components/UI';
 import { findBacklinks, getBacklinkStats } from '@/utils/wikilink-updater';
+import { indexWikiLinkTitles, wikiLinkTitleKey } from '@/utils/wikilink-titles';
 import BacklinkUpdateDialog from '@/components/UI/BacklinkUpdateDialog.vue';
 import AiAssistDialog from '@/components/AiAssistDialog/index.vue';
 import AiSelectionToolbar from '@/components/AiSelectionToolbar/index.vue';
@@ -661,15 +678,13 @@ const hasUnsavedChanges = () => state.contentChanged || titleDirty.value;
 // Markdown 编辑器引用
 const noteEditorRef = ref<any>(null);
 
-const finishMountedEditorLoading = () => {
-  const hasMountedEditor =
-    currentEditorType.value === 'note'
-      ? Boolean(noteEditorRef.value?.getView?.())
-      : Boolean(codeMirrorEditorRef.value?.getView?.());
+const getEditorView = (): EditorView | undefined =>
+  currentEditorType.value === 'note'
+    ? noteEditorRef.value?.getView()
+    : codeMirrorEditorRef.value?.getView();
 
-  if (hasMountedEditor) {
-    finishEditorLoadingAfterPaint();
-  }
+const finishMountedEditorLoading = () => {
+  if (getEditorView()) finishEditorLoadingAfterPaint();
 };
 
 useContentSearchNavigation(
@@ -715,6 +730,37 @@ const {
 const editorViewMode = ref<'reading' | 'preview' | 'source'>('preview');
 const isOutlineVisible = ref(false);
 
+watchEffect(
+  () => {
+    const target = newContentEditorRoute.value;
+    if (
+      !target ||
+      target !== router.currentRoute.value ||
+      state.isInitializing ||
+      showEditorLoading.value ||
+      state.editorError ||
+      !state.currentContent ||
+      normalizePathForCompare(state.currentContent.id) !==
+        normalizeFragmentId(String(target.params.id))
+    )
+      return;
+
+    const editor = getEditorView();
+    if (!editor) return;
+    if (
+      currentEditorType.value === 'note' &&
+      noteEditorRef.value?.getViewMode() === 'reading'
+    ) {
+      noteEditorRef.value.setViewMode('preview');
+      return;
+    }
+
+    newContentEditorRoute.value = undefined;
+    editor.focus();
+  },
+  { flush: 'post' }
+);
+
 // 处理视图模式变化
 const handleViewModeChange = (mode: 'reading' | 'preview' | 'source') => {
   clearContextHeading();
@@ -726,10 +772,23 @@ const editorScrolled = ref(false);
 const getEditorScrollElement = (): HTMLElement | undefined =>
   currentEditorType.value === 'note'
     ? noteEditorRef.value?.getScrollElement()
-    : codeMirrorEditorRef.value?.getView()?.scrollDOM;
+    : getEditorView()?.scrollDOM;
 
 const syncEditorScroll = (element = getEditorScrollElement()) => {
-  editorScrolled.value = (element?.scrollTop ?? 0) > 0;
+  editorScrolled.value =
+    !!element &&
+    element.scrollHeight > element.clientHeight &&
+    element.scrollTop > 0;
+};
+
+const returnToEditorTop = () => {
+  if (currentEditorType.value === 'note')
+    noteEditorRef.value?.setScrollPosition(0);
+  else {
+    const element = getEditorScrollElement();
+    if (element) element.scrollTop = 0;
+  }
+  syncEditorScroll();
 };
 
 const handleEditorScroll = (event: Event) => {
@@ -1771,16 +1830,13 @@ const handleEditorChange = (value: string) => {
 // 处理 Wikilink 点击
 const handleWikilinkClick = async (noteName: string) => {
   try {
-    // 搜索匹配的 Markdown 文件（按标题搜索）
-    const fragments = await searchMarkdownFiles(noteName);
-
-    if (fragments.length > 0) {
-      // 精确匹配标题（不区分大小写）
-      const exactMatch = fragments.find(
-        (f) => f.title.toLowerCase() === noteName.toLowerCase()
-      );
-      const targetFragment = exactMatch || fragments[0];
-
+    const sourcePath = route.fullPath;
+    const titles = indexWikiLinkTitles(
+      await getAllFiles({ includeContent: false })
+    );
+    if (route.fullPath !== sourcePath) return;
+    const targetFragment = titles.get(wikiLinkTitleKey(noteName));
+    if (targetFragment) {
       // 如果有未保存的更改，先保存（取消防抖，避免 300ms 后重复保存）
       if (hasUnsavedChanges()) {
         debouncedSave.cancel();
@@ -1789,7 +1845,7 @@ const handleWikilinkClick = async (noteName: string) => {
 
       // 构建正确的路由路径，保持当前的 cid 上下文
       const targetPath = getConfigContentPath(
-        targetFragment.id,
+        targetFragment.path,
         route.params.cid
       );
 
@@ -1797,7 +1853,7 @@ const handleWikilinkClick = async (noteName: string) => {
       router.push(targetPath);
     } else {
       // 未找到匹配的片段，显示创建确认对话框
-      pendingNoteName.value = noteName;
+      pendingNoteName.value = noteName.trim();
       showCreateNoteDialog.value = true;
     }
   } catch (error) {
@@ -1920,6 +1976,11 @@ const confirmCreateNote = async () => {
         title: noteName
       }
     });
+    window.dispatchEvent(
+      new CustomEvent('refresh-data', {
+        detail: { source: 'fragment-create' }
+      })
+    );
 
     // 刷新内容列表
     const result = await getFragmentList(currentCategoryId);
@@ -1927,11 +1988,11 @@ const confirmCreateNote = async () => {
 
     // 跳转到新笔记（保持当前的 cid 上下文）
     const currentCid = currentCategoryId;
-    router.push({
-      path: getConfigContentPath(newFragmentId, currentCid)
-    });
-
     showCreateNoteDialog.value = false;
+    await navigateToNewConfigContent(
+      router,
+      getConfigContentPath(newFragmentId, currentCid)
+    );
   } catch (error) {
     console.error('Failed to create note:', error);
     modal.error(t('content.createNoteFailed'));
@@ -1941,6 +2002,7 @@ const confirmCreateNote = async () => {
 const loadContent = async (id: string, source: 'route' | 'reload') => {
   const loadGeneration = ++contentLoadGeneration;
   const reloading = source === 'reload';
+  if (!reloading) getEditorView()?.contentDOM.blur();
   state.isInitializing = true;
   state.editorError = null;
   beginEditorLoading();
@@ -2406,6 +2468,14 @@ onMounted(async () => {
 
 .editor-surface--loading {
   pointer-events: none;
+}
+
+.editor-return-top {
+  @apply absolute right-3 z-20;
+
+  bottom: calc(
+    var(--app-ui-icon-control-sm-height) + var(--editor-status-gap) + 0.5rem
+  );
 }
 
 .editor-error {

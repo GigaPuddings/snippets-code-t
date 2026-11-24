@@ -1,11 +1,28 @@
+import { shallowRef } from 'vue';
 import {
   isNavigationFailure,
   NavigationFailureType,
+  type RouteLocationNormalizedLoaded,
   type RouteLocationRaw,
   type Router
 } from 'vue-router';
 
 type ConfigRouter = Pick<Router, 'push' | 'replace'>;
+
+// Match the navigation instance so a later visit to the same file stays unfocused.
+export const newContentEditorRoute =
+  shallowRef<RouteLocationNormalizedLoaded>();
+
+export async function navigateToNewConfigContent(
+  router: Router,
+  path: string,
+  replace = false
+): Promise<void> {
+  const failure = await (replace ? router.replace(path) : router.push(path));
+  const route = router.currentRoute.value;
+  if (!failure && route.fullPath === router.resolve(path).fullPath)
+    newContentEditorRoute.value = route;
+}
 
 /** One encoding boundary for workspace IDs, including search-source prefixes. */
 export function getConfigContentPath(

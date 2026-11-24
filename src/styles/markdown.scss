@@ -274,4 +274,10 @@
     text-decoration: none;
     border-radius: 3px;
   }
+
+  a[data-wikilink-missing] {
+    color: var(--el-color-danger-dark-2);
+    text-decoration: underline wavy;
+    text-underline-offset: 0.2em;
+  }
 }

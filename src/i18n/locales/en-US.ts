@@ -2263,6 +2263,14 @@ export default {
 
   // Note Editor
   noteEditor: {
+    wikiLink: {
+      label: 'Internal link suggestions',
+      loading: 'Loading local documents…',
+      empty: 'No documents available to link',
+      missing: 'No matching document title',
+      error: 'Could not load local documents'
+    },
+    returnToTop: 'Back to top',
     selectionChanged:
       'The note or its content has changed. Select the text again before replacing it.',
     documentStatus: 'Document status',

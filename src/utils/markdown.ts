@@ -404,9 +404,9 @@ const wikilinkExtension = {
     return src.indexOf('[[');
   },
   tokenizer(src: string) {
-    const rule = /^\[\[([^\]]+)\]\]/;
+    const rule = /^\[\[([^\]\r\n]+)\]\]/;
     const match = rule.exec(src);
-    if (match) {
+    if (match?.[1].trim()) {
       return {
         type: 'wikilink',
         raw: match[0],

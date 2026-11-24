@@ -18,7 +18,8 @@ const wikilinks: MarkdownConfig = {
         const end = cx.text.indexOf(']]', pos + 2 - cx.offset);
         if (end < 0) return -1;
         const to = cx.offset + end + 2;
-        if (cx.slice(pos, to).includes('\n')) return -1;
+        const title = cx.slice(pos + 2, to - 2);
+        if (!title.trim() || /[\r\n\]]/.test(title)) return -1;
         return cx.addElement(cx.elt('WikiLink', pos, to));
       }
     }
