@@ -5,150 +5,21 @@
   >
     <div class="content-header">
       <div class="content-title">
-        <div v-if="state.currentContent" class="content-header-actions">
-          <nav
-            class="workspace-breadcrumb"
-            :aria-label="t('titlebar.navigation')"
-          >
-            <router-link
-              :to="contentFolder.path"
-              class="max-w-[40%] shrink-0 truncate"
-              :title="contentFolder.name"
-            >
-              {{ contentFolder.name }}
-            </router-link>
-            <span class="shrink-0" aria-hidden="true">/</span>
-            <span class="min-w-0 truncate" :title="draftTitle">
-              {{ draftTitle }}
-            </span>
-            <template v-if="contextHeading">
-              <span class="shrink-0" aria-hidden="true">/</span>
-              <span
-                class="min-w-0 truncate"
-                :title="
-                  t('content.stickyHeadingHint', { heading: contextHeading })
-                "
-              >
-                {{ contextHeading }}
-              </span>
-            </template>
-          </nav>
-          <!-- 编辑器控制按钮（仅笔记类型显示） -->
-          <div v-if="currentEditorType === 'note'" class="editor-controls">
-            <!-- 阅读模式切换按钮 -->
-            <button
-              v-if="editorViewMode !== 'reading'"
-              class="ui-icon-button ui-icon-button--small text-panel-text-secondary"
-              type="button"
-              @click="toggleToReadingMode"
-              :title="$t('noteEditor.toggleReading')"
-              :aria-label="$t('noteEditor.toggleReading')"
-            >
-              <BookOpen width="18" height="18" aria-hidden="true" />
-            </button>
-
-            <button
-              v-else
-              class="ui-icon-button ui-icon-button--small text-panel-text-secondary"
-              type="button"
-              @click="toggleToEditingMode"
-              :title="$t('noteEditor.toggleEditing')"
-              :aria-label="$t('noteEditor.toggleEditing')"
-            >
-              <EditTwo width="18" height="18" aria-hidden="true" />
-            </button>
-          </div>
-          <el-dropdown
-            trigger="click"
-            placement="bottom-end"
-            popper-class="content-actions-dropdown"
-            :show-arrow="false"
-            @command="handleContentMenuCommand"
-          >
-            <button
-              class="ui-icon-button ui-icon-button--small text-panel-text-secondary"
-              type="button"
-              :title="t('common.more')"
-              :aria-label="t('common.more')"
-            >
-              <UiEllipsisVertical width="18" height="18" aria-hidden="true" />
-            </button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="copyTitle">
-                  <Type width="16" height="16" aria-hidden="true" />
-                  {{ t('content.copyTitle') }}
-                </el-dropdown-item>
-                <el-dropdown-item command="copyContent">
-                  <Copy width="16" height="16" aria-hidden="true" />
-                  {{ t('content.copyContent') }}
-                </el-dropdown-item>
-                <el-dropdown-item
-                  v-if="currentEditorType === 'note'"
-                  command="copyNoteLink"
-                >
-                  <Link width="16" height="16" aria-hidden="true" />
-                  {{ t('content.copyNoteLink') }}
-                </el-dropdown-item>
-                <el-dropdown-item
-                  v-if="currentEditorType === 'note'"
-                  command="outline"
-                  :class="{ 'is-active': isOutlineVisible }"
-                >
-                  <ListTree width="16" height="16" aria-hidden="true" />
-                  <span class="flex-1">{{ t('noteEditor.outline') }}</span>
-                  <Check
-                    v-if="isOutlineVisible"
-                    width="16"
-                    height="16"
-                    aria-hidden="true"
-                  />
-                </el-dropdown-item>
-                <el-dropdown-item
-                  command="addTag"
-                  :disabled="state.isInitializing"
-                >
-                  <Tags width="16" height="16" aria-hidden="true" />
-                  {{ t('tags.addTag') }}
-                </el-dropdown-item>
-                <el-dropdown-item command="aiAssist">
-                  <Sparkles width="16" height="16" aria-hidden="true" />
-                  {{ t('content.aiAssistant') }}
-                </el-dropdown-item>
-                <el-dropdown-item
-                  command="openWith"
-                  :disabled="state.isLoading || state.isInitializing"
-                >
-                  <ArrowUpRight width="16" height="16" aria-hidden="true" />
-                  {{ t('content.openWith') }}
-                </el-dropdown-item>
-                <el-dropdown-item
-                  command="save"
-                  :disabled="state.isLoading"
-                  divided
-                >
-                  <Save width="16" height="16" aria-hidden="true" />
-                  {{ t('common.save') }}
-                </el-dropdown-item>
-                <el-dropdown-item
-                  command="delete"
-                  class="is-danger"
-                  :disabled="state.isLoading || state.isInitializing"
-                >
-                  <Trash2 width="16" height="16" aria-hidden="true" />
-                  {{ t('common.delete') }}
-                </el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-          <span
-            v-if="state.currentContent.updated_at"
-            class="content-toolbar-updated"
-          >
-            {{ t('content.lastModified') }}:
-            {{ formatUpdatedAt(state.currentContent.updated_at) }}
-          </span>
-        </div>
+        <ContentHeaderActions
+          v-if="state.currentContent"
+          :folder="contentFolder"
+          :title="draftTitle"
+          :context-heading="contextHeading"
+          :updated-at="formatUpdatedAt(state.currentContent.updated_at)"
+          :is-note="currentEditorType === 'note'"
+          :is-reading="editorViewMode === 'reading'"
+          :is-outline-visible="isOutlineVisible"
+          :loading="state.isLoading"
+          :initializing="state.isInitializing"
+          @reading-mode="toggleToReadingMode"
+          @editing-mode="toggleToEditingMode"
+          @command="handleContentMenuCommand"
+        />
       </div>
 
       <!-- 标签输入 -->
@@ -298,32 +169,7 @@
     </div>
 
     <div v-else class="editor-stage" :aria-busy="showEditorLoading">
-      <Transition name="editor-loader">
-        <div
-          v-if="showEditorLoading"
-          class="editor-loading"
-          role="status"
-          aria-live="polite"
-        >
-          <div class="snippet-loader" aria-hidden="true">
-            <span class="snippet-loader__gutter">
-              <i></i>
-              <i></i>
-              <i></i>
-            </span>
-            <span class="snippet-loader__activity">
-              <i class="snippet-loader__line snippet-loader__line--one"></i>
-              <i class="snippet-loader__line snippet-loader__line--two"></i>
-              <i class="snippet-loader__line snippet-loader__line--three"></i>
-              <i class="snippet-loader__cursor"></i>
-            </span>
-          </div>
-
-          <div class="editor-loading__copy">
-            <span>{{ t('category.loadingEditor') }}</span>
-          </div>
-        </div>
-      </Transition>
+      <EditorLoadingOverlay :show="showEditorLoading" />
 
       <div
         class="editor-surface"
@@ -390,21 +236,11 @@
 
 <script setup lang="ts">
 import { useContentHeading } from './useContentHeading';
+import { useEditorLoading } from './useEditorLoading';
 import { contentEditorKey } from '@/components/ContentItem/contentEditor';
 import { useContentSearchNavigation } from './useContentSearchNavigation';
-import UiEllipsisVertical from '~icons/lucide/ellipsis-vertical';
-import Save from '~icons/lucide/save';
-import Type from '~icons/lucide/type';
-import Copy from '~icons/lucide/copy';
-import Link from '~icons/lucide/link';
-import ListTree from '~icons/lucide/list-tree';
-import Tags from '~icons/lucide/tags';
-import Sparkles from '~icons/lucide/sparkles';
-import ArrowUpRight from '~icons/lucide/arrow-up-right';
-import Trash2 from '~icons/lucide/trash-2';
-import Check from '~icons/lucide/check';
-import BookOpen from '~icons/lucide/book-open';
-import EditTwo from '~icons/lucide/square-pen';
+import ContentHeaderActions from './components/ContentHeaderActions.vue';
+import EditorLoadingOverlay from './components/EditorLoadingOverlay.vue';
 import { useConfigurationStore, usePluginStore } from '@/store';
 import {
   getFragmentContent,
@@ -506,72 +342,13 @@ const state = reactive({
 const draftTitle = ref('');
 const isAddingTag = ref(false);
 const titleDirty = ref(false);
-let editorReadyTimer: ReturnType<typeof setTimeout> | null = null;
-let editorReadyFrame: number | null = null;
-let editorLoadingStartedAt = 0;
-let editorLoadingGeneration = 0;
 let contentLoadGeneration = 0;
-
-const EDITOR_LOADING_MIN_DURATION = 280;
-
-const cancelEditorReadyTransition = () => {
-  if (editorReadyTimer !== null) {
-    clearTimeout(editorReadyTimer);
-    editorReadyTimer = null;
-  }
-
-  if (editorReadyFrame !== null) {
-    cancelAnimationFrame(editorReadyFrame);
-    editorReadyFrame = null;
-  }
-};
-
-const beginEditorLoading = () => {
-  cancelEditorReadyTransition();
-  editorLoadingGeneration++;
-  editorLoadingStartedAt = Date.now();
-  state.isEditorReady = false;
-  state.isEditorLoading = true;
-};
-
-const finishEditorLoading = (generation: number) => {
-  if (generation !== editorLoadingGeneration || state.editorError) return;
-
-  const showEditor = () => {
-    if (generation !== editorLoadingGeneration) return;
-    editorReadyTimer = null;
-    state.isEditorReady = true;
-    state.isEditorLoading = false;
-  };
-  const elapsed = Date.now() - editorLoadingStartedAt;
-  const remaining = Math.max(0, EDITOR_LOADING_MIN_DURATION - elapsed);
-
-  if (remaining > 0) {
-    editorReadyTimer = setTimeout(showEditor, remaining);
-  } else {
-    showEditor();
-  }
-};
-
-const finishEditorLoadingAfterPaint = () => {
-  cancelEditorReadyTransition();
-  const generation = editorLoadingGeneration;
-
-  nextTick(() => {
-    if (generation !== editorLoadingGeneration) return;
-    editorReadyFrame = requestAnimationFrame(() => {
-      editorReadyFrame = null;
-      finishEditorLoading(generation);
-    });
-  });
-};
-
-const failEditorLoading = () => {
-  cancelEditorReadyTransition();
-  editorLoadingGeneration++;
-  state.isEditorReady = false;
-  state.isEditorLoading = false;
-};
+const {
+  beginEditorLoading,
+  finishEditorLoadingAfterPaint,
+  failEditorLoading,
+  cancelEditorReadyTransition
+} = useEditorLoading(state);
 
 // 笔记按需加载，代码片段继续使用独立的代码编辑器。
 const MarkdownEditor = defineAsyncComponent({
@@ -2112,109 +1889,58 @@ const confirmCreateNote = async () => {
   }
 };
 
-// 按指定 ID 获取片段内容（用于外部变更重载，避免 route.params.id 与 state.currentContent.id 不一致）
-const fetchContentById = async (id: string) => {
+const loadContent = async (id: string, source: 'route' | 'reload') => {
   const loadGeneration = ++contentLoadGeneration;
+  const reloading = source === 'reload';
   state.isInitializing = true;
   state.editorError = null;
   beginEditorLoading();
 
   try {
-    const result = await getFragmentContent(normalizeFragmentId(id));
-    if (loadGeneration !== contentLoadGeneration) return;
-
-    if (result) {
-      const parsedContent = parseFragment(result);
-      state.currentContent = parsedContent;
-      state.title = parsedContent.title;
-      draftTitle.value = parsedContent.title;
-      titleDirty.value = false;
-      state.tags = parsedContent.tags || [];
-      originalTitle.value = parsedContent.title;
-      const newContent = deserializeContent(
-        parsedContent.content || '',
-        parsedContent.format || 'plain'
-      );
-      state.editorContent = newContent;
-      state.contentChanged = false;
-      state.lastSavedAt = null;
-      state.lastSavedContentHash = computeContentHash(
-        parsedContent.content || ''
-      );
-      restoreDraft();
-      await nextTick();
-      if (currentEditorType.value === 'note' && noteEditorRef.value) {
-        noteEditorRef.value.setMarkdown(state.editorContent);
-      }
-      finishMountedEditorLoading();
-    } else {
-      resetMissingContentState(id, false);
-      await nextTick();
-      finishMountedEditorLoading();
-    }
-  } catch (error) {
-    if (loadGeneration !== contentLoadGeneration) return;
-    console.error('[Content] 内容加载失败:', error);
-    handleLoadError(error, 'fetchContentById');
-    state.editorError = t('category.loadFailed');
-    failEditorLoading();
-  } finally {
-    if (loadGeneration === contentLoadGeneration) {
-      nextTick(() => {
-        state.isInitializing = false;
-      });
-    }
-  }
-};
-
-// 获取片段内容（使用 route.params.id）
-const fetchContent = async () => {
-  const loadGeneration = ++contentLoadGeneration;
-  state.isInitializing = true;
-  state.editorError = null;
-  beginEditorLoading();
-
-  try {
-    const fragmentId = normalizeFragmentId(route.params.id as string);
+    const fragmentId = normalizeFragmentId(id);
     const result = await getFragmentContent(fragmentId);
     if (loadGeneration !== contentLoadGeneration) return;
 
     if (result) {
-      // 使用 parseFragment 确保所有字段存在
       const parsedContent = parseFragment(result);
-
       state.currentContent = parsedContent;
       state.title = parsedContent.title;
       draftTitle.value = parsedContent.title;
       titleDirty.value = false;
       state.tags = parsedContent.tags || [];
-
-      // 保存原始标题用于检测变化
       originalTitle.value = parsedContent.title;
-
-      // 反序列化内容（根据 format 字段）
       state.editorContent = deserializeContent(
         parsedContent.content || '',
         parsedContent.format || 'plain'
       );
-
       state.contentChanged = false;
       state.lastSavedAt = null;
       state.lastSavedContentHash = computeContentHash(
         parsedContent.content || ''
       );
       restoreDraft();
-
-      await nextTick();
-      finishMountedEditorLoading();
     } else {
-      resetMissingContentState(fragmentId);
-      await goBackToContentList();
+      resetMissingContentState(reloading ? id : fragmentId, !reloading);
+      if (!reloading) {
+        await goBackToContentList();
+        return;
+      }
     }
+
+    await nextTick();
+    if (
+      reloading &&
+      result &&
+      currentEditorType.value === 'note' &&
+      noteEditorRef.value
+    ) {
+      noteEditorRef.value.setMarkdown(state.editorContent);
+    }
+    finishMountedEditorLoading();
   } catch (error) {
     if (loadGeneration !== contentLoadGeneration) return;
     console.error('[Content] 内容加载失败:', error);
-    handleLoadError(error, 'fetchContent');
+    handleLoadError(error, reloading ? 'fetchContentById' : 'fetchContent');
     state.editorError = t('category.loadFailed');
     failEditorLoading();
   } finally {
@@ -2225,6 +1951,9 @@ const fetchContent = async () => {
     }
   }
 };
+
+const fetchContent = () => loadContent(route.params.id as string, 'route');
+const fetchContentById = (id: string) => loadContent(id, 'reload');
 
 // 反序列化内容（根据 format 字段）
 const deserializeContent = (content: string, format: ContentFormat): string => {
@@ -2387,15 +2116,15 @@ const handleRefreshData = async (event: Event) => {
       deletedFiles
     );
 
-    const normalizedId = currentFileId.replace(/\\/g, '/');
-    const isCurrentDeleted = deletedFiles.some((f: string) => {
-      const normalizedF = f.replace(/\\/g, '/');
+    const normalizedId = normalizePathForCompare(currentFileId);
+    const matchesCurrentFile = (file: string) => {
+      const normalizedFile = normalizePathForCompare(file);
       return (
-        normalizedId === normalizedF ||
-        normalizedId.endsWith(normalizedF) ||
-        normalizedF.endsWith(normalizedId)
+        normalizedId.endsWith(normalizedFile) ||
+        normalizedFile.endsWith(normalizedId)
       );
-    });
+    };
+    const isCurrentDeleted = deletedFiles.some(matchesCurrentFile);
 
     if (isCurrentDeleted) {
       // 当前打开的文件已被删除，导航回分类列表（欢迎页）
@@ -2406,14 +2135,7 @@ const handleRefreshData = async (event: Event) => {
       return;
     }
 
-    shouldReload = modifiedFiles.some((f: string) => {
-      const normalizedF = f.replace(/\\/g, '/');
-      return (
-        normalizedId === normalizedF ||
-        normalizedId.endsWith(normalizedF) ||
-        normalizedF.endsWith(normalizedId)
-      );
-    });
+    shouldReload = modifiedFiles.some(matchesCurrentFile);
   } else if (
     source === 'force-pull' ||
     source === 'manual-merge' ||
@@ -2588,10 +2310,6 @@ onMounted(async () => {
       @apply flex flex-wrap items-center gap-0 min-h-10;
 
       min-width: 0;
-
-      .editor-controls {
-        @apply flex shrink-0 items-center gap-0.5;
-      }
     }
 
     .content-tags {
@@ -2639,172 +2357,6 @@ onMounted(async () => {
   pointer-events: none;
 }
 
-.editor-loading {
-  @apply absolute inset-0 z-20 flex flex-col items-center justify-center;
-
-  color: var(--panel-text);
-  background: var(--editor-surface-bg);
-}
-
-.snippet-loader {
-  @apply flex items-center;
-
-  gap: 9px;
-  width: 92px;
-  height: 27px;
-}
-
-.snippet-loader__gutter {
-  @apply flex h-[23px] w-[10px] shrink-0 flex-col items-start justify-between border-r;
-
-  border-color: color-mix(in srgb, var(--panel-border) 72%, transparent);
-
-  i {
-    width: 3px;
-    height: 2px;
-    background: color-mix(
-      in srgb,
-      var(--panel-text-secondary) 42%,
-      transparent
-    );
-    border-radius: 999px;
-    animation: snippet-gutter 1.6s ease-in-out infinite;
-  }
-
-  i:nth-child(2) {
-    animation-delay: 0.12s;
-  }
-
-  i:nth-child(3) {
-    animation-delay: 0.24s;
-  }
-}
-
-.snippet-loader__activity {
-  @apply relative block;
-
-  width: 72px;
-  height: 25px;
-}
-
-.snippet-loader__line {
-  @apply absolute left-0 block overflow-hidden rounded-full;
-
-  height: 2px;
-  background: color-mix(in srgb, var(--panel-border) 72%, transparent);
-
-  &::after {
-    @apply absolute inset-0 rounded-full;
-
-    content: '';
-    background: linear-gradient(
-      90deg,
-      color-mix(in srgb, var(--el-color-primary) 48%, transparent),
-      var(--el-color-primary-light-3)
-    );
-    transform: scaleX(0);
-    transform-origin: left center;
-    animation: snippet-line 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-  }
-}
-
-.snippet-loader__line--one {
-  top: 2px;
-  width: 47px;
-}
-
-.snippet-loader__line--two {
-  top: 11px;
-  width: 66px;
-
-  &::after {
-    animation-delay: 0.12s;
-  }
-}
-
-.snippet-loader__line--three {
-  top: 20px;
-  width: 36px;
-
-  &::after {
-    animation-delay: 0.24s;
-  }
-}
-
-.snippet-loader__cursor {
-  position: absolute;
-  top: 7px;
-  right: 0;
-  width: 1.5px;
-  height: 11px;
-  background: var(--el-color-primary);
-  border-radius: 999px;
-  box-shadow: 0 0 5px
-    color-mix(in srgb, var(--el-color-primary) 36%, transparent);
-  animation: snippet-cursor 1.1s steps(1, end) infinite;
-}
-
-.editor-loading__copy {
-  @apply mt-3 text-xs font-normal;
-
-  color: var(--panel-text-secondary);
-  letter-spacing: 0.015em;
-  opacity: 0.78;
-}
-
-.editor-loader-enter-active,
-.editor-loader-leave-active {
-  transition: opacity 0.2s ease;
-}
-
-.editor-loader-enter-from,
-.editor-loader-leave-to {
-  opacity: 0;
-}
-
-@keyframes snippet-gutter {
-  0%,
-  100% {
-    opacity: 0.35;
-  }
-
-  38%,
-  64% {
-    background: var(--el-color-primary-light-3);
-    opacity: 1;
-  }
-}
-
-@keyframes snippet-line {
-  0% {
-    opacity: 0;
-    transform: scaleX(0);
-  }
-
-  38%,
-  68% {
-    opacity: 0.8;
-    transform: scaleX(1);
-  }
-
-  100% {
-    opacity: 0;
-    transform: scaleX(1);
-  }
-}
-
-@keyframes snippet-cursor {
-  0%,
-  46% {
-    opacity: 1;
-  }
-
-  47%,
-  100% {
-    opacity: 0.2;
-  }
-}
-
 .editor-error {
   @apply flex flex-col items-center justify-center h-full gap-4 text-red-500;
 
@@ -2833,51 +2385,12 @@ onMounted(async () => {
   opacity: 0;
 }
 
-.content-header-actions {
-  @apply order-first flex w-full min-w-0 items-center gap-1 border-b border-panel py-1.5;
-}
-
-.workspace-breadcrumb {
-  @apply mr-auto flex min-w-0 flex-1 items-center gap-2 pr-3 text-ui-caption text-content;
-}
-
-.content-header-actions > :not(.workspace-breadcrumb) {
-  flex-shrink: 0;
-}
-
-.content-toolbar-updated {
-  @apply ml-2 border-l border-panel pl-3 text-xs text-content;
-
-  white-space: nowrap;
-}
-
 .editor-surface :deep(.editor-container),
 .editor-surface :deep(.editor-content) {
   background-color: var(--editor-surface-bg);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .snippet-loader__gutter i,
-  .snippet-loader__line::after,
-  .snippet-loader__cursor {
-    animation: none;
-  }
-
-  .snippet-loader__gutter i {
-    opacity: 0.55;
-  }
-
-  .snippet-loader__line::after {
-    opacity: 0.62;
-    transform: scaleX(0.72);
-  }
-
-  .snippet-loader__cursor {
-    opacity: 0.55;
-  }
-
-  .editor-loader-enter-active,
-  .editor-loader-leave-active,
   .editor-host {
     transition-duration: 0.01ms;
   }

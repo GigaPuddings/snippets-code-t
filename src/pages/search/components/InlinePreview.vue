@@ -167,16 +167,12 @@
           </div>
         </div>
         <div v-if="item.summarize === 'file'" class="action-panel">
-          <div class="meta-grid">
-            <div class="meta-row meta-row-created" :title="fileCreatedText">
-              <span class="meta-label">{{ t('searchPreview.createdAt') }}</span>
-              <span class="meta-value">{{ fileCreatedText }}</span>
-            </div>
-            <div class="meta-row meta-row-size" :title="fileSizeText">
-              <span class="meta-label">{{ t('searchPreview.category') }}</span>
-              <span class="meta-value">{{ fileSizeText }}</span>
-            </div>
-          </div>
+          <PreviewMetadata
+            :entries="[
+              { label: t('searchPreview.createdAt'), value: fileCreatedText },
+              { label: t('searchPreview.category'), value: fileSizeText }
+            ]"
+          />
         </div>
 
         <div
@@ -184,23 +180,16 @@
           class="action-panel"
         >
           <div class="info">
-            <div
-              :class="[
-                displayTags.length ? ' justify-start' : 'justify-center',
-                'meta-grid'
+            <PreviewMetadata
+              :class="displayTags.length ? 'justify-start' : 'justify-center'"
+              :entries="[
+                { label: t('searchPreview.type'), value: displayTypeText },
+                {
+                  label: t('searchPreview.category'),
+                  value: displayCategoryText
+                }
               ]"
-            >
-              <div class="meta-row meta-row-created" :title="displayTypeText">
-                <span class="meta-label">{{ t('searchPreview.type') }}</span>
-                <span class="meta-value">{{ displayTypeText }}</span>
-              </div>
-              <div class="meta-row meta-row-size" :title="displayCategoryText">
-                <span class="meta-label">
-                  {{ t('searchPreview.category') }}
-                </span>
-                <span class="meta-value">{{ displayCategoryText }}</span>
-              </div>
-            </div>
+            />
 
             <div
               v-if="displayTags.length"
@@ -359,6 +348,8 @@ import MarkdownPreview from '@/components/MarkdownPreview/index.vue';
 import { getSearchResultIcon } from '../composables/useSearchResultIcon';
 import { getPrimarySearchHistoryKey } from '@/search/ranking';
 import { CustomButton } from '@/components/UI';
+import { formatDate, formatTime } from '@/utils/time-format';
+import PreviewMetadata from './PreviewMetadata.vue';
 import {
   getSearchResultDisplayPath,
   getSearchResultLaunchPath,
@@ -1130,13 +1121,7 @@ function formatDateText(value: unknown): string {
   const parsed = new Date(raw);
   if (Number.isNaN(parsed.getTime())) return raw;
 
-  const year = parsed.getFullYear();
-  const month = String(parsed.getMonth() + 1).padStart(2, '0');
-  const day = String(parsed.getDate()).padStart(2, '0');
-  const hour = String(parsed.getHours()).padStart(2, '0');
-  const minute = String(parsed.getMinutes()).padStart(2, '0');
-
-  return `${year}/${month}/${day} ${hour}:${minute}`;
+  return `${formatDate(parsed, '/')} ${formatTime(parsed).slice(0, 5)}`;
 }
 </script>
 
@@ -1428,30 +1413,6 @@ function formatDateText(value: unknown): string {
 
     .info {
       @apply flex flex-col gap-2 mx-4;
-    }
-
-    .meta-grid {
-      @apply flex gap-14;
-    }
-
-    .meta-row {
-      @apply flex items-center gap-2 rounded-xl min-w-0;
-    }
-
-    .meta-label {
-      @apply flex-shrink-0 text-[11px] leading-4 text-search-secondary whitespace-nowrap;
-    }
-
-    .meta-value {
-      @apply flex-1 min-w-0 text-sm leading-5 text-search truncate;
-    }
-
-    .meta-row-created {
-      @apply col-span-1;
-    }
-
-    .meta-row-size {
-      @apply col-span-1;
     }
 
     .detail-row {

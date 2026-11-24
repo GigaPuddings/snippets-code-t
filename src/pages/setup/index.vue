@@ -87,77 +87,16 @@
           <h2 class="step-title">{{ $t('setup.appDataDir') }}</h2>
           <p class="step-desc compact">{{ $t('setup.appDataDirDesc') }}</p>
 
-          <section class="path-section">
-            <div class="path-options">
-              <div
-                :class="[
-                  'path-option',
-                  { selected: dataPathOption === 'default' }
-                ]"
-                @click="dataPathOption = 'default'"
-              >
-                <div class="option-info">
-                  <div class="option-title">
-                    {{ $t('setup.defaultAppDataDir') }}
-                  </div>
-                  <div class="option-desc">{{ defaultDataPath }}</div>
-                </div>
-                <div class="option-action">
-                  <div class="radio-circle">
-                    <div
-                      v-if="dataPathOption === 'default'"
-                      class="radio-dot"
-                    ></div>
-                  </div>
-                </div>
-              </div>
-
-              <div
-                :class="[
-                  'path-option',
-                  { selected: dataPathOption === 'custom' }
-                ]"
-                @click="dataPathOption = 'custom'"
-              >
-                <div class="option-info">
-                  <div class="option-title">
-                    {{ $t('setup.customAppDataDir') }}
-                  </div>
-                  <div
-                    v-if="dataPathOption === 'custom'"
-                    class="custom-path-input"
-                  >
-                    <el-input
-                      v-model="customDataPath"
-                      :placeholder="$t('common.browse')"
-                      class="path-input"
-                      clearable
-                      @blur="onAppDataPathBlur"
-                    />
-                    <CustomButton
-                      type="primary"
-                      size="small"
-                      @click.stop="selectAppDataPath"
-                      class="browse-btn"
-                    >
-                      {{ $t('common.browse') }}
-                    </CustomButton>
-                  </div>
-                  <div v-else class="option-desc">
-                    {{ $t('setup.customAppDataDirDesc') }}
-                  </div>
-                </div>
-                <div class="option-action">
-                  <div class="radio-circle">
-                    <div
-                      v-if="dataPathOption === 'custom'"
-                      class="radio-dot"
-                    ></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
+          <SetupPathOptions
+            v-model="dataPathOption"
+            v-model:path="customDataPath"
+            :default-title="$t('setup.defaultAppDataDir')"
+            :default-path="defaultDataPath"
+            :custom-title="$t('setup.customAppDataDir')"
+            :custom-description="$t('setup.customAppDataDirDesc')"
+            @browse="selectAppDataPath"
+            @blur="onAppDataPathBlur"
+          />
         </div>
 
         <!-- Markdown 工作区 -->
@@ -165,77 +104,16 @@
           <h2 class="step-title">{{ $t('setup.workspaceDir') }}</h2>
           <p class="step-desc compact">{{ $t('setup.workspaceDirDesc') }}</p>
 
-          <section class="path-section">
-            <div class="path-options">
-              <div
-                :class="[
-                  'path-option',
-                  { selected: workspacePathOption === 'default' }
-                ]"
-                @click="workspacePathOption = 'default'"
-              >
-                <div class="option-info">
-                  <div class="option-title">
-                    {{ $t('setup.defaultLocation') }}
-                  </div>
-                  <div class="option-desc">{{ defaultWorkspacePath }}</div>
-                </div>
-                <div class="option-action">
-                  <div class="radio-circle">
-                    <div
-                      v-if="workspacePathOption === 'default'"
-                      class="radio-dot"
-                    ></div>
-                  </div>
-                </div>
-              </div>
-
-              <div
-                :class="[
-                  'path-option',
-                  { selected: workspacePathOption === 'custom' }
-                ]"
-                @click="workspacePathOption = 'custom'"
-              >
-                <div class="option-info">
-                  <div class="option-title">
-                    {{ $t('setup.customLocation') }}
-                  </div>
-                  <div
-                    v-if="workspacePathOption === 'custom'"
-                    class="custom-path-input"
-                  >
-                    <el-input
-                      v-model="customWorkspacePath"
-                      :placeholder="$t('common.browse')"
-                      class="path-input"
-                      clearable
-                      @blur="onWorkspacePathBlur"
-                    />
-                    <CustomButton
-                      type="primary"
-                      size="small"
-                      @click.stop="selectWorkspacePath"
-                      class="browse-btn"
-                    >
-                      {{ $t('common.browse') }}
-                    </CustomButton>
-                  </div>
-                  <div v-else class="option-desc">
-                    {{ $t('setup.customLocationDesc') }}
-                  </div>
-                </div>
-                <div class="option-action">
-                  <div class="radio-circle">
-                    <div
-                      v-if="workspacePathOption === 'custom'"
-                      class="radio-dot"
-                    ></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
+          <SetupPathOptions
+            v-model="workspacePathOption"
+            v-model:path="customWorkspacePath"
+            :default-title="$t('setup.defaultLocation')"
+            :default-path="defaultWorkspacePath"
+            :custom-title="$t('setup.customLocation')"
+            :custom-description="$t('setup.customLocationDesc')"
+            @browse="selectWorkspacePath"
+            @blur="onWorkspacePathBlur"
+          />
 
           <div class="path-tip">
             <Info width="16" height="16" />
@@ -250,76 +128,15 @@
             {{ $t('setup.pluginInstallDirDesc') }}
           </p>
 
-          <section class="path-section">
-            <div class="path-options">
-              <div
-                :class="[
-                  'path-option',
-                  { selected: pluginPathOption === 'default' }
-                ]"
-                @click="pluginPathOption = 'default'"
-              >
-                <div class="option-info">
-                  <div class="option-title">
-                    {{ $t('setup.defaultPluginInstallDir') }}
-                  </div>
-                  <div class="option-desc">{{ defaultPluginPackagesPath }}</div>
-                </div>
-                <div class="option-action">
-                  <div class="radio-circle">
-                    <div
-                      v-if="pluginPathOption === 'default'"
-                      class="radio-dot"
-                    ></div>
-                  </div>
-                </div>
-              </div>
-
-              <div
-                :class="[
-                  'path-option',
-                  { selected: pluginPathOption === 'custom' }
-                ]"
-                @click="pluginPathOption = 'custom'"
-              >
-                <div class="option-info">
-                  <div class="option-title">
-                    {{ $t('setup.customPluginInstallDir') }}
-                  </div>
-                  <div
-                    v-if="pluginPathOption === 'custom'"
-                    class="custom-path-input"
-                  >
-                    <el-input
-                      v-model="customPluginInstallPath"
-                      :placeholder="$t('common.browse')"
-                      class="path-input"
-                      clearable
-                    />
-                    <CustomButton
-                      type="primary"
-                      size="small"
-                      @click.stop="selectPluginInstallPath"
-                      class="browse-btn"
-                    >
-                      {{ $t('common.browse') }}
-                    </CustomButton>
-                  </div>
-                  <div v-else class="option-desc">
-                    {{ $t('setup.customPluginInstallDirDesc') }}
-                  </div>
-                </div>
-                <div class="option-action">
-                  <div class="radio-circle">
-                    <div
-                      v-if="pluginPathOption === 'custom'"
-                      class="radio-dot"
-                    ></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
+          <SetupPathOptions
+            v-model="pluginPathOption"
+            v-model:path="customPluginInstallPath"
+            :default-title="$t('setup.defaultPluginInstallDir')"
+            :default-path="defaultPluginPackagesPath"
+            :custom-title="$t('setup.customPluginInstallDir')"
+            :custom-description="$t('setup.customPluginInstallDirDesc')"
+            @browse="selectPluginInstallPath"
+          />
         </div>
 
         <!-- 完成 -->
@@ -391,7 +208,8 @@ import { useI18n } from 'vue-i18n';
 import { invoke } from '@tauri-apps/api/core';
 import { emit } from '@tauri-apps/api/event';
 import { getVersion } from '@tauri-apps/api/app';
-import { open } from '@tauri-apps/plugin-dialog';
+import SetupPathOptions from './components/SetupPathOptions.vue';
+import { appendSetupAppFolder, pickSetupDirectory } from './setupPaths';
 import { CustomButton } from '@/components/UI';
 import Info from '~icons/lucide/info';
 import CheckOne from '~icons/lucide/circle-check';
@@ -462,50 +280,22 @@ const chooseSetupMode = (mode: 'create' | 'open') => {
   step.value = 1;
 };
 
-// 检查路径是否需要添加 snippets-code
-const needsAppFolder = (path: string) => {
-  if (
-    setupMode.value !== 'create' ||
-    !path ||
-    path === defaultWorkspacePath.value
-  )
-    return false;
-  const lowerPath = path.toLowerCase();
-  const endsWithAppFolder =
-    lowerPath.endsWith('snippets-code') || lowerPath.endsWith('snippets code');
-  return !endsWithAppFolder && !lowerPath.includes('com.snippets-code.app');
-};
+const normalizeAppDataPath = (path: string): string =>
+  dataPathOption.value === 'custom'
+    ? appendSetupAppFolder(path, defaultDataPath.value)
+    : path;
 
-const needsAppDataFolder = (path: string) => {
-  if (
-    dataPathOption.value !== 'custom' ||
-    !path ||
-    path === defaultDataPath.value
-  )
-    return false;
-  const lowerPath = path.toLowerCase();
-  const endsWithAppFolder =
-    lowerPath.endsWith('snippets-code') || lowerPath.endsWith('snippets code');
-  return !endsWithAppFolder && !lowerPath.includes('com.snippets-code.app');
-};
-
-const normalizeAppDataPath = () => {
-  if (needsAppDataFolder(customDataPath.value)) {
-    customDataPath.value =
-      customDataPath.value.replace(/[\\/]+$/, '') + '\\snippets-code';
-  }
-};
+const normalizeWorkspacePath = (path: string): string =>
+  setupMode.value === 'create'
+    ? appendSetupAppFolder(path, defaultWorkspacePath.value)
+    : path;
 
 const onAppDataPathBlur = () => {
-  normalizeAppDataPath();
+  customDataPath.value = normalizeAppDataPath(customDataPath.value);
 };
 
-// 失焦时自动追加 snippets-code
 const onWorkspacePathBlur = () => {
-  if (needsAppFolder(customWorkspacePath.value)) {
-    customWorkspacePath.value =
-      customWorkspacePath.value.replace(/[\\/]+$/, '') + '\\snippets-code';
-  }
+  customWorkspacePath.value = normalizeWorkspacePath(customWorkspacePath.value);
 };
 
 const joinPath = (base: string, child: string) => {
@@ -585,7 +375,7 @@ const nextStep = async () => {
   // 每个路径步骤只验证当前项，保存统一放到最后完成步骤。
   if (step.value === 1) {
     if (dataPathOption.value === 'custom') {
-      normalizeAppDataPath();
+      onAppDataPathBlur();
       if (!customDataPath.value) {
         modal.msg(t('setup.selectAppDataDir'), 'warning');
         return;
@@ -599,14 +389,7 @@ const nextStep = async () => {
       return;
     }
 
-    // 验证自定义路径格式（不调用后端）
-    if (workspacePathOption.value === 'custom' && customWorkspacePath.value) {
-      // 确保路径格式正确
-      if (needsAppFolder(customWorkspacePath.value)) {
-        customWorkspacePath.value =
-          customWorkspacePath.value.replace(/[\\/]+$/, '') + '\\snippets-code';
-      }
-    }
+    if (workspacePathOption.value === 'custom') onWorkspacePathBlur();
   }
 
   if (step.value === 3) {
@@ -622,61 +405,36 @@ const nextStep = async () => {
 };
 
 const selectAppDataPath = async () => {
-  try {
-    const selected = await open({
-      directory: true,
-      title: t('setup.selectAppDataDirTitle')
-    });
-    if (selected) {
-      let path = selected as string;
-      if (needsAppDataFolder(path)) {
-        path = path.replace(/[\\/]+$/, '') + '\\snippets-code';
-      }
-      customDataPath.value = path;
-      dataPathOption.value = 'custom';
-      if (pluginPathOption.value === 'default') {
-        customPluginInstallPath.value = defaultPluginPackagesPath.value;
-      }
-    }
-  } catch (error) {
-    console.error('选择应用数据目录失败:', error);
+  const selected = await pickSetupDirectory(
+    t('setup.selectAppDataDirTitle'),
+    '选择应用数据目录失败:'
+  );
+  if (!selected) return;
+  customDataPath.value = normalizeAppDataPath(selected);
+  dataPathOption.value = 'custom';
+  if (pluginPathOption.value === 'default') {
+    customPluginInstallPath.value = defaultPluginPackagesPath.value;
   }
 };
 
 const selectWorkspacePath = async () => {
-  try {
-    const selected = await open({
-      directory: true,
-      title: t('setup.selectDirTitle')
-    });
-    if (selected) {
-      let path = selected as string;
-      // 新建工作区时，如果选择的是父目录，自动追加 snippets-code。
-      // 打开工作区时必须保留用户选择的已有目录。
-      if (needsAppFolder(path)) {
-        path = path.replace(/[\\/]+$/, '') + '\\snippets-code';
-      }
-      customWorkspacePath.value = path;
-      workspacePathOption.value = 'custom';
-    }
-  } catch (error) {
-    console.error('选择目录失败:', error);
-  }
+  const selected = await pickSetupDirectory(
+    t('setup.selectDirTitle'),
+    '选择目录失败:'
+  );
+  if (!selected) return;
+  customWorkspacePath.value = normalizeWorkspacePath(selected);
+  workspacePathOption.value = 'custom';
 };
 
 const selectPluginInstallPath = async () => {
-  try {
-    const selected = await open({
-      directory: true,
-      title: t('setup.selectPluginInstallDirTitle')
-    });
-    if (selected) {
-      customPluginInstallPath.value = selected as string;
-      pluginPathOption.value = 'custom';
-    }
-  } catch (error) {
-    console.error('选择插件安装目录失败:', error);
-  }
+  const selected = await pickSetupDirectory(
+    t('setup.selectPluginInstallDirTitle'),
+    '选择插件安装目录失败:'
+  );
+  if (!selected) return;
+  customPluginInstallPath.value = selected;
+  pluginPathOption.value = 'custom';
 };
 
 const completeSetup = async () => {
@@ -969,7 +727,10 @@ const completeSetup = async () => {
 .option-row .option-desc {
   @apply text-xs leading-snug;
 
+  overflow: hidden;
   color: var(--setup-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .option-btn {
@@ -1083,14 +844,6 @@ const completeSetup = async () => {
   }
 }
 
-.path-options {
-  @apply w-full space-y-3;
-}
-
-.path-section {
-  @apply w-full;
-}
-
 .section-header {
   @apply text-left mb-2;
 }
@@ -1105,103 +858,6 @@ const completeSetup = async () => {
   @apply text-xs leading-relaxed mt-1;
 
   color: var(--setup-muted);
-}
-
-.path-option {
-  @apply flex items-center justify-between gap-4 p-3 rounded-lg cursor-pointer transition-all;
-
-  min-height: 4.75rem;
-  background: var(--setup-card-bg);
-  border: 1px solid var(--setup-border);
-  box-shadow: 0 8px 22px rgb(15 23 42 / 5%);
-
-  &:hover {
-    background: var(--setup-option-hover);
-    border-color: rgb(95 116 243 / 36%);
-  }
-
-  &.selected {
-    background: var(--setup-option-selected);
-    border-color: rgb(95 116 243 / 52%);
-
-    .radio-dot {
-      background-color: var(--el-color-primary);
-    }
-
-    .radio-circle {
-      border-color: var(--el-color-primary);
-    }
-  }
-}
-
-.option-info {
-  @apply flex-1 min-w-0 text-left;
-}
-
-.option-action {
-  @apply flex-shrink-0;
-}
-
-.radio-circle {
-  @apply w-4 h-4 rounded-full flex items-center justify-center;
-
-  border: 1px solid rgb(59 130 246 / 40%);
-  transition: all 0.2s;
-}
-
-.radio-dot {
-  @apply w-2 h-2 rounded-full;
-
-  background-color: transparent;
-}
-
-.option-title {
-  @apply font-medium text-sm mb-0.5;
-
-  color: var(--setup-text);
-}
-
-.option-desc {
-  @apply text-xs;
-
-  overflow: hidden;
-  color: var(--setup-muted);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.custom-path-input {
-  @apply flex items-center gap-2 mt-2;
-
-  .path-input {
-    @apply flex-1;
-
-    :deep(.el-input__wrapper) {
-      background: var(--setup-card-bg) !important;
-      border-radius: 8px;
-      box-shadow: 0 0 0 1px var(--setup-border-strong) inset !important;
-
-      &:hover {
-        box-shadow: 0 0 0 1px rgb(59 130 246 / 36%) inset;
-      }
-
-      &.is-focus {
-        box-shadow: 0 0 0 1px var(--el-color-primary) inset;
-      }
-    }
-
-    :deep(.el-input__inner) {
-      color: var(--setup-text);
-    }
-
-    :deep(.el-input__inner::placeholder) {
-      color: var(--setup-muted);
-    }
-  }
-}
-
-.browse-btn {
-  @apply flex-shrink-0 whitespace-nowrap;
 }
 
 .path-tip {

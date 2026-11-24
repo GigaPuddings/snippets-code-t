@@ -3,6 +3,8 @@
  * 支持类似 GitHub/Notion 的搜索语法
  */
 
+import { formatDate } from './time-format';
+
 // 搜索语法正则表达式
 const SYNTAX_PATTERNS = {
   type: /type:(code|note)/gi,
@@ -275,16 +277,6 @@ export function filterToSearchText(filter: SearchFilter): string {
   }
 
   return parts.join(' ');
-}
-
-/**
- * 格式化日期为 YYYY-MM-DD
- */
-function formatDate(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
 }
 
 /**

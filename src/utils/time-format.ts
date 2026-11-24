@@ -44,37 +44,31 @@ export function formatRelativeTime(isoTimestamp: string): string {
  */
 export function formatFullDateTime(isoTimestamp: string): string {
   const date = new Date(isoTimestamp);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  const seconds = String(date.getSeconds()).padStart(2, '0');
-
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  return `${formatDate(date)} ${formatTime(date)}`;
 }
 
 /**
  * 将 ISO 8601 时间戳转换为日期字符串
- * @param isoTimestamp ISO 8601 格式的时间戳
+ * @param value 本地日期或 ISO 8601 格式的时间戳
+ * @param separator 日期分隔符，默认使用短横线
  * @returns 格式化的日期字符串（例如："2024-02-21"）
  */
-export function formatDate(isoTimestamp: string): string {
-  const date = new Date(isoTimestamp);
+export function formatDate(value: string | Date, separator = '-'): string {
+  const date = typeof value === 'string' ? new Date(value) : value;
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
 
-  return `${year}-${month}-${day}`;
+  return [year, month, day].join(separator);
 }
 
 /**
  * 将 ISO 8601 时间戳转换为时间字符串
- * @param isoTimestamp ISO 8601 格式的时间戳
+ * @param value 本地日期或 ISO 8601 格式的时间戳
  * @returns 格式化的时间字符串（例如："15:30:00"）
  */
-export function formatTime(isoTimestamp: string): string {
-  const date = new Date(isoTimestamp);
+export function formatTime(value: string | Date): string {
+  const date = typeof value === 'string' ? new Date(value) : value;
   const hours = String(date.getHours()).padStart(2, '0');
   const minutes = String(date.getMinutes()).padStart(2, '0');
   const seconds = String(date.getSeconds()).padStart(2, '0');
