@@ -33,6 +33,9 @@ export abstract class BaseAnnotation {
   // 抽象方法：绘制标注
   abstract draw(context: DrawingContext): void;
 
+  // 编辑说明时仅绘制输入框之外仍需显示的部分。
+  drawWhileEditing?(context: DrawingContext): void;
+
   // 抽象方法：绘制到截图canvas
   abstract drawToScreenshot(context: DrawingContext): void;
 

@@ -78,8 +78,6 @@
           height: textInputFontSize + 'px',
           lineHeight: textInputFontSize + 'px'
         }"
-        @keydown.enter="confirmTextInput"
-        @keydown.escape="cancelTextInput"
         @blur="confirmTextInput"
         autofocus
       />
@@ -88,7 +86,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue';
+import {
+  ref,
+  shallowRef,
+  onMounted,
+  onUnmounted,
+  computed,
+  nextTick
+} from 'vue';
 import { Window } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
@@ -119,7 +124,7 @@ const isLoading = ref(false); // 不显示加载状态，让用户可以立即�
 const translateEngine = ref<'google' | 'bing' | 'offline' | 'local-ai'>('bing'); // 翻译引擎
 const toolbarSize = ref({ width: 590, height: 50 });
 let isClosing = false;
-let editingAnnotation: BaseAnnotation | null = null;
+const editingAnnotation = shallowRef<BaseAnnotation | null>(null);
 
 // 响应式状态
 const state = ref({
@@ -280,13 +285,14 @@ const sizeInfoText = computed(() => {
 
 const textInputColor = computed(
   () =>
-    editingAnnotation?.getData().style.color || state.value.currentStyle.color
+    editingAnnotation.value?.getData().style.color ||
+    state.value.currentStyle.color
 );
 
 // 文字输入框样式
 const textInputStyle = computed(() => {
   const origin =
-    editingAnnotation?.getData().type === ToolType.Marker
+    editingAnnotation.value?.getData().type === ToolType.Marker
       ? getMarkerTextOrigin(textInputPosition.value, textInputFontSize.value)
       : getTextOrigin(textInputPosition.value);
   return {
@@ -432,7 +438,7 @@ const startTextInput = (
   }
 
   isTextInputVisible.value = true;
-  editingAnnotation = existingAnnotation || null;
+  editingAnnotation.value = existingAnnotation || null;
 
   // 如果是编辑模式，隐藏原始注释
   if (existingAnnotation) {
@@ -449,19 +455,21 @@ const startTextInput = (
   nextTick(() => {
     textInputRef.value?.focus();
     // 如果是编辑模式，选中所有文字
-    if (editingAnnotation) {
+    if (editingAnnotation.value) {
       textInputRef.value?.select();
     }
   });
 };
 
 const confirmTextInput = () => {
-  const isMarker = editingAnnotation?.getData().type === ToolType.Marker;
+  if (!isTextInputVisible.value) return;
+  const annotation = editingAnnotation.value;
+  const isMarker = annotation?.getData().type === ToolType.Marker;
   if (textInput.value.trim() || isMarker) {
-    if (editingAnnotation) {
+    if (annotation) {
       // 更新已有的文字标注
       screenshotManager?.updateTextAnnotation(
-        editingAnnotation,
+        annotation,
         textInput.value.trim()
       );
     } else {
@@ -471,9 +479,9 @@ const confirmTextInput = () => {
         textInput.value
       );
     }
-  } else if (editingAnnotation) {
+  } else if (annotation) {
     // 如果文字为空且是编辑模式，删除标注
-    screenshotManager?.deleteAnnotation(editingAnnotation);
+    screenshotManager?.deleteAnnotation(annotation);
   }
   cancelTextInput();
 };
@@ -483,11 +491,11 @@ const cancelTextInput = () => {
   textInput.value = '';
 
   // 清除编辑状态，恢复显示原始注释
-  if (editingAnnotation) {
+  if (editingAnnotation.value) {
     screenshotManager?.clearEditingAnnotation();
   }
 
-  editingAnnotation = null;
+  editingAnnotation.value = null;
 };
 
 // 处理颜色取样
@@ -519,6 +527,7 @@ const handleKeydown = (event: KeyboardEvent) => {
     isTextInputVisible.value &&
     document.activeElement === textInputRef.value
   ) {
+    if (event.isComposing || event.keyCode === 229) return;
     // Escape 键关闭输入框
     if (event.key === 'Escape') {
       cancelTextInput();
@@ -647,7 +656,7 @@ const closeWindow = async () => {
   // 清理文字输入状态
   isTextInputVisible.value = false;
   textInput.value = '';
-  editingAnnotation = null;
+  editingAnnotation.value = null;
 
   // 清理其他状态
   isLoading.value = false;

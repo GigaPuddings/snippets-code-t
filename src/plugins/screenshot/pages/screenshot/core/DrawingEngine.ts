@@ -157,10 +157,18 @@ export class DrawingEngine {
   }
 
   // 绘制标注列表
-  drawAnnotations(annotations: BaseAnnotation[], selectionBounds?: Rect) {
+  drawAnnotations(
+    annotations: BaseAnnotation[],
+    selectionBounds?: Rect,
+    editingAnnotation: BaseAnnotation | null = null
+  ): void {
     const context = this.createDrawingContext(selectionBounds);
 
     annotations.forEach((annotation) => {
+      if (annotation === editingAnnotation) {
+        annotation.drawWhileEditing?.(context);
+        return;
+      }
       const data = annotation.getData();
 
       // 绘制标注本体

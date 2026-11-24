@@ -51,6 +51,10 @@ export class MarkerAnnotation extends BaseAnnotation {
     this.drawMarker(context.ctx, 1, { x: 0, y: 0 });
   }
 
+  drawWhileEditing(context: DrawingContext): void {
+    this.drawMarker(context.ctx, 1, { x: 0, y: 0 }, false);
+  }
+
   drawToScreenshot(context: DrawingContext): void {
     this.drawMarker(context.ctx, context.scale, context.offset);
   }
@@ -58,7 +62,8 @@ export class MarkerAnnotation extends BaseAnnotation {
   private drawMarker(
     ctx: CanvasRenderingContext2D,
     scale: number,
-    offset: Point
+    offset: Point,
+    showDescription = true
   ): void {
     const position = this.data.points[0];
     if (!position) return;
@@ -68,7 +73,7 @@ export class MarkerAnnotation extends BaseAnnotation {
       getMarkerRadius(this.data.fontSize || DEFAULT_FONT_SIZE) * scale;
     const centerX = position.x * scale - offset.x;
     const centerY = position.y * scale - offset.y;
-    const text = this.data.text?.trim() || '';
+    const text = showDescription ? this.data.text?.trim() : undefined;
 
     ctx.save();
     this.applyOpacity(ctx);

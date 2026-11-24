@@ -2086,17 +2086,12 @@ export class ScreenshotManager {
       this.drawSnapPreview();
     }
 
-    // 绘制所有标注（过滤掉正在编辑的注释）
+    // 编辑中的文字由输入框显示，画布仍绘制序号。
     if (this.annotations.length > 0) {
-      const visibleAnnotations =
-        this.editingAnnotation?.getData().type === ToolType.Text
-          ? this.annotations.filter(
-              (a) => a.getData().id !== this.editingAnnotation!.getData().id
-            )
-          : this.annotations;
       this.drawingEngine.drawAnnotations(
-        visibleAnnotations,
-        this.selectionRect || undefined
+        this.annotations,
+        this.selectionRect || undefined,
+        this.editingAnnotation
       );
     }
 
@@ -3738,7 +3733,7 @@ export class ScreenshotManager {
 
       this.pushAnnotationHistory();
       annotation.updateData({ text });
-      this.clearEditingAnnotation(); // 清除编辑状态
+      this.editingAnnotation = null;
       this.draw();
       this.onStateChange?.();
     }
@@ -3746,14 +3741,14 @@ export class ScreenshotManager {
 
   // 设置正在编辑的文字注释
   setEditingAnnotation(annotation: BaseAnnotation | null): void {
+    if (this.editingAnnotation === annotation) return;
     this.editingAnnotation = annotation;
     this.draw();
   }
 
   // 清除编辑状态
   clearEditingAnnotation(): void {
-    this.editingAnnotation = null;
-    this.draw();
+    this.setEditingAnnotation(null);
   }
 
   async createPinWindow(): Promise<void> {
