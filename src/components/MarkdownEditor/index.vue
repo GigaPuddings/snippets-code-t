@@ -994,16 +994,15 @@ function scrollToPosition(position: number) {
   });
   view.focus();
 }
+function getScrollElement() {
+  return viewMode.value === 'reading' ? readingHost.value : view?.scrollDOM;
+}
 function getScrollPosition() {
-  return (
-    (viewMode.value === 'reading' ? readingHost.value : view?.scrollDOM)
-      ?.scrollTop || 0
-  );
+  return getScrollElement()?.scrollTop || 0;
 }
 function setScrollPosition(top: number) {
   scrollRequest++;
-  const element =
-    viewMode.value === 'reading' ? readingHost.value : view?.scrollDOM;
+  const element = getScrollElement();
   if (element) element.scrollTop = top;
   stickyHeadingTracker.schedule();
 }
@@ -1690,6 +1689,7 @@ defineExpose({
   toggleOutline,
   toggleBacklinks,
   openSearch,
+  getScrollElement,
   getScrollPosition,
   setScrollPosition,
   scrollToWikilink

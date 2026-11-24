@@ -23,13 +23,10 @@
       </div>
 
       <!-- 标签输入 -->
-      <div
-        v-if="state.currentContent && (state.tags.length > 0 || isAddingTag)"
-        class="content-tags"
-      >
+      <div v-if="hasContentTags" class="content-tags">
         <div class="content-tags-input">
           <TagInput
-            :key="state.currentContent.id"
+            :key="state.currentContent?.id"
             v-model:adding="isAddingTag"
             :model-value="state.tags"
             :existing-tags="allTags"
@@ -174,7 +171,13 @@
       <div
         class="editor-surface"
         :class="{ 'editor-surface--loading': showEditorLoading }"
+        @scroll.capture.passive="handleEditorScroll"
       >
+        <div
+          v-if="hasContentTags && editorScrolled && !showEditorLoading"
+          class="editor-top-scroll-mask"
+          aria-hidden="true"
+        ></div>
         <!-- CodeMirror 代码编辑器 (type === 'code') -->
         <div
           v-if="currentEditorType === 'code'"
@@ -225,7 +228,6 @@
             @view-mode-change="handleViewModeChange"
             @outline-toggle="handleOutlineToggle"
             @backlink-navigate="handleBacklinkNavigate"
-            @scroll-position="handleEditorScrollPosition"
             @sticky-heading-change="setContextHeading"
           />
         </div>
@@ -470,6 +472,9 @@ const showEditorLoading = computed(() => {
   if (!route.params.id || state.editorError) return false;
   return state.isEditorLoading || !state.isEditorReady;
 });
+const hasContentTags = computed(
+  () => !!state.currentContent && (state.tags.length > 0 || isAddingTag.value)
+);
 
 const notifyFileEditIfGitSyncEnabled = async () => {
   if (!pluginStore.initialized) {
@@ -698,10 +703,33 @@ const handleViewModeChange = (mode: 'reading' | 'preview' | 'source') => {
   editorViewMode.value = mode;
 };
 
-// 用户滚动时的处理
-const handleEditorScrollPosition = (_scrollTop: number) => {
-  if (!state.currentContent) return;
+const editorScrolled = ref(false);
+
+const getEditorScrollElement = (): HTMLElement | undefined =>
+  currentEditorType.value === 'note'
+    ? noteEditorRef.value?.getScrollElement()
+    : codeMirrorEditorRef.value?.getView()?.scrollDOM;
+
+const syncEditorScroll = (element = getEditorScrollElement()) => {
+  editorScrolled.value = (element?.scrollTop ?? 0) > 0;
 };
+
+const handleEditorScroll = (event: Event) => {
+  const element = getEditorScrollElement();
+  if (event.target === element) syncEditorScroll(element);
+};
+
+watch(
+  [
+    () => state.currentContent?.id,
+    showEditorLoading,
+    editorViewMode,
+    noteEditorRef,
+    codeMirrorEditorRef
+  ],
+  () => syncEditorScroll(),
+  { flush: 'post' }
+);
 
 // 处理大纲切换
 const handleOutlineToggle = (show: boolean) => {
@@ -2344,7 +2372,7 @@ onMounted(async () => {
 }
 
 .editor-surface {
-  @apply h-full min-h-0 min-w-0 overflow-hidden;
+  @apply relative h-full min-h-0 min-w-0 overflow-hidden;
 
   --editor-bg: var(--editor-surface-bg);
 
@@ -2355,6 +2383,19 @@ onMounted(async () => {
 
 .editor-surface--loading {
   pointer-events: none;
+}
+
+.editor-top-scroll-mask {
+  @apply pointer-events-none absolute top-0 z-[2] h-4;
+
+  inset-inline: 0 8px;
+  background-color: color-mix(
+    in srgb,
+    var(--editor-surface-bg) 84%,
+    transparent
+  );
+  backdrop-filter: blur(4px);
+  mask-image: linear-gradient(to bottom, #000, transparent);
 }
 
 .editor-error {
