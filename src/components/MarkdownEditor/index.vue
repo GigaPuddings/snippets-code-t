@@ -36,6 +36,7 @@
         @resize="resizeActiveTable"
       />
       <SearchPanel
+        :key="`search-${currentFragmentId}`"
         ref="searchPanel"
         :show="showSearch"
         :dark="dark"
@@ -315,6 +316,7 @@ const visibleHeadingIndex = ref(-1);
 const attachmentConfig = ref({ ...DEFAULT_ATTACHMENT_CONFIG });
 const searchPanel = ref<InstanceType<typeof SearchPanel>>();
 const showSearch = ref(false);
+let searchRequest = 0;
 const contextMenu = ref<InstanceType<typeof EditorContextMenu>>();
 let view: EditorView | undefined;
 let documentId = String(props.currentFragmentId ?? '');
@@ -845,6 +847,15 @@ function extensions(): Extension[] {
 }
 function loadDocument(content: string, id: string) {
   if (!view) return;
+  const keepQuery =
+    id === documentId && showSearch.value ? getSearchQuery(view.state) : null;
+  if (id !== documentId) {
+    showSearch.value = false;
+    searchRequest++;
+  }
+  searchDocument = undefined;
+  searchQuery = undefined;
+  searchPositions = [];
   scrollRequest++;
   stickyHeadingTracker.reset();
   documentId = id;
@@ -857,6 +868,7 @@ function loadDocument(content: string, id: string) {
   tableDialog.value = false;
   dialogTarget = null;
   view.setState(createDocumentState(content, extensions()));
+  if (keepQuery) view.dispatch({ effects: setSearchQuery.of(keepQuery) });
   view.scrollDOM.scrollTop = 0;
   updateDerivedState();
   nextTick(() => {
@@ -1108,6 +1120,7 @@ async function openLink(href: string, wiki: boolean) {
   await openUrl(href).catch((error) => modal.error(String(error)));
 }
 function openSearch(text?: string) {
+  const request = ++searchRequest;
   const editor = view;
   const id = documentId;
   const query = text ?? searchQueryFromSelection(getSelection()?.text);
@@ -1116,11 +1129,18 @@ function openSearch(text?: string) {
   if (text !== undefined) scrollRequest++;
   showSearch.value = true;
   nextTick(async () => {
-    if (!editor || view !== editor || documentId !== id) return;
+    if (
+      !editor ||
+      view !== editor ||
+      documentId !== id ||
+      request !== searchRequest
+    )
+      return;
     if (query !== undefined) {
       searchPanel.value?.setQuery(query);
       await nextTick();
-      if (view !== editor || documentId !== id) return;
+      if (view !== editor || documentId !== id || request !== searchRequest)
+        return;
       handleSearch(query, false);
     }
     if (text !== undefined) {
@@ -1141,8 +1161,10 @@ function openSearch(text?: string) {
   });
 }
 function closeSearch() {
+  searchRequest++;
   showSearch.value = false;
   view?.dispatch({
+    selection: { anchor: view.state.selection.main.head },
     effects: setSearchQuery.of(new SearchQuery({ search: '' }))
   });
   view?.focus();

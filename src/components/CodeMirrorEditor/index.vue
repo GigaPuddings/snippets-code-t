@@ -9,6 +9,7 @@
 
     <!-- 搜索面板 -->
     <SearchPanel
+      :key="currentFragmentId"
       ref="searchPanelRef"
       :show="showSearch"
       :dark="props.dark"
@@ -224,6 +225,7 @@ const customTheme = computed(() => {
 const lines = ref(1);
 const length = ref(0);
 const showSearch = ref(false);
+let searchRequest = 0;
 const searchPanelRef = ref<InstanceType<typeof SearchPanel> | null>(null);
 let searchMatches: Array<{ from: number; to: number }> = [];
 const externalCodeUpdate = Annotation.define<boolean>();
@@ -428,17 +430,27 @@ onMounted(() => {
 
 // 搜索功能
 const openSearch = (text?: string) => {
+  const request = ++searchRequest;
   const view = editorViewRef.value;
   const id = props.currentFragmentId;
   const query = text ?? searchQueryFromSelection(getSelection());
   showSearch.value = true;
   nextTick(async () => {
-    if (!view || editorViewRef.value !== view || props.currentFragmentId !== id)
+    if (
+      !view ||
+      editorViewRef.value !== view ||
+      props.currentFragmentId !== id ||
+      request !== searchRequest
+    )
       return;
     if (query !== undefined) {
       searchPanelRef.value?.setQuery(query);
       await nextTick();
-      if (editorViewRef.value !== view || props.currentFragmentId !== id)
+      if (
+        editorViewRef.value !== view ||
+        props.currentFragmentId !== id ||
+        request !== searchRequest
+      )
         return;
       handleSearch(query, false, text !== undefined);
     }
@@ -447,6 +459,7 @@ const openSearch = (text?: string) => {
 };
 
 const closeSearch = () => {
+  searchRequest++;
   showSearch.value = false;
   const view = editorViewRef.value;
   if (!view) return;
@@ -679,13 +692,13 @@ watch(
     if (!view) return;
 
     if (fragmentId !== oldFragmentId) {
+      showSearch.value = false;
+      searchRequest++;
       documentRevision++;
       const state = EditorState.create({
         doc: code,
         extensions: getExtensions()
-      }).update({
-        effects: setSearchQuery.of(getSearchQuery(view.state))
-      }).state;
+      });
       view.setState(state);
       view.scrollDOM.scrollTop = 0;
       view.scrollDOM.scrollLeft = 0;
