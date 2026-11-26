@@ -531,7 +531,15 @@ export function livePreview(options: PreviewOptions): Extension {
             }).range(from, to)
           );
           if (!active) {
-            hide(from, from + 2);
+            const separator = title.indexOf('|');
+            hide(
+              from,
+              from +
+                2 +
+                (separator >= 0 && title.slice(separator + 1).trim()
+                  ? separator + 1
+                  : 0)
+            );
             hide(to - 2, to);
           }
           return false;

@@ -1,12 +1,24 @@
-import { onBeforeUnmount, onMounted, shallowRef, watch, type Ref } from 'vue';
+import {
+  computed,
+  onBeforeUnmount,
+  onMounted,
+  shallowRef,
+  watch,
+  type Ref
+} from 'vue';
 import { getAllFiles } from '@/api/markdown';
 import { indexWikiLinkTitles } from '@/utils/wikilink-titles';
 import type { WikiLinkCatalog } from './wikiLinkCompletion';
 
 export function useWikiLinkCatalog(
-  source: Readonly<Ref<string>>
+  source: Readonly<Ref<string>>,
+  workspace: Readonly<Ref<string>>,
+  sourcePath: Readonly<Ref<string>>
 ): Ref<WikiLinkCatalog> {
-  const catalog = shallowRef<WikiLinkCatalog>({ status: 'loading' });
+  const catalog = shallowRef<
+    | Omit<Extract<WikiLinkCatalog, { status: 'ready' }>, 'exists'>
+    | { status: 'loading' | 'error' }
+  >({ status: 'loading' });
   let dirty = true;
   let generation = 0;
 
@@ -20,7 +32,7 @@ export function useWikiLinkCatalog(
         if (request === generation)
           catalog.value = {
             status: 'ready',
-            titles: indexWikiLinkTitles(files)
+            titles: indexWikiLinkTitles(files, workspace.value)
           };
       },
       () => {
@@ -39,6 +51,7 @@ export function useWikiLinkCatalog(
   }
 
   watch(() => source.value.includes('[['), loadIfNeeded);
+  watch(workspace, invalidate);
   onMounted(() => {
     window.addEventListener('refresh-data', invalidate);
     window.addEventListener('refresh-categories', invalidate);
@@ -49,5 +62,16 @@ export function useWikiLinkCatalog(
     window.removeEventListener('refresh-data', invalidate);
     window.removeEventListener('refresh-categories', invalidate);
   });
-  return catalog;
+  return computed(() => {
+    const current = catalog.value;
+    const path = sourcePath.value;
+    if (current.status !== 'ready') return current;
+    return {
+      ...current,
+      exists: (raw: string) => {
+        const target = current.titles.resolve(raw, path);
+        return !!target && target !== 'ambiguous';
+      }
+    };
+  });
 }

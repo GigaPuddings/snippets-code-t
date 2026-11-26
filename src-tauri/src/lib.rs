@@ -782,7 +782,6 @@ pub fn run() {
             markdown::ignore_next_change,               // 忽略下一次文件变化
             markdown::find_file_by_title,               // 通过标题查找文件
             markdown::get_all_file_titles,              // 获取所有文件标题
-            markdown::update_wikilinks,                 // 更新 wikilinks
             markdown::find_files_with_wikilink,         // 查找包含 wikilink 的文件
             // 附件管理命令
             attachment::save_image_attachment,          // 保存图片附件

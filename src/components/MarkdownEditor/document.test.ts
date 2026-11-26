@@ -119,7 +119,7 @@ describe('Markdown source document', () => {
     }
   );
 
-  it('ranks exact, prefix and substring wiki link titles with a stable target for duplicates', () => {
+  it('ranks title matches and inserts a distinct address for each duplicate', () => {
     const titles = ['JavaScript', 'JP Java', 'Java', 'Java', 'Unrelated'].map(
       (title, index) => ({
         id: String(index),
@@ -129,10 +129,18 @@ describe('Markdown source document', () => {
       })
     );
     const index = indexWikiLinkTitles(titles.reverse());
-    expect(index.get('java')?.path).toBe('2.md');
+    expect(index.resolve('java', 'source.md')).toBe('ambiguous');
+    expect(index.resolve('/2.md#heading|Alias', 'source.md')).toMatchObject({
+      path: '2.md'
+    });
+    expect(
+      matchWikiLinkTitles(index, 'java')
+        .slice(0, 2)
+        .map((item) => item.destination)
+    ).toEqual(['/2.md', '/3.md']);
     expect(
       matchWikiLinkTitles(index, ' java ').map((target) => target.title)
-    ).toEqual(['Java', 'JavaScript', 'JP Java']);
+    ).toEqual(['Java', 'Java', 'JavaScript', 'JP Java']);
     expect(matchWikiLinkTitles(index, 'missing')).toEqual([]);
   });
 

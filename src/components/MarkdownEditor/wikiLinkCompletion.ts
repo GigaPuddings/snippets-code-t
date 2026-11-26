@@ -18,14 +18,18 @@ import {
 import type { SyntaxNode } from '@lezer/common';
 import {
   matchWikiLinkTitles,
-  wikiLinkTitleKey,
+  type indexWikiLinkTitles,
   type WikiLinkTarget
 } from '@/utils/wikilink-titles';
 import { editorComposing, trackEditorComposition } from './composition';
 
 export type WikiLinkCatalog =
   | { status: 'loading' | 'error' }
-  | { status: 'ready'; titles: ReadonlyMap<string, WikiLinkTarget> };
+  | {
+      status: 'ready';
+      titles: ReturnType<typeof indexWikiLinkTitles>;
+      exists: (address: string) => boolean;
+    };
 
 export const wikiLinkCatalogChanged = StateEffect.define<WikiLinkCatalog>();
 const focusChanged = StateEffect.define<boolean>();
@@ -139,7 +143,7 @@ export function wikiLinkCompletion(options: CompletionOptions): Extension {
       if (
         range?.closed &&
         (currentCatalog.status !== 'ready' ||
-          currentCatalog.titles.has(wikiLinkTitleKey(range.query)))
+          currentCatalog.exists(range.query))
       )
         range = null;
       if (!range)
@@ -188,7 +192,7 @@ export function wikiLinkCompletion(options: CompletionOptions): Extension {
     if (!picker || !target || view.compositionStarted || view.state.readOnly)
       return false;
     const { from, to } = picker.range;
-    const insert = `[[${target.title}]]`;
+    const insert = `[[${target.destination}]]`;
     view.dispatch({
       changes: { from, to, insert },
       selection: { anchor: from + insert.length },
@@ -328,7 +332,7 @@ export function wikiLinkCompletion(options: CompletionOptions): Extension {
             if (name !== 'WikiLink') return;
             const title = state.sliceDoc(from + 2, to - 2);
             if (
-              !currentCatalog.titles.has(wikiLinkTitleKey(title)) &&
+              !currentCatalog.exists(title) &&
               !(missingInput && from === picker?.range.from)
             )
               ranges.push(missing.range(from, to));

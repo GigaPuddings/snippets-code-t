@@ -340,7 +340,8 @@ import { openSearchResultInConfig } from '../composables/openConfigContent';
 import { useI18n } from 'vue-i18n';
 import { useConfigurationStore } from '@/store';
 import { extractPlainText } from '@/utils/text';
-import { searchMarkdownFiles } from '@/api/markdown';
+import { getAllFiles, getWorkspaceRoot } from '@/api/markdown';
+import { indexWikiLinkTitles } from '@/utils/wikilink-titles';
 import modal from '@/utils/modal';
 import type { ContentType } from '@/types/models';
 import CodeMirrorEditor from '@/components/CodeMirrorEditor/index.vue';
@@ -1006,14 +1007,26 @@ async function openInConfig() {
   }
 }
 
-async function openWikiLink(title: string) {
+async function openWikiLink(title: string, wiki: boolean) {
   const itemId = props.item?.id;
   try {
-    const notes = await searchMarkdownFiles(title);
+    const [notes, root] = await Promise.all([
+      getAllFiles({ includeContent: false }),
+      getWorkspaceRoot()
+    ]);
     if (props.item?.id !== itemId) return;
+    const resolved = indexWikiLinkTitles(notes, root).resolve(
+      title,
+      noteFilePath.value,
+      wiki
+    );
+    if (resolved === 'ambiguous') {
+      modal.warning(t('backlinks.ambiguousTarget'));
+      return;
+    }
     const target =
-      notes.find((note) => note.title.toLowerCase() === title.toLowerCase()) ||
-      notes[0];
+      resolved &&
+      notes.find((note) => (note.filePath || note.id) === resolved.path);
     if (!target) {
       modal.warning(t('searchPreview.noteNotFound', { name: title }));
       return;

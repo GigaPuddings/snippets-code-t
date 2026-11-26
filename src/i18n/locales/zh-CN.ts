@@ -2192,6 +2192,10 @@ export default {
 
   // 反向链接
   backlinks: {
+    updatedDocuments: '已更新 {files} 个文档中的 {links} 处内部链接。',
+    skippedAmbiguous: '已跳过 {count} 处指向不明确的同名链接。',
+    updateFailures: '{count} 项更新失败。{path}：{reason}',
+    ambiguousTarget: '多个文档匹配此链接。请使用包含文件夹的路径。',
     statusCount: '{count} 条反向链接',
     title: '反向链接',
     togglePanel: '切换反向链接面板',

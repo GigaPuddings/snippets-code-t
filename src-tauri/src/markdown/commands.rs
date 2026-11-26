@@ -1,5 +1,6 @@
 // Markdown 文件操作的 Tauri 命令
 
+use super::link_updates::Relocation;
 use crate::json_config::get_workspace_root;
 use crate::markdown::file_ops::{get_relative_path, FileNameGenerator};
 use crate::markdown::file_system_manager::FileSystemManager;
@@ -15,7 +16,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, RwLock};
-use tauri::{command, AppHandle, Manager, State};
+use tauri::{command, AppHandle, Emitter, Manager, State};
 
 // Markdown 文件数据结构（与前端 MarkdownFile 接口匹配）
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -541,7 +542,49 @@ pub fn read_markdown_file(
     })
 }
 
-static SAVE_LOCK: Mutex<()> = Mutex::new(());
+pub(super) static SAVE_LOCK: Mutex<()> = Mutex::new(());
+
+pub(super) fn sync_document_links(
+    app: &AppHandle,
+    fs_manager: &FileSystemManager,
+    moves: &[Relocation<'_>],
+) -> Option<(String, String)> {
+    let mut report = super::link_updates::update_links(fs_manager, moves);
+    let root = fs_manager.workspace_root();
+    let caches = app.state::<Arc<RwLock<CacheManager>>>();
+    if !report.files.is_empty() {
+        if let Ok(mut cache) = caches.write() {
+            if !cache.belongs_to(root) {
+                return report.saved_destination.take();
+            }
+            for file in &report.files {
+                if let Err(error) = cache.update_file(file, root) {
+                    warn!("更新文件缓存失败: {error}");
+                }
+            }
+            if let Err(error) = cache.save() {
+                warn!("保存链接更新缓存失败: {error}");
+            }
+        }
+        let indexes = app.state::<Arc<RwLock<Option<IndexManager>>>>();
+        if let (Ok(index), Ok(cache)) = (indexes.read(), caches.read()) {
+            if !cache.belongs_to(root) {
+                return report.saved_destination.take();
+            }
+            if let Some(manager) = index.as_ref() {
+                for file in &report.files {
+                    if let Err(error) = manager.update_entry(file, root, &cache) {
+                        warn!("更新链接索引失败: {error}");
+                    }
+                }
+            }
+        };
+    }
+    if let Err(error) = app.emit("markdown-links-updated", &report) {
+        warn!("发送链接更新通知失败: {error}");
+    }
+    report.saved_destination.take()
+}
 
 struct SavedMarkdownUpdate {
     revision: String,
@@ -648,6 +691,12 @@ pub async fn update_markdown_file(
     let raw_before = fs_manager.read_markdown_file_content(&path)?;
     super::safe_write::check_revision(raw_before.as_bytes(), expected_revision.as_deref())?;
     let baseline_revision = super::safe_write::revision(raw_before.as_bytes());
+    let (current_frontmatter, current_body) = try_parse_front_matter(&raw_before);
+    let original_title = current_frontmatter
+        .as_ref()
+        .map(|fm| fm.title.as_str())
+        .or_else(|| Path::new(&file_path).file_stem()?.to_str())
+        .unwrap_or("");
     let mut committed_revision = baseline_revision.clone();
     let mut saved_content = None;
     let mut attachment_renames = Vec::new();
@@ -669,7 +718,7 @@ pub async fn update_markdown_file(
     if let Some(ref meta) = metadata {
         if let Some(new_title) = meta.get("title").and_then(|v| v.as_str()) {
             // 从当前文件名提取标题
-            let current_title = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+            let current_title = original_title;
 
             // 如果标题改变了，需要重命名文件
             if new_title != current_title {
@@ -682,7 +731,15 @@ pub async fn update_markdown_file(
                 let mut target_path = parent_dir.join(&safe_filename);
 
                 // 处理文件名冲突
-                if target_path.exists() && target_path != path {
+                if target_path.exists()
+                    && target_path != path
+                    && !(cfg!(windows)
+                        && path.canonicalize().is_ok_and(|source| {
+                            target_path
+                                .canonicalize()
+                                .is_ok_and(|target| source == target)
+                        }))
+                {
                     let resolved_name =
                         FileNameGenerator::resolve_conflict(parent_dir, &safe_filename);
                     target_path = parent_dir.join(&resolved_name);
@@ -716,7 +773,6 @@ pub async fn update_markdown_file(
     }
 
     // 读取当前文件内容，做后端兜底的等价比较（防止前端误触发保存）
-    let (current_frontmatter, current_body) = try_parse_front_matter(&raw_before);
     let incoming_content = content.as_deref().unwrap_or(&current_body);
 
     let current_hash = compute_content_hash(&current_body);
@@ -881,6 +937,20 @@ pub async fn update_markdown_file(
         }
     }
 
+    if title_changed {
+        if let Some((body, revision)) = sync_document_links(
+            &app_handle,
+            &fs_manager,
+            &[Relocation {
+                from: Path::new(&file_path),
+                to: &path,
+                old_title: Some(original_title),
+            }],
+        ) {
+            saved_content = Some(body);
+            committed_revision = revision;
+        }
+    }
     let new_path = new_path.map(|path| path.to_string_lossy().to_string());
     if expected_revision.is_some() {
         Ok(if new_path.is_some() {
@@ -1197,12 +1267,13 @@ pub fn delete_category_folder(
 
 // 重命名分类文件夹
 #[command]
-pub fn rename_category_folder(
+pub async fn rename_category_folder(
     app_handle: AppHandle,
     old_name: String,
     new_name: String,
     cache_manager: State<'_, Arc<RwLock<CacheManager>>>,
 ) -> Result<(), String> {
+    let _save_guard = SAVE_LOCK.lock().map_err(|e| e.to_string())?;
     let workspace_root = get_workspace_root(&app_handle)?.ok_or("工作区未配置")?;
 
     let old_name = validate_category_folder_name(&old_name)?;
@@ -1266,7 +1337,7 @@ pub fn rename_category_folder(
             let updated_metadata = file_metadata.clone();
 
             // 更新文件路径
-            let new_file_path = old_file_path.replace(&old_prefix, &new_prefix);
+            let new_file_path = old_file_path.replacen(&old_prefix, &new_prefix, 1);
 
             // 删除旧路径的元数据
             cache.rename_file_order(&old_file_path, &new_file_path);
@@ -1280,8 +1351,19 @@ pub fn rename_category_folder(
     }
 
     // 保存缓存
-    cache.save()?;
-
+    if let Err(error) = cache.save() {
+        warn!("分类已重命名，缓存保存失败: {error}");
+    }
+    drop(cache);
+    sync_document_links(
+        &app_handle,
+        &FileSystemManager::new(workspace_root),
+        &[Relocation {
+            from: &old_path,
+            to: &new_path,
+            old_title: None,
+        }],
+    );
     Ok(())
 }
 
@@ -1556,68 +1638,6 @@ pub fn get_all_file_titles(app_handle: AppHandle) -> Result<Vec<String>, String>
     Ok(titles)
 }
 
-// 更新所有文件中的 wikilinks
-#[command]
-pub async fn update_wikilinks(
-    app_handle: AppHandle,
-    old_title: String,
-    new_title: String,
-    index_manager: State<'_, Arc<RwLock<Option<IndexManager>>>>,
-    watcher: State<'_, Arc<Mutex<Option<FileWatcher>>>>,
-    cache_manager: State<'_, Arc<RwLock<CacheManager>>>,
-) -> Result<usize, String> {
-    let fs_manager = get_fs_manager(&app_handle)?;
-    let workspace_root = fs_manager.workspace_root().to_path_buf();
-
-    let mut updated_count = 0;
-    let old_link = format!("[[{}]]", old_title);
-    let new_link = format!("[[{}]]", new_title);
-
-    for entry in walkdir::WalkDir::new(&workspace_root)
-        .follow_links(true)
-        .into_iter()
-        .filter_map(|e| e.ok())
-    {
-        let path = entry.path();
-
-        if !path.is_file() || path.extension().and_then(|s| s.to_str()) != Some("md") {
-            continue;
-        }
-
-        if let Ok((metadata, content)) = fs_manager.read_markdown_file(path) {
-            if content.contains(&old_link) {
-                // 忽略下一次文件变化
-                if let Ok(watcher_lock) = watcher.lock() {
-                    if let Some(ref w) = *watcher_lock {
-                        w.ignore_next_change(path.to_path_buf());
-                    }
-                }
-
-                let new_content = content.replace(&old_link, &new_link);
-                fs_manager.update_markdown_file(path, Some(&new_content), Some(&metadata))?;
-
-                // 更新索引
-                if let Ok(manager_lock) = index_manager.read() {
-                    if let Some(ref manager) = *manager_lock {
-                        let cache = cache_manager
-                            .read()
-                            .map_err(|e| format!("获取 cache 锁失败: {}", e))?;
-                        let _ = manager.update_entry(path, &workspace_root, &cache);
-                    }
-                }
-
-                updated_count += 1;
-            }
-        }
-    }
-
-    info!(
-        "✅ 更新 wikilinks: {} -> {} ({}个文件)",
-        old_title, new_title, updated_count
-    );
-    Ok(updated_count)
-}
-
 // 查找包含指定标题 wikilink 的文件
 #[command]
 pub fn find_files_with_wikilink(
@@ -1666,41 +1686,19 @@ pub async fn move_markdown_file(
     index_manager: State<'_, Arc<RwLock<Option<IndexManager>>>>,
     cache_manager: State<'_, Arc<RwLock<CacheManager>>>,
 ) -> Result<String, String> {
+    let _save_guard = SAVE_LOCK.lock().map_err(|e| e.to_string())?;
     let fs_manager = get_fs_manager(&app_handle)?;
     let workspace_root =
         get_workspace_root(&app_handle)?.ok_or_else(|| "工作区根目录未设置".to_string())?;
 
-    let old_path = PathBuf::from(&file_path);
+    let old_path = workspace_root.join(&file_path);
 
     // 获取旧文件的相对路径（用于查找 cache.json）
     let old_relative_path = get_relative_path(&workspace_root, &old_path)?;
 
-    // 获取当前文件所在分类
-    let current_category = Path::new(&old_relative_path)
-        .parent()
-        .and_then(|p| p.file_name())
-        .and_then(|n| n.to_str())
-        .unwrap_or("");
-
-    // 标准化目标分类（空字符串表示"未分类"）
-    let target_category = if new_category.is_empty() {
-        "未分类"
-    } else {
-        &new_category
-    };
-
-    // 如果目标分类与当前分类相同，跳过移动
-    if current_category == target_category {
-        debug!(
-            "📦 [移动文件] 目标分类与当前分类相同，跳过移动: {}",
-            old_path.display()
-        );
-        return Ok(file_path);
-    }
-
     debug!(
         "📦 [移动文件] 开始移动: {} -> {}",
-        old_relative_path, target_category
+        old_relative_path, new_category
     );
 
     let mut cache = cache_manager
@@ -1719,6 +1717,9 @@ pub async fn move_markdown_file(
     // 移动元数据
     // 标准化新路径（统一使用 / 作为分隔符）
     let new_relative_path_str = new_relative_path.to_string_lossy().replace('\\', "/");
+    if new_relative_path_str == old_relative_path {
+        return Ok(old_path.to_string_lossy().into_owned());
+    }
 
     cache.remove_file_metadata(&old_relative_path);
     cache.set_file_metadata(new_relative_path_str.clone(), metadata);
@@ -1728,13 +1729,23 @@ pub async fn move_markdown_file(
         warn!("文件已移动，但保存索引缓存失败: {}", error);
     }
 
-    // 更新索引
-    if let Ok(manager_lock) = index_manager.read() {
+    drop(cache);
+    let new_path = workspace_root.join(&new_relative_path);
+    if let (Ok(manager_lock), Ok(cache)) = (index_manager.read(), cache_manager.read()) {
         if let Some(ref manager) = *manager_lock {
             let _ = manager.remove_entry(&old_path);
+            let _ = manager.update_entry(&new_path, &workspace_root, &cache);
         }
     }
-
+    sync_document_links(
+        &app_handle,
+        &fs_manager,
+        &[Relocation {
+            from: &old_path,
+            to: &new_path,
+            old_title: None,
+        }],
+    );
     let new_path_str = workspace_root
         .join(&new_relative_path)
         .to_string_lossy()

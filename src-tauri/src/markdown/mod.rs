@@ -5,6 +5,7 @@ pub mod commands;
 pub mod file_ops;
 pub mod file_system_manager;
 pub mod index_optimized; // 优化的搜索索引
+mod link_updates;
 pub mod metadata;
 pub mod safe_write;
 pub mod trash;

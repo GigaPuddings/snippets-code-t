@@ -2,6 +2,7 @@ import TurndownService from 'turndown';
 import { marked, Marked, type MarkedExtension, type Token } from 'marked';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { sanitizeHtml } from '@/utils/html-sanitize';
+import { splitWikiLink } from './wikilink-titles';
 
 // marked 解析前使用的内部兼容标记。源码模式不再展示该 HTML；用户可见的
 // 连续空行会在解析前临时展开为此标记，旧文件中的标记也仍然可以正常读取。
@@ -631,17 +632,26 @@ marked.use(editorMarkdownOptions);
 
 // Notes render navigable wiki links. General previews and HTML conversion keep
 // the literal syntax, so they use a separate parser.
-const noteMarkdownParser = new Marked(editorMarkdownOptions, {
-  extensions: [
-    {
-      ...wikilinkExtension,
-      renderer(token) {
-        const title = String(token.text);
-        return `<a href="#" data-note-name="${escapeAttribute(title)}">${escapeHtml(title)}</a>`;
+const noteMarkdownParser = new Marked(
+  {
+    ...editorMarkdownOptions,
+    // Let marked parse note destinations, reference definitions and optional link titles.
+    extensions: editorMarkdownOptions.extensions?.filter(
+      (extension) => extension.name !== 'markdownLink'
+    )
+  },
+  {
+    extensions: [
+      {
+        ...wikilinkExtension,
+        renderer(token) {
+          const title = String(token.text);
+          return `<a href="#" data-note-name="${escapeAttribute(title)}">${escapeHtml(splitWikiLink(title).label)}</a>`;
+        }
       }
-    }
-  ]
-});
+    ]
+  }
+);
 
 // 创建 Turndown service
 export function createTurndownService(): TurndownService {

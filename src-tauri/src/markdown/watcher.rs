@@ -1,4 +1,5 @@
 use log::{debug, error, info, warn};
+use notify::event::{ModifyKind, RenameMode};
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -42,6 +43,7 @@ enum PendingKind {
     Create,
     Modify,
     Remove,
+    RenameFrom,
     DirCreate,
     DirRemove,
 }
@@ -246,10 +248,36 @@ impl FileWatcher {
         remove_candidates: &mut HashMap<PathBuf, RemoveCandidate>,
         now: Instant,
     ) {
-        for path in event.paths {
+        for (position, path) in event.paths.into_iter().enumerate() {
             let is_dir = path.is_dir();
+            if matches!(
+                event.kind,
+                EventKind::Modify(ModifyKind::Name(RenameMode::From | RenameMode::Both))
+            ) && position == 0
+                && path
+                    .extension()
+                    .is_some_and(|ext| ext.eq_ignore_ascii_case("md"))
+            {
+                pending.insert(path, (PendingKind::RenameFrom, now));
+                continue;
+            }
 
-            let new_kind = match &event.kind {
+            let kind = match event.kind {
+                EventKind::Modify(ModifyKind::Name(RenameMode::From)) => {
+                    EventKind::Remove(notify::event::RemoveKind::Any)
+                }
+                EventKind::Modify(ModifyKind::Name(RenameMode::To)) => {
+                    EventKind::Create(notify::event::CreateKind::Any)
+                }
+                EventKind::Modify(ModifyKind::Name(RenameMode::Both)) if position == 0 => {
+                    EventKind::Remove(notify::event::RemoveKind::Any)
+                }
+                EventKind::Modify(ModifyKind::Name(RenameMode::Both)) => {
+                    EventKind::Create(notify::event::CreateKind::Any)
+                }
+                kind => kind,
+            };
+            let new_kind = match kind {
                 EventKind::Create(_) => {
                     if is_dir {
                         // 检查同父目录是否有配对的目录 Remove 候选 → rename
@@ -389,7 +417,7 @@ impl FileWatcher {
                             debug!("✏️ [FileWatcher] 文件修改: {}", rel);
                             md_modified.push((path.clone(), rel));
                         }
-                        PendingKind::Remove => {
+                        PendingKind::Remove | PendingKind::RenameFrom => {
                             if path.exists() {
                                 debug!("✏️ [FileWatcher] 文件仍存在，视为修改: {}", rel);
                                 md_modified.push((path.clone(), rel));
@@ -410,7 +438,69 @@ impl FileWatcher {
         let mut del_used: HashSet<usize> = HashSet::new();
         let mut cre_used: HashSet<usize> = HashSet::new();
 
+        if (!md_deleted.is_empty() || !dir_deleted.is_empty())
+            && (!md_created.is_empty() || !dir_created.is_empty())
+        {
+            // A nearby create/delete pair can be unrelated. Only stable document IDs
+            // may authorize rewriting other files in response to watcher events.
+            if let Ok(_guard) = super::commands::SAVE_LOCK.lock() {
+                if stopped.load(Ordering::Acquire)
+                    || !Self::is_current_workspace(app_handle, workspace_root)
+                {
+                    return;
+                }
+                let caches = app_handle.state::<Arc<RwLock<super::CacheManager>>>();
+                let moved = caches
+                    .read()
+                    .ok()
+                    .map(|cache| {
+                        Self::confirmed_document_moves(
+                            workspace_root,
+                            &cache,
+                            &md_deleted,
+                            &dir_deleted,
+                            &md_created,
+                            &dir_created,
+                        )
+                    })
+                    .unwrap_or_default();
+                if !moved.is_empty() {
+                    let changes: Vec<_> = moved
+                        .iter()
+                        .map(|(from, to)| super::link_updates::Relocation {
+                            from,
+                            to,
+                            old_title: None,
+                        })
+                        .collect();
+                    super::commands::sync_document_links(
+                        app_handle,
+                        &super::file_system_manager::FileSystemManager::new(
+                            workspace_root.to_owned(),
+                        ),
+                        &changes,
+                    );
+                    for (from, to) in moved {
+                        if let (Some(di), Some(ci)) = (
+                            md_deleted.iter().position(|(path, _)| path == &from),
+                            md_created.iter().position(|(path, _)| path == &to),
+                        ) {
+                            del_used.insert(di);
+                            cre_used.insert(ci);
+                            renames.push(RenameEntry {
+                                from: md_deleted[di].1.clone(),
+                                to: md_created[ci].1.clone(),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
         for (di, (dp, dr)) in md_deleted.iter().enumerate() {
+            if del_used.contains(&di) {
+                continue;
+            }
             for (ci, (_, cr)) in md_created.iter().enumerate() {
                 if cre_used.contains(&ci) {
                     continue;
@@ -560,9 +650,16 @@ impl FileWatcher {
             // ── 同步附件 ───────────────────────────────────────────────────────
             // 文件删除时清理附件
             if !final_md_deleted.is_empty() {
+                // A rename out of this directory can arrive without its destination.
+                // It does not authorize deleting attachments that still belong to the note.
+                let renamed_from: HashSet<&PathBuf> = events
+                    .iter()
+                    .filter_map(|(path, kind)| (*kind == PendingKind::RenameFrom).then_some(path))
+                    .collect();
                 let deleted_abs_paths: Vec<String> = final_md_deleted
                     .iter()
                     .map(|r| workspace_root.join(r))
+                    .filter(|path| !renamed_from.contains(path))
                     .filter(|path| !crate::markdown::trash::was_soft_deleted(path))
                     .map(|path| path.to_string_lossy().to_string())
                     .collect();
@@ -669,6 +766,73 @@ impl FileWatcher {
 
     // ── 辅助 ──────────────────────────────────────────────────────────────────
 
+    fn confirmed_document_moves(
+        root: &Path,
+        cache: &super::CacheManager,
+        deleted: &[(PathBuf, String)],
+        removed_dirs: &[String],
+        created: &[(PathBuf, String)],
+        new_dirs: &[String],
+    ) -> Vec<(PathBuf, PathBuf)> {
+        let mut candidates: HashSet<_> = created.iter().map(|(path, _)| path.clone()).collect();
+        for dir in new_dirs {
+            candidates.extend(
+                walkdir::WalkDir::new(root.join(dir))
+                    .into_iter()
+                    .filter_entry(|entry| {
+                        !entry.file_name().to_string_lossy().starts_with('.')
+                            && entry.file_name() != "assets"
+                    })
+                    .filter_map(Result::ok)
+                    .filter(|entry| entry.file_type().is_file())
+                    .map(|entry| entry.into_path()),
+            );
+        }
+        let mut destinations: HashMap<String, Vec<PathBuf>> = HashMap::new();
+        for path in candidates {
+            if !path
+                .extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("md"))
+                || path.is_symlink()
+            {
+                continue;
+            }
+            let Ok(file) = std::fs::File::open(&path) else {
+                continue;
+            };
+            if let Ok(Some(metadata)) =
+                super::metadata::read_front_matter_metadata(std::io::BufReader::new(file))
+            {
+                destinations.entry(metadata.id).or_default().push(path);
+            }
+        }
+        let mut previous: HashMap<&str, Vec<&str>> = HashMap::new();
+        for (relative, metadata) in cache.get_all_files() {
+            if destinations.contains_key(&metadata.id) {
+                previous.entry(&metadata.id).or_default().push(relative);
+            }
+        }
+        let mut moves = Vec::new();
+        for (id, targets) in &destinations {
+            if let (Some([relative]), [to]) = (
+                previous.get(id.as_str()).map(Vec::as_slice),
+                targets.as_slice(),
+            ) {
+                let from = root.join(relative);
+                if from != *to
+                    && !from.exists()
+                    && (deleted.iter().any(|(path, _)| path == &from)
+                        || removed_dirs
+                            .iter()
+                            .any(|dir| Path::new(relative).starts_with(dir)))
+                {
+                    moves.push((from, to.clone()));
+                }
+            }
+        }
+        moves
+    }
+
     fn is_current_workspace(app_handle: &AppHandle, workspace_root: &Path) -> bool {
         crate::json_config::get_workspace_root(app_handle)
             .ok()
@@ -700,5 +864,43 @@ impl FileWatcher {
                 || (!p.exists() && p.extension().is_none())
         });
         !relevant
+    }
+}
+
+#[cfg(test)]
+mod link_move_tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn external_markdown_move_requires_one_matching_document_id() {
+        let root =
+            std::env::temp_dir().join(format!("markdown-watcher-test-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(root.join("new")).unwrap();
+        let mut cache =
+            crate::markdown::CacheManager::new_silent(root.join(".snippets-code")).unwrap();
+        let old = root.join("Old.md");
+        let new = root.join("new/Other.md");
+        let header = "---\nid: stable-id\ntitle: Display title\ncreated: today\nmodified: today\ntype: note\n---\n";
+        fs::write(&old, header).unwrap();
+        cache.add_file(&old, &root).unwrap();
+        fs::rename(&old, &new).unwrap();
+        let check = || {
+            FileWatcher::confirmed_document_moves(
+                &root,
+                &cache,
+                &[(old.clone(), "Old.md".into())],
+                &[],
+                &[],
+                &["new".into()],
+            )
+        };
+        assert_eq!(check(), vec![(old.clone(), new.clone())]);
+        fs::write(root.join("new/Copy.md"), header).unwrap();
+        assert!(check().is_empty());
+        fs::write(&new, header.replace("stable-id", "different-id")).unwrap();
+        fs::write(root.join("new/Copy.md"), "unrelated").unwrap();
+        assert!(check().is_empty());
+        fs::remove_dir_all(root).unwrap();
     }
 }

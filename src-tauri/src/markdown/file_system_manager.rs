@@ -316,16 +316,6 @@ impl FileSystemManager {
     // # Returns
     // * `Ok(())` - 更新成功
     // * `Err(String)` - 更新失败的错误信息
-    pub fn update_markdown_file(
-        &self,
-        file_path: &Path,
-        content: Option<&str>,
-        metadata: Option<&FrontMatter>,
-    ) -> Result<(), String> {
-        self.update_markdown_file_checked(file_path, content, metadata, None)
-            .map(|_| ())
-    }
-
     pub fn update_markdown_file_checked(
         &self,
         file_path: &Path,

@@ -435,23 +435,6 @@ export async function getAllFileTitles(): Promise<string[]> {
 }
 
 /**
- * 更新所有文件中的 wikilinks
- * @param oldTitle 旧标题
- * @param newTitle 新标题
- * @returns 更新的文件数量
- */
-export async function updateWikilinks(
-  oldTitle: string,
-  newTitle: string
-): Promise<number> {
-  try {
-    return await invoke<number>('update_wikilinks', { oldTitle, newTitle });
-  } catch (error) {
-    throw new Error(`更新 wikilinks 失败: ${error}`);
-  }
-}
-
-/**
  * 查找包含指定标题 wikilink 的文件
  * @param title 笔记标题
  * @returns 包含该 wikilink 的文件列表

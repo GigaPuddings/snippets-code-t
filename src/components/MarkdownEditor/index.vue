@@ -21,10 +21,10 @@
         :workspace-root="workspaceRoot"
         :note-file-path="String(currentFragmentId ?? '')"
         :attachment-config="attachmentConfig"
-        :wiki-link-titles="wikiLinkTitles"
+        :wiki-link-exists="wikiLinkExists"
         :dark="dark"
         :line-height="lineHeight"
-        @wikilink-click="emit('wikilink-click', $event)"
+        @wikilink-click="openLink"
         @scroll.passive="emitScroll"
         @contextmenu="openReadingImageMenu"
       />
@@ -281,7 +281,7 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   'update:content': [value: string];
   ready: [];
-  'wikilink-click': [title: string];
+  'wikilink-click': [title: string, wiki: boolean];
   'view-mode-change': [mode: ViewMode];
   'outline-toggle': [visible: boolean];
   'backlink-navigate': [id: string | number, title: string];
@@ -293,15 +293,19 @@ const host = ref<HTMLElement>();
 const readingPreview = ref<InstanceType<typeof MarkdownPreview>>();
 const readingHost = computed(() => readingPreview.value?.getElement());
 const source = ref(props.content);
-const wikiLinkCatalog = useWikiLinkCatalog(source);
-const wikiLinkTitles = computed(() =>
+const workspaceRoot = ref('');
+const wikiLinkCatalog = useWikiLinkCatalog(
+  source,
+  workspaceRoot,
+  computed(() => String(props.currentFragmentId ?? ''))
+);
+const wikiLinkExists = computed(() =>
   wikiLinkCatalog.value.status === 'ready'
-    ? wikiLinkCatalog.value.titles
+    ? wikiLinkCatalog.value.exists
     : undefined
 );
 const wikiLinkPickerId = `wiki-link-picker-${useId()}`;
 const viewMode = ref<ViewMode>('preview');
-const workspaceRoot = ref('');
 const showOutline = ref(false);
 const cursor = ref(0);
 const headings = shallowRef<
@@ -1077,7 +1081,7 @@ function scrollToWikilink(title: string) {
 }
 async function openLink(href: string, wiki: boolean) {
   if (wiki) {
-    emit('wikilink-click', href);
+    emit('wikilink-click', href, true);
     return;
   }
   if (href.startsWith('#')) {
@@ -1095,7 +1099,11 @@ async function openLink(href: string, wiki: boolean) {
     if (heading) scrollToPosition(heading.pos);
     return;
   }
-  if (!/^https?:\/\//i.test(href)) return;
+  if (!/^https?:\/\//i.test(href)) {
+    if (href && !/^(?:[a-z][\w+.-]*:|\/\/)/i.test(href))
+      emit('wikilink-click', href.replace(/^<|>$/g, ''), false);
+    return;
+  }
   const { openUrl } = await import('@tauri-apps/plugin-opener');
   await openUrl(href).catch((error) => modal.error(String(error)));
 }

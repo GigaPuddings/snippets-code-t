@@ -13,7 +13,6 @@ import { useI18n } from 'vue-i18n';
 import { defaultHighlightStyle } from '@codemirror/language';
 import { oneDarkHighlightStyle } from '@codemirror/theme-one-dark';
 import { getWorkspaceRoot } from '@/api/markdown';
-import { wikiLinkTitleKey } from '@/utils/wikilink-titles';
 import {
   DEFAULT_ATTACHMENT_CONFIG,
   ATTACHMENT_CONFIG_UPDATED_EVENT,
@@ -39,13 +38,15 @@ const props = withDefaults(
     workspaceRoot?: string;
     noteFilePath?: string;
     attachmentConfig?: AttachmentConfig;
-    wikiLinkTitles?: ReadonlyMap<string, unknown>;
+    wikiLinkExists?: (address: string) => boolean;
     dark?: boolean;
     lineHeight?: number;
   }>(),
   { format: 'markdown', noteFilePath: '', dark: false, lineHeight: 1.6 }
 );
-const emit = defineEmits<{ 'wikilink-click': [title: string] }>();
+const emit = defineEmits<{
+  'wikilink-click': [title: string, wiki: boolean];
+}>();
 const { t, locale } = useI18n();
 const host = ref<HTMLElement>();
 const root = ref('');
@@ -62,15 +63,13 @@ const html = computed(() =>
 );
 
 watch(
-  [host, html, () => props.wikiLinkTitles, locale],
+  [host, html, () => props.wikiLinkExists, locale],
   () => {
     host.value
       ?.querySelectorAll<HTMLAnchorElement>('a[data-note-name]')
       .forEach((link) => {
         const missing =
-          props.wikiLinkTitles?.has(
-            wikiLinkTitleKey(link.dataset.noteName ?? '')
-          ) === false;
+          props.wikiLinkExists?.(link.dataset.noteName ?? '') === false;
         if (missing) {
           link.setAttribute('data-wikilink-missing', '');
           link.title = t('noteEditor.wikiLink.missing');
@@ -145,7 +144,7 @@ async function handleClick(event: MouseEvent) {
   if (!link) return;
   event.preventDefault();
   if (link.dataset.noteName) {
-    emit('wikilink-click', link.dataset.noteName);
+    emit('wikilink-click', link.dataset.noteName, true);
     return;
   }
   const href = link.getAttribute('href') || '';
@@ -168,6 +167,8 @@ async function handleClick(event: MouseEvent) {
   if (/^https?:\/\//i.test(href)) {
     const { openUrl } = await import('@tauri-apps/plugin-opener');
     await openUrl(href).catch((error) => modal.error(String(error)));
+  } else if (href && !/^(?:[a-z][\w+.-]*:|\/\/)/i.test(href)) {
+    emit('wikilink-click', href, false);
   }
 }
 

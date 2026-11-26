@@ -2313,6 +2313,11 @@ export default {
 
   // Backlinks
   backlinks: {
+    updatedDocuments: 'Updated {links} internal links in {files} documents.',
+    skippedAmbiguous: 'Skipped {count} ambiguous links.',
+    updateFailures: '{count} updates failed. {path}: {reason}',
+    ambiguousTarget:
+      'Several documents match this link. Include the folder in the path.',
     statusCount: '{count} backlinks',
     title: 'Backlinks',
     togglePanel: 'Toggle Backlinks Panel',

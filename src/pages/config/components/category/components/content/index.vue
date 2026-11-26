@@ -112,17 +112,6 @@
       <div>{{ t('category.unsavedChanges') }}</div>
     </ConfirmDialog>
 
-    <!-- 反向链接更新对话框 -->
-    <BacklinkUpdateDialog
-      v-model="showBacklinkDialog"
-      :fragment-title="backlinkUpdateData?.oldTitle || ''"
-      :new-fragment-title="backlinkUpdateData?.newTitle || ''"
-      :backlink-count="backlinkStats?.count || 0"
-      :backlink-fragments="backlinkStats?.fragments || []"
-      @confirm="handleBacklinkUpdateConfirm"
-      @cancel="handleBacklinkUpdateCancel"
-    />
-
     <AiAssistDialog
       v-model="showAiAssist"
       :content="state.editorContent"
@@ -310,9 +299,7 @@ import {
   CustomButton,
   ScrollEdgeMask
 } from '@/components/UI';
-import { findBacklinks, getBacklinkStats } from '@/utils/wikilink-updater';
-import { indexWikiLinkTitles, wikiLinkTitleKey } from '@/utils/wikilink-titles';
-import BacklinkUpdateDialog from '@/components/UI/BacklinkUpdateDialog.vue';
+import { indexWikiLinkTitles, splitWikiLink } from '@/utils/wikilink-titles';
 import AiAssistDialog from '@/components/AiAssistDialog/index.vue';
 import AiSelectionToolbar from '@/components/AiSelectionToolbar/index.vue';
 import {
@@ -529,17 +516,6 @@ const showCreateNoteDialog = ref(false);
 const showUnsavedDialog = ref(false);
 const pendingNoteName = ref('');
 const pendingNavigationId = ref<string | null>(null);
-
-// 反向链接更新对话框状态
-const showBacklinkDialog = ref(false);
-const backlinkUpdateData = ref<{
-  oldTitle: string;
-  newTitle: string;
-} | null>(null);
-const backlinkStats = ref<{
-  count: number;
-  fragments: Array<{ id: number | string; title: string; occurrences: number }>;
-} | null>(null);
 
 // 保存原始标题用于检测变化
 const originalTitle = ref<string>('');
@@ -985,14 +961,23 @@ const performSaveNow = async (
   });
   const newPath = result.newPath;
   const committedContent = result.content ?? finalContent;
+  // A newer local draft can still contain links from before the rename. Keeping
+  // its original revision prevents a later autosave from undoing the disk edits.
+  const concurrentLinkEdit =
+    state.currentContent?.id === saveSnapshot.id &&
+    state.editorContent !== serializedContent &&
+    committedContent !==
+      applySavedAttachmentRenames(finalContent, result.attachmentRenames);
   updateParams.content = committedContent;
-  updateParams.contentRevision = result.contentRevision;
+  updateParams.contentRevision = concurrentLinkEdit
+    ? saveSnapshot.contentRevision
+    : result.contentRevision;
   try {
     draftStore.acknowledge(
       saveWorkspace,
       String(saveSnapshot.id),
       savedDraft,
-      result.contentRevision,
+      updateParams.contentRevision,
       newPath || String(saveSnapshot.id),
       result.attachmentRenames
     );
@@ -1000,7 +985,7 @@ const performSaveNow = async (
     draftStorageError.value = true;
     console.error('[Content] Draft acknowledgement failed', error);
   }
-  saveIssue.value = null;
+  saveIssue.value = concurrentLinkEdit ? 'conflict' : null;
 
   // A completed save belongs to its original document, even if navigation
   // happened while IPC was pending.
@@ -1182,31 +1167,6 @@ const saveContent = async (data: Partial<ContentType> = {}) => {
     state.isLoading = true;
     syncDraftTitleToState();
 
-    // 检测标题是否改变
-    const titleChanged = state.title !== originalTitle.value;
-
-    // 如果标题改变，检查是否有反向链接
-    if (titleChanged && originalTitle.value) {
-      const backlinks = await findBacklinks(originalTitle.value);
-
-      if (backlinks.length > 0) {
-        // 有反向链接，显示对话框让用户确认
-        backlinkUpdateData.value = {
-          oldTitle: originalTitle.value,
-          newTitle: state.title
-        };
-
-        // 加载反向链接统计信息
-        backlinkStats.value = await getBacklinkStats(originalTitle.value);
-
-        showBacklinkDialog.value = true;
-        state.isLoading = false;
-
-        // 等待用户确认，不继续保存
-        return;
-      }
-    }
-
     saved = Boolean(await performSave(data));
   } catch (error) {
     console.error('[Content] 保存失败:', error);
@@ -1275,7 +1235,7 @@ const handleContentMenuCommand = async (command: string) => {
     debouncedSave.cancel();
     try {
       await saveContent();
-      if (!showBacklinkDialog.value) modal.success(t('category.saveSuccess'));
+      modal.success(t('category.saveSuccess'));
     } catch {
       // saveContent 已显示保存错误。
     }
@@ -1298,56 +1258,6 @@ const handleContentMenuCommand = async (command: string) => {
 const debouncedSave = debounce(() => {
   if (!saveIssue.value) void saveContent().catch(() => {});
 }, 300);
-
-// 处理反向链接更新确认
-const handleBacklinkUpdateConfirm = async () => {
-  showBacklinkDialog.value = false;
-
-  try {
-    await saveContentWithoutBacklinkCheck();
-    backlinkUpdateData.value = null;
-    backlinkStats.value = null;
-  } catch (error) {
-    console.error('[Content] 保存当前片段失败:', error);
-    modal.error(t('category.saveFailed'));
-  }
-};
-
-// 处理反向链接更新取消
-const handleBacklinkUpdateCancel = async () => {
-  showBacklinkDialog.value = false;
-
-  try {
-    await saveContentWithoutBacklinkCheck();
-    backlinkUpdateData.value = null;
-    backlinkStats.value = null;
-  } catch (error) {
-    console.error('[Content] 保存当前片段失败:', error);
-    modal.error(t('category.saveFailed'));
-  }
-};
-
-// 保存内容但不检查反向链接（用于反向链接对话框确认后）
-const saveContentWithoutBacklinkCheck = async (
-  data: Partial<ContentType> = {}
-) => {
-  if (!state.currentContent || state.isLoading) return;
-  let saved = false;
-  try {
-    state.isLoading = true;
-    syncDraftTitleToState();
-    saved = Boolean(await performSave(data));
-    modal.success(t('category.saveSuccess'));
-  } catch (error) {
-    console.error('[Content] 保存失败:', error);
-    recordSaveFailure(error);
-    handleSaveError(error, 'saveContent');
-    throw error;
-  } finally {
-    state.isLoading = false;
-    if (saved && state.contentChanged) debouncedSave();
-  }
-};
 
 const handleContentChange = (value: string): void => {
   if (state.isInitializing || value === state.editorContent) return;
@@ -1595,11 +1505,24 @@ const handleFragmentCategoryMoveRequest = (event: Event): void => {
       }
 
       const oldId = state.currentContent.id;
+      const bodyBeforeMove = state.editorContent;
       const moved = await moveFragmentToCategory(oldId, detail.categoryId);
+      const editedDuringMove = state.editorContent !== bodyBeforeMove;
+      const concurrentLinkEdit =
+        editedDuringMove && bodyBeforeMove !== moved.content;
       state.currentContent = {
         ...state.currentContent,
-        ...moved
+        ...moved,
+        contentRevision: concurrentLinkEdit
+          ? state.currentContent.contentRevision
+          : moved.contentRevision
       };
+      if (!editedDuringMove) state.editorContent = moved.content;
+      state.lastSavedContentHash = computeContentHash(moved.content);
+      if (concurrentLinkEdit) {
+        saveIssue.value = 'conflict';
+        persistDraft();
+      }
 
       const previousIndex = store.contents.findIndex(
         (item) =>
@@ -1828,14 +1751,23 @@ const handleEditorChange = (value: string) => {
 };
 
 // 处理 Wikilink 点击
-const handleWikilinkClick = async (noteName: string) => {
+const handleWikilinkClick = async (noteName: string, wiki = true) => {
   try {
     const sourcePath = route.fullPath;
     const titles = indexWikiLinkTitles(
-      await getAllFiles({ includeContent: false })
+      await getAllFiles({ includeContent: false }),
+      workspaceRoot.value
     );
     if (route.fullPath !== sourcePath) return;
-    const targetFragment = titles.get(wikiLinkTitleKey(noteName));
+    const targetFragment = titles.resolve(
+      noteName,
+      String(state.currentContent?.id ?? ''),
+      wiki
+    );
+    if (targetFragment === 'ambiguous') {
+      modal.warning(t('backlinks.ambiguousTarget'));
+      return;
+    }
     if (targetFragment) {
       // 如果有未保存的更改，先保存（取消防抖，避免 300ms 后重复保存）
       if (hasUnsavedChanges()) {
@@ -1851,10 +1783,12 @@ const handleWikilinkClick = async (noteName: string) => {
 
       // 跳转到目标片段
       router.push(targetPath);
-    } else {
+    } else if (wiki && !/[\\/#?]/.test(splitWikiLink(noteName).address)) {
       // 未找到匹配的片段，显示创建确认对话框
-      pendingNoteName.value = noteName.trim();
+      pendingNoteName.value = splitWikiLink(noteName).address;
       showCreateNoteDialog.value = true;
+    } else {
+      modal.warning(t('searchPreview.noteNotFound', { name: noteName }));
     }
   } catch (error) {
     console.error('Failed to handle wikilink click:', error);
@@ -2168,7 +2102,10 @@ const handleRefreshData = async (event: Event) => {
   // owns its latest state and must not reload its body in response.
   if (source === 'fragment-create' || source === 'fragment-rename') return;
 
-  if (source === 'closed-fragment-tags-changed') {
+  if (
+    source === 'closed-fragment-tags-changed' ||
+    source === 'markdown-links-updated'
+  ) {
     const id = state.currentContent?.id;
     const changedIds: ContentType['id'][] = customEvent.detail.ids;
     if (

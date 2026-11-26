@@ -124,6 +124,45 @@ export function useConfigNavigationEvents(deps: ConfigNavigationEventsDeps) {
     const currentWindow = getWindow();
 
     unlisteners.push(
+      await currentWindow.listen<{
+        links: number;
+        files: string[];
+        ambiguous: number;
+        failures: [string, string][];
+      }>('markdown-links-updated', ({ payload }) => {
+        const { links, files, ambiguous, failures } = payload;
+        window.dispatchEvent(
+          new CustomEvent('refresh-data', {
+            detail: { source: 'markdown-links-updated', ids: files }
+          })
+        );
+        const messages = [
+          deps.t('backlinks.updatedDocuments', { links, files: files.length })
+        ];
+        if (ambiguous)
+          messages.push(
+            deps.t('backlinks.skippedAmbiguous', { count: ambiguous })
+          );
+        if (failures.length) {
+          const [path, reason] = failures[0];
+          messages.push(
+            deps.t('backlinks.updateFailures', {
+              count: failures.length,
+              path,
+              reason
+            })
+          );
+          console.warn('[Markdown] Link update failures', failures);
+        }
+        deps.modalMsg(
+          messages.join(' '),
+          failures.length || ambiguous ? 'warning' : 'success',
+          'bottom-right'
+        );
+      })
+    );
+
+    unlisteners.push(
       await currentWindow.listen('navigate-to-settings', () => {
         return navigate(getConfigSettingsTarget());
       })

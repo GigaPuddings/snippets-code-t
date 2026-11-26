@@ -58,6 +58,9 @@ pub struct CacheManager {
 }
 
 impl CacheManager {
+    pub(super) fn belongs_to(&self, root: &Path) -> bool {
+        self.config_dir.parent() == Some(root)
+    }
     // 创建新的 Cache 管理器
     //
     // # Arguments
@@ -171,7 +174,7 @@ impl CacheManager {
     }
 
     pub fn save_file_order(&mut self, root: &Path, paths: &[String]) -> Result<(), String> {
-        if self.config_dir.parent() != Some(root) {
+        if !self.belongs_to(root) {
             return Err("工作区已切换，请刷新笔记列表".into());
         }
         let previous = self.cache.file_order.clone();
@@ -237,7 +240,7 @@ impl CacheManager {
     }
 
     pub fn save_category_order(&mut self, root: &Path, names: &[String]) -> Result<(), String> {
-        if self.config_dir.parent() != Some(root) {
+        if !self.belongs_to(root) {
             return Err("工作区已切换，请刷新文件夹列表".into());
         }
         let mut categories = self.cache.categories.clone();
