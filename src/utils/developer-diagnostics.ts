@@ -28,13 +28,6 @@ export interface FrontendDiagnosticEntry {
   data?: string;
 }
 
-export interface DiagnosticIssueSummary {
-  errors: number;
-  warnings: number;
-  ignoredWarnings: number;
-  total: number;
-}
-
 let listenersInstalled = false;
 
 const forwardDiagnosticToBackend = (
@@ -55,7 +48,7 @@ const forwardDiagnosticToBackend = (
 export const redactDiagnosticText = (value: string): string =>
   value
     .replace(
-      /("(?:[^"]*(?:token|password|secret|authorization)[^"]*)"\s*:\s*)("(?:\\.|[^"])*"|[^,\r\n}\]]+)/gi,
+      /("(?:[^"]*(?:token|password|secret|authorization|api[_-]?key|cookie|credential)[^"]*)"\s*:\s*)("(?:\\.|[^"])*"|[^,\r\n}\]]+)/gi,
       `$1"${REDACTED_VALUE}"`
     )
     .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/gi, `Bearer ${REDACTED_VALUE}`)
@@ -65,7 +58,7 @@ export const redactDiagnosticText = (value: string): string =>
     )
     .replace(/(https?:\/\/)[^/\s@]+@/gi, `$1${REDACTED_VALUE}@`)
     .replace(
-      /([?&][^=&\s]*(?:token|password|secret|authorization)[^=&\s]*=)[^&\s]+/gi,
+      /([?&][^=&\s]*(?:token|password|secret|authorization|api[_-]?key|cookie|credential)[^=&\s]*=)[^&\s]+/gi,
       `$1${REDACTED_VALUE}`
     );
 
@@ -141,63 +134,6 @@ export const stringifyDiagnosticValue = (
 export const isBenignDiagnosticWarning = (message: string): boolean =>
   BENIGN_WARNING_PATTERNS.some((pattern) => pattern.test(message));
 
-const frontendDiagnosticSearchText = (entry: FrontendDiagnosticEntry): string =>
-  `${entry.message}\n${entry.data ?? ''}`;
-
-export const summarizeFrontendDiagnostics = (
-  entries: FrontendDiagnosticEntry[]
-): DiagnosticIssueSummary => {
-  let errors = 0;
-  let warnings = 0;
-  let ignoredWarnings = 0;
-
-  entries.forEach((entry) => {
-    if (entry.level === 'error') {
-      errors += 1;
-    } else if (entry.level === 'warn') {
-      if (isBenignDiagnosticWarning(frontendDiagnosticSearchText(entry))) {
-        ignoredWarnings += 1;
-      } else {
-        warnings += 1;
-      }
-    }
-  });
-
-  return {
-    errors,
-    warnings,
-    ignoredWarnings,
-    total: errors + warnings
-  };
-};
-
-export const summarizeBackendDiagnostics = (
-  logText = ''
-): DiagnosticIssueSummary => {
-  let errors = 0;
-  let warnings = 0;
-  let ignoredWarnings = 0;
-
-  logText.split('\n').forEach((line) => {
-    const match = line.match(/\[(ERROR|WARN)\]/);
-    if (!match) return;
-    if (match[1] === 'ERROR') {
-      errors += 1;
-    } else if (isBenignDiagnosticWarning(line)) {
-      ignoredWarnings += 1;
-    } else {
-      warnings += 1;
-    }
-  });
-
-  return {
-    errors,
-    warnings,
-    ignoredWarnings,
-    total: errors + warnings
-  };
-};
-
 const currentWindowLabel = (): string => {
   try {
     return (
@@ -237,9 +173,6 @@ export const setDeveloperModeEnabled = (enabled: boolean): void => {
   if (typeof localStorage === 'undefined') return;
   try {
     localStorage.setItem(DEVELOPER_MODE_KEY, String(enabled));
-    if (!enabled) {
-      localStorage.removeItem(FRONTEND_LOG_KEY);
-    }
   } catch {
     // Diagnostics must not affect the application when storage is unavailable.
   }

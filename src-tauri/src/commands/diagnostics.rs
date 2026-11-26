@@ -1,18 +1,22 @@
 use once_cell::sync::Lazy;
 use regex::Regex;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
+use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use std::time::SystemTime;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, WebviewWindow};
 
 const MAX_LOG_FILES: usize = 4;
 const MAX_LOG_BYTES_PER_FILE: usize = 48 * 1024;
+const MAX_SEARCH_SOURCES: usize = 128;
 const REDACTED_VALUE: &str = "[REDACTED]";
 
 static SENSITIVE_JSON_FIELD_RE: Lazy<Regex> = Lazy::new(|| {
     Regex::new(
-        r#"(?i)("(?:[^"]*(?:token|password|secret|authorization)[^"]*)"\s*:\s*)("(?:\\.|[^"])*"|[^,\r\n}\]]+)"#,
+        r#"(?i)("(?:[^"]*(?:token|password|secret|authorization|api[_-]?key|cookie|credential)[^"]*)"\s*:\s*)("(?:\\.|[^"])*"|[^,\r\n}\]]+)"#,
     )
     .expect("sensitive JSON field regex must be valid")
 });
@@ -27,9 +31,89 @@ static URL_CREDENTIALS_RE: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"(?i)(https?://)[^/\s@]+@").expect("URL credentials regex must be valid")
 });
 static QUERY_SECRET_RE: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"(?i)([?&][^=&\s]*(?:token|password|secret|authorization)[^=&\s]*=)[^&\s]+")
+    Regex::new(r"(?i)([?&][^=&\s]*(?:token|password|secret|authorization|api[_-]?key|cookie|credential)[^=&\s]*=)[^&\s]+")
         .expect("query secret regex must be valid")
 });
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SearchDiagnosticOutcome {
+    Success,
+    Timeout,
+    Failed,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchDiagnosticResult {
+    plugin_id: String,
+    source: String,
+    started_at: u64,
+    completed_at: u64,
+    outcome: SearchDiagnosticOutcome,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchDiagnosticEntry {
+    #[serde(flatten)]
+    result: SearchDiagnosticResult,
+    window_label: String,
+}
+
+type SearchDiagnosticEntries = HashMap<(String, String), SearchDiagnosticEntry>;
+static SEARCH_DIAGNOSTICS: Lazy<Mutex<SearchDiagnosticEntries>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
+
+#[tauri::command]
+pub fn record_search_diagnostic(
+    window: WebviewWindow,
+    result: SearchDiagnosticResult,
+) -> Result<(), String> {
+    if result.plugin_id.is_empty()
+        || result.source.is_empty()
+        || result.plugin_id.len() > 128
+        || result.source.len() > 128
+        || result.completed_at < result.started_at
+    {
+        return Err("Invalid search diagnostic".into());
+    }
+    let key = (result.plugin_id.clone(), result.source.clone());
+    let mut entries = SEARCH_DIAGNOSTICS
+        .lock()
+        .map_err(|error| error.to_string())?;
+    if let Some(entry) = entries.get(&key) {
+        if (entry.result.started_at, entry.result.completed_at)
+            > (result.started_at, result.completed_at)
+        {
+            return Ok(());
+        }
+    } else if entries.len() >= MAX_SEARCH_SOURCES {
+        if let Some(oldest) = entries
+            .iter()
+            .min_by_key(|(_, entry)| entry.result.completed_at)
+            .map(|(key, _)| key.clone())
+        {
+            entries.remove(&oldest);
+        }
+    }
+    entries.insert(
+        key,
+        SearchDiagnosticEntry {
+            result,
+            window_label: window.label().to_owned(),
+        },
+    );
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_search_diagnostics() -> Result<Vec<SearchDiagnosticEntry>, String> {
+    let entries = SEARCH_DIAGNOSTICS
+        .lock()
+        .map_err(|error| error.to_string())?;
+    Ok(entries.values().cloned().collect())
+}
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -59,10 +143,10 @@ pub struct DeveloperDiagnostics {
     log_dir: String,
     data_dir: String,
     plugin_dir: Option<String>,
-    wallpaper_plugin_probe: Option<String>,
     windows: Vec<DiagnosticWindow>,
     log_files: Vec<DiagnosticLogFile>,
     recent_backend_logs: String,
+    backend_logs_incomplete: bool,
 }
 
 fn display_path(path: &Path) -> String {
@@ -79,12 +163,24 @@ fn modified_text(path: &Path) -> Option<String> {
     Some(datetime.format("%Y-%m-%d %H:%M:%S").to_string())
 }
 
-fn read_log_tail(path: &Path) -> String {
-    let Ok(bytes) = fs::read(path) else {
-        return String::new();
+fn read_log_tail(path: &Path) -> std::io::Result<String> {
+    let mut file = fs::File::open(path)?;
+    let start = file
+        .metadata()?
+        .len()
+        .saturating_sub(MAX_LOG_BYTES_PER_FILE as u64);
+    file.seek(SeekFrom::Start(start))?;
+    let mut bytes = Vec::new();
+    file.take(MAX_LOG_BYTES_PER_FILE as u64)
+        .read_to_end(&mut bytes)?;
+    let text = String::from_utf8_lossy(&bytes);
+    let tail = if start > 0 {
+        // Drop the first partial line before redaction and parsing.
+        text.split_once('\n').map(|(_, rest)| rest).unwrap_or("")
+    } else {
+        &text
     };
-    let start = bytes.len().saturating_sub(MAX_LOG_BYTES_PER_FILE);
-    redact_diagnostic_text(&String::from_utf8_lossy(&bytes[start..]))
+    Ok(redact_diagnostic_text(tail))
 }
 
 fn redact_diagnostic_text(value: &str) -> String {
@@ -97,49 +193,59 @@ fn redact_diagnostic_text(value: &str) -> String {
         .to_string()
 }
 
-fn list_log_paths(log_dir: &Path) -> Vec<PathBuf> {
-    let Ok(entries) = fs::read_dir(log_dir) else {
-        return Vec::new();
-    };
+fn list_log_paths(log_dir: &Path) -> std::io::Result<Vec<PathBuf>> {
+    let entries = fs::read_dir(log_dir)?;
     let mut paths = entries
         .flatten()
         .map(|entry| entry.path())
-        .filter(|path| path.extension().and_then(|value| value.to_str()) == Some("log"))
+        .filter(|path| {
+            path.extension().and_then(|value| value.to_str()) == Some("log") && path.is_file()
+        })
         .collect::<Vec<_>>();
     paths.sort_by_key(|path| std::cmp::Reverse(modified_timestamp(path)));
     paths.truncate(MAX_LOG_FILES);
-    paths
+    Ok(paths)
 }
 
-fn probe_wallpaper_plugin_runtime(app_handle: &AppHandle) -> Option<String> {
-    let plugin_dir = crate::app_config::resolve_plugin_packages_dir(app_handle).ok()?;
-    let wallpaper_dir = plugin_dir.join("wallpaper-switcher");
-    let manifest_path = wallpaper_dir.join("plugin.json");
-    let manifest_text = fs::read_to_string(&manifest_path).ok()?;
-    let manifest_json: serde_json::Value = serde_json::from_str(&manifest_text).ok()?;
-    let version = manifest_json
-        .get("version")
-        .and_then(|value| value.as_str())
-        .unwrap_or("<unknown>");
-    let frontend = manifest_json
-        .get("entry")
-        .and_then(|entry| entry.get("frontend"))
-        .and_then(|value| value.as_str())
-        .unwrap_or("dist/frontend.js");
-    let frontend_path = wallpaper_dir.join(frontend);
-    let frontend_text = fs::read_to_string(&frontend_path).unwrap_or_default();
-    let has_legacy_decode_text = frontend_text.contains("Wallhaven 数据失败")
-        || frontend_text.contains("解析 Wallhaven")
-        || frontend_text.contains("error decoding response body")
-        || frontend_text.contains("wallpaper_wallhaven")
-        || frontend_text.contains("WallpaperWallhaven");
-    Some(format!(
-        "path={}; version={}; frontend={}; legacyWallhavenMarkers={}",
-        display_path(&manifest_path),
-        version,
-        display_path(&frontend_path),
-        has_legacy_decode_text
-    ))
+fn read_backend_logs(log_dir: &Path) -> (Vec<DiagnosticLogFile>, String, bool) {
+    let Ok(paths) = list_log_paths(log_dir) else {
+        return (Vec::new(), String::new(), true);
+    };
+    let mut files = Vec::new();
+    let mut tails = Vec::new();
+    let mut incomplete = false;
+    for path in paths {
+        let Ok(metadata) = fs::metadata(&path) else {
+            incomplete = true;
+            continue;
+        };
+        let path_text = display_path(&path);
+        match read_log_tail(&path) {
+            Ok(tail) => tails.push(format!("===== {path_text} =====\n{tail}")),
+            Err(_) => incomplete = true,
+        }
+        files.push(DiagnosticLogFile {
+            path: path_text,
+            size_bytes: metadata.len(),
+            modified_at: modified_text(&path),
+        });
+    }
+    (files, tails.join("\n\n"), incomplete)
+}
+
+fn resolve_log_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
+    let path = app_handle
+        .path()
+        .app_log_dir()
+        .map_err(|error| format!("获取日志目录失败: {error}"))?;
+    fs::create_dir_all(&path)
+        .map_err(|error| format!("创建日志目录失败: {error} ({})", display_path(&path)))?;
+    Ok(path)
+}
+
+#[tauri::command]
+pub fn get_developer_log_dir(app_handle: AppHandle) -> Result<String, String> {
+    resolve_log_dir(&app_handle).map(|path| display_path(&path))
 }
 
 #[tauri::command]
@@ -148,40 +254,13 @@ pub fn get_developer_diagnostics(
     include_logs: Option<bool>,
 ) -> Result<DeveloperDiagnostics, String> {
     let include_logs = include_logs.unwrap_or(false);
-    let log_dir = app_handle
-        .path()
-        .app_log_dir()
-        .map_err(|error| format!("获取日志目录失败: {}", error))?;
-    fs::create_dir_all(&log_dir)
-        .map_err(|error| format!("创建日志目录失败: {} ({})", display_path(&log_dir), error))?;
+    let log_dir = resolve_log_dir(&app_handle)?;
 
-    let log_paths = if include_logs {
-        list_log_paths(&log_dir)
+    let (log_files, recent_backend_logs, backend_logs_incomplete) = if include_logs {
+        read_backend_logs(&log_dir)
     } else {
-        Vec::new()
+        (Vec::new(), String::new(), false)
     };
-    let log_files = log_paths
-        .iter()
-        .filter_map(|path| {
-            let metadata = fs::metadata(path).ok()?;
-            Some(DiagnosticLogFile {
-                path: display_path(path),
-                size_bytes: metadata.len(),
-                modified_at: modified_text(path),
-            })
-        })
-        .collect();
-    let recent_backend_logs = log_paths
-        .iter()
-        .map(|path| {
-            format!(
-                "===== {} =====\n{}",
-                display_path(path),
-                read_log_tail(path)
-            )
-        })
-        .collect::<Vec<_>>()
-        .join("\n\n");
 
     let windows = app_handle
         .webview_windows()
@@ -214,20 +293,14 @@ pub fn get_developer_diagnostics(
         plugin_dir: crate::app_config::resolve_plugin_packages_dir(&app_handle)
             .ok()
             .map(|path| display_path(&path)),
-        wallpaper_plugin_probe: probe_wallpaper_plugin_runtime(&app_handle),
         windows,
         log_files,
         recent_backend_logs,
+        backend_logs_incomplete,
     })
 }
 
 #[tauri::command]
 pub fn open_developer_log_dir(app_handle: AppHandle) -> Result<(), String> {
-    let log_dir = app_handle
-        .path()
-        .app_log_dir()
-        .map_err(|error| format!("获取日志目录失败: {}", error))?;
-    fs::create_dir_all(&log_dir)
-        .map_err(|error| format!("创建日志目录失败: {} ({})", display_path(&log_dir), error))?;
-    crate::commands::open_folder(display_path(&log_dir))
+    crate::commands::open_folder(get_developer_log_dir(app_handle)?)
 }

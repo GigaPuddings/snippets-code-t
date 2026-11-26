@@ -191,7 +191,13 @@ const buildSearchLayer = (input: WorkbenchViewModelInput): WorkbenchLayer => ({
     }
   ],
   actions: [
-    input.settingsAction('developer', 'settings.workbench.actions.diagnostics')
+    {
+      ...input.settingsAction(
+        'developer',
+        'settings.workbench.actions.diagnostics'
+      ),
+      query: { tab: 'developer', section: 'search' }
+    }
   ]
 });
 

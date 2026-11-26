@@ -106,7 +106,7 @@ const workspaceAction = computed(() =>
 
 const metricDestinations = {
   plugins: '/config/category/settings?tab=plugins',
-  search: '/config/category/settings?tab=developer',
+  search: '/config/category/settings?tab=developer&section=search',
   ai: '/config/category/settings?tab=ai'
 };
 

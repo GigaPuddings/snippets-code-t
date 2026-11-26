@@ -9,6 +9,10 @@ import {
 import { useI18n } from 'vue-i18n';
 import { useRouter, type Router } from 'vue-router';
 import { getAllFiles, getCategories, getWorkspaceRoot } from '@/api/markdown';
+import {
+  getSearchDiagnostics,
+  mergeSearchDiagnostics
+} from '@/api/developerDiagnostics';
 import { openNewLocalAiChat } from '@/api/localAi';
 import modal from '@/utils/modal';
 import { navigateConfigRoute } from '@/utils/config-navigation';
@@ -163,7 +167,11 @@ const refreshPluginData = async ({
     refs.pluginsFailed.value = pluginStore.visiblePlugins.some(
       (plugin) => isEnabled(String(plugin.id)) && !isPluginFrontendReady(plugin)
     );
-    refs.searchSources.value = getSearchSourceRuntimeStates();
+    const results = await getSearchDiagnostics().catch(() => []);
+    refs.searchSources.value = mergeSearchDiagnostics(
+      getSearchSourceRuntimeStates(),
+      results
+    );
   } catch (error) {
     refs.pluginsFailed.value = true;
     throw error;

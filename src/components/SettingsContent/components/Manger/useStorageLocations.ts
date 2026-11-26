@@ -8,7 +8,7 @@ import {
   setWorkspaceRoot
 } from '@/api/markdown';
 import { getPluginInstallDir } from '@/api/plugins';
-import { getDeveloperDiagnostics } from '@/api/developerDiagnostics';
+import { getDeveloperLogDir } from '@/api/developerDiagnostics';
 import { openFolder } from '@/utils/file-system';
 
 type Translate = (key: string) => string;
@@ -36,11 +36,11 @@ export interface StorageLocationsController extends StorageState {
 }
 
 async function loadDataLocations(state: StorageState): Promise<void> {
-  const [workspace, data, plugins, diagnostics] = await Promise.allSettled([
+  const [workspace, data, plugins, logs] = await Promise.allSettled([
     getWorkspaceRoot(),
     invoke<DataDirInfo>('get_data_dir_info'),
     getPluginInstallDir(),
-    getDeveloperDiagnostics(false)
+    getDeveloperLogDir()
   ]);
   if (workspace.status === 'fulfilled')
     state.workspaceRoot.value = workspace.value;
@@ -49,9 +49,8 @@ async function loadDataLocations(state: StorageState): Promise<void> {
   else console.error('Load app data directory failed:', data.reason);
   if (plugins.status === 'fulfilled') state.pluginDir.value = plugins.value;
   else console.error('Load plugin directory failed:', plugins.reason);
-  if (diagnostics.status === 'fulfilled')
-    state.logDir.value = diagnostics.value.logDir;
-  else console.error('Load log directory failed:', diagnostics.reason);
+  if (logs.status === 'fulfilled') state.logDir.value = logs.value;
+  else console.error('Load log directory failed:', logs.reason);
 }
 
 async function selectWorkspaceRoot(

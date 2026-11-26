@@ -37,7 +37,7 @@
                 }
               ]"
               :aria-current="activeTab === item.id ? 'page' : undefined"
-              @click="switchTab(item.id)"
+              @click="selectTab(item.id)"
             >
               <component
                 :is="item.icon"
@@ -71,6 +71,7 @@
         :key="componentKey(tab)"
         :is="componentMap[tab]"
         v-show="activeTab === tab"
+        v-bind="tab === 'developer' ? { active: activeTab === tab } : {}"
       />
     </div>
   </div>
@@ -78,7 +79,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import {
   coreSettingsMenuItems,
   getVisibleSettingsMenuItems,
@@ -95,6 +96,7 @@ defineOptions({
 
 const { t } = useI18n();
 const route = useRoute();
+const router = useRouter();
 const pluginStore = usePluginStore();
 const layoutStore = useLayoutStore();
 
@@ -224,6 +226,15 @@ const switchTab = (tabId: string) => {
   activeTab.value = tabId;
   if (!loadedTabs.value.includes(tabId)) {
     loadedTabs.value.push(tabId);
+  }
+};
+
+const selectTab = (tabId: string) => {
+  switchTab(tabId);
+  if (route.query.tab || route.query.section) {
+    void router.replace({
+      query: { ...route.query, tab: activeTab.value, section: undefined }
+    });
   }
 };
 

@@ -29,7 +29,14 @@ const aliases: Record<string, string[]> = {
     'kjj'
   ],
   data: ['数据与存储', '数据管理', '缓存', 'data', 'storage', 'shuju', 'sjcc'],
-  developer: ['开发者模式', '调试', 'developer', 'debug'],
+  developer: [
+    '诊断',
+    '开发者模式',
+    '调试',
+    'diagnostics',
+    'developer',
+    'debug'
+  ],
   localAi: ['本地AI', '本地模型', 'local AI', 'local model'],
   user: [
     '个人中心',

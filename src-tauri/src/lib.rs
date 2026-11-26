@@ -866,7 +866,10 @@ pub fn run() {
             commands::open_folder,                      // 打开文件夹
             commands::save_text_to_file,                // 保存文本到文件
             commands::get_developer_diagnostics,        // 获取开发者诊断报告
+            commands::get_developer_log_dir,            // 获取日志目录路径
             commands::open_developer_log_dir,           // 打开日志目录
+            commands::record_search_diagnostic,
+            commands::get_search_diagnostics,
             optimize_database_cmd,                     // 优化数据库
         ])
         .build(tauri::generate_context!())

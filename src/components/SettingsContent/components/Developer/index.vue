@@ -1,846 +1,648 @@
 <template>
-  <div class="settings-panel">
-    <div class="panel-header">
-      <h3 class="panel-title">{{ t('settings.developer.title') }}</h3>
-    </div>
-
-    <main class="panel-content developer-content">
-      <section class="summarize-section mode-section">
-        <div class="summarize-label">
-          <div class="summarize-label-title">
-            {{ t('settings.developer.mode') }}
-          </div>
-          <div class="summarize-label-desc">
-            {{ t('settings.developer.modeDesc') }}
-          </div>
+  <div class="settings-panel diagnostics">
+    <header class="panel-header">
+      <div
+        class="diagnostic-column flex flex-wrap items-center justify-between gap-2"
+      >
+        <h2 class="panel-title">{{ t('settings.developer.title') }}</h2>
+        <div class="flex flex-wrap items-center gap-1">
+          <button
+            class="ui-action ui-action--muted"
+            type="button"
+            :disabled="loading"
+            :aria-busy="loading"
+            @click="refresh"
+          >
+            <RefreshCw
+              class="size-4"
+              :class="{ 'motion-safe:animate-spin': loading }"
+              aria-hidden="true"
+            />
+            {{ t('settings.developer.refresh') }}
+          </button>
+          <button
+            class="ui-action border border-ui"
+            type="button"
+            :disabled="!snapshot"
+            @click="copyReport(summary)"
+          >
+            <Copy class="size-4" aria-hidden="true" />
+            {{ t('settings.developer.copy') }}
+          </button>
         </div>
-        <div class="summarize-input-wrapper">
+      </div>
+    </header>
+
+    <main
+      class="panel-content diagnostic-column grid gap-settings-group text-ui-main"
+    >
+      <section aria-labelledby="recent-diagnostics" :aria-busy="loading">
+        <div class="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+          <h3 id="recent-diagnostics" class="m-0 text-ui font-semibold">
+            {{ t('settings.developer.recent') }}
+          </h3>
+          <span v-if="lastChecked" class="diagnostic-meta">
+            {{ t('settings.developer.generatedAt', { time: lastChecked }) }}
+          </span>
+        </div>
+        <p
+          v-if="refreshFailed || snapshot?.backendLogsIncomplete"
+          role="status"
+          class="mb-2 text-ui-caption text-chat-warning"
+        >
+          {{
+            t(
+              refreshFailed
+                ? 'settings.developer.refreshFailed'
+                : 'settings.developer.logsIncomplete'
+            )
+          }}
+        </p>
+        <ul
+          v-if="failedSources.length || issues.length"
+          class="diagnostic-list"
+        >
+          <li v-for="source in failedSources" :key="source.key">
+            <button
+              type="button"
+              class="ui-list-action flex w-full items-center justify-between gap-3 p-3"
+              @click="showSearchSource(source.key)"
+            >
+              <span class="grid min-w-0 gap-0.5">
+                <strong class="diagnostic-text text-ui font-medium">
+                  {{ source.pluginId }} · {{ source.source }}
+                </strong>
+                <span class="diagnostic-meta">
+                  {{ t('settings.developer.searchSources') }} ·
+                  {{ searchFailure(source) }} · {{ searchTiming(source) }}
+                </span>
+              </span>
+              <ChevronRight
+                class="size-4 shrink-0 text-ui-muted"
+                aria-hidden="true"
+              />
+            </button>
+          </li>
+          <li v-for="issue in visibleIssues" :key="issue.id">
+            <details v-if="issue.description">
+              <summary class="diagnostic-disclosure">
+                <span class="grid min-w-0 gap-0.5">
+                  <strong class="diagnostic-text text-ui font-medium">
+                    {{ issue.title }}
+                  </strong>
+                  <span class="diagnostic-meta">{{ issueMeta(issue) }}</span>
+                </span>
+              </summary>
+              <pre class="diagnostic-pre mx-3 mb-3">{{
+                issue.description
+              }}</pre>
+            </details>
+            <div v-else class="grid min-w-0 gap-0.5 p-3 pl-8">
+              <strong class="diagnostic-text text-ui font-medium">
+                {{ issue.title }}
+              </strong>
+              <span class="diagnostic-meta">{{ issueMeta(issue) }}</span>
+            </div>
+          </li>
+          <li v-if="issues.length > defaultIssueLimit">
+            <button
+              type="button"
+              class="ui-action ui-action--muted m-1"
+              @click="showAll = !showAll"
+            >
+              {{
+                t(
+                  showAll
+                    ? 'settings.developer.showLess'
+                    : 'settings.developer.showAll'
+                )
+              }}
+            </button>
+          </li>
+        </ul>
+        <p
+          v-else-if="loading && !snapshot"
+          role="status"
+          class="diagnostic-meta"
+        >
+          {{ t('common.loading') }}
+        </p>
+        <p
+          v-else-if="
+            lastChecked && !refreshFailed && !snapshot?.backendLogsIncomplete
+          "
+          class="diagnostic-meta"
+        >
+          {{ t('settings.developer.normal') }}
+        </p>
+      </section>
+
+      <section class="settings-card !p-0" aria-labelledby="capture-title">
+        <div
+          class="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5"
+        >
+          <div class="min-w-0">
+            <h3 id="capture-title" class="m-0 text-ui font-medium">
+              {{ t('settings.developer.mode') }}
+            </h3>
+            <p id="capture-description" class="diagnostic-meta">
+              {{
+                t(
+                  recording
+                    ? 'settings.developer.modeOn'
+                    : 'settings.developer.modeOff'
+                )
+              }}
+            </p>
+          </div>
           <CustomSwitch
-            v-model="developerMode"
-            :active-text="t('common.on')"
-            :inactive-text="t('common.off')"
-            @change="handleDeveloperModeChange"
+            v-model="recording"
+            aria-labelledby="capture-title"
+            aria-describedby="capture-description"
+            @change="setDeveloperModeEnabled"
           />
         </div>
       </section>
 
-      <div class="developer-toolbar">
-        <div class="developer-actions">
-          <CustomButton
-            type="primary"
-            size="small"
-            :loading="loading"
-            @click="refresh"
-          >
-            {{ t('settings.developer.refresh') }}
-          </CustomButton>
-          <CustomButton size="small" @click="copyReport">
-            {{ t('settings.developer.copy') }}
-          </CustomButton>
-          <CustomButton size="small" @click="openLogDir">
-            {{ t('settings.developer.openLogs') }}
-          </CustomButton>
-          <CustomButton size="small" @click="clearFrontendLogs">
-            {{ t('settings.developer.clearFrontend') }}
-          </CustomButton>
-        </div>
-        <span v-if="diagnostics" class="refresh-time">
-          {{ t('settings.developer.generatedAt') }}
-          {{ diagnostics.generatedAt }}
-        </span>
-      </div>
-
-      <p class="developer-hint">{{ t('settings.developer.hint') }}</p>
-      <p v-if="ignoredWarningCount > 0" class="ignored-warning-hint">
-        {{
-          t('settings.developer.ignoredWarnings', {
-            count: ignoredWarningCount
-          })
-        }}
-      </p>
-
-      <section class="diagnostic-summary">
-        <article
-          class="summary-card"
-          :class="issueCardClass(totalErrorCount, totalIssueCount)"
-        >
-          <span class="summary-label">
-            {{ t('settings.developer.status') }}
-          </span>
-          <strong>
-            {{
-              totalIssueCount > 0
-                ? t('settings.developer.attention')
-                : t('settings.developer.normal')
-            }}
-          </strong>
-          <small>
-            {{ t('settings.developer.issueCount', { count: totalIssueCount }) }}
-          </small>
-        </article>
-        <article class="summary-card">
-          <span class="summary-label">
-            {{ t('settings.developer.application') }}
-          </span>
-          <strong>v{{ diagnostics?.appVersion || '-' }}</strong>
-          <small>
-            {{ diagnostics?.buildMode || '-' }} · {{ diagnostics?.os || '-' }}
-            {{ diagnostics?.arch || '' }}
-          </small>
-        </article>
-        <article class="summary-card">
-          <span class="summary-label">
-            {{ t('settings.developer.windows') }}
-          </span>
-          <strong>
-            {{ visibleWindowCount }} / {{ diagnostics?.windows.length || 0 }}
-          </strong>
-          <small>{{ t('settings.developer.visibleWindows') }}</small>
-        </article>
-        <article
-          class="summary-card"
-          :class="issueCardClass(frontendErrorCount, frontendIssueCount)"
-        >
-          <span class="summary-label">
-            {{ t('settings.developer.frontendIssues') }}
-          </span>
-          <strong>{{ frontendIssueCount }}</strong>
-          <small>
-            {{
-              t('settings.developer.errorWarnCount', {
-                errors: frontendErrorCount,
-                warnings: frontendWarningCount
-              })
-            }}
-          </small>
-        </article>
-        <article
-          class="summary-card"
-          :class="issueCardClass(backendErrorCount, backendIssueCount)"
-        >
-          <span class="summary-label">
-            {{ t('settings.developer.backendIssues') }}
-          </span>
-          <strong>{{ backendIssueCount }}</strong>
-          <small>
-            {{
-              t('settings.developer.errorWarnCount', {
-                errors: backendErrorCount,
-                warnings: backendWarningCount
-              })
-            }}
-          </small>
-        </article>
-        <article
-          class="summary-card"
-          :class="
-            issueCardClass(searchSourceFailedCount, searchSourceIssueCount)
-          "
-        >
-          <span class="summary-label">
+      <div class="diagnostic-list">
+        <details ref="searchDetails">
+          <summary class="diagnostic-disclosure font-medium">
             {{ t('settings.developer.searchSources') }}
-          </span>
-          <strong>{{ searchSourceStates.length }}</strong>
-          <small>
-            {{
-              t('settings.developer.searchSourceSummary', {
-                total: searchSourceStates.length,
-                failed: searchSourceFailedCount
-              })
-            }}
-          </small>
-        </article>
-      </section>
-
-      <nav class="diagnostic-tabs">
-        <button
-          v-for="tab in tabs"
-          :key="tab.id"
-          type="button"
-          class="diagnostic-tab"
-          :class="{ 'diagnostic-tab--active': activeTab === tab.id }"
-          @click="activeTab = tab.id"
-        >
-          {{ tab.label }}
-          <span v-if="tab.count !== undefined" class="tab-count">
-            {{ tab.count }}
-          </span>
-        </button>
-      </nav>
-
-      <section v-if="activeTab === 'overview'" class="overview-panel">
-        <div class="overview-grid">
-          <article class="overview-card">
-            <h4>{{ t('settings.developer.paths') }}</h4>
-            <dl class="diagnostic-list">
-              <div>
-                <dt>{{ t('settings.developer.dataDir') }}</dt>
-                <dd>{{ diagnostics?.dataDir || '-' }}</dd>
-              </div>
-              <div>
-                <dt>{{ t('settings.developer.pluginDir') }}</dt>
-                <dd>{{ diagnostics?.pluginDir || '-' }}</dd>
-              </div>
-              <div>
-                <dt>Wallpaper</dt>
-                <dd>{{ diagnostics?.wallpaperPluginProbe || '-' }}</dd>
-              </div>
-              <div>
-                <dt>{{ t('settings.developer.logDir') }}</dt>
-                <dd>{{ diagnostics?.logDir || '-' }}</dd>
-              </div>
-            </dl>
-          </article>
-
-          <article class="overview-card">
-            <h4>{{ t('settings.developer.searchSources') }}</h4>
-            <div v-if="searchSourceStates.length" class="compact-list">
-              <div
-                v-for="source in searchSourceStates"
-                :key="source.key"
-                class="compact-item"
+          </summary>
+          <p v-if="!searchSources.length" class="diagnostic-meta px-3 pb-3">
+            {{ t('settings.developer.empty') }}
+          </p>
+          <ul
+            v-else
+            ref="searchList"
+            class="mx-3 mb-3 min-w-0 list-none divide-y divide-ui pl-0"
+          >
+            <li v-for="source in searchSources" :key="source.key" class="py-1">
+              <details
+                :data-search-source="source.key"
+                class="rounded-ui"
+                :class="{ 'bg-ui-card-soft': selectedSource === source.key }"
               >
-                <div class="compact-item-title">
+                <summary class="diagnostic-disclosure">
+                  <span class="diagnostic-text min-w-0">
+                    {{ source.pluginId }} · {{ source.source }}
+                  </span>
                   <span
-                    class="status-dot"
-                    :class="searchSourceDotClass(source.health)"
-                  ></span>
-                  <strong>{{ source.pluginId }}:{{ source.source }}</strong>
-                  <span class="state-text">
+                    class="diagnostic-meta ml-auto shrink-0"
+                    :class="{ 'text-chat-warning': source.health === 'failed' }"
+                  >
                     {{
                       t(
                         `settings.developer.searchSourceHealth.${source.health}`
                       )
                     }}
                   </span>
-                </div>
-                <small>
-                  {{
-                    t('settings.developer.searchSourceMeta', {
-                      phase: source.phase,
-                      domain: source.domain || '-',
-                      priority: source.priority,
-                      timeout: formatSearchSourceTimeout(source),
-                      timing: formatSearchSourceTiming(source)
-                    })
-                  }}
-                </small>
-                <small v-if="source.lastError" class="error-text">
-                  {{ source.lastError }}
-                </small>
-              </div>
-            </div>
-            <p v-else class="empty-text">{{ t('settings.developer.empty') }}</p>
-          </article>
-
-          <article class="overview-card">
-            <h4>{{ t('settings.developer.windows') }}</h4>
-            <div v-if="diagnostics?.windows.length" class="compact-list">
-              <div
-                v-for="window in diagnostics.windows"
-                :key="window.label"
-                class="compact-item"
-              >
-                <div class="compact-item-title">
+                </summary>
+                <div class="diagnostic-meta grid gap-1 px-3 pb-3">
+                  <span>{{ searchTiming(source) }}</span>
                   <span
-                    class="status-dot"
-                    :class="{ 'status-dot--active': window.visible }"
-                  ></span>
-                  <strong>{{ window.label }}</strong>
-                  <span class="state-text">
-                    {{
-                      window.visible
-                        ? t('settings.developer.visible')
-                        : t('settings.developer.hidden')
-                    }}
+                    v-if="source.health === 'failed'"
+                    class="text-chat-warning"
+                  >
+                    {{ searchFailure(source) }}
+                  </span>
+                  <span
+                    v-if="source.lastError && source.health === 'failed'"
+                    class="diagnostic-text"
+                  >
+                    {{ redactDiagnosticText(source.lastError) }}
                   </span>
                 </div>
-                <small>{{ window.url }}</small>
-              </div>
-            </div>
-            <p v-else class="empty-text">{{ t('settings.developer.empty') }}</p>
-          </article>
+              </details>
+            </li>
+          </ul>
+        </details>
 
-          <article class="overview-card">
-            <h4>{{ t('settings.developer.logFiles') }}</h4>
-            <div v-if="diagnostics?.logFiles.length" class="compact-list">
+        <details>
+          <summary class="diagnostic-disclosure font-medium">
+            {{ t('settings.developer.application') }}
+          </summary>
+          <div v-if="snapshot" class="grid gap-3 px-3 pb-3">
+            <p class="text-ui-caption">
+              v{{ snapshot.appVersion }} · {{ snapshot.os }}
+              {{ snapshot.arch }} · {{ snapshot.buildMode }}
+            </p>
+            <dl class="diagnostic-meta grid gap-1">
               <div
-                v-for="file in diagnostics.logFiles"
-                :key="file.path"
-                class="compact-item"
+                v-for="path in paths"
+                :key="path.label"
+                class="flex flex-wrap gap-x-2"
               >
-                <div class="compact-item-title">
-                  <strong>{{ fileName(file.path) }}</strong>
-                  <span class="state-text">
-                    {{ formatBytes(file.sizeBytes) }}
-                  </span>
-                </div>
-                <small>{{ file.modifiedAt || '-' }} · {{ file.path }}</small>
+                <dt>{{ path.label }}</dt>
+                <dd class="diagnostic-text min-w-0 text-ui-main">
+                  {{ path.value || '—' }}
+                </dd>
               </div>
+            </dl>
+            <div class="grid gap-1">
+              <h4 class="m-0 text-ui-caption font-medium">
+                {{ t('settings.developer.windows') }}
+              </h4>
+              <p
+                v-for="window in snapshot.windows"
+                :key="window.label"
+                class="diagnostic-meta diagnostic-text"
+              >
+                {{ window.label }} ·
+                {{
+                  t(
+                    window.visible
+                      ? 'settings.developer.visible'
+                      : 'settings.developer.hidden'
+                  )
+                }}
+                · {{ redactDiagnosticText(window.url) }}
+              </p>
             </div>
-            <p v-else class="empty-text">{{ t('settings.developer.empty') }}</p>
-          </article>
-        </div>
-      </section>
+          </div>
+        </details>
 
-      <section v-else class="log-panel">
-        <div class="log-toolbar">
-          <input
-            v-model="logSearch"
-            class="log-search"
-            type="search"
-            :placeholder="t('settings.developer.searchLogs')"
-          />
-          <span>
-            {{
-              t('settings.developer.matchLines', { count: matchedLineCount })
-            }}
-          </span>
-        </div>
-        <pre class="diagnostic-report">{{ visibleLogText }}</pre>
-      </section>
+        <details>
+          <summary class="diagnostic-disclosure font-medium">
+            {{ t('settings.developer.fullReport') }}
+          </summary>
+          <div class="grid min-w-0 gap-2 px-3 pb-3">
+            <div class="flex flex-wrap items-center gap-1">
+              <button
+                v-for="tab in logTabs"
+                :key="tab.id"
+                type="button"
+                class="ui-action ui-action--muted text-ui-caption"
+                :aria-pressed="activeLog === tab.id"
+                @click="activeLog = tab.id"
+              >
+                {{ t(tab.label) }}
+              </button>
+            </div>
+            <input
+              v-model="logSearch"
+              type="search"
+              class="h-ui-control w-full rounded-ui border border-ui bg-transparent px-2 text-ui focus-visible:outline focus-visible:outline-1 focus-visible:outline-primary"
+              :aria-label="t('settings.developer.searchLogs')"
+              :placeholder="t('settings.developer.searchLogs')"
+            />
+            <pre class="diagnostic-pre">{{ visibleLog }}</pre>
+            <div class="flex flex-wrap items-center gap-1">
+              <button
+                type="button"
+                class="ui-action ui-action--muted"
+                @click="openLogDir"
+              >
+                {{ t('settings.developer.openLogs') }}
+              </button>
+              <button
+                type="button"
+                class="ui-action ui-action--muted"
+                :disabled="!frontendLogs.length"
+                @click="clearFrontendLogs"
+              >
+                {{ t('settings.developer.clearFrontend') }}
+              </button>
+              <button
+                type="button"
+                class="ui-action ui-action--muted"
+                :disabled="!snapshot"
+                @click="copyReport(fullReport)"
+              >
+                {{ t('settings.developer.copyFull') }}
+              </button>
+            </div>
+          </div>
+        </details>
+      </div>
     </main>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed, nextTick, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { CustomButton, CustomSwitch } from '@/components/UI';
+import { useRoute } from 'vue-router';
+import ChevronRight from '~icons/lucide/chevron-right';
+import Copy from '~icons/lucide/copy';
+import RefreshCw from '~icons/lucide/refresh-cw';
+import { CustomSwitch } from '@/components/UI';
 import {
   getDeveloperDiagnostics,
+  getSearchDiagnostics,
+  mergeSearchDiagnostics,
   openDeveloperLogDir,
-  type DeveloperDiagnostics
+  type DeveloperDiagnostics,
+  type SearchDiagnosticEntry
 } from '@/api/developerDiagnostics';
+import { getSearchSourceRuntimeStates } from '@/plugins/search-providers';
+import { usePluginStore } from '@/store';
+import modal from '@/utils/modal';
 import {
   clearFrontendDiagnostics,
   formatFrontendDiagnostics,
   getFrontendDiagnostics,
   isDeveloperModeEnabled,
   redactDiagnosticText,
-  setDeveloperModeEnabled,
-  summarizeBackendDiagnostics,
-  summarizeFrontendDiagnostics,
-  type FrontendDiagnosticEntry
+  setDeveloperModeEnabled
 } from '@/utils/developer-diagnostics';
-import { getSearchSourceRuntimeStates } from '@/plugins/search-providers';
-import type { SearchSourceRuntimeState } from '@/search/sourceRegistry';
-import modal from '@/utils/modal';
+import {
+  collectRecentDiagnosticIssues,
+  type RecentDiagnosticIssue
+} from './diagnosticIssues';
 
-type DiagnosticTab = 'overview' | 'frontend' | 'backend' | 'report';
+defineOptions({ name: 'DeveloperSettings' });
+const props = defineProps<{ active: boolean }>();
+const { t, locale } = useI18n();
+const route = useRoute();
+const pluginStore = usePluginStore();
+type SearchSource = ReturnType<typeof mergeSearchDiagnostics>[number];
 
-defineOptions({
-  name: 'DeveloperSettings'
-});
-
-const { t } = useI18n();
-const developerMode = ref(isDeveloperModeEnabled());
-const diagnostics = ref<DeveloperDiagnostics | null>(null);
-const frontendLogs = ref<FrontendDiagnosticEntry[]>([]);
-const searchSourceStates = ref<SearchSourceRuntimeState[]>([]);
+const recording = ref(isDeveloperModeEnabled());
+const snapshot = ref<DeveloperDiagnostics>();
+const frontendLogs = ref(getFrontendDiagnostics());
+const searchResults = ref<SearchDiagnosticEntry[]>([]);
+const runtimeSources = ref(getSearchSourceRuntimeStates());
+const searchSources = computed(() =>
+  mergeSearchDiagnostics(runtimeSources.value, searchResults.value)
+);
+const failedSources = computed(() =>
+  searchSources.value
+    .filter((source) => source.health === 'failed')
+    .sort((a, b) => searchTime(b) - searchTime(a))
+);
 const loading = ref(false);
-const activeTab = ref<DiagnosticTab>('overview');
-const logSearch = ref('');
-
-const frontendSummary = computed(() =>
-  summarizeFrontendDiagnostics(frontendLogs.value)
+const refreshFailed = ref(false);
+const lastChecked = ref('');
+const searchDetails = ref<HTMLDetailsElement>();
+const searchList = ref<HTMLUListElement>();
+const selectedSource = ref('');
+const showAll = ref(false);
+const defaultIssueLimit = 6;
+const issues = computed(() =>
+  collectRecentDiagnosticIssues(
+    frontendLogs.value,
+    snapshot.value?.recentBackendLogs ?? ''
+  )
 );
-const backendSummary = computed(() =>
-  summarizeBackendDiagnostics(diagnostics.value?.recentBackendLogs)
-);
-const frontendErrorCount = computed(() => frontendSummary.value.errors);
-const frontendWarningCount = computed(() => frontendSummary.value.warnings);
-const frontendIssueCount = computed(() => frontendSummary.value.total);
-const backendErrorCount = computed(() => backendSummary.value.errors);
-const backendWarningCount = computed(() => backendSummary.value.warnings);
-const backendIssueCount = computed(() => backendSummary.value.total);
-const searchSourceFailedCount = computed(
-  () =>
-    searchSourceStates.value.filter((source) => source.health === 'failed')
-      .length
-);
-const searchSourceIssueCount = computed(() => searchSourceFailedCount.value);
-const totalErrorCount = computed(
-  () =>
-    frontendErrorCount.value +
-    backendErrorCount.value +
-    searchSourceFailedCount.value
-);
-const totalIssueCount = computed(
-  () =>
-    frontendIssueCount.value +
-    backendIssueCount.value +
-    searchSourceIssueCount.value
-);
-const ignoredWarningCount = computed(
-  () =>
-    frontendSummary.value.ignoredWarnings + backendSummary.value.ignoredWarnings
-);
-const visibleWindowCount = computed(
-  () =>
-    diagnostics.value?.windows.filter((window) => window.visible).length || 0
+const visibleIssues = computed(() =>
+  showAll.value ? issues.value : issues.value.slice(0, defaultIssueLimit)
 );
 
-const frontendLogText = computed(
-  () =>
-    formatFrontendDiagnostics(frontendLogs.value) ||
-    t('settings.developer.empty')
-);
-const backendLogText = computed(
-  () =>
-    redactDiagnosticText(diagnostics.value?.recentBackendLogs || '') ||
-    t('settings.developer.empty')
-);
-const searchSourceReportText = computed(() =>
-  searchSourceStates.value.length
-    ? searchSourceStates.value
-        .map((source) =>
-          [
-            `${source.pluginId}:${source.source}`,
-            `phase=${source.phase}`,
-            `health=${source.health}`,
-            `domain=${source.domain ?? '-'}`,
-            `priority=${source.priority}`,
-            `timeoutMs=${source.timeoutMs ?? '-'}`,
-            `lastDurationMs=${source.lastDurationMs ?? '-'}`,
-            `lastError=${source.lastError ?? '-'}`
-          ].join(' | ')
-        )
-        .join('\n')
-    : t('settings.developer.empty')
-);
-
-const reportText = computed(() => {
-  const { recentBackendLogs: _recentBackendLogs, ...summary } =
-    diagnostics.value || {
-      recentBackendLogs: ''
-    };
-  return redactDiagnosticText(
-    [
-      '===== Environment =====',
-      JSON.stringify(summary, null, 2),
-      '',
-      '===== Frontend diagnostics =====',
-      frontendLogText.value,
-      '',
-      '===== Search source health =====',
-      searchSourceReportText.value,
-      '',
-      '===== Backend logs =====',
-      backendLogText.value
-    ].join('\n')
-  );
-});
-
-const tabs = computed(() => [
-  { id: 'overview' as const, label: t('settings.developer.overview') },
+const paths = computed(() => [
+  { label: t('settings.developer.dataDir'), value: snapshot.value?.dataDir },
   {
-    id: 'frontend' as const,
-    label: t('settings.developer.frontendLogs'),
-    count: frontendIssueCount.value
+    label: t('settings.developer.pluginDir'),
+    value: snapshot.value?.pluginDir
   },
-  {
-    id: 'backend' as const,
-    label: t('settings.developer.backendLogs'),
-    count: backendIssueCount.value
-  },
-  { id: 'report' as const, label: t('settings.developer.fullReport') }
+  { label: t('settings.developer.logDir'), value: snapshot.value?.logDir }
 ]);
 
-const selectedLogText = computed(() => {
-  if (activeTab.value === 'frontend') return frontendLogText.value;
-  if (activeTab.value === 'backend') return backendLogText.value;
-  return reportText.value;
-});
+const formatter = computed(
+  () =>
+    new Intl.DateTimeFormat(locale.value, {
+      dateStyle: 'short',
+      timeStyle: 'medium'
+    })
+);
+const formatTimestamp = (timestamp: number): string =>
+  Number.isFinite(timestamp) && timestamp > 0
+    ? formatter.value.format(timestamp)
+    : '';
+const searchTime = (source: SearchSource): number =>
+  source.result?.completedAt ??
+  Math.max(source.lastSuccessfulAt ?? 0, source.lastFailedAt ?? 0);
+const searchTiming = (source: SearchSource): string =>
+  [
+    formatTimestamp(searchTime(source)),
+    source.result?.windowLabel,
+    source.lastDurationMs === undefined
+      ? undefined
+      : t('settings.developer.searchSourceTiming', {
+          duration: source.lastDurationMs
+        })
+  ]
+    .filter(Boolean)
+    .join(' · ') || t('settings.developer.searchSourceTimingNever');
+const searchFailure = (source: SearchSource): string =>
+  t(
+    source.result?.outcome === 'timeout'
+      ? 'settings.developer.searchTimeout'
+      : 'settings.developer.searchFailed'
+  );
 
-const visibleLogText = computed(() => {
+const issueMeta = (issue: RecentDiagnosticIssue): string =>
+  [
+    issue.module === 'frontend'
+      ? t('settings.developer.frontendLogs')
+      : issue.module,
+    issue.windowLabel,
+    t(`settings.developer.level.${issue.level}`),
+    formatTimestamp(issue.timestamp),
+    t('settings.developer.occurrences', { count: issue.count })
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+const summary = computed(() => {
+  const environment = snapshot.value;
+  const safeIssues = issues.value
+    .slice(0, defaultIssueLimit)
+    .map((issue) => issueMeta(issue));
+  return [
+    t('settings.developer.title'),
+    environment &&
+      `v${environment.appVersion} · ${environment.os} ${environment.arch} · ${environment.buildMode}`,
+    lastChecked.value &&
+      t('settings.developer.generatedAt', { time: lastChecked.value }),
+    refreshFailed.value && t('settings.developer.refreshFailed'),
+    environment?.backendLogsIncomplete &&
+      t('settings.developer.logsIncomplete'),
+    !recording.value && t('settings.developer.loggingOff'),
+    ...failedSources.value.map(
+      (source) =>
+        `${source.pluginId} · ${source.source} · ${searchFailure(source)} · ${searchTiming(source)}`
+    ),
+    ...safeIssues
+  ]
+    .filter(Boolean)
+    .join('\n');
+});
+const logTabs = [
+  { id: 'report', label: 'settings.developer.preview' },
+  { id: 'frontend', label: 'settings.developer.frontendLogs' },
+  { id: 'backend', label: 'settings.developer.backendLogs' }
+] as const;
+const activeLog = ref<(typeof logTabs)[number]['id']>('report');
+const logSearch = ref('');
+const frontendText = computed(() =>
+  formatFrontendDiagnostics(frontendLogs.value)
+);
+const backendText = computed(() => snapshot.value?.recentBackendLogs ?? '');
+const fullReport = computed(() => {
+  const environment = snapshot.value;
+  const { recentBackendLogs, ...details } = environment ?? {
+    recentBackendLogs: ''
+  };
+  return redactDiagnosticText(
+    [
+      summary.value,
+      '===== Environment =====',
+      JSON.stringify(details, null, 2),
+      '===== Search sources =====',
+      JSON.stringify(searchSources.value, null, 2),
+      '===== Frontend diagnostics =====',
+      frontendText.value,
+      '===== Backend logs =====',
+      recentBackendLogs
+    ].join('\n\n')
+  );
+});
+const visibleLog = computed(() => {
+  const text = {
+    frontend: frontendText.value,
+    backend: backendText.value,
+    report: fullReport.value
+  }[activeLog.value];
+  if (!text) return t('settings.developer.empty');
   const keyword = logSearch.value.trim().toLowerCase();
-  if (!keyword) return selectedLogText.value;
+  if (!keyword) return text;
   return (
-    selectedLogText.value
+    text
       .split('\n')
       .filter((line) => line.toLowerCase().includes(keyword))
       .join('\n') || t('settings.developer.noMatches')
   );
 });
 
-const matchedLineCount = computed(() => {
-  if (!logSearch.value.trim()) return selectedLogText.value.split('\n').length;
-  if (visibleLogText.value === t('settings.developer.noMatches')) return 0;
-  return visibleLogText.value.split('\n').length;
-});
-
-const issueCardClass = (
-  errorCount: number,
-  issueCount: number
-): Record<string, boolean> => ({
-  'summary-card--danger': errorCount > 0,
-  'summary-card--warning': errorCount === 0 && issueCount > 0
-});
-
-const fileName = (path: string): string => path.split(/[\\/]/).pop() || path;
-
-const formatBytes = (bytes: number): string => {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-};
-
-const formatSearchSourceTiming = (source: SearchSourceRuntimeState): string => {
-  if (typeof source.lastDurationMs === 'number') {
-    return t('settings.developer.searchSourceTiming', {
-      duration: source.lastDurationMs
-    });
-  }
-  return t('settings.developer.searchSourceTimingNever');
-};
-
-const formatSearchSourceTimeout = (
-  source: SearchSourceRuntimeState
-): string => {
-  if (typeof source.timeoutMs === 'number' && source.timeoutMs > 0) {
-    return t('settings.developer.searchSourceTimeout', {
-      timeout: source.timeoutMs
-    });
-  }
-
-  return t('settings.developer.searchSourceTimeoutDisabled');
-};
-
-const searchSourceDotClass = (
-  health: SearchSourceRuntimeState['health']
-): Record<string, boolean> => ({
-  'status-dot--active': health === 'healthy',
-  'status-dot--warning': health === 'searching',
-  'status-dot--danger': health === 'failed'
-});
-
-const refresh = async () => {
+let pendingRefresh: Promise<void> | undefined;
+function refresh(): Promise<void> {
+  if (pendingRefresh) return pendingRefresh;
   loading.value = true;
-  try {
-    const includeLogs = developerMode.value;
-    frontendLogs.value = includeLogs ? getFrontendDiagnostics() : [];
-    searchSourceStates.value = getSearchSourceRuntimeStates();
-    diagnostics.value = await getDeveloperDiagnostics(includeLogs);
-  } catch (error) {
-    modal.msg(`${t('settings.developer.refreshFailed')}: ${error}`, 'error');
-  } finally {
-    loading.value = false;
+  pendingRefresh = Promise.allSettled([
+    getDeveloperDiagnostics(true),
+    getSearchDiagnostics()
+  ])
+    .then(([environment, searches]) => {
+      frontendLogs.value = getFrontendDiagnostics();
+      runtimeSources.value = getSearchSourceRuntimeStates();
+      if (environment.status === 'fulfilled')
+        snapshot.value = environment.value;
+      if (searches.status === 'fulfilled') searchResults.value = searches.value;
+      refreshFailed.value =
+        environment.status === 'rejected' || searches.status === 'rejected';
+      if (
+        environment.status === 'fulfilled' &&
+        !refreshFailed.value &&
+        !environment.value.backendLogsIncomplete
+      )
+        lastChecked.value = environment.value.generatedAt;
+    })
+    .finally(() => {
+      loading.value = false;
+      pendingRefresh = undefined;
+    });
+  return pendingRefresh;
+}
+
+async function showSearchSource(key = '') {
+  if (!searchDetails.value) return;
+  searchDetails.value.open = true;
+  selectedSource.value = key;
+  await nextTick();
+  const detail = Array.from(
+    searchList.value?.querySelectorAll('details') ?? []
+  ).find((item) => item.dataset.searchSource === key);
+  if (detail) detail.open = true;
+  const target = (detail ?? searchDetails.value)?.querySelector('summary');
+  target?.focus({ preventScroll: true });
+  target?.scrollIntoView({ block: 'center' });
+}
+
+watch(
+  [() => props.active, () => route.query.section],
+  async ([active, section], _, onCleanup) => {
+    if (!active) return;
+    let outdated = false;
+    onCleanup(() => {
+      outdated = true;
+    });
+    recording.value = isDeveloperModeEnabled();
+    await refresh();
+    if (!outdated && section === 'search')
+      await showSearchSource(failedSources.value[0]?.key);
+  },
+  { immediate: true, flush: 'post' }
+);
+
+watch(
+  () => pluginStore.runtimeRevision,
+  () => {
+    if (props.active) runtimeSources.value = getSearchSourceRuntimeStates();
   }
-};
+);
 
-const handleDeveloperModeChange = (enabled: boolean) => {
-  setDeveloperModeEnabled(enabled);
-  modal.msg(
-    enabled ? t('settings.developer.enabled') : t('settings.developer.disabled')
-  );
-  void refresh();
-};
-
-const copyReport = async () => {
+async function copyReport(text: string) {
   try {
-    await navigator.clipboard.writeText(reportText.value);
+    await navigator.clipboard.writeText(text);
     modal.msg(t('settings.developer.copied'));
   } catch (error) {
     modal.msg(`${t('settings.developer.copyFailed')}: ${error}`, 'error');
   }
-};
+}
 
-const openLogDir = async () => {
+async function openLogDir() {
   try {
     await openDeveloperLogDir();
   } catch (error) {
     modal.msg(`${t('settings.developer.openLogsFailed')}: ${error}`, 'error');
   }
-};
+}
 
-const clearFrontendLogs = () => {
+function clearFrontendLogs() {
   clearFrontendDiagnostics();
-  frontendLogs.value = [];
-  modal.msg(t('settings.developer.frontendCleared'));
-};
-
-onMounted(() => {
-  void refresh();
-});
+  frontendLogs.value = getFrontendDiagnostics();
+}
 </script>
 
 <style scoped lang="scss">
-.developer-content {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
+.diagnostic-column {
+  @apply mx-auto w-full;
 
-.mode-section {
-  margin-top: 0;
-}
-
-.developer-toolbar,
-.developer-actions,
-.log-toolbar,
-.compact-item-title {
-  display: flex;
-  align-items: center;
-}
-
-.developer-toolbar {
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: space-between;
-}
-
-.developer-actions {
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.refresh-time,
-.developer-hint,
-.log-toolbar,
-.empty-text,
-.compact-item small,
-.summary-card small {
-  font-size: 12px;
-  color: var(--panel-text-secondary);
-}
-
-.developer-hint,
-.ignored-warning-hint,
-.empty-text {
-  margin: 0;
-  line-height: 1.6;
-}
-
-.ignored-warning-hint {
-  padding: 6px 9px;
-  font-size: 12px;
-  color: #a16207;
-  background: rgb(245 158 11 / 8%);
-  border: 1px solid rgb(245 158 11 / 22%);
-  border-radius: 6px;
-}
-
-.diagnostic-summary {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.summary-card,
-.overview-card {
-  padding: 10px 12px;
-  background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
-  border-radius: 7px;
-}
-
-.summary-card {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-  border-left: 3px solid var(--search-result-accent);
-
-  strong {
-    font-size: 17px;
-    color: var(--panel-text);
-  }
-
-  &--danger {
-    border-left-color: #ef4444;
-  }
-
-  &--warning {
-    border-left-color: #f59e0b;
-  }
-}
-
-.summary-label {
-  font-size: 12px;
-  color: var(--panel-text-secondary);
-}
-
-.diagnostic-tabs {
-  display: flex;
-  gap: 4px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--panel-border);
-}
-
-.diagnostic-tab {
-  display: inline-flex;
-  gap: 5px;
-  align-items: center;
-  padding: 6px 10px;
-  color: var(--panel-text-secondary);
-  cursor: pointer;
-  background: transparent;
-  border: 0;
-  border-radius: 6px;
-
-  &:hover,
-  &--active {
-    color: var(--panel-text);
-    background: var(--panel-hover-bg);
-  }
-}
-
-.tab-count,
-.state-text {
-  padding: 1px 5px;
-  font-size: 11px;
-  color: var(--panel-text-secondary);
-  background: var(--panel-hover-bg);
-  border-radius: 999px;
-}
-
-.overview-panel,
-.log-panel {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto;
-}
-
-.overview-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.overview-card {
-  min-width: 0;
-
-  &:first-child {
-    grid-column: 1 / -1;
-  }
-
-  h4 {
-    margin: 0 0 8px;
-    font-size: 13px;
-    color: var(--panel-text);
-  }
-}
-
-.diagnostic-list,
-.compact-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  max-inline-size: 62rem;
 }
 
 .diagnostic-list {
-  margin: 0;
+  @apply m-0 min-w-0 list-none divide-y divide-ui rounded-ui-lg border border-ui p-0;
+}
 
-  div {
-    display: grid;
-    grid-template-columns: 92px minmax(0, 1fr);
-    gap: 8px;
+.diagnostic-disclosure {
+  @apply flex min-w-0 cursor-pointer items-center gap-3 rounded-ui p-3 text-ui text-ui-main transition-colors hover:bg-ui-hover focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary motion-reduce:transition-none;
+
+  &::before {
+    @apply size-1.5 shrink-0 rotate-45 border-r border-t border-current text-ui-muted transition-transform content-[''] motion-reduce:transition-none;
   }
 
-  dt,
-  dd {
-    margin: 0;
-    font-size: 12px;
+  details[open] > &::before {
+    @apply rotate-[135deg];
   }
 
-  dt {
-    color: var(--panel-text-secondary);
-  }
-
-  dd {
-    overflow: hidden;
-    color: var(--panel-text);
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  &::-webkit-details-marker {
+    display: none;
   }
 }
 
-.compact-item {
-  min-width: 0;
-
-  .compact-item-title {
-    gap: 6px;
-    font-size: 12px;
-    color: var(--panel-text);
-  }
-
-  small {
-    display: block;
-    margin-top: 2px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
+.diagnostic-meta {
+  @apply text-ui-caption text-[color:var(--settings-muted)];
 }
 
-.status-dot {
-  width: 7px;
-  height: 7px;
-  background: var(--panel-text-secondary);
-  border-radius: 50%;
-
-  &--active {
-    background: #22c55e;
-  }
-
-  &--warning {
-    background: #f59e0b;
-  }
-
-  &--danger {
-    background: #ef4444;
-  }
+.diagnostic-text {
+  overflow-wrap: anywhere;
 }
 
-.error-text {
-  color: #ef4444;
-}
+.diagnostic-pre {
+  @apply max-h-80 overflow-auto whitespace-pre-wrap rounded-ui bg-ui-card-soft px-3 py-2 font-mono text-ui-caption text-ui-main;
 
-.log-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.log-toolbar {
-  gap: 10px;
-  justify-content: space-between;
-}
-
-.log-search {
-  min-width: 240px;
-  padding: 6px 9px;
-  color: var(--panel-text);
-  background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
-  border-radius: 6px;
-  outline: none;
-
-  &:focus {
-    border-color: var(--search-result-accent);
-  }
-}
-
-.diagnostic-report {
-  flex: 1 1 auto;
-  min-height: 0;
-  padding: 10px;
-  margin: 0;
-  overflow: auto;
-  font-family: Consolas, 'Courier New', monospace;
-  font-size: 12px;
-  line-height: 1.55;
-  color: var(--panel-text);
-  word-break: break-word;
-  white-space: pre-wrap;
-  background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
-  border-radius: 6px;
-}
-
-@media (width <= 1100px) {
-  .diagnostic-summary {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
+  overflow-wrap: anywhere;
 }
 </style>

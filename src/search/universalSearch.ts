@@ -1,4 +1,5 @@
-import { invoke as tauriInvoke } from '@tauri-apps/api/core';
+import { invoke as tauriInvoke, isTauri } from '@tauri-apps/api/core';
+import { recordSearchDiagnostic } from '@/api/developerDiagnostics';
 import type { ContentType, MarkdownFile, SearchHistoryItem } from '@/types';
 import { isContentType } from '@/utils/type-guards';
 import { isURL, normalizeURL } from '@/utils/url';
@@ -273,6 +274,18 @@ const searchProvider = async (
     runtime.registry ?? (runtime.providers ? undefined : searchSourceRegistry);
   const startedAt = Date.now();
   registry?.markSearching(provider, startedAt);
+  const reportResult = (outcome: 'success' | 'timeout' | 'failed'): void => {
+    if (registry !== searchSourceRegistry || !isTauri()) return;
+    void recordSearchDiagnostic({
+      pluginId: String(provider.pluginId),
+      source: provider.source,
+      startedAt,
+      completedAt: Date.now(),
+      outcome
+    }).catch(() => {
+      // Diagnostics must never delay or interrupt search.
+    });
+  };
 
   try {
     const result = await runProviderWithOptionalTimeout(
@@ -281,6 +294,7 @@ const searchProvider = async (
       deepSearch
     );
     registry?.markSuccess(provider, startedAt);
+    reportResult('success');
     return {
       provider,
       results: Array.isArray(result) ? result : []
@@ -289,6 +303,7 @@ const searchProvider = async (
     const timedOut = isSearchProviderTimeoutError(error);
     const timeoutMs = timedOut ? getProviderTimeoutMs(provider) : undefined;
     registry?.markFailure(provider, error, startedAt);
+    reportResult(timedOut ? 'timeout' : 'failed');
     runtime.onProviderError?.({
       pluginId: provider.pluginId,
       source: provider.source,
