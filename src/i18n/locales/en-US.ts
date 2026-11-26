@@ -205,6 +205,13 @@ export default {
     workbench: {
       menu: 'Workbench',
       title: 'Developer Workbench',
+      servicesTitle: 'Service status',
+      serviceNames: {
+        workspace: 'Workspace',
+        search: 'Universal search',
+        plugins: 'Plugin platform',
+        ai: 'AI services'
+      },
       refresh: 'Refresh',
       loadFailed: 'Failed to refresh workbench status',
       workspaceNotSet: 'Not set',
@@ -243,10 +250,10 @@ export default {
         capabilities: 'Capabilities'
       },
       actions: {
-        openWorkspace: 'Open Content',
+        openWorkspace: 'Open workspace',
         data: 'Data',
         diagnostics: 'Diagnostics',
-        plugins: 'Plugins',
+        plugins: 'Manage plugins',
         ai: 'AI Settings',
         chat: 'AI Chat'
       },

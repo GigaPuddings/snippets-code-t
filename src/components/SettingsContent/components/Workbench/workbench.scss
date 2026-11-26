@@ -1,220 +1,137 @@
-.workbench-header {
-  align-items: center;
-  justify-content: space-between;
-}
+.workbench-settings {
+  --workbench-muted: color-mix(
+    in srgb,
+    var(--settings-muted) 90%,
+    var(--workspace-nav-text)
+  );
 
-.workbench-content {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
+  container: settings-workbench / inline-size;
 
-.workbench-alert {
-  padding: 8px 10px;
-  margin: 0;
-  font-size: 12px;
-  color: #b45309;
-  background: rgb(245 158 11 / 8%);
-  border: 1px solid rgb(245 158 11 / 22%);
-  border-radius: 6px;
-}
-
-.workbench-metrics,
-.workbench-layers,
-.capability-grid {
-  display: grid;
-  gap: 10px;
-}
-
-.workbench-metrics {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.workbench-metric,
-.layer-card,
-.capability-row {
-  min-width: 0;
-  background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
-  border-radius: 7px;
-}
-
-.workbench-metric {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding: 10px 12px;
-
-  span,
-  small {
-    overflow: hidden;
-    font-size: 12px;
-    color: var(--panel-text-secondary);
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  strong {
-    font-size: 20px;
-    line-height: 1.25;
-    color: var(--panel-text);
+  button {
+    @apply duration-150 active:bg-ui-selected motion-reduce:transition-none;
   }
 }
 
-.workbench-layers {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.workbench-column {
+  @apply mx-auto w-full;
+
+  max-inline-size: 62rem;
 }
 
-.layer-card {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px;
+.refresh-action,
+.service-action {
+  @apply h-ui-control-sm border border-solid border-ui px-2.5 text-ui-caption font-medium;
 }
 
-.layer-card__header,
-.layer-card__title,
-.layer-card__actions,
-.capability-row {
-  display: flex;
-  align-items: center;
-}
+.metric-strip {
+  @apply m-0 grid grid-cols-2 gap-px overflow-hidden rounded-ui-lg border border-ui bg-[var(--settings-border)];
 
-.layer-card__header,
-.capability-row {
-  justify-content: space-between;
-}
-
-.layer-card__title {
-  gap: 7px;
-  min-width: 0;
-  color: var(--panel-text);
-
-  strong {
-    overflow: hidden;
-    font-size: 14px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  > div {
+    @apply bg-ui-card-soft;
   }
 }
 
-.layer-card__stats {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  margin: 0;
+.service-list,
+.capability-list {
+  @apply m-0 list-none p-0;
+}
 
-  div {
-    display: grid;
-    grid-template-columns: 82px minmax(0, 1fr);
-    gap: 8px;
-  }
+.service-list {
+  @apply rounded-ui-lg border border-ui;
+}
 
-  dt,
-  dd {
-    min-width: 0;
-    margin: 0;
-    overflow: hidden;
-    font-size: 12px;
-    line-height: 1.4;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
+.service-row {
+  @apply grid items-center gap-x-3 gap-y-2 px-3.5 py-3;
 
-  dt {
-    color: var(--panel-text-secondary);
-  }
+  grid-template:
+    'icon info status' auto
+    '. actions actions' auto / auto minmax(0, 1fr) auto;
 
-  dd {
-    color: var(--panel-text);
+  & + & {
+    @apply border-t border-ui;
   }
 }
 
-.layer-card__actions {
-  flex-wrap: wrap;
-  gap: 8px;
-  padding-top: 2px;
+.service-icon {
+  @apply grid size-8 place-items-center rounded-ui bg-ui-card text-ui-main;
+
+  grid-area: icon;
+}
+
+.service-info {
+  grid-area: info;
+}
+
+.service-stats {
+  @apply m-0 mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-ui-caption text-[color:var(--workbench-muted)];
+}
+
+.service-actions {
+  @apply flex flex-wrap items-center gap-1.5;
+
+  grid-area: actions;
+}
+
+.service-status {
+  grid-area: status;
+  justify-self: end;
 }
 
 .status-chip {
-  flex-shrink: 0;
-  padding: 2px 7px;
-  font-size: 11px;
-  line-height: 1.35;
-  color: var(--panel-text-secondary);
-  background: var(--panel-hover-bg);
-  border: 1px solid transparent;
-  border-radius: 999px;
+  @apply inline-flex shrink-0 items-center gap-1.5 text-ui-caption text-[color:var(--workbench-muted)];
 
-  &--ready {
-    color: #15803d;
-    background: rgb(34 197 94 / 9%);
-    border-color: rgb(34 197 94 / 20%);
+  &::before {
+    @apply size-1.5 shrink-0 rounded-full bg-current content-[''];
+  }
+
+  &--ready::before {
+    @apply bg-[var(--chat-success-text)];
   }
 
   &--attention {
-    color: #b45309;
-    background: rgb(245 158 11 / 10%);
-    border-color: rgb(245 158 11 / 24%);
-  }
-
-  &--inactive {
-    color: var(--panel-text-secondary);
-    background: var(--panel-hover-bg);
-    border-color: var(--panel-border);
+    @apply text-chat-warning;
   }
 }
 
-.workbench-section-title {
-  margin-bottom: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--panel-text);
+.capability-list {
+  @apply grid gap-x-6;
 }
 
-.capability-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.capability-row {
-  gap: 10px;
-  padding: 9px 10px;
-
-  div {
-    min-width: 0;
-  }
-
-  strong,
-  small {
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  strong {
-    font-size: 12px;
-    color: var(--panel-text);
-  }
-
-  small {
-    margin-top: 2px;
-    font-size: 11px;
-    color: var(--panel-text-secondary);
+@container settings-workbench (min-width: 29rem) {
+  .capability-list {
+    @apply grid-cols-2;
   }
 }
 
-@media (width <= 1100px) {
-  .workbench-metrics,
-  .capability-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+@container settings-workbench (min-width: 42rem) {
+  .metric-strip {
+    @apply grid-cols-4;
+  }
+
+  .service-row {
+    grid-template:
+      'icon info actions status' auto / auto minmax(0, 1fr)
+      auto minmax(5.75rem, auto);
+  }
+
+  .capability-list {
+    @apply grid-cols-3;
   }
 }
 
-@media (width <= 860px) {
-  .workbench-layers,
-  .workbench-metrics,
-  .capability-grid {
-    grid-template-columns: minmax(0, 1fr);
+@container settings-workbench (max-width: 20rem) {
+  .metric-strip {
+    @apply grid-cols-1;
+  }
+
+  .service-row {
+    grid-template:
+      'icon info' auto
+      '. status' auto
+      '. actions' auto / auto minmax(0, 1fr);
+  }
+
+  .service-status {
+    justify-self: start;
   }
 }

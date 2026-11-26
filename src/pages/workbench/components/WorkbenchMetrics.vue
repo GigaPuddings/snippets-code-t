@@ -88,7 +88,7 @@ import FileText from '~icons/lucide/file-text';
 import Search from '~icons/lucide/search';
 import CircleHelp from '~icons/lucide/circle-help';
 import CircleAlert from '~icons/lucide/circle-alert';
-import ContentTrend from './ContentTrend.vue';
+import ContentTrend from '@/workbench/components/ContentTrend.vue';
 import { useI18n } from 'vue-i18n';
 import type { Component } from 'vue';
 import type { WorkbenchMetric } from '@/workbench/viewModel';

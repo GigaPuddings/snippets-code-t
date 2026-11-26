@@ -191,7 +191,14 @@ export default {
     exitFailed: '退出失败',
     workbench: {
       menu: '工作台',
-      title: 'Developer Workbench',
+      title: '开发者工作台',
+      servicesTitle: '服务状态',
+      serviceNames: {
+        workspace: '工作区',
+        search: '全局搜索',
+        plugins: '插件平台',
+        ai: 'AI 服务'
+      },
       refresh: '刷新',
       loadFailed: '刷新工作台状态失败',
       workspaceNotSet: '未设置',
@@ -225,29 +232,29 @@ export default {
         installed: '已安装',
         enabled: '已启用',
         surfaces: '接入面',
-        providers: 'Provider',
+        providers: '服务提供方',
         healthy: '健康',
         capabilities: '能力'
       },
       actions: {
-        openWorkspace: '打开内容',
+        openWorkspace: '打开工作区',
         data: '数据管理',
         diagnostics: '诊断',
-        plugins: '插件平台',
+        plugins: '管理插件',
         ai: 'AI 设置',
         chat: 'AI 聊天'
       },
       capabilityTitle: '产品能力',
       capabilities: {
-        screenshot: 'Screenshot',
+        screenshot: '截图',
         ocr: 'OCR',
-        recorder: 'Recorder',
-        translation: 'Translation',
-        todo: 'Todo',
-        wallpaper: 'Wallpaper',
-        launcher: 'Launcher',
-        localAi: 'Local AI',
-        gitSync: 'Git Sync'
+        recorder: '录屏',
+        translation: '翻译',
+        todo: '待办',
+        wallpaper: '壁纸',
+        launcher: '启动器',
+        localAi: '本地 AI',
+        gitSync: 'Git 同步'
       },
       capabilityMeta: {
         ready: '可用',
