@@ -641,6 +641,7 @@ pub fn run() {
             plugins::local_ai::local_ai_scan_models,                // 扫描本地 AI 模型
             plugins::local_ai::local_ai_get_runtime_status,         // 获取本地 AI 运行时状态
             plugins::local_ai::local_ai_get_status,                 // 获取本地 AI 服务状态
+            plugins::local_ai::local_ai_count_prompt_tokens,
             plugins::local_ai::local_ai_start_service,              // 启动本地 AI 服务
             plugins::local_ai::local_ai_restart_service,            // 重启本地 AI 服务
             plugins::local_ai::local_ai_stop_service,               // 停止本地 AI 服务

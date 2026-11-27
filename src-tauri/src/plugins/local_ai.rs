@@ -377,13 +377,24 @@ fn persist_chat_histories(
     save_app_json_chat_histories(app_handle, histories)
 }
 
+#[derive(Serialize, Deserialize)]
+struct StoredLocalAiConfig {
+    #[serde(flatten)]
+    config: LocalAiConfig,
+    #[serde(default, rename = "explicitOutputLimit")]
+    explicit_output_limit: bool,
+}
+
 fn read_config(app_handle: &AppHandle) -> LocalAiConfig {
     let path = config_path(app_handle);
-    let mut config = fs::read_to_string(path)
+    let Some(stored) = fs::read_to_string(path)
         .ok()
-        .and_then(|content| serde_json::from_str::<LocalAiConfig>(&content).ok())
-        .unwrap_or_default();
-    if config.max_tokens == 1024 {
+        .and_then(|content| serde_json::from_str::<StoredLocalAiConfig>(&content).ok())
+    else {
+        return LocalAiConfig::default();
+    };
+    let mut config = stored.config;
+    if !stored.explicit_output_limit && config.max_tokens == 1024 {
         config.max_tokens = 0;
     }
     config
@@ -391,8 +402,11 @@ fn read_config(app_handle: &AppHandle) -> LocalAiConfig {
 
 fn write_config(app_handle: &AppHandle, config: &LocalAiConfig) -> Result<(), String> {
     let path = config_path(app_handle);
-    let json = serde_json::to_string_pretty(config)
-        .map_err(|error| format!("序列化本地 AI 配置失败: {}", error))?;
+    let json = serde_json::to_string_pretty(&StoredLocalAiConfig {
+        config: config.clone(),
+        explicit_output_limit: true,
+    })
+    .map_err(|error| format!("序列化本地 AI 配置失败: {}", error))?;
     crate::json_config::write_text_atomic(&path, &json)
         .map_err(|error| format!("写入本地 AI 配置失败 {}: {}", path.to_string_lossy(), error))
 }
@@ -1040,6 +1054,22 @@ async fn ensure_service_running(
 
 async fn start_service_inner(
     app_handle: &AppHandle,
+    config: LocalAiConfig,
+) -> Result<LocalAiServiceStatus, String> {
+    // Validation and spawn can fail before a child exists for the status poller to inspect.
+    let result = start_llama_server(app_handle, config).await;
+    if let Err(error) = &result {
+        if let Ok(mut state) = SERVICE_STATE.lock() {
+            if state.child.is_none() {
+                state.last_error = Some(error.clone());
+            }
+        }
+    }
+    result
+}
+
+async fn start_llama_server(
+    app_handle: &AppHandle,
     mut config: LocalAiConfig,
 ) -> Result<LocalAiServiceStatus, String> {
     config = normalize_service_config(config);
@@ -1227,7 +1257,7 @@ fn get_f64_field(value: &Value, key: &str) -> Option<f64> {
     value.get(key).and_then(|field| field.as_f64())
 }
 
-fn extract_stream_stats(value: &Value, ctx_size: u32) -> Option<LocalAiChatStreamStats> {
+fn extract_stream_stats(value: &Value, ctx_size: Option<u32>) -> Option<LocalAiChatStreamStats> {
     let usage = value.get("usage");
     let timings = value.get("timings");
     let finish_reason = value
@@ -1269,7 +1299,7 @@ fn extract_stream_stats(value: &Value, ctx_size: u32) -> Option<LocalAiChatStrea
         prompt_tokens,
         completion_tokens,
         total_tokens,
-        ctx_size: Some(ctx_size),
+        ctx_size,
         generation_time_ms,
         tokens_per_second,
         finish_reason,
@@ -1360,7 +1390,7 @@ async fn chat_completion_stream(
     }
     let _guard = mark_request_started();
 
-    let request_ctx_size = config.ctx_size;
+    let request_ctx_size = server_context_size(&base_url(&config)).await;
     emit_chat_stream(
         &window,
         &request_id,
@@ -1371,7 +1401,7 @@ async fn chat_completion_stream(
             prompt_tokens: None,
             completion_tokens: None,
             total_tokens: None,
-            ctx_size: Some(request_ctx_size),
+            ctx_size: request_ctx_size,
             generation_time_ms: None,
             tokens_per_second: None,
             finish_reason: None,
@@ -1725,6 +1755,55 @@ pub fn local_ai_stop_service(app_handle: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub async fn local_ai_count_prompt_tokens(
+    app_handle: AppHandle,
+    messages: Vec<LocalAiMessage>,
+    enable_thinking: bool,
+) -> Result<Option<usize>, String> {
+    require_plugin(&app_handle)?;
+    if !messages.iter().all(|m| m.content.is_string()) {
+        return Ok(None);
+    }
+    let url = base_url(&read_config(&app_handle));
+    let client = local_service_client(Duration::from_secs(2)).map_err(|e| e.to_string())?;
+    async fn post(client: &Client, url: String, body: Value) -> Option<Value> {
+        client
+            .post(url)
+            .json(&body)
+            .send()
+            .await
+            .ok()?
+            .error_for_status()
+            .ok()?
+            .json()
+            .await
+            .ok()
+    }
+    let template = serde_json::json!({
+        "messages": normalize_system_messages(messages),
+        "chat_template_kwargs": { "enable_thinking": enable_thinking }
+    });
+    let Some(rendered) = post(&client, format!("{url}/apply-template"), template).await else {
+        return Ok(None);
+    };
+    let Some(prompt) = rendered.get("prompt").and_then(Value::as_str) else {
+        return Ok(None);
+    };
+    let tokens = post(
+        &client,
+        format!("{url}/tokenize"),
+        serde_json::json!({
+            "content": prompt, "add_special": false, "parse_special": true
+        }),
+    )
+    .await;
+    Ok(tokens
+        .as_ref()
+        .and_then(|v| v["tokens"].as_array())
+        .map(Vec::len))
+}
+
+#[tauri::command]
 pub async fn local_ai_chat(
     app_handle: AppHandle,
     request: LocalAiChatRequest,
@@ -2014,7 +2093,10 @@ pub fn apply_runtime_change(app_handle: &AppHandle, enabled: bool) {
 
 pub fn stop_service_now() {
     match SERVICE_STATE.lock() {
-        Ok(mut state) => stop_child_locked(&mut state),
+        Ok(mut state) => {
+            stop_child_locked(&mut state);
+            state.last_error = None;
+        }
         Err(error) => warn!("[Plugin:local-ai] stop service lock failed: {}", error),
     }
 }

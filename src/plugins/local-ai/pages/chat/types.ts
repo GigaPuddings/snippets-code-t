@@ -18,6 +18,9 @@ export interface ChatMessage {
   promptTokens?: number;
   estimatedCompletionTokens?: number;
   contextSize?: number;
+  requestOutputLimit?: number;
+  contextCompacted?: boolean;
+  continuationMode?: 'continue' | 'compact';
   stats?: LocalAiChatStreamStats;
   stopped?: boolean;
   interrupted?: boolean;

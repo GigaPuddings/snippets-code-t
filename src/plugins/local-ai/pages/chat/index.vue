@@ -7,28 +7,23 @@
     ]"
   >
     <aside
+      :id="sidebarId"
+      @keydown.esc="isNarrow && setSidebarCollapsed(true)"
       :class="[
         'chat-sidebar',
         sidebarCollapsed ? 'chat-sidebar--collapsed' : ''
       ]"
     >
       <header class="sidebar-header">
-        <div class="sidebar-brand">
-          <div class="sidebar-title-block">
-            <h2 class="plugin-config-title">{{ t('localAi.chatTitle') }}</h2>
-            <p>{{ t('localAi.chatPrivacySubtitle') }}</p>
-          </div>
-        </div>
+        <h2 class="plugin-config-title">{{ t('localAi.chatTitle') }}</h2>
         <button
+          ref="collapseSidebarButton"
           class="ui-icon-button ui-action--muted"
           type="button"
-          :title="
-            sidebarCollapsed
-              ? t('localAi.expandSidebar')
-              : t('localAi.collapseSidebar')
-          "
-          :aria-pressed="sidebarCollapsed"
-          @click="sidebarCollapsed = !sidebarCollapsed"
+          :title="t('localAi.collapseSidebar')"
+          :aria-controls="sidebarId"
+          aria-expanded="true"
+          @click="setSidebarCollapsed(true)"
         >
           <LeftBar width="17" height="17" />
         </button>
@@ -65,17 +60,6 @@
             <button
               class="ui-icon-button ui-icon-button--small ui-action--muted"
               type="button"
-              :title="t('localAi.clearAllChats')"
-              :disabled="
-                navigationLocked || clearingHistories || !histories.length
-              "
-              @click="clearHistoryDialogVisible = true"
-            >
-              <Delete width="16" height="16" />
-            </button>
-            <button
-              class="ui-icon-button ui-icon-button--small ui-action--muted"
-              type="button"
               :title="t('plugins.refresh')"
               :disabled="navigationLocked || refreshing || clearingHistories"
               @click="refreshAll"
@@ -86,6 +70,13 @@
                 height="16"
               />
             </button>
+            <ChatMoreMenu
+              :label="t('localAi.clearAllChats')"
+              :disabled="
+                navigationLocked || clearingHistories || !histories.length
+              "
+              @select="clearHistoryDialogVisible = true"
+            />
           </div>
         </div>
         <div v-if="filteredHistories.length" class="chat-list">
@@ -97,30 +88,27 @@
               activeHistoryId === history.id ? 'active' : '',
               navigationLocked ? 'disabled' : ''
             ]"
-            role="button"
-            :tabindex="navigationLocked ? -1 : 0"
-            :aria-disabled="navigationLocked"
-            :aria-pressed="activeHistoryId === history.id"
-            @click="openHistory(history.id)"
-            @keydown.enter.self.prevent="openHistory(history.id)"
-            @keydown.space.self.prevent="openHistory(history.id)"
           >
-            <span class="chat-item-copy">
-              <span v-auto-scroll-title class="chat-item-title">
-                <span class="chat-item-title-track">
-                  <span class="chat-item-title-text">{{ history.title }}</span>
-                  <span
-                    class="chat-item-title-text chat-item-title-clone"
-                    aria-hidden="true"
-                  >
-                    {{ history.title }}
-                  </span>
+            <el-tooltip
+              :content="history.title"
+              :trigger="['hover', 'focus']"
+              :show-after="450"
+              placement="top"
+              popper-class="themed-tooltip-popper"
+            >
+              <button
+                class="chat-history-link"
+                type="button"
+                :disabled="navigationLocked"
+                :aria-pressed="activeHistoryId === history.id"
+                @click="openHistory(history.id)"
+              >
+                <span class="chat-item-title">{{ history.title }}</span>
+                <span class="chat-item-time">
+                  {{ formatHistoryTime(history.updatedAt) }}
                 </span>
-              </span>
-              <span class="chat-item-time">
-                {{ formatHistoryTime(history.updatedAt) }}
-              </span>
-            </span>
+              </button>
+            </el-tooltip>
             <button
               class="ui-icon-button ui-icon-button--small ui-action--muted chat-item-delete"
               type="button"
@@ -135,37 +123,12 @@
         <div v-else class="sidebar-empty">{{ t('common.empty') }}</div>
       </section>
 
-      <footer class="sidebar-service">
-        <div class="sidebar-service-card">
-          <span class="sidebar-service-icon">
-            <MessageCircleMore width="15" height="15" />
-          </span>
-          <span class="sidebar-service-copy">
-            <strong>{{ serviceStatusText }}</strong>
-            <small>
-              {{
-                serviceStatus?.healthy
-                  ? currentModelDisplay
-                  : t('localAi.onDemandHint')
-              }}
-            </small>
-          </span>
-          <span
-            :class="[
-              'service-status-dot',
-              serviceStatus?.healthy ? 'ready' : 'stopped'
-            ]"
-          ></span>
-        </div>
-        <button
-          class="ui-action sidebar-settings-btn"
-          type="button"
-          @click="goSettings"
-        >
-          <SettingTwo width="16" height="16" />
-          <span>{{ t('localAi.settings') }}</span>
-          <Right width="14" height="14" />
-        </button>
+      <footer class="shrink-0 border-t border-chat pt-2">
+        <ChatServiceStatus
+          :status="serviceStatus"
+          :auto-start="config?.autoStartOnRequest"
+          @settings="goSettings"
+        />
       </footer>
     </aside>
 
@@ -174,10 +137,13 @@
         <div class="chat-panel-heading">
           <button
             v-if="sidebarCollapsed"
+            ref="expandSidebarButton"
             class="ui-icon-button ui-action--muted"
             type="button"
             :title="t('localAi.expandSidebar')"
-            @click="sidebarCollapsed = false"
+            :aria-controls="sidebarId"
+            aria-expanded="false"
+            @click="setSidebarCollapsed(false)"
           >
             <LeftBar width="17" height="17" />
           </button>
@@ -267,7 +233,10 @@
             >
               <div class="message-body">
                 <template v-if="display.message.role === 'user'">
-                  <div class="user-bubble">
+                  <div
+                    class="user-bubble"
+                    :title="messageTime(display.message)"
+                  >
                     <div
                       v-if="display.message.content"
                       class="user-message-text"
@@ -320,6 +289,12 @@
                     v-if="!display.message.streaming"
                     class="message-actions"
                   >
+                    <time
+                      :datetime="display.message.createdAt"
+                      class="mr-1 text-ui-caption text-ui-muted"
+                    >
+                      {{ messageTime(display.message) }}
+                    </time>
                     <button
                       class="ui-icon-button ui-icon-button--small ui-action--muted"
                       type="button"
@@ -336,87 +311,51 @@
                     >
                       <Edit width="16" height="16" />
                     </button>
-                    <button
-                      class="ui-icon-button ui-icon-button--small ui-action--muted"
-                      type="button"
-                      :title="t('common.delete')"
-                      @click="deleteMessage(display.message.id)"
-                    >
-                      <Delete width="16" height="16" />
-                    </button>
+                    <ChatMoreMenu
+                      :label="t('common.delete')"
+                      :disabled="navigationLocked"
+                      @select="deleteMessage(display.message.id)"
+                    />
                   </div>
                 </template>
 
                 <template v-else>
-                  <div class="assistant-head">
-                    <span
-                      class="assistant-model-name"
-                      :title="display.message.modelName || currentModelDisplay"
-                    >
-                      {{ display.message.modelName || currentModelDisplay }}
-                    </span>
-                    <small v-if="display.message.streaming">
-                      {{ messageActivityLabel(display.message) }}
-                    </small>
-                  </div>
-                  <div class="assistant-response">
-                    <div
-                      v-if="
-                        display.message.content &&
-                        display.message.content !== display.message.error
-                      "
-                      class="assistant-content-stack"
-                    >
-                      <details
-                        v-if="
-                          display.message.allowThinking &&
+                  <ChatReplyHeader
+                    :model="display.message.modelName || currentModelDisplay"
+                    :has-reasoning="
+                      Boolean(
+                        display.message.allowThinking &&
                           messageReasoning(display.message.content)
-                        "
-                        class="reasoning-panel"
-                        :open="
-                          display.message.streaming &&
-                          isReasoningActive(display.message)
-                        "
-                        @toggle="toggleReasoning(display.message.id, $event)"
-                      >
-                        <summary>
-                          <span class="reasoning-summary-title">
-                            <Brain width="14" height="14" />
-                            {{ messageReasoningLabel(display.message) }}
-                          </span>
-                          <small v-if="display.message.streaming">
-                            {{
-                              isReasoningActive(display.message)
-                                ? t('localAi.thinking')
-                                : t('localAi.generating')
-                            }}
-                          </small>
-                        </summary>
-                        <div
-                          v-if="
-                            expandedReasoning.has(display.message.id) ||
-                            (display.message.streaming &&
-                              isReasoningActive(display.message))
-                          "
-                          class="message-content markdown-body"
-                          @click="handleMarkdownClick"
-                          v-html="
-                            renderMessageMarkdown(display.message, 'reasoning')
-                          "
-                        ></div>
-                      </details>
-                      <template v-if="messageAnswer(display.message.content)">
-                        <div
-                          class="message-content markdown-body"
-                          @click="handleMarkdownClick"
-                          v-html="
-                            renderMessageMarkdown(display.message, 'answer')
-                          "
-                        ></div>
-                      </template>
-                    </div>
+                      )
+                    "
+                    :thinking="isReasoningActive(display.message)"
+                    :streaming="display.message.streaming"
+                    :started-at="display.message.reasoningStartedAt"
+                    :ended-at="display.message.reasoningEndedAt"
+                    :now="display.message.streaming ? statsTick : undefined"
+                  >
+                    <ChatMessageMarkdown
+                      :source="messageReasoning(display.message.content)"
+                      :streaming="display.message.streaming"
+                      :render-complete="renderCompleteMarkdown"
+                      @click="handleMarkdownClick"
+                    />
+                  </ChatReplyHeader>
+                  <div class="assistant-response">
+                    <ChatMessageMarkdown
+                      v-if="
+                        display.message.content !== display.message.error &&
+                        messageAnswer(display.message.content)
+                      "
+                      :source="messageAnswer(display.message.content)"
+                      :streaming="display.message.streaming"
+                      :render-complete="renderCompleteMarkdown"
+                      @click="handleMarkdownClick"
+                    />
                     <div
-                      v-else-if="!display.message.error"
+                      v-else-if="
+                        !display.message.content && !display.message.error
+                      "
                       :class="[
                         'message-content',
                         display.message.stopped ? '' : 'loading-text'
@@ -470,7 +409,31 @@
                     class="message-warning"
                   >
                     {{ messageWarningText(display.message) }}
+                    <button
+                      v-if="
+                        replyLimitReason(display.message) &&
+                        display.message.id === activeMessages.at(-1)?.id
+                      "
+                      type="button"
+                      class="ui-action ml-2 text-ui-caption"
+                      :disabled="navigationLocked"
+                      @click="sendMessage(display.message)"
+                    >
+                      {{
+                        contextText(
+                          replyLimitReason(display.message) === 'context'
+                            ? 'compactContinue'
+                            : 'continue'
+                        )
+                      }}
+                    </button>
                   </div>
+                  <p
+                    v-if="display.message.contextCompacted"
+                    class="mt-1 text-ui-caption text-ui-muted"
+                  >
+                    {{ contextText('compacted') }}
+                  </p>
                   <div
                     v-if="!display.message.streaming"
                     class="message-actions"
@@ -577,14 +540,11 @@
                     >
                       <Edit width="16" height="16" />
                     </button>
-                    <button
-                      class="ui-icon-button ui-icon-button--small ui-action--muted"
-                      type="button"
-                      :title="t('common.delete')"
-                      @click="deleteMessage(display.message.id)"
-                    >
-                      <Delete width="16" height="16" />
-                    </button>
+                    <ChatMoreMenu
+                      :label="t('common.delete')"
+                      :disabled="navigationLocked"
+                      @select="deleteMessage(display.message.id)"
+                    />
                   </div>
                 </template>
               </div>
@@ -596,13 +556,13 @@
       <div class="composer-dock">
         <button
           v-if="showJumpToBottom"
-          class="ui-action scroll-bottom-btn"
+          class="ui-icon-button scroll-bottom-btn"
           type="button"
           :title="t('localAi.jumpToLatest')"
+          :aria-label="t('localAi.jumpToLatest')"
           @click="forceScrollToBottom"
         >
           <Down width="16" height="16" />
-          <span>{{ t('localAi.jumpToLatest') }}</span>
         </button>
         <form
           :class="[
@@ -611,8 +571,8 @@
             promptEnhancing ? 'chat-input-card--enhancing' : ''
           ]"
           @dragover.prevent
-          @drop.prevent="handleAttachmentDrop"
-          @submit.prevent="sendMessage"
+          @drop.prevent="!preparingRequest && handleAttachmentDrop($event)"
+          @submit.prevent="sendMessage()"
           @focusin="composerFocused = true"
           @focusout="composerFocused = false"
         >
@@ -649,6 +609,7 @@
                 class="ui-icon-button ui-icon-button--small ui-action--muted"
                 type="button"
                 :title="t('common.delete')"
+                :disabled="preparingRequest"
                 @click="removeComposerAttachment(attachment.id)"
               >
                 <Delete width="14" height="14" />
@@ -662,10 +623,10 @@
             rows="1"
             :placeholder="t('localAi.chatPlaceholder')"
             :aria-label="t('localAi.chatPlaceholder')"
-            :readonly="promptEnhancing"
-            :aria-busy="promptEnhancing"
+            :readonly="promptEnhancing || preparingRequest"
+            :aria-busy="promptEnhancing || preparingRequest"
             @keydown="handleComposerKeydown"
-            @paste="handleComposerPaste"
+            @paste="!preparingRequest && handleComposerPaste($event)"
           ></textarea>
           <div class="input-toolbar">
             <div class="input-toolbar-left">
@@ -673,7 +634,7 @@
                 class="ui-icon-button ui-action--muted"
                 type="button"
                 :title="t('localAi.addAttachment')"
-                :disabled="attachmentPicking"
+                :disabled="attachmentPicking || preparingRequest"
                 @click="pickAttachmentFiles"
               >
                 <Refresh
@@ -692,6 +653,7 @@
                 ]"
                 type="button"
                 :disabled="!canEnhancePrompt"
+                :aria-label="t('localAi.enhancePrompt')"
                 :title="
                   draft.trim()
                     ? t('localAi.enhancePromptDesc')
@@ -722,6 +684,8 @@
                     : t('localAi.thinkingDisabled')
                 "
                 :aria-pressed="thinkingEnabled"
+                :aria-label="t('localAi.reasoningTitle')"
+                :disabled="preparingRequest"
                 @click="thinkingEnabled = !thinkingEnabled"
               >
                 <Brain width="15" height="15" />
@@ -735,18 +699,22 @@
                   v-model="selectedChatModelPath"
                   class="chat-model-select"
                   size="small"
-                  :disabled="sending || !availableChatModels.length"
-                  :placeholder="currentModelDisplay"
+                  :disabled="navigationLocked || !availableChatModels.length"
+                  :placeholder="compactModelName(currentModelDisplay)"
+                  :aria-label="t('localAi.mainModel')"
                   popper-class="chat-model-select-popper"
                   @change="changeChatModel"
                 >
+                  <template #label="{ label }">
+                    {{ compactModelName(String(label)) }}
+                  </template>
                   <el-option
                     v-for="path in availableChatModels"
                     :key="path"
                     :label="fileName(path)"
                     :value="path"
                   >
-                    <span class="chat-model-option">
+                    <span class="chat-model-option" :title="path">
                       <Cube width="14" height="14" />
                       <span class="chat-model-option-name">
                         {{ fileName(path) }}
@@ -832,7 +800,11 @@
 </template>
 
 <script setup lang="ts">
-import type { ObjectDirective } from 'vue';
+import ChatMoreMenu from './ChatMoreMenu.vue';
+import ChatServiceStatus from './ChatServiceStatus.vue';
+import ChatReplyHeader from './ChatReplyHeader.vue';
+import ChatMessageMarkdown from './ChatMessageMarkdown.vue';
+import { compactModelName } from './modelLabel';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { openConfigSettings } from '@/utils/config-navigation';
@@ -843,13 +815,12 @@ import Brain from '~icons/lucide/brain';
 import Copy from '~icons/lucide/copy';
 import Square from '~icons/lucide/square';
 import Delete from '~icons/lucide/trash-2';
-import Down from '~icons/lucide/chevron-down';
+import Down from '~icons/lucide/arrow-down';
 import Edit from '~icons/lucide/square-pen';
 import Refresh from '~icons/lucide/refresh-cw';
 import MessageCircleMore from '~icons/lucide/message-circle-more';
 import Search from '~icons/lucide/search';
 import Send from '~icons/lucide/send';
-import SettingTwo from '~icons/lucide/settings';
 import Link from '~icons/lucide/paperclip';
 import Fork from '~icons/lucide/git-fork';
 import LeftBar from '~icons/lucide/panel-left';
@@ -872,7 +843,7 @@ import {
   saveLocalAiConfig,
   scanLocalAiModels,
   type LocalAiConfig,
-  type LocalAiMessage,
+  countLocalAiPromptTokens,
   type LocalAiModelScan,
   type LocalAiServiceStatus
 } from '@/api/localAi';
@@ -892,18 +863,17 @@ import {
 import modal from '@/utils/modal';
 import { logger } from '@/utils/logger';
 import {
-  apiUserMessageContent,
-  compactMessagesForBudget,
-  createRuntimeContextMessage,
-  estimateChatTokens,
   estimateStreamingOutputTokens,
   estimateTokens,
   mergeChatStreamStats,
-  resolveRequestMaxTokens,
-  resolveRequestContextBudget,
-  markAssistantMessageFailed,
-  mergeSystemMessages
+  markAssistantMessageFailed
 } from './chatContext';
+import {
+  planReplyContext,
+  replyLimitReason,
+  type ReplyPlan
+} from './replyContext';
+import { chatContextMessages } from './chatContextMessages';
 import {
   appendMessageNode,
   createMessageId,
@@ -945,7 +915,11 @@ import {
 
 defineOptions({ name: 'LocalAiChat' });
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
+const { t: contextText } = useI18n({
+  useScope: 'local',
+  messages: chatContextMessages
+});
 const {
   attachments,
   attachmentPicking,
@@ -957,17 +931,42 @@ const {
 } = useChatAttachments();
 const {
   clearMarkdownState,
-  discardStreamingMarkdown,
   handleMarkdownClick,
   messageAnswer,
   messageReasoning,
   recordReasoningProgress,
-  renderMessageMarkdown
+  renderCompleteMarkdown
 } = useChatMarkdown();
 const searchQuery = ref('');
 const histories = ref<ChatHistoryView[]>([]);
 const activeHistoryId = ref<string>('');
-const sidebarCollapsed = ref(false);
+const narrowWindow = window.matchMedia('(max-width: 700px)');
+const sidebarId = useId();
+const collapseSidebarButton = ref<HTMLButtonElement | null>(null);
+const expandSidebarButton = ref<HTMLButtonElement | null>(null);
+const desktopSidebarCollapsed = ref(false);
+const narrowSidebarOpen = ref(false);
+const isNarrow = ref(narrowWindow.matches);
+const sidebarCollapsed = computed({
+  get: () =>
+    isNarrow.value ? !narrowSidebarOpen.value : desktopSidebarCollapsed.value,
+  set: (collapsed: boolean) => {
+    if (isNarrow.value) narrowSidebarOpen.value = !collapsed;
+    else desktopSidebarCollapsed.value = collapsed;
+  }
+});
+const onWidthChange = (event: MediaQueryListEvent) => {
+  isNarrow.value = event.matches;
+  narrowSidebarOpen.value = false;
+};
+async function setSidebarCollapsed(collapsed: boolean) {
+  sidebarCollapsed.value = collapsed;
+  await nextTick();
+  const button = collapsed ? expandSidebarButton : collapseSidebarButton;
+  button.value?.focus({ preventScroll: true });
+}
+narrowWindow.addEventListener('change', onWidthChange);
+onScopeDispose(() => narrowWindow.removeEventListener('change', onWidthChange));
 const draft = ref('');
 const composerInputRef = ref<HTMLTextAreaElement | null>(null);
 const promptEnhancing = ref(false);
@@ -975,10 +974,14 @@ const sending = ref(false);
 const refreshing = ref(false);
 const clearingHistories = ref(false);
 const clearHistoryDialogVisible = ref(false);
+const preparingRequest = ref(false);
+const changingModel = ref(false);
+let disposed = false;
 const stopRequested = ref(false);
 const thinkingEnabled = ref(false);
 const composerFocused = ref(false);
 const currentStreamRequestId = ref<string | null>(null);
+let flushCurrentText: (() => void) | undefined;
 const currentStreamingMessage = shallowRef<ChatMessage | null>(null);
 let promptTransferReady = false;
 const route = useRoute();
@@ -1009,16 +1012,6 @@ const {
   handleMessageKeydown
 } = useChatScroll(messageListRef, messageContentRef);
 watch(activeHistoryId, forceScrollToBottom, { flush: 'post' });
-const expandedReasoning = ref(new Set<string>());
-watch(activeHistoryId, () => {
-  expandedReasoning.value = new Set();
-});
-const toggleReasoning = (id: string, event: Event): void => {
-  const next = new Set(expandedReasoning.value);
-  if ((event.target as HTMLDetailsElement).open) next.add(id);
-  else next.delete(id);
-  expandedReasoning.value = next;
-};
 const previewedAttachment = ref<LocalAiAttachment | null>(null);
 const attachmentPreviewVisible = computed({
   get: () => Boolean(previewedAttachment.value),
@@ -1027,44 +1020,8 @@ const attachmentPreviewVisible = computed({
   }
 });
 const statsTick = ref(Date.now());
-let statusTimer: ReturnType<typeof setInterval> | null = null;
 let statsTimer: ReturnType<typeof setInterval> | null = null;
-const STREAM_PUMP_INTERVAL_MS = 90;
 const STREAM_STATS_TICK_MS = 1000;
-const titleResizeObservers = new WeakMap<HTMLElement, ResizeObserver>();
-const syncAutoScrollTitle = (element: HTMLElement): void => {
-  const content = element.querySelector<HTMLElement>('.chat-item-title-text');
-  if (!content) return;
-  const overflowing = content.scrollWidth - element.clientWidth > 2;
-  const loopDistance = content.scrollWidth + 24;
-  const duration = Math.max(5, loopDistance / 34);
-  element.style.setProperty('--chat-title-loop-distance', `${loopDistance}px`);
-  element.style.setProperty('--chat-title-scroll-duration', `${duration}s`);
-  element.classList.toggle('is-overflowing', overflowing);
-};
-const scheduleAutoScrollTitleSync = (element: HTMLElement): void => {
-  window.requestAnimationFrame(() => syncAutoScrollTitle(element));
-};
-const vAutoScrollTitle: ObjectDirective<HTMLElement> = {
-  mounted(element) {
-    scheduleAutoScrollTitleSync(element);
-    if (typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(() =>
-      scheduleAutoScrollTitleSync(element)
-    );
-    observer.observe(element);
-    const content = element.querySelector<HTMLElement>('.chat-item-title-text');
-    if (content) observer.observe(content);
-    titleResizeObservers.set(element, observer);
-  },
-  updated(element) {
-    scheduleAutoScrollTitleSync(element);
-  },
-  beforeUnmount(element) {
-    titleResizeObservers.get(element)?.disconnect();
-    titleResizeObservers.delete(element);
-  }
-};
 const quickPrompts = [
   {
     title: 'localAi.quickPromptSummary',
@@ -1087,25 +1044,24 @@ const quickPrompts = [
     icon: MagicWand
   }
 ] as const;
+const navigationLocked = computed(
+  () =>
+    sending.value ||
+    preparingRequest.value ||
+    promptEnhancing.value ||
+    changingModel.value
+);
 const canSend = computed(
   () =>
     (Boolean(draft.value.trim()) || attachments.value.length > 0) &&
-    !sending.value &&
-    !promptEnhancing.value
+    !navigationLocked.value
 );
 const canEnhancePrompt = computed(
   () =>
     Boolean(draft.value.trim()) &&
-    !sending.value &&
-    !promptEnhancing.value &&
+    !navigationLocked.value &&
     !currentStreamRequestId.value
 );
-const navigationLocked = computed(() => sending.value || promptEnhancing.value);
-const serviceStatusText = computed(() => {
-  if (serviceStatus.value?.healthy) return t('localAi.serviceHealthy');
-  if (serviceStatus.value?.running) return t('localAi.serviceStarting');
-  return t('localAi.serviceStopped');
-});
 const activeHistory = computed(
   () =>
     histories.value.find((item) => item.id === activeHistoryId.value) ?? null
@@ -1177,15 +1133,6 @@ const currentModelDisplay = computed(
 );
 const availableChatModels = computed(() => modelScan.value?.mainModels ?? []);
 const visionAvailable = computed(() => Boolean(config.value?.mmprojPath));
-const effectiveContextLimit = computed(
-  () => config.value?.ctxSize ?? serviceStatus.value?.ctxSize ?? 4096
-);
-const requestContextBudget = computed(() =>
-  resolveRequestContextBudget(
-    effectiveContextLimit.value,
-    config.value?.maxTokens ?? 0
-  )
-);
 const modelSupportsThinking = computed(() => {
   const name = currentModelDisplay.value.toLowerCase();
   return /\b(qwen3|deepseek-r1|r1-|reasoning|thinking|think)\b/i.test(name);
@@ -1339,6 +1286,7 @@ const focusComposer = async (): Promise<void> => {
 watch(draft, resizeComposerInput, { flush: 'post' });
 watch(navigationLocked, (locked) => {
   if (!locked) {
+    void refreshStatus();
     flushQueuedTransferredPrompt();
     if (queuedProductNavigation) {
       const request = queuedProductNavigation;
@@ -1460,6 +1408,7 @@ const refreshStatus = async () => {
   try {
     serviceStatus.value = await getLocalAiStatus();
   } catch (error) {
+    serviceStatus.value = null;
     logger.warn('[LocalAI] refresh chat status failed', error);
   } finally {
     refreshing.value = false;
@@ -1530,6 +1479,7 @@ const persistHistory = async (current: ChatHistoryView | null) => {
 };
 function createNewChat(requestedId?: unknown): void {
   if (navigationLocked.value) return;
+  narrowSidebarOpen.value = false;
   const next = createHistory();
   if (typeof requestedId === 'string') next.id = requestedId;
   histories.value.unshift(next);
@@ -1547,6 +1497,10 @@ const ensureActiveHistory = () => {
 };
 const openHistory = (id: string) => {
   if (navigationLocked.value) return;
+  if (narrowSidebarOpen.value) {
+    narrowSidebarOpen.value = false;
+    void nextTick(() => messageListRef.value?.focus({ preventScroll: true }));
+  }
   clearPendingLocalAiNewChat(localStorage);
   if (activeHistoryId.value !== id) {
     draft.value = '';
@@ -1677,7 +1631,9 @@ const clearAllHistories = async (): Promise<void> => {
   }
 };
 const changeChatModel = async () => {
-  if (!config.value || !selectedChatModelPath.value) return;
+  if (navigationLocked.value || !config.value || !selectedChatModelPath.value)
+    return;
+  changingModel.value = true;
   const nextConfig = {
     ...config.value,
     modelPath: selectedChatModelPath.value
@@ -1691,6 +1647,8 @@ const changeChatModel = async () => {
   } catch (error) {
     await refreshConfig();
     modal.msg(`${t('localAi.configSaveFailed')}: ${error}`, 'error');
+  } finally {
+    changingModel.value = false;
   }
 };
 const messageHasAnswer = (message: ChatMessage): boolean =>
@@ -1703,104 +1661,95 @@ const isReasoningActive = (message: ChatMessage): boolean =>
       !message.reasoningEndedAt &&
       !messageHasAnswer(message)
   );
-const messageReasoningSeconds = (message: ChatMessage): string => {
-  if (!message.reasoningStartedAt) return '0.00';
-  const end =
-    message.reasoningEndedAt ??
-    (message.streaming ? statsTick.value : Date.now());
-  return Math.max(0, (end - message.reasoningStartedAt) / 1000).toFixed(2);
-};
-const messageReasoningLabel = (message: ChatMessage): string => {
-  if (!message.reasoningStartedAt && message.streaming) {
-    return t('localAi.reasoningTitle');
-  }
-  return t('localAi.thoughtFor', {
-    seconds: messageReasoningSeconds(message)
-  });
-};
 const messageTimestamp = (message: ChatMessage): Date => {
   return new Date(
     message.createdAt || activeHistory.value?.updatedAt || Date.now()
   );
 };
 const messageTime = (message: ChatMessage): string => {
-  return messageTimestamp(message).toLocaleTimeString([], {
+  return messageTimestamp(message).toLocaleTimeString(locale.value, {
     hour: '2-digit',
     minute: '2-digit'
   });
 };
-const isSameMessageDay = (left: ChatMessage, right: ChatMessage): boolean =>
-  messageTimestamp(left).toDateString() ===
-  messageTimestamp(right).toDateString();
-const isTodayMessage = (message: ChatMessage): boolean =>
-  messageTimestamp(message).toDateString() === new Date().toDateString();
 const shouldShowDateDivider = (index: number): boolean => {
-  const message = displayMessages.value[index]?.message;
-  if (!message) return false;
-  if (index === 0) return !isTodayMessage(message);
-
-  const previous = displayMessages.value[index - 1]?.message;
-  if (!previous) return false;
-  if (!isSameMessageDay(previous, message)) return true;
+  if (index === 0) return true;
+  const messages = displayMessages.value;
   return (
-    messageTimestamp(message).getTime() - messageTimestamp(previous).getTime() >
-    30 * 60 * 1000
+    messageTimestamp(messages[index].message).toDateString() !==
+    messageTimestamp(messages[index - 1].message).toDateString()
   );
 };
 const messageDateDivider = (message: ChatMessage): string => {
-  const value = messageTimestamp(message);
-  const date = value.toLocaleDateString([], {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  });
-  const time = value.toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit'
-  });
-  return isTodayMessage(message) ? time : `${date} ${time}`;
-};
-const messageActivityLabel = (message: ChatMessage): string => {
-  if (!message.streaming) return messageTime(message);
-  if (isReasoningActive(message)) return t('localAi.thinking');
-  return t('localAi.generating');
+  const date = messageTimestamp(message);
+  return date.toDateString() === new Date().toDateString()
+    ? t('localAi.today')
+    : date.toLocaleDateString(locale.value, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
 };
 const assistantMessagePendingText = (message: ChatMessage): string => {
   if (message.allowThinking && !message.reasoningEndedAt)
     return t('localAi.thinking');
   return t('localAi.generating');
 };
-const toApiMessages = (
-  history: ChatHistoryView | null = activeHistory.value
-): LocalAiMessage[] => {
-  const runtimeContext = createRuntimeContextMessage();
-  const runtimeTokens = estimateChatTokens([runtimeContext]);
-  const messageBudget = Math.max(
-    64,
-    requestContextBudget.value - runtimeTokens
-  );
-  return [
-    runtimeContext,
-    ...compactMessagesForBudget(
-      getVisibleMessages(history)
-        .filter(
-          (message) =>
-            !message.streaming && !message.error && message.role !== 'system'
-        )
-        .map((message) => ({
-          role: message.role as 'user' | 'assistant',
-          content:
-            message.role === 'user'
-              ? apiUserMessageContent(message)
-              : messageAnswer(message.content)
-        })),
-      messageBudget,
-      t('localAi.previousAnswerTail')
+const prepareRequest = async (
+  history: ChatHistoryView,
+  path: ChatMessage[],
+  question: ChatMessage
+): Promise<ReplyPlan | null> => {
+  const leaf = history.currentNodeId;
+  preparingRequest.value = true;
+  try {
+    const [status, settings] = await Promise.all([
+      getLocalAiStatus().catch(() => null),
+      getLocalAiConfig().catch(() => config.value)
+    ]);
+    if (disposed) return null;
+    const plan = await planReplyContext(path, question, {
+      windowSize:
+        status?.healthy && status.ctxSize
+          ? status.ctxSize
+          : (settings?.ctxSize ?? 4096),
+      outputLimit: settings?.maxTokens ?? 0,
+      constraintsLabel: contextText('constraints'),
+      countTokens: status?.healthy
+        ? (messages) =>
+            countLocalAiPromptTokens(
+              messages,
+              thinkingEnabled.value && modelSupportsThinking.value
+            ).catch(() => null)
+        : undefined
+    });
+    if (
+      disposed ||
+      activeHistory.value !== history ||
+      history.currentNodeId !== leaf
     )
-  ];
+      return null;
+    if (!plan) {
+      const largest = [...(question.attachments ?? [])].sort(
+        (a, b) => b.size - a.size
+      )[0];
+      modal.msg(
+        largest
+          ? contextText('attachmentTooLarge', { name: largest.name })
+          : contextText('tooLarge'),
+        'warning'
+      );
+      return null;
+    }
+    sending.value = true;
+    return plan;
+  } catch (error) {
+    if (!disposed) modal.msg(formatChatError(error), 'error');
+    return null;
+  } finally {
+    preparingRequest.value = false;
+  }
 };
-const requestMaxTokens = (): number | undefined =>
-  resolveRequestMaxTokens(config.value?.maxTokens ?? 0);
 const messageContextLimit = (message: ChatMessage): number =>
   Math.max(
     1,
@@ -1840,9 +1789,9 @@ const calculateMessageStats = (message: ChatMessage) => {
     contextPercent: Math.min(100, Math.round((context / contextMax) * 100)),
     output,
     outputMax:
-      (config.value?.maxTokens ?? 0) > 0
-        ? String(config.value?.maxTokens)
-        : '∞',
+      message.requestOutputLimit === undefined
+        ? '—'
+        : message.requestOutputLimit || contextText('automatic'),
     seconds: elapsedSeconds.toFixed(1),
     speed: speed.toFixed(1)
   };
@@ -1865,13 +1814,8 @@ const messageWarningText = (message: ChatMessage): string => {
   if (message.repetitionStopped) return t('localAi.repetitionStopped');
   if (message.interrupted) return t('localAi.streamInterrupted');
   if (message.stopped) return t('localAi.generationStopped');
-  if (message.stats?.finishReason === 'length') {
-    const estimatedContext =
-      message.stats?.totalTokens ?? messageStats(message).context;
-    return estimatedContext >= messageContextLimit(message) - 8
-      ? t('localAi.contextLimitReached')
-      : t('localAi.outputLimitReached');
-  }
+  const reason = replyLimitReason(message);
+  if (reason) return contextText(reason);
   return '';
 };
 const formatChatError = (error: unknown): string => {
@@ -1944,52 +1888,34 @@ const markMessageStopped = (message: ChatMessage, elapsedMs?: number): void => {
     message.reasoningEndedAt = Date.now();
   }
   if (elapsedMs !== undefined) message.elapsedMs = elapsedMs;
-  discardStreamingMarkdown(message.id);
   statsTick.value = Date.now();
 };
 const streamAssistantMessage = async (
   assistantMessage: ChatMessage,
-  history: ChatHistoryView,
+  plan: ReplyPlan,
   requestId: string
 ) => {
   const startedAt = performance.now();
   assistantMessage.modelName = currentModelDisplay.value;
-  let messages = toApiMessages(history);
-  if (estimateChatTokens(messages) > requestContextBudget.value)
-    throw new Error(t('localAi.contextTooLarge'));
   let queuedContent = '';
-  let pumpTimer: number | null = null;
-  let drainResolver: (() => void) | null = null;
-  let receivedDelta = false;
+  let paintFrame: number | null = null;
   let repetitionStopRequested = false;
   if (stopRequested.value) {
     markMessageStopped(assistantMessage, performance.now() - startedAt);
     clearGeneration(requestId);
     return;
   }
-  messages = mergeSystemMessages(messages);
-  assistantMessage.promptTokens = estimateChatTokens(messages);
-  assistantMessage.contextSize = effectiveContextLimit.value;
+  assistantMessage.promptTokens = plan.promptTokens;
+  assistantMessage.contextSize = plan.windowSize;
+  assistantMessage.contextCompacted = plan.compacted;
+  assistantMessage.requestOutputLimit = plan.outputLimit;
 
-  const pump = async () => {
-    if (!queuedContent) {
-      pumpTimer = null;
-      drainResolver?.();
-      drainResolver = null;
-      return;
-    }
-
-    const take = stopRequested.value
-      ? queuedContent.length
-      : queuedContent.length > 4000
-        ? 900
-        : queuedContent.length > 1200
-          ? 520
-          : queuedContent.length > 240
-            ? 180
-            : 64;
-    assistantMessage.content += queuedContent.slice(0, take);
-    queuedContent = queuedContent.slice(take);
+  const flushText = () => {
+    if (paintFrame !== null) window.cancelAnimationFrame(paintFrame);
+    paintFrame = null;
+    if (!queuedContent) return;
+    assistantMessage.content += queuedContent;
+    queuedContent = '';
     assistantMessage.estimatedCompletionTokens = estimateStreamingOutputTokens(
       assistantMessage.content
     );
@@ -2007,49 +1933,22 @@ const streamAssistantMessage = async (
         logger.warn('[LocalAI] repetition stop failed', error)
       );
     }
-    // A hidden window can suspend animation frames; keep draining model output.
-    void scrollToBottom();
-    if (!queuedContent) {
-      pumpTimer = null;
-      drainResolver?.();
-      drainResolver = null;
-      return;
-    }
-    pumpTimer = window.setTimeout(() => {
-      pump().catch((error) =>
-        logger.warn('[LocalAI] stream pump failed', error)
-      );
-    }, STREAM_PUMP_INTERVAL_MS);
   };
-
-  const enqueueContent = (value: string) => {
-    if (!value) return;
-    recordReasoningProgress(assistantMessage, value);
-    queuedContent += value;
-    if (pumpTimer !== null) return;
-    pumpTimer = window.setTimeout(() => {
-      pump().catch((error) =>
-        logger.warn('[LocalAI] stream pump failed', error)
-      );
-    }, 32);
-  };
-  const waitForPumpDrain = async () => {
-    if (!queuedContent && pumpTimer === null) return;
-    await new Promise<void>((resolve) => {
-      drainResolver = resolve;
-    });
-  };
+  flushCurrentText = flushText;
 
   const response = await streamChatWithAi(
     {
-      messages,
-      maxTokens: requestMaxTokens(),
+      messages: plan.messages,
+      maxTokens: plan.outputLimit,
       enableThinking: assistantMessage.allowThinking === true
     },
     (delta) => {
-      if (stopRequested.value) return;
-      receivedDelta = true;
-      enqueueContent(delta);
+      if (stopRequested.value || !delta) return;
+      recordReasoningProgress(assistantMessage, delta);
+      queuedContent += delta;
+      if (document.hidden) flushText();
+      else if (paintFrame === null)
+        paintFrame = window.requestAnimationFrame(flushText);
     },
     {
       providerId: LOCAL_AI_PROVIDER_ID,
@@ -2067,34 +1966,30 @@ const streamAssistantMessage = async (
         statsTick.value = Date.now();
       }
     }
-  ).catch(async (error) => {
-    await waitForPumpDrain();
-    throw error;
+  ).finally(() => {
+    // Completion, interruption and errors must also drain in a hidden WebView.
+    flushText();
+    flushCurrentText = undefined;
   });
 
-  if (!receivedDelta) {
-    enqueueContent(response.content);
-  } else if (!stopRequested.value) {
-    const visibleLength =
-      assistantMessage.content.length + queuedContent.length;
-    if (response.content.length > visibleLength) {
-      enqueueContent(response.content.slice(visibleLength));
-    }
-  }
-
-  await waitForPumpDrain();
   assistantMessage.modelName = response.modelName || assistantMessage.modelName;
   if (
     !stopRequested.value &&
     response.content &&
     assistantMessage.content !== response.content
   ) {
+    const received = assistantMessage.content;
+    if (response.content.startsWith(received)) {
+      recordReasoningProgress(
+        assistantMessage,
+        response.content.slice(received.length)
+      );
+    }
     assistantMessage.content = response.content;
   }
   assistantMessage.estimatedCompletionTokens =
     assistantMessage.stats?.completionTokens ??
     estimateStreamingOutputTokens(assistantMessage.content);
-  discardStreamingMarkdown(assistantMessage.id);
   assistantMessage.streaming = false;
   assistantMessage.elapsedMs = performance.now() - startedAt;
   assistantMessage.stopped = stopRequested.value;
@@ -2107,6 +2002,7 @@ const stopGeneration = async () => {
   const requestId = currentStreamRequestId.value;
   if (!sending.value || stopRequested.value) return;
   stopRequested.value = true;
+  flushCurrentText?.();
   const streamingMessage = currentStreamingMessage.value;
   if (streamingMessage) {
     markMessageStopped(
@@ -2150,22 +2046,45 @@ const validateBeforeSend = (): boolean => {
   }
   return true;
 };
-const sendMessage = async () => {
-  const content = draft.value.trim();
-  if (navigationLocked.value || !validateBeforeSend()) return;
+const sendMessage = async (continuing?: ChatMessage) => {
+  if (navigationLocked.value) return;
+  if (
+    continuing &&
+    (continuing.id !== activeMessages.value.at(-1)?.id ||
+      !replyLimitReason(continuing))
+  )
+    return;
+  if (!continuing && !validateBeforeSend()) return;
+  const content = continuing
+    ? contextText('continuePrompt')
+    : draft.value.trim();
   ensureActiveHistory();
   const createdAt = new Date().toISOString();
-  const submittedAttachments = cloneLocalAiAttachments(attachments.value);
+  const submittedAttachments = continuing
+    ? []
+    : cloneLocalAiAttachments(attachments.value);
   const titleSource = content || submittedAttachments[0]?.name || '';
   const current = activeHistory.value;
   if (!current) return;
-  const userMessage = appendMessageNode(current, {
+  const question: ChatMessage = {
     id: createMessageId('user'),
     role: 'user',
     content,
     createdAt,
-    attachments: submittedAttachments
-  });
+    attachments: submittedAttachments,
+    continuationMode: continuing
+      ? replyLimitReason(continuing) === 'context'
+        ? 'compact'
+        : 'continue'
+      : undefined
+  };
+  const plan = await prepareRequest(
+    current,
+    getVisibleMessages(current),
+    question
+  );
+  if (!plan) return;
+  const userMessage = appendMessageNode(current, question);
   const assistantMessage = appendMessageNode(current, {
     id: createMessageId('assistant'),
     role: 'assistant',
@@ -2174,18 +2093,19 @@ const sendMessage = async () => {
     parentId: userMessage.id,
     streaming: true,
     allowThinking: thinkingEnabled.value && modelSupportsThinking.value,
-    contextSize: effectiveContextLimit.value
+    contextSize: plan.windowSize
   });
-  draft.value = '';
-  attachments.value = [];
-  sending.value = true;
+  if (!continuing) {
+    draft.value = '';
+    attachments.value = [];
+  }
   const requestId = beginGeneration(assistantMessage);
   startStatsTicker();
   await scrollToBottom({ force: true });
   const startedAt = performance.now();
 
   try {
-    await streamAssistantMessage(assistantMessage, current, requestId);
+    await streamAssistantMessage(assistantMessage, plan, requestId);
     if (current) {
       current.title =
         current.title === t('localAi.newChatTitle')
@@ -2195,11 +2115,12 @@ const sendMessage = async () => {
       current.updatedAtLabel = new Date(current.updatedAt).toLocaleString();
       await persistHistory(current);
     }
-    await refreshStatus();
   } catch (error) {
     if (!stopRequested.value) {
-      draft.value = content;
-      attachments.value = submittedAttachments;
+      if (!continuing && !draft.value && !attachments.value.length) {
+        draft.value = content;
+        attachments.value = submittedAttachments;
+      }
       const chatError = formatChatError(error);
       modal.msg(`${t('localAi.chatFailed')}: ${chatError}`, 'error');
       markAssistantMessageFailed(assistantMessage, chatError);
@@ -2222,7 +2143,6 @@ const sendMessage = async () => {
       await persistHistory(current);
     }
     assistantMessage.streaming = false;
-    discardStreamingMarkdown(assistantMessage.id);
     assistantMessage.elapsedMs = performance.now() - startedAt;
   } finally {
     sending.value = false;
@@ -2280,7 +2200,7 @@ const copyMessage = async (message: ChatMessage) => {
   }
 };
 const deleteMessage = async (messageId: string) => {
-  if (sending.value) return;
+  if (navigationLocked.value) return;
   const current = activeHistory.value;
   if (!current) return;
   const result = deleteMessageBranch(
@@ -2325,7 +2245,7 @@ const deleteMessage = async (messageId: string) => {
   }
 };
 const editMessage = (message: ChatMessage) => {
-  if (sending.value) return;
+  if (navigationLocked.value) return;
   draft.value = message.content;
   attachments.value = cloneLocalAiAttachments(message.attachments);
   if (activeHistory.value && message.parentId) {
@@ -2339,7 +2259,7 @@ const messageVersionLabel = (display: ChatDisplayMessage): string =>
     total: display.siblingLeafNodeIds.length
   });
 const changeMessageVersion = (display: ChatDisplayMessage, delta: number) => {
-  if (sending.value) return;
+  if (navigationLocked.value) return;
   const current = activeHistory.value;
   if (!current) return;
   const nextIndex = display.siblingCurrentIndex + delta;
@@ -2350,7 +2270,7 @@ const changeMessageVersion = (display: ChatDisplayMessage, delta: number) => {
 };
 const forkFromMessage = async (messageId: string) => {
   const current = activeHistory.value;
-  if (!current || sending.value) return;
+  if (!current || navigationLocked.value) return;
   const source = current.messages.find((message) => message.id === messageId);
   if (!source || source.role !== 'assistant') return;
 
@@ -2397,9 +2317,14 @@ const forkFromMessage = async (messageId: string) => {
 };
 const regenerateMessage = async (messageId: string) => {
   const current = activeHistory.value;
-  if (!current || sending.value) return;
+  if (!current || navigationLocked.value) return;
   const source = current.messages.find((message) => message.id === messageId);
   if (!source || source.role !== 'assistant' || !source.parentId) return;
+  const path = getPathToNode(current.messages, source.parentId);
+  const question = path.pop();
+  if (question?.role !== 'user') return;
+  const plan = await prepareRequest(current, path, question);
+  if (!plan) return;
   current.currentNodeId = source.parentId;
   const assistantMessage = appendMessageNode(current, {
     id: createMessageId('assistant'),
@@ -2410,13 +2335,12 @@ const regenerateMessage = async (messageId: string) => {
     streaming: true,
     allowThinking: thinkingEnabled.value && modelSupportsThinking.value
   });
-  sending.value = true;
   const requestId = beginGeneration(assistantMessage);
   startStatsTicker();
   await scrollToBottom({ force: true });
   const startedAt = performance.now();
   try {
-    await streamAssistantMessage(assistantMessage, current, requestId);
+    await streamAssistantMessage(assistantMessage, plan, requestId);
     current.updatedAt = new Date().toISOString();
     current.updatedAtLabel = new Date(current.updatedAt).toLocaleString();
     await persistHistory(current);
@@ -2434,7 +2358,6 @@ const regenerateMessage = async (messageId: string) => {
       await persistHistory(current);
     }
     assistantMessage.streaming = false;
-    discardStreamingMarkdown(assistantMessage.id);
     assistantMessage.elapsedMs = performance.now() - startedAt;
   } finally {
     sending.value = false;
@@ -2504,16 +2427,20 @@ onMounted(async () => {
     }
   }
   await handleProductNavigation();
-  statusTimer = setInterval(() => {
-    refreshStatus().catch((error) =>
-      logger.warn('[LocalAI] status timer failed', error)
-    );
-  }, 8000);
 });
+watch(
+  () => navigationLocked.value && !serviceStatus.value?.healthy,
+  (waitingForService, _, onCleanup) => {
+    const timer = setInterval(refreshStatus, waitingForService ? 1500 : 8000);
+    onCleanup(() => clearInterval(timer));
+  },
+  { immediate: true }
+);
 watch(modelSupportsThinking, (supported) => {
   if (!supported) thinkingEnabled.value = false;
 });
 onUnmounted(() => {
+  disposed = true;
   savedNoteSyncActive = false;
   if (savedNoteSyncTimer) clearTimeout(savedNoteSyncTimer);
   window.removeEventListener('refresh-data', scheduleSavedNoteSync);
@@ -2530,7 +2457,6 @@ onUnmounted(() => {
     'local-ai-new-chat-requested',
     handleNewChatRequestEvent
   );
-  if (statusTimer) clearInterval(statusTimer);
   window.removeEventListener('keydown', handleGlobalKeydown);
   if (currentStreamRequestId.value) {
     void cancelAiChatStream(currentStreamRequestId.value, {

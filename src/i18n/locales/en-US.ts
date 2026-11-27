@@ -3027,7 +3027,7 @@ export default {
     minP: 'Min P',
     repeatPenalty: 'Repeat penalty',
     repeatLastN: 'Penalty window',
-    maxTokens: 'Max tokens (0=unlimited)',
+    maxTokens: 'Maximum output tokens (0 = auto)',
     port: 'Port',
     estimatedMemory: 'Estimated memory usage',
     estimateBeta: 'Estimate',
@@ -3079,7 +3079,8 @@ export default {
       minP: 'Filter low-probability tokens. Moderate values reduce nonsense.',
       repeatPenalty: 'Penalty applied to repeated tokens.',
       repeatLastN: 'Token window used by the repetition penalty.',
-      maxTokens: 'Maximum output tokens per response. 0 means no app-side cap.',
+      maxTokens:
+        'In auto mode, chat reserves about half the context window for the reply. It can generate more when space allows.',
       port: 'Local llama-server port.'
     }
   }

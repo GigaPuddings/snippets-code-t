@@ -6,8 +6,6 @@ import type {
 import { buildPromptWithFileAttachments } from '@/utils/localAiAttachments';
 import type { ChatMessage } from './types';
 
-const MIN_ASSISTANT_TAIL_TOKENS = 160;
-
 export const estimateTokens = (value: string): number => {
   const text = value.trim();
   if (!text) return 0;
@@ -26,25 +24,18 @@ export const estimateTokens = (value: string): number => {
 export const estimateStreamingOutputTokens = (value: string): number =>
   Math.max(0, Math.ceil(value.length / 4));
 
-export const resolveRequestMaxTokens = (
-  configuredMaxTokens: number
-): number | undefined =>
-  Number.isFinite(configuredMaxTokens) && configuredMaxTokens > 0
-    ? Math.floor(configuredMaxTokens)
-    : undefined;
-
 export const resolveRequestContextBudget = (
   contextLimit: number,
   configuredMaxTokens: number
 ): number => {
   const responseReserve =
     configuredMaxTokens > 0
-      ? Math.max(configuredMaxTokens, 512)
-      : Math.max(512, Math.floor(contextLimit * 0.5));
-  return Math.max(
-    512,
-    contextLimit - Math.min(responseReserve, Math.max(512, contextLimit - 512))
-  );
+      ? configuredMaxTokens
+      : Math.floor(contextLimit / 2);
+  // Leave room for template delimiters and the model's special tokens.
+  const margin = Math.min(256, Math.ceil(contextLimit * 0.02));
+  const minimumInput = Math.min(512, Math.floor(contextLimit / 2));
+  return Math.max(minimumInput, contextLimit - responseReserve) - margin;
 };
 
 export const markAssistantMessageFailed = (
@@ -106,21 +97,16 @@ export const apiUserMessageContent = (
 };
 
 export const estimateChatTokens = (messages: LocalAiMessage[]): number =>
-  estimateTokens(
-    messages
-      .map((message) => `${message.role}: ${contentText(message.content)}`)
-      .join('\n')
-  );
-
-const truncateContentForBudget = (
-  content: string,
-  budgetTokens: number,
-  previousAnswerTailLabel: string
-): string => {
-  const maxChars = Math.max(240, budgetTokens * 4);
-  if (content.length <= maxChars) return content;
-  return `${previousAnswerTailLabel}\n\n${content.slice(-maxChars)}`;
-};
+  messages.reduce((sum, message) => {
+    // Text tokenizers cannot measure vision embeddings. Reserve space per image
+    // when a model-specific vision count is unavailable.
+    const images = Array.isArray(message.content)
+      ? message.content.filter((part) => part.type === 'image_url').length
+      : 0;
+    return (
+      sum + 4 + estimateTokens(contentText(message.content)) + images * 1024
+    );
+  }, 0);
 
 const padDatePart = (value: number): string => String(value).padStart(2, '0');
 
@@ -165,95 +151,4 @@ export const createRuntimeContextMessage = (
       'For questions involving today, the current date, or the current time, use this runtime context as the source of truth rather than model memory.'
     ].join('\n')
   };
-};
-
-export const mergeSystemMessages = (
-  messages: LocalAiMessage[]
-): LocalAiMessage[] => {
-  const systemContents = messages
-    .filter((message) => message.role === 'system')
-    .map((message) => contentText(message.content).trim())
-    .filter(Boolean);
-  const nonSystemMessages = messages.filter(
-    (message) => message.role !== 'system'
-  );
-  if (!systemContents.length) return nonSystemMessages;
-  return [
-    { role: 'system', content: systemContents.join('\n\n---\n\n') },
-    ...nonSystemMessages
-  ];
-};
-
-const fitAssistantTail = (
-  message: LocalAiMessage,
-  remainingTokens: number,
-  previousAnswerTailLabel: string
-): LocalAiMessage | null => {
-  if (
-    message.role !== 'assistant' ||
-    typeof message.content !== 'string' ||
-    remainingTokens < MIN_ASSISTANT_TAIL_TOKENS
-  ) {
-    return null;
-  }
-
-  let tailBudget = remainingTokens;
-  let candidate: LocalAiMessage = {
-    ...message,
-    content: truncateContentForBudget(
-      message.content,
-      tailBudget,
-      previousAnswerTailLabel
-    )
-  };
-  while (
-    estimateChatTokens([candidate]) > remainingTokens &&
-    tailBudget > MIN_ASSISTANT_TAIL_TOKENS
-  ) {
-    tailBudget = Math.max(
-      MIN_ASSISTANT_TAIL_TOKENS,
-      Math.floor(tailBudget * 0.7)
-    );
-    candidate = {
-      ...message,
-      content: truncateContentForBudget(
-        message.content,
-        tailBudget,
-        previousAnswerTailLabel
-      )
-    };
-  }
-  return estimateChatTokens([candidate]) <= remainingTokens ? candidate : null;
-};
-
-export const compactMessagesForBudget = (
-  messages: LocalAiMessage[],
-  tokenBudget: number,
-  previousAnswerTailLabel: string
-): LocalAiMessage[] => {
-  const compacted: LocalAiMessage[] = [];
-  let usedTokens = 0;
-
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    const messageTokens = estimateChatTokens([message]);
-
-    if (usedTokens + messageTokens <= tokenBudget || compacted.length === 0) {
-      compacted.unshift(message);
-      usedTokens += messageTokens;
-      continue;
-    }
-
-    const remainingTokens = tokenBudget - usedTokens;
-    const assistantTail = fitAssistantTail(
-      message,
-      remainingTokens,
-      previousAnswerTailLabel
-    );
-    if (!assistantTail) continue;
-    compacted.unshift(assistantTail);
-    usedTokens += estimateChatTokens([assistantTail]);
-  }
-
-  return compacted;
 };

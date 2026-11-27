@@ -198,6 +198,16 @@ export async function getLocalAiStatus(): Promise<LocalAiServiceStatus> {
   return await invoke<LocalAiServiceStatus>('local_ai_get_status');
 }
 
+export function countLocalAiPromptTokens(
+  messages: LocalAiMessage[],
+  enableThinking: boolean
+): Promise<number | null> {
+  return invoke<number | null>('local_ai_count_prompt_tokens', {
+    messages,
+    enableThinking
+  });
+}
+
 export async function startLocalAiService(
   config?: LocalAiConfig
 ): Promise<LocalAiServiceStatus> {

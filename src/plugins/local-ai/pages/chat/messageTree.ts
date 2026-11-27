@@ -167,13 +167,14 @@ export const appendMessageNode = (
     parentId,
     childIds: []
   };
-  history.messages.push(node);
+  const count = history.messages.push(node);
   if (parentId) {
     const parent = history.messages.find((item) => item.id === parentId);
     if (parent) parent.childIds = [...(parent.childIds ?? []), node.id];
   }
   history.currentNodeId = node.id;
-  return node;
+  // Read through the history so streamed writes update Vue's observed message.
+  return history.messages[count - 1];
 };
 
 export const collectDescendantIds = (

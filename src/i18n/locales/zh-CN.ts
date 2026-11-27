@@ -2864,7 +2864,7 @@ export default {
     minP: 'Min P',
     repeatPenalty: '重复惩罚',
     repeatLastN: '惩罚窗口',
-    maxTokens: '最大 token（0=无限）',
+    maxTokens: '最大输出 token（0 = 自动）',
     port: '端口',
     estimatedMemory: '预估内存占用',
     estimateBeta: '估算',
@@ -2908,7 +2908,8 @@ export default {
       minP: '过滤低概率 token，适度提高可减少胡言乱语。',
       repeatPenalty: '重复惩罚，越高越不容易复读。',
       repeatLastN: '重复惩罚回看窗口。',
-      maxTokens: '单次回复最大输出 token，0 表示不主动限制。',
+      maxTokens:
+        '自动模式下，聊天会为回复预留约一半上下文窗口。剩余空间允许时，回复可以更长。',
       port: '本地 llama-server 监听端口。'
     }
   }
